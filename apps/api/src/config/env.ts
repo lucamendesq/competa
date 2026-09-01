@@ -10,6 +10,7 @@ const envSchema = z.object({
   DB_NAME: z.string({ error: 'DB_NAME is required' }),
   BETTER_AUTH_SECRET: z.string({ error: 'BETTER_AUTH_SECRET is required' }),
   BETTER_AUTH_URL: z.string({ error: 'BETTER_AUTH_URL is required' }),
+  WEB_URL: z.url({ error: 'WEB_URL is required' }),
 });
 
 type Env = z.infer<typeof envSchema>;

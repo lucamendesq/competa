@@ -1,14 +1,15 @@
-import { BadRequestException, PipeTransform } from '@nestjs/common';
+import { PipeTransform } from '@nestjs/common';
 import * as z from 'zod';
+import { ValidationError } from './app-error.js';
 
-/** Validates a @Body/@Query/@Param against a Zod schema.
- *  Unknown keys are stripped, so it also covers class-transformer's job. */
+/** Valida @Body/@Query/@Param contra um schema de @contabilidade/contracts.
+ *  Chaves desconhecidas são removidas. */
 export const zodPipe = (schema: z.ZodType): PipeTransform => ({
   transform(value: unknown) {
     const result = schema.safeParse(value);
 
     if (!result.success) {
-      throw new BadRequestException(z.flattenError(result.error));
+      throw new ValidationError('Dados inválidos.', z.flattenError(result.error));
     }
 
     return result.data;
