@@ -575,7 +575,7 @@ cd apps/api && docker compose up -d && pnpm drizzle-push
 Esperado: `drizzle-kit` cria `accounting_firm`, `accountant`, `company`, `contact`, `invite` sem erro.
 
 ```bash
-psql "$DATABASE_URL_LOCAL" -c '\d invite'
+cd apps/api && docker compose exec -T db sh -c 'psql -U "$POSTGRES_USER" -d "$POSTGRES_DB" -c "\\d invite"' 
 ```
 Esperado: coluna `token_hash` única, `expires_at timestamptz`, check `invite_has_one_origin`.
 
@@ -695,7 +695,7 @@ pnpm --filter api create-firm --name "Contabilidade Teste" --email luca@meetsumm
 Esperado: id da firm e um link `http://localhost:4200/convite/<token>`.
 
 ```bash
-psql "$DATABASE_URL_LOCAL" -c "select email, length(token_hash), accounting_firm_id is not null as from_firm from invite;"
+cd apps/api && docker compose exec -T db sh -c 'psql -U "$POSTGRES_USER" -d "$POSTGRES_DB" -c "select email, length(token_hash), accounting_firm_id is not null as from_firm from invite;"' 
 ```
 Esperado: 1 linha, `length = 64` (hex do SHA-256), `from_firm = t`.
 
@@ -823,15 +823,27 @@ A partir daqui **toda rota exige sessão**; rota pública precisa de `@AllowAnon
 
 Em `apps/api/src/modules/auth/auth.controller.ts`, anotar o handler `signUp` com `@AllowAnonymous()` (import de `@thallesp/nestjs-better-auth`).
 
-- [ ] **Step 6: Verificar**
+- [ ] **Step 6: Confirmar que as rotas do Better Auth estão montadas**
 
 ```bash
 cd apps/api && pnpm start:dev
-curl -s -i localhost:3000/me
+curl -s -o /dev/null -w '%{http_code}\n' -X POST localhost:3000/api/auth/sign-in/email \
+  -H 'content-type: application/json' -d '{"email":"nao@existe.com","password":"errada12345"}'
 ```
-Esperado: `401` com `{"error":{"code":"HTTP_ERROR",...}}` (a rota `/me` ainda não existe — o que importa é o guard barrar antes; se responder `404`, o guard global não está ativo).
+Esperado: **401** (credencial inválida) — significa que a rota existe.
+Se vier **404**, `disableControllers: true` está impedindo a montagem: mude para `disableControllers: false` em `app.module.ts` e repita. A Task 8 depende disso para logar.
 
-- [ ] **Step 7: Commit**
+- [ ] **Step 7: Verificar o guard**
+
+Guard global só roda em rota que existe — testar numa rota inexistente dá 404 e não prova nada. Nesta task ainda não há rota autenticada, então verifique o outro lado:
+
+```bash
+curl -s -o /dev/null -w '%{http_code}\n' -X POST localhost:3000/auth/sign-up \
+  -H 'content-type: application/json' -d '{}'
+```
+Esperado: **422** — a rota marcada com `@AllowAnonymous()` continua acessível sem sessão. (O 401 em rota protegida é verificado na Task 6, quando `POST /invites` existir.)
+
+- [ ] **Step 8: Commit**
 
 ```bash
 git add apps/api/src/modules/auth apps/api/src/app.module.ts
@@ -1234,7 +1246,7 @@ curl -s -X POST "localhost:3000/auth/sign-up?token=<TOKEN>" \
 Esperado: `{"data":{"userId":"…"}}`
 
 ```bash
-psql "$DATABASE_URL_LOCAL" -c "select a.id, f.name from accountant a join accounting_firm f on f.id = a.accounting_firm_id;"
+cd apps/api && docker compose exec -T db sh -c 'psql -U "$POSTGRES_USER" -d "$POSTGRES_DB" -c "select a.id, f.name from accountant a join accounting_firm f on f.id = a.accounting_firm_id;"' 
 ```
 Esperado: 1 linha ligando o Contador à "Contabilidade Verifica".
 
