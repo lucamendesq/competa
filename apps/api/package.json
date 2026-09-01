@@ -19,6 +19,7 @@
     "drizzle-push": "drizzle-kit push"
   },
   "dependencies": {
+    "@contabilidade/contracts": "workspace:*",
     "@faker-js/faker": "^10.6.0",
     "@nestjs/common": "^12.0.1",
     "@nestjs/config": "^12.0.0",
