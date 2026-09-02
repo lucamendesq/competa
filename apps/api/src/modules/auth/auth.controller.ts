@@ -1,4 +1,5 @@
 import { BadRequestException, Body, Controller, Post, Query } from '@nestjs/common';
+import { AllowAnonymous } from '@thallesp/nestjs-better-auth';
 import * as z from 'zod';
 import { isFailure } from '../../lib/either.js';
 import { zodPipe } from '../../lib/zod-pipe.js';
@@ -18,6 +19,7 @@ export class AuthController {
   constructor(private readonly acceptInviteUseCase: SignUpUseCase) {}
 
   @Post('sign-up')
+  @AllowAnonymous()
   async signUp(
     @Query(zodPipe(SignUpQuery)) query: SignUpQuery,
     @Body(zodPipe(SignUpBody)) body: SignUpBody,
