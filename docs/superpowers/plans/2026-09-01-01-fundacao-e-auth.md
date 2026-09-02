@@ -272,9 +272,17 @@ const ENVELOPED = Symbol('enveloped');
 
 export type Meta = { page: number; perPage: number; total: number };
 
+type Enveloped<T> = { data: T[]; meta: Meta; [ENVELOPED]: true };
+
 /** Marca um payload que já vem envelopado (coleção paginada).
  *  O símbolo não serializa em JSON, então some na resposta. */
-export const paginated = <T>(data: T[], meta: Meta) => ({ data, meta, [ENVELOPED]: true });
+export const paginated = <T>(data: T[], meta: Meta): Enveloped<T> => ({
+  data,
+  meta,
+  [ENVELOPED]: true,
+});
+
+const isEnveloped = (payload: object): payload is Enveloped<unknown> => ENVELOPED in payload;
 
 /** Envelopa toda resposta JSON em { data }. Streams (zip) e 204 passam direto. */
 @Injectable()
@@ -285,9 +293,8 @@ export class ResponseInterceptor implements NestInterceptor {
         if (payload === undefined || payload === null) return payload;
         if (payload instanceof StreamableFile) return payload;
 
-        if (typeof payload === 'object' && ENVELOPED in payload) {
-          const { data, meta } = payload as { data: unknown; meta: Meta };
-          return { data, meta };
+        if (typeof payload === 'object' && isEnveloped(payload)) {
+          return { data: payload.data, meta: payload.meta };
         }
 
         return { data: payload };
@@ -575,7 +582,7 @@ cd apps/api && docker compose up -d && pnpm drizzle-push
 Esperado: `drizzle-kit` cria `accounting_firm`, `accountant`, `company`, `contact`, `invite` sem erro.
 
 ```bash
-psql "$DATABASE_URL_LOCAL" -c '\d invite'
+cd apps/api && docker compose exec -T db sh -c 'psql -U "$POSTGRES_USER" -d "$POSTGRES_DB" -c "\\d invite"' 
 ```
 Esperado: coluna `token_hash` única, `expires_at timestamptz`, check `invite_has_one_origin`.
 
@@ -695,7 +702,7 @@ pnpm --filter api create-firm --name "Contabilidade Teste" --email luca@meetsumm
 Esperado: id da firm e um link `http://localhost:4200/convite/<token>`.
 
 ```bash
-psql "$DATABASE_URL_LOCAL" -c "select email, length(token_hash), accounting_firm_id is not null as from_firm from invite;"
+cd apps/api && docker compose exec -T db sh -c 'psql -U "$POSTGRES_USER" -d "$POSTGRES_DB" -c "select email, length(token_hash), accounting_firm_id is not null as from_firm from invite;"' 
 ```
 Esperado: 1 linha, `length = 64` (hex do SHA-256), `from_firm = t`.
 
@@ -755,7 +762,7 @@ import { Reflector } from '@nestjs/core';
 import { eq } from 'drizzle-orm';
 import { Database } from '../../infra/database/database.js';
 import { accountant } from '../../infra/database/schema/index.js';
-import { Forbidden } from '../../lib/app-error.js';
+import { Forbidden, Unauthenticated } from '../../lib/app-error.js';
 import { toFirmScope } from './scope.js';
 
 /** Roda depois do AuthGuard do Better Auth (que põe `session` no request).
@@ -777,7 +784,10 @@ export class TenantGuard implements CanActivate {
 
     const request = context.switchToHttp().getRequest();
     const authUserId = request.session?.user?.id;
-    if (!authUserId) return true; // sem sessão: o AuthGuard já barrou
+
+    // Não confie na ordem dos guards globais: se este rodar antes do AuthGuard,
+    // devolver `true` deixaria a rota seguir com firmScope undefined.
+    if (!authUserId) throw new Unauthenticated();
 
     const [row] = await this.db
       .select({ accountingFirmId: accountant.accountingFirmId })
@@ -823,15 +833,27 @@ A partir daqui **toda rota exige sessão**; rota pública precisa de `@AllowAnon
 
 Em `apps/api/src/modules/auth/auth.controller.ts`, anotar o handler `signUp` com `@AllowAnonymous()` (import de `@thallesp/nestjs-better-auth`).
 
-- [ ] **Step 6: Verificar**
+- [ ] **Step 6: Confirmar que as rotas do Better Auth estão montadas**
 
 ```bash
 cd apps/api && pnpm start:dev
-curl -s -i localhost:3000/me
+curl -s -o /dev/null -w '%{http_code}\n' -X POST localhost:3000/api/auth/sign-in/email \
+  -H 'content-type: application/json' -d '{"email":"nao@existe.com","password":"errada12345"}'
 ```
-Esperado: `401` com `{"error":{"code":"HTTP_ERROR",...}}` (a rota `/me` ainda não existe — o que importa é o guard barrar antes; se responder `404`, o guard global não está ativo).
+Esperado: **401** (credencial inválida) — significa que a rota existe.
+Se vier **404**, `disableControllers: true` está impedindo a montagem: mude para `disableControllers: false` em `app.module.ts` e repita. A Task 8 depende disso para logar.
 
-- [ ] **Step 7: Commit**
+- [ ] **Step 7: Verificar o guard**
+
+Guard global só roda em rota que existe — testar numa rota inexistente dá 404 e não prova nada. Nesta task ainda não há rota autenticada, então verifique o outro lado:
+
+```bash
+curl -s -o /dev/null -w '%{http_code}\n' -X POST localhost:3000/auth/sign-up \
+  -H 'content-type: application/json' -d '{}'
+```
+Esperado: **422** — a rota marcada com `@AllowAnonymous()` continua acessível sem sessão. (O 401 em rota protegida é verificado na Task 6, quando `POST /invites` existir.)
+
+- [ ] **Step 8: Commit**
 
 ```bash
 git add apps/api/src/modules/auth apps/api/src/app.module.ts
@@ -1234,7 +1256,7 @@ curl -s -X POST "localhost:3000/auth/sign-up?token=<TOKEN>" \
 Esperado: `{"data":{"userId":"…"}}`
 
 ```bash
-psql "$DATABASE_URL_LOCAL" -c "select a.id, f.name from accountant a join accounting_firm f on f.id = a.accounting_firm_id;"
+cd apps/api && docker compose exec -T db sh -c 'psql -U "$POSTGRES_USER" -d "$POSTGRES_DB" -c "select a.id, f.name from accountant a join accounting_firm f on f.id = a.accounting_firm_id;"' 
 ```
 Esperado: 1 linha ligando o Contador à "Contabilidade Verifica".
 
@@ -1279,7 +1301,8 @@ git commit -m "feat(api): signup exclusivamente por convite"
 `apps/api/src/modules/auth/me.controller.ts`:
 ```ts
 import { Controller, Get } from '@nestjs/common';
-import { eq } from 'drizzle-orm';
+import { Session, type UserSession } from '@thallesp/nestjs-better-auth';
+import { and, eq } from 'drizzle-orm';
 import { Database } from '../../infra/database/database.js';
 import {
   accountant,
@@ -1295,7 +1318,7 @@ export class MeController {
   constructor(private readonly db: Database) {}
 
   @Get()
-  async me(@CurrentScope() scope: FirmScope) {
+  async me(@CurrentScope() scope: FirmScope, @Session() session: UserSession) {
     const [row] = await this.db
       .select({
         accountantId: accountant.id,
@@ -1307,7 +1330,15 @@ export class MeController {
       .from(accountant)
       .innerJoin(user, eq(user.id, accountant.authUserId))
       .innerJoin(accountingFirm, eq(accountingFirm.id, accountant.accountingFirmId))
-      .where(eq(accountant.accountingFirmId, scope))
+      // filtra pelo usuário da sessão E pelo escopo: uma Contabilidade pode ter
+      // vários Contadores (convite da Task 6), então só o escopo devolveria
+      // um Contador arbitrário da firm em vez de quem está logado.
+      .where(
+        and(
+          eq(accountant.authUserId, session.user.id),
+          eq(accountant.accountingFirmId, scope),
+        ),
+      )
       .limit(1);
 
     if (!row) throw new NotFound();
@@ -1320,7 +1351,7 @@ export class MeController {
 }
 ```
 
-> Esta query filtra pelo `scope`, não pelo usuário da sessão — na Fatia 2 há um Contador por firm no fluxo verificado. Quando a firm tiver vários Contadores (já é possível via convite), troque o `where` por `eq(accountant.authUserId, sessionUserId)` **mantendo** o filtro de escopo. Anote isso como o primeiro ajuste da Fatia 3.
+> O `where` usa as duas condições de propósito. O `authUserId` identifica **quem** está pedindo; o `scope` é o guardrail de tenant, mantido mesmo sendo redundante aqui — o padrão do projeto é que todo filtro de leitura carregue o escopo, para que ninguém precise decidir caso a caso quando ele é dispensável.
 
 - [ ] **Step 2: Registrar**
 

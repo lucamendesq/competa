@@ -59,6 +59,7 @@ Envelope aplicado por um `ResponseInterceptor` global — o controller devolve o
 - Paginação por query: `?page=1&perPage=20`. Default `perPage=20`, máximo `100`. Schema `PaginationQuery` em `libs/contracts`.
 - `204 No Content` não recebe envelope.
 - Download de zip e URLs pré-assinadas são exceções explícitas (stream binário / payload próprio documentado no endpoint).
+- `/api/auth/*` (rotas do Better Auth) são exceção explícita: middleware da lib, fora do `ResponseInterceptor`, resposta no formato próprio do Better Auth (em inglês).
 
 ---
 
@@ -89,6 +90,7 @@ export abstract class AppError extends Error {
 - Controller: `if (isFailure(result)) throw result.error;`
 - `AppErrorFilter` (global, 1 arquivo) serializa `AppError`. `HttpException` do Nest e erro desconhecido caem em `INTERNAL_ERROR` (500) com `message` genérica e log do original.
 - `zodPipe` passa a lançar `ValidationError` (`code: "VALIDATION_ERROR"`, `status: 422`, `details` = `z.flattenError`).
+- `/api/auth/*` (rotas do Better Auth) são exceção explícita: middleware da lib, fora do `AppErrorFilter`, erro no formato próprio do Better Auth (em inglês), não neste catálogo.
 
 **Catálogo inicial de códigos** (cresce por módulo, sempre documentado aqui):
 
@@ -99,6 +101,7 @@ export abstract class AppError extends Error {
 | `FORBIDDEN` | 403 | sessão válida sem permissão / fora do escopo |
 | `NOT_FOUND` | 404 | recurso inexistente **ou de outro tenant** (nunca revelar a diferença) |
 | `INVITE_NOT_FOUND` / `INVITE_EXPIRED` / `INVITE_ALREADY_ACCEPTED` | 404 / 410 / 409 | fluxo de convite |
+| `INVITE_EMAIL_MISMATCH` | 422 | signup com email diferente do convidado |
 | `EMAIL_ALREADY_REGISTERED` | 409 | signup com email existente |
 | `COMPANY_WITHOUT_CONTACT_EMAIL` | 422 | fan-out ou envio sem email |
 | `PERIOD_ALREADY_OPEN` | 409 | competência já aberta para o mês |
@@ -106,6 +109,7 @@ export abstract class AppError extends Error {
 | `UPLOAD_LINK_INVALID` / `UPLOAD_LINK_EXPIRED` / `UPLOAD_LINK_REVOKED` | 404 / 410 / 410 | Link de Upload (mensagem genérica — não revela existência) |
 | `FILE_TOO_LARGE` / `TOO_MANY_FILES` / `FORMAT_NOT_ACCEPTED` | 422 | limites de upload |
 | `ITEM_NOT_REVIEWABLE` | 409 | transição de estado inválida do Item |
+| `INVITE_TARGET_UNSUPPORTED` | 501 | convite cujo destino (ex.: Empresa/`contact`) ainda não tem fluxo de aceite implementado |
 | `INTERNAL_ERROR` | 500 | fallback |
 
 ---

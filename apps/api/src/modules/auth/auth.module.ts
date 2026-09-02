@@ -1,0 +1,21 @@
+import { Module } from '@nestjs/common';
+import { AuthProvider } from './auth-provider.js';
+import { BetterAuthAdapter } from '../../infra/auth/better-auth.adapter.js';
+import { AuthController } from './auth.controller.js';
+import { AccountantRepository } from './accountant.repository.js';
+import { InviteController } from './invite.controller.js';
+import { InviteRepository } from './invite.repository.js';
+import { MeController } from './me.controller.js';
+import { SignUpUseCase } from './usecases/sign-up.usecase.js';
+
+@Module({
+  providers: [
+    { provide: AuthProvider, useClass: BetterAuthAdapter },
+    SignUpUseCase,
+    InviteRepository,
+    AccountantRepository,
+  ],
+  exports: [AuthProvider],
+  controllers: [AuthController, InviteController, MeController],
+})
+export class AuthModule {}
