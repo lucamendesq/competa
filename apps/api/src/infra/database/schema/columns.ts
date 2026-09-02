@@ -1,7 +1,6 @@
 import { timestamp, uuid } from 'drizzle-orm/pg-core';
 import { v7 as uuidv7 } from 'uuid';
 
-/** PK padrão: uuidv7 gerado na aplicação (ordenação temporal de graça). */
 export const id = () =>
   uuid()
     .primaryKey()
