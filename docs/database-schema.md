@@ -24,7 +24,7 @@ Direção de dependência (convenção): `registry` → `collection` → `messag
 
 ## Convenções
 
-1. PK `uuid` default `gen_random_uuid()`; FKs com sufixo `_id`.
+1. PK `uuid`; `id` gerado como `uuidv7()` **na aplicação** (não `default gen_random_uuid()` — ordenação temporal de graça; §8.7 do spec). FKs com sufixo `_id`.
 2. Estados como `text` + `check` constraint (nunca enum nativo do Postgres — migração dolorosa).
 3. Toda tabela alcança `accounting_firm_id` (direto ou por join) — **isolamento por tenant é obrigação da camada de aplicação**: guards da API Nest injetam `FirmScope`/`UploadScope` (tipos branded) e todo repositório os exige por assinatura. RLS nativa é endurecimento futuro.
 4. `accounting_firm_id IS NULL` em `document_type`/`checklist_template` = registro **seed do produto**, imutável pelas Contabilidades.
@@ -36,20 +36,20 @@ Direção de dependência (convenção): `registry` → `collection` → `messag
 
 ```sql
 create table accounting_firm (            -- Contabilidade (tenant raiz)
-  id    uuid primary key default gen_random_uuid(),
+  id    uuid primary key,
   name  text not null
 );
 
-create table accountant (                 -- Contador (v1: um por tenant)
-  id                  uuid primary key default gen_random_uuid(),
+create table accountant (                 -- Contador (N por Contabilidade, via convite — D-01)
+  id                  uuid primary key,
   accounting_firm_id  uuid not null references accounting_firm(id),
-  auth_user_id        text not null unique,   -- Better Auth user.id
+  auth_user_id        uuid not null unique references "user"(id),   -- Better Auth user.id
   name                text not null,
   email               text not null
 );
 
 create table document_type (              -- Catálogo (dicionário) de documentos
-  id                  uuid primary key default gen_random_uuid(),
+  id                  uuid primary key,
   accounting_firm_id  uuid references accounting_firm(id),  -- NULL = seed do produto
   name                text not null,      -- conteúdo em PT-BR (dado, não identificador)
   category            text not null check (category in
@@ -59,14 +59,14 @@ create table document_type (              -- Catálogo (dicionário) de document
 );
 
 create table checklist_template (         -- Template de Checklist ("Template ME"…)
-  id                  uuid primary key default gen_random_uuid(),
+  id                  uuid primary key,
   accounting_firm_id  uuid references accounting_firm(id),  -- NULL = template fixo do produto
   name                text not null,
   derived_from        uuid references checklist_template(id) -- rastreia cópia do fixo
 );
 
 create table checklist_template_item (    -- composição N:N template ↔ documento
-  id                     uuid primary key default gen_random_uuid(),
+  id                     uuid primary key,
   checklist_template_id  uuid not null references checklist_template(id),
   document_type_id       uuid not null references document_type(id),
   periodicity            text not null default 'monthly'
@@ -81,7 +81,7 @@ create table checklist_template_item (    -- composição N:N template ↔ docum
 );
 
 create table company (                    -- Empresa (cliente da Contabilidade)
-  id                     uuid primary key default gen_random_uuid(),
+  id                     uuid primary key,
   accounting_firm_id     uuid not null references accounting_firm(id),
   checklist_template_id  uuid not null references checklist_template(id), -- escolhido no cadastro
   name                   text not null,
@@ -92,16 +92,32 @@ create table company (                    -- Empresa (cliente da Contabilidade)
 );
 
 create table contact (                    -- Responsável (recebe o link, envia documentos)
-  id            uuid primary key default gen_random_uuid(),
+  id            uuid primary key,
   company_id    uuid not null references company(id),
   name          text not null,
   email         text not null,            -- invariante: sem email não há Solicitação
   phone         text,                     -- habilita WhatsApp
-  auth_user_id  text unique               -- Better Auth user.id; preenchido se cadastrar no App
+  auth_user_id  uuid unique references "user"(id)
+                                          -- nullable (D-04): login do Responsável é opcional,
+                                          -- preenchido só se cadastrar no App; upload nunca exige conta
+);
+
+create table invite (                     -- Convite (D-03): serve os dois casos —
+                                          -- convidar Contador (accounting_firm_id) ou
+                                          -- convidar Responsável para o App (company_id)
+  id                  uuid primary key,
+  token_hash          text not null unique,     -- nunca o token em claro (mesmo padrão de upload_link)
+  email               text not null,            -- para quem o convite foi emitido
+  accounting_firm_id  uuid references accounting_firm(id) on delete cascade,
+  company_id          uuid references company(id) on delete cascade,
+  expires_at          timestamptz not null,
+  accepted_at         timestamptz,
+  deleted_at          timestamptz,
+  constraint invite_has_one_origin check (num_nonnulls(accounting_firm_id, company_id) = 1)
 );
 
 create table company_checklist_override ( -- edição leve por Empresa
-  id                uuid primary key default gen_random_uuid(),
+  id                uuid primary key,
   company_id        uuid not null references company(id),
   document_type_id  uuid not null references document_type(id),
   action            text not null check (action in ('add','remove')),
@@ -118,7 +134,7 @@ create table company_checklist_override ( -- edição leve por Empresa
 
 ```sql
 create table period (                     -- Competência
-  id                  uuid primary key default gen_random_uuid(),
+  id                  uuid primary key,
   accounting_firm_id  uuid not null references accounting_firm(id),
   reference_month     date not null,     -- sempre dia 1: 2026-07-01 = competência 2026-07
   status              text not null default 'open' check (status in ('open','closed')),
@@ -127,7 +143,7 @@ create table period (                     -- Competência
 );
 
 create table request (                    -- Solicitação (UMA Empresa em UMA Competência)
-  id          uuid primary key default gen_random_uuid(),
+  id          uuid primary key,
   period_id   uuid not null references period(id),
   company_id  uuid not null references company(id),
   status      text not null default 'open' check (status in ('open','complete','closed')),
@@ -136,7 +152,7 @@ create table request (                    -- Solicitação (UMA Empresa em UMA C
 );
 
 create table request_item (               -- Item — SNAPSHOT congelado na abertura
-  id                uuid primary key default gen_random_uuid(),
+  id                uuid primary key,
   request_id        uuid not null references request(id),
   document_type_id  uuid references document_type(id),  -- só p/ relatórios; campos abaixo são cópia
   name              text not null,        -- copiado do document_type na abertura
@@ -150,7 +166,7 @@ create table request_item (               -- Item — SNAPSHOT congelado na aber
 create index request_item_pending_idx on request_item (request_id, status); -- Painel de Pendências
 
 create table document (                   -- arquivo enviado (1 Item : N Documentos)
-  id                uuid primary key default gen_random_uuid(),
+  id                uuid primary key,
   request_id        uuid not null references request(id),
   request_item_id   uuid references request_item(id),   -- NULL = Documento Extra
   storage_key       text not null,        -- caminho no R2
@@ -164,7 +180,7 @@ create table document (                   -- arquivo enviado (1 Item : N Documen
 );
 
 create table upload_link (                -- Link de Upload (token próprio; NÃO é sessão/auth)
-  id          uuid primary key default gen_random_uuid(),
+  id          uuid primary key,
   request_id  uuid not null references request(id),
   contact_id  uuid not null references contact(id),
   token_hash  text not null unique,       -- nunca o token em claro
@@ -177,7 +193,7 @@ create table upload_link (                -- Link de Upload (token próprio; NÃ
 
 ```sql
 create table message (                    -- log/outbox de tudo que sai
-  id          uuid primary key default gen_random_uuid(),
+  id          uuid primary key,
   request_id  uuid not null references request(id),
   channel     text not null check (channel in ('email','whatsapp','push')),
   purpose     text not null check (purpose in

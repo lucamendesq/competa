@@ -14,7 +14,7 @@ SaaS que elimina o garimpo manual de documentos contábeis: a Contabilidade defi
 
 | Ator | Quem é | O que faz |
 |------|--------|-----------|
-| **Contador** | Usuário da Contabilidade (v1: único por tenant) | Cadastra Empresas, escolhe/deriva templates, aplica overrides, abre/encerra competências, revisa documentos (em lote por item), baixa zips |
+| **Contador** | Usuário da Contabilidade (N Contadores por Contabilidade, via convite) | Cadastra Empresas, escolhe/deriva templates, aplica overrides, abre/encerra competências, revisa documentos (em lote por item), baixa zips |
 | **Responsável** | Pessoa de contato da Empresa | Recebe o link por email/WhatsApp, envia documentos pelo navegador (sem senha) ou pelo App (com cadastro) |
 | WhatsApp Cloud API (Meta) | Sistema externo | Entrega links e lembretes |
 | Provedor de email (SES/Resend) | Sistema externo | Entrega links, lembretes e reenvios (canal que nunca bloqueia o fluxo) |

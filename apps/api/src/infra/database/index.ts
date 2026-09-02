@@ -1,7 +1,7 @@
 import { drizzle } from 'drizzle-orm/node-postgres';
 import env from '../../config/env.js';
 import { getDbUrl } from '../../lib/getDbUrl.js';
-import { relations } from './schema.js';
+import { relations } from './schema/index.js';
 
 export const db = drizzle({
   relations,

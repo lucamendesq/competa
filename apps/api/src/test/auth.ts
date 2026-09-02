@@ -1,6 +1,6 @@
 import { Database } from '../infra/database/database.js';
 import { AuthProvider, SignUpEmailInput } from '../modules/auth/auth-provider.js';
-import { user } from '../infra/database/auth-schema.js';
+import { user } from '../infra/database/schema/index.js';
 import { v7 as uuidv7 } from 'uuid';
 import { success } from '../lib/either.js';
 

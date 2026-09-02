@@ -1,12 +1,13 @@
 import { Injectable } from '@nestjs/common';
+import { createHash } from 'node:crypto';
 import { and, eq, isNull } from 'drizzle-orm';
 import { Database } from '../../../infra/database/database.js';
 import {
   accountant as accountantSchema,
+  contact as contactSchema,
   invite as inviteSchema,
-  representative as representativeSchema,
   user as userSchema,
-} from '../../../infra/database/schema.js';
+} from '../../../infra/database/schema/index.js';
 import { AuthProvider } from '../auth-provider.js';
 import { failure, isFailure, PromiseResult, success } from '../../../lib/either.js';
 import { isBefore } from 'date-fns';
@@ -26,10 +27,12 @@ export class SignUpUseCase {
   ) {}
 
   async execute(input: SignUpDto): PromiseResult<null, Error> {
+    const tokenHash = createHash('sha256').update(input.token).digest('hex');
+
     const [found] = await this.db
       .select()
       .from(inviteSchema)
-      .where(and(eq(inviteSchema.token, input.token), isNull(inviteSchema.deletedAt)))
+      .where(and(eq(inviteSchema.tokenHash, tokenHash), isNull(inviteSchema.deletedAt)))
       .limit(1);
     if (!found) {
       return failure(new Error('invite not found'));
@@ -40,7 +43,7 @@ export class SignUpUseCase {
     if (found.acceptedAt !== null) {
       return failure(new Error('invite already accepted'));
     }
-    if (!found.accountingId && !found.companyId) {
+    if (!found.accountingFirmId && !found.companyId) {
       return failure(new Error('invite misconfigured'));
     }
 
@@ -54,16 +57,18 @@ export class SignUpUseCase {
     try {
       await this.db.transaction(async (tx) => {
         if (found.companyId) {
-          await tx.insert(representativeSchema).values({
-            userId,
+          await tx.insert(contactSchema).values({
+            authUserId: userId,
             companyId: found.companyId,
+            name: input.name,
+            email: input.email,
           });
         }
 
-        if (found.accountingId) {
+        if (found.accountingFirmId) {
           await tx.insert(accountantSchema).values({
-            userId,
-            accountingId: found.accountingId,
+            authUserId: userId,
+            accountingFirmId: found.accountingFirmId,
           });
         }
 
