@@ -1,5 +1,6 @@
-import { Injectable } from '@nestjs/common';
+import { Injectable, Logger } from '@nestjs/common';
 import { eq } from 'drizzle-orm';
+import { APIError } from 'better-auth/api';
 import { Database } from '../../../infra/database/database.js';
 import { accountant, user } from '../../../infra/database/schema/index.js';
 import { AppError } from '../../../lib/app-error.js';
@@ -26,6 +27,8 @@ export type SignUpInput = {
  *  nasce pelo script create-firm, nunca por rota pública. */
 @Injectable()
 export class SignUpUseCase {
+  private readonly logger = new Logger(SignUpUseCase.name);
+
   constructor(
     private readonly db: Database,
     private readonly auth: AuthProvider,
@@ -50,7 +53,20 @@ export class SignUpUseCase {
       email: input.email,
       password: input.password,
     });
-    if (isFailure(signUp)) return failure(new EmailAlreadyRegistered());
+    if (isFailure(signUp)) {
+      this.logger.error('Falha ao criar conta no Better Auth', signUp.error);
+
+      // Só email duplicado é erro de negócio esperado; qualquer outra causa
+      // (infra fora do ar, config errada, etc.) deve estourar como 500 —
+      // nunca disfarçada de "email já cadastrado".
+      const isDuplicateEmail =
+        signUp.error instanceof APIError &&
+        signUp.error.body?.code === 'USER_ALREADY_EXISTS_USE_ANOTHER_EMAIL';
+
+      if (!isDuplicateEmail) throw signUp.error;
+
+      return failure(new EmailAlreadyRegistered());
+    }
 
     const { userId } = signUp.value;
 
@@ -63,7 +79,16 @@ export class SignUpUseCase {
       return success({ userId });
     } catch (error) {
       // compensação: sem o vínculo, a conta criada no Better Auth é lixo
-      await this.db.delete(user).where(eq(user.id, userId));
+      try {
+        await this.db.delete(user).where(eq(user.id, userId));
+      } catch (compensationError) {
+        this.logger.error(
+          `Falha ao compensar (apagar user ${userId}) após erro no signup`,
+          compensationError,
+        );
+      }
+
+      this.logger.error('Falha ao vincular convite ao accountant', error);
       throw error;
     }
   }
