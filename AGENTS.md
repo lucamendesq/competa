@@ -13,7 +13,7 @@ Contexto completo: [`docs/product.md`](./docs/product.md).
 ## Como o Luca gosta de trabalhar
 
 - **Menos código é melhor.** YAGNI. A solução mais simples que funciona vence. Não abstraia por antecipação, não crie interface com uma implementação, não adicione dependência para o que cabe em poucas linhas.
-- **Fatias verticais finas.** Cada mudança entrega algo demonstrável no ar (ver [`docs/roadmap.md`](./docs/roadmap.md)). O banco cresce **uma tabela por vez**, conforme a feature precisa — nunca as 14 de uma vez.
+- **Fatias verticais finas.** Cada mudança entrega algo demonstrável rodando localmente (ver [`docs/roadmap.md`](./docs/roadmap.md)). O banco cresce **uma tabela por vez**, conforme a feature precisa — nunca as 14 de uma vez.
 - **Um paradigma só, do front ao back:** módulos, DI, decorators (Angular + NestJS). É deliberado — não introduza estilos concorrentes.
 - **Entenda antes de mexer.** Trace o fluxo inteiro que a mudança toca; corrija na raiz (na função compartilhada), não no sintoma de um caller só.
 - Comunicação/docs em **PT-BR**; identificadores de código/banco em **inglês** (ver glossário abaixo).
