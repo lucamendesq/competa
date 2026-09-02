@@ -762,7 +762,7 @@ import { Reflector } from '@nestjs/core';
 import { eq } from 'drizzle-orm';
 import { Database } from '../../infra/database/database.js';
 import { accountant } from '../../infra/database/schema/index.js';
-import { Forbidden } from '../../lib/app-error.js';
+import { Forbidden, Unauthenticated } from '../../lib/app-error.js';
 import { toFirmScope } from './scope.js';
 
 /** Roda depois do AuthGuard do Better Auth (que põe `session` no request).
@@ -784,7 +784,10 @@ export class TenantGuard implements CanActivate {
 
     const request = context.switchToHttp().getRequest();
     const authUserId = request.session?.user?.id;
-    if (!authUserId) return true; // sem sessão: o AuthGuard já barrou
+
+    // Não confie na ordem dos guards globais: se este rodar antes do AuthGuard,
+    // devolver `true` deixaria a rota seguir com firmScope undefined.
+    if (!authUserId) throw new Unauthenticated();
 
     const [row] = await this.db
       .select({ accountingFirmId: accountant.accountingFirmId })
