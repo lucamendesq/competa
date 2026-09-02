@@ -4,6 +4,7 @@ import { BetterAuthAdapter } from '../../infra/auth/better-auth.adapter.js';
 import { AuthController } from './auth.controller.js';
 import { InviteController } from './invite.controller.js';
 import { InviteRepository } from './invite.repository.js';
+import { MeController } from './me.controller.js';
 import { SignUpUseCase } from './usecases/sign-up.usecase.js';
 
 @Module({
@@ -13,6 +14,6 @@ import { SignUpUseCase } from './usecases/sign-up.usecase.js';
     InviteRepository,
   ],
   exports: [AuthProvider],
-  controllers: [AuthController, InviteController],
+  controllers: [AuthController, InviteController, MeController],
 })
 export class AuthModule {}

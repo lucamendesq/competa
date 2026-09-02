@@ -4,15 +4,21 @@ import { eq } from 'drizzle-orm';
 import { Database } from '../../infra/database/database.js';
 import { accountant } from '../../infra/database/schema/index.js';
 import { Forbidden, Unauthenticated } from '../../lib/app-error.js';
+import { AuthProvider } from './auth-provider.js';
 import { toFirmScope } from './scope.js';
 
-/** Roda depois do AuthGuard do Better Auth (que põe `session` no request).
- *  Resolve a Contabilidade do Contador logado e anexa o FirmScope. */
+/** Único guard global: nenhuma rota depende de ordem entre dois APP_GUARD
+ *  (era exatamente esse o bug — o AuthGuard do Better Auth podia rodar
+ *  depois deste, deixando `request.session` vazio no caminho positivo).
+ *  Resolve a sessão via AuthProvider, depois a Contabilidade do Contador
+ *  logado, e anexa `request.session` (para o `@Session()` do pacote) e o
+ *  FirmScope. */
 @Injectable()
 export class TenantGuard implements CanActivate {
   constructor(
     private readonly reflector: Reflector,
     private readonly db: Database,
+    private readonly auth: AuthProvider,
   ) {}
 
   async canActivate(context: ExecutionContext) {
@@ -24,16 +30,15 @@ export class TenantGuard implements CanActivate {
     if (isAnonymous) return true;
 
     const request = context.switchToHttp().getRequest();
-    const authUserId = request.session?.user?.id;
+    const session = await this.auth.getSession(request.headers);
+    if (!session) throw new Unauthenticated();
 
-    // Não confie na ordem dos guards globais: se este rodar antes do AuthGuard,
-    // devolver `true` deixaria a rota seguir com firmScope undefined.
-    if (!authUserId) throw new Unauthenticated();
+    request.session = session;
 
     const [row] = await this.db
       .select({ accountingFirmId: accountant.accountingFirmId })
       .from(accountant)
-      .where(eq(accountant.authUserId, authUserId))
+      .where(eq(accountant.authUserId, session.user.id))
       .limit(1);
 
     // Responsável com App loga mas não é Contador — painel é fora do alcance dele

@@ -19,9 +19,9 @@ Regras de leitura:
 
 | Task | Título | Depende | Tabelas novas | No ar depois desta |
 |------|--------|---------|---------------|--------------------|
-| TASK-003 | Better Auth montado na API + CORS/cookies entre origens | 002 | `user`, `session`, `account`, `verification` (Better Auth) | `/api/auth/*` responde; cookie cross-origin `app.`↔`api.` funciona |
-| TASK-004 | Signup atômico (user + firm + accountant) + tela de signup | 003 | `accountant` | criar conta cria os 3 registros numa transação; sessão iniciada |
-| TASK-005 | Login + AuthGuard/TenantGuard + `FirmScope` + shell do painel | 004 | — | logar entra num painel vazio protegido; `/me` escopado; repositórios exigem `FirmScope` |
+| ✅ TASK-003 | Better Auth montado na API + CORS/cookies entre origens | 002 | `user`, `session`, `account`, `verification` (Better Auth) | `/api/auth/*` responde; cookie cross-origin `app.`↔`api.` funciona |
+| ✅ TASK-004 | Provisionamento por script + signup por convite (spec D-02) | 003 | `accountant` | criar conta cria os 3 registros numa transação; sessão iniciada |
+| ✅ TASK-005 | Login + AuthGuard/TenantGuard + `FirmScope` + shell do painel | 004 | — | logar entra num painel vazio protegido; `/me` escopado; repositórios exigem `FirmScope` |
 
 ## Fase 2 — Cadastro (registry): catálogo, templates, empresas
 

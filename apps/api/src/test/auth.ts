@@ -13,4 +13,5 @@ export const fakeAuth = (db: Database): AuthProvider => ({
     return success({ userId: row.id });
   },
   signInEmail: async () => success({ token: 'irrelevant' }),
+  getSession: async () => null,
 });

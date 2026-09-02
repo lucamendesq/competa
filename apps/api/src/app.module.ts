@@ -15,7 +15,7 @@ import { TenantGuard } from './modules/auth/tenant.guard.js';
     BetterAuthModule.forRoot({
       auth,
       disableControllers: false,
-      disableGlobalAuthGuard: false,
+      disableGlobalAuthGuard: true,
       bodyParser: {
         json: { limit: '2mb' },
         urlencoded: { limit: '2mb', extended: true },

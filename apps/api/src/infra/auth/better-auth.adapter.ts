@@ -1,7 +1,10 @@
+import type { IncomingHttpHeaders } from 'node:http';
 import { Injectable } from '@nestjs/common';
+import { fromNodeHeaders } from 'better-auth/node';
 import auth from './better-auth.js';
 import {
   AuthProvider,
+  AuthSession,
   SignInEmailInput,
   SignInEmailResponse,
   SignUpEmailInput,
@@ -33,5 +36,13 @@ export class BetterAuthAdapter implements AuthProvider {
     }
 
     return success({ token: result.value.token });
+  }
+
+  async getSession(headers: IncomingHttpHeaders): Promise<AuthSession | null> {
+    const session = await auth.api.getSession({ headers: fromNodeHeaders(headers) });
+    if (!session) return null;
+
+    const { id, name, email } = session.user;
+    return { user: { id, name, email } };
   }
 }

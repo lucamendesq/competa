@@ -1,4 +1,8 @@
+import type { IncomingHttpHeaders } from 'node:http';
 import { Result } from '../../lib/either.js';
+
+export type SessionUser = { id: string; name: string; email: string };
+export type AuthSession = { user: SessionUser };
 
 export type Credentials = {
   email: string;
@@ -26,4 +30,6 @@ export abstract class AuthProvider {
   abstract signInEmail(
     input: SignInEmailInput,
   ): Promise<Result<SignInEmailResponse, unknown>>;
+  /** `null` quando não há sessão válida — nunca lança para esse caso. */
+  abstract getSession(headers: IncomingHttpHeaders): Promise<AuthSession | null>;
 }
