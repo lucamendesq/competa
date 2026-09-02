@@ -44,3 +44,12 @@ export class InviteEmailMismatch extends AppError {
     super('Use o mesmo email para o qual o convite foi enviado.');
   }
 }
+
+export class InviteTargetUnsupported extends AppError {
+  readonly code = 'INVITE_TARGET_UNSUPPORTED';
+  readonly status = 501;
+
+  constructor() {
+    super('Convite de Empresa ainda não está disponível.');
+  }
+}

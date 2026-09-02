@@ -4,7 +4,7 @@ import { BetterAuthAdapter } from '../../infra/auth/better-auth.adapter.js';
 import { AuthController } from './auth.controller.js';
 import { InviteController } from './invite.controller.js';
 import { InviteRepository } from './invite.repository.js';
-import { SignUpUseCase } from './usecases/SignUpUseCase.js';
+import { SignUpUseCase } from './usecases/sign-up.usecase.js';
 
 @Module({
   providers: [
