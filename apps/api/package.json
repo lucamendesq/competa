@@ -14,7 +14,8 @@
     "start:debug": "nest start --inspect --watch",
     "start:prod": "node dist/main",
     "lint": "eslint .",
-    "drizzle-push": "drizzle-kit push",
+    "db:migrate": "drizzle-kit push",
+    "db:seed": "tsx src/infra/database/seeds/index.ts",
     "create-firm": "tsx src/scripts/create-firm.ts"
   },
   "dependencies": {
