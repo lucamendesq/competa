@@ -16,7 +16,8 @@
     "lint": "eslint .",
     "test": "vitest run",
     "test:watch": "vitest",
-    "drizzle-push": "drizzle-kit push"
+    "drizzle-push": "drizzle-kit push",
+    "create-firm": "tsx src/scripts/create-firm.ts"
   },
   "dependencies": {
     "@contabilidade/contracts": "workspace:*",

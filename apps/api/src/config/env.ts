@@ -11,6 +11,7 @@ const envSchema = z.object({
   BETTER_AUTH_SECRET: z.string({ error: 'BETTER_AUTH_SECRET is required' }),
   BETTER_AUTH_URL: z.string({ error: 'BETTER_AUTH_URL is required' }),
   WEB_URL: z.url({ error: 'WEB_URL is required' }),
+  INVITE_TTL_DAYS: z.string().optional().transform(Number).default(7),
 });
 
 type Env = z.infer<typeof envSchema>;

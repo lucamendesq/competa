@@ -102,7 +102,7 @@ create table contact (                    -- Responsável (recebe o link, envia 
   name          text not null,
   email         text not null,            -- invariante: sem email não há Solicitação
   phone         text,                     -- habilita WhatsApp
-  auth_user_id  uuid unique references "user"(id)
+  auth_user_id  uuid unique references "user"(id) on delete set null
                                           -- nullable (D-04): login do Responsável é opcional,
                                           -- preenchido só se cadastrar no App; upload nunca exige conta
 );
