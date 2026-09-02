@@ -1301,7 +1301,8 @@ git commit -m "feat(api): signup exclusivamente por convite"
 `apps/api/src/modules/auth/me.controller.ts`:
 ```ts
 import { Controller, Get } from '@nestjs/common';
-import { eq } from 'drizzle-orm';
+import { Session, type UserSession } from '@thallesp/nestjs-better-auth';
+import { and, eq } from 'drizzle-orm';
 import { Database } from '../../infra/database/database.js';
 import {
   accountant,
@@ -1317,7 +1318,7 @@ export class MeController {
   constructor(private readonly db: Database) {}
 
   @Get()
-  async me(@CurrentScope() scope: FirmScope) {
+  async me(@CurrentScope() scope: FirmScope, @Session() session: UserSession) {
     const [row] = await this.db
       .select({
         accountantId: accountant.id,
@@ -1329,7 +1330,15 @@ export class MeController {
       .from(accountant)
       .innerJoin(user, eq(user.id, accountant.authUserId))
       .innerJoin(accountingFirm, eq(accountingFirm.id, accountant.accountingFirmId))
-      .where(eq(accountant.accountingFirmId, scope))
+      // filtra pelo usuário da sessão E pelo escopo: uma Contabilidade pode ter
+      // vários Contadores (convite da Task 6), então só o escopo devolveria
+      // um Contador arbitrário da firm em vez de quem está logado.
+      .where(
+        and(
+          eq(accountant.authUserId, session.user.id),
+          eq(accountant.accountingFirmId, scope),
+        ),
+      )
       .limit(1);
 
     if (!row) throw new NotFound();
@@ -1342,7 +1351,7 @@ export class MeController {
 }
 ```
 
-> Esta query filtra pelo `scope`, não pelo usuário da sessão — na Fatia 2 há um Contador por firm no fluxo verificado. Quando a firm tiver vários Contadores (já é possível via convite), troque o `where` por `eq(accountant.authUserId, sessionUserId)` **mantendo** o filtro de escopo. Anote isso como o primeiro ajuste da Fatia 3.
+> O `where` usa as duas condições de propósito. O `authUserId` identifica **quem** está pedindo; o `scope` é o guardrail de tenant, mantido mesmo sendo redundante aqui — o padrão do projeto é que todo filtro de leitura carregue o escopo, para que ninguém precise decidir caso a caso quando ele é dispensável.
 
 - [ ] **Step 2: Registrar**
 
