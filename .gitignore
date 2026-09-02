@@ -53,3 +53,6 @@ Thumbs.db
 .claude/settings.local.json
 # TS incremental build info
 *.tsbuildinfo
+
+# Angular build cache
+.angular/
