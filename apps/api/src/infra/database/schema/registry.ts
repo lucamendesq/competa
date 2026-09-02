@@ -33,8 +33,6 @@ export const company = pgTable('company', {
   ...timestamps,
 });
 
-/** Responsável da Empresa. `authUserId` é opcional: o fluxo de upload
- *  nunca exige conta; login existe só para push/App (spec D-04). */
 export const contact = pgTable('contact', {
   id: id(),
   companyId: uuid('company_id')
@@ -65,10 +63,6 @@ export const invite = pgTable(
     ...timestamps,
   },
   (t) => [
-    // um convite pertence a exatamente uma origem: firm OU empresa
-    check(
-      'invite_has_one_origin',
-      sql`num_nonnulls(${t.accountingFirmId}, ${t.companyId}) = 1`,
-    ),
+    check('invite_has_one_origin', sql`num_nonnulls(${t.accountingFirmId}, ${t.companyId}) = 1`),
   ],
 );
