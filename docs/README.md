@@ -10,7 +10,7 @@ Para o resumo operacional (como trabalhar aqui, o que nunca violar), comece pelo
 | Documento | Conteúdo |
 |-----------|----------|
 | [`product.md`](./product.md) | Propósito, público, atores, marca, contexto de mercado (digest do discovery) |
-| [`architecture.md`](./architecture.md) | Monorepo Nx, `apps/web` (Angular) + `apps/api` (NestJS), componentes, integrações, diagrama |
+| [`architecture.md`](./architecture.md) | Monorepo pnpm workspaces, `apps/web` (Angular) + `apps/api` (NestJS), componentes, integrações, diagrama |
 | [`domain.md`](./domain.md) | Subdomínios, bounded contexts + invariantes, jornada principal, **glossário PT↔EN normativo**, eventos de domínio |
 | [`conventions.md`](./conventions.md) | Nomenclatura, padrões de código/API/testes, variáveis de ambiente, git e **anti-patterns** |
 | [`database-schema.md`](./database-schema.md) | **Fonte canônica** do banco — DDL completa (Postgres/Drizzle), algoritmos e transições de estado |
@@ -20,7 +20,7 @@ Para o resumo operacional (como trabalhar aqui, o que nunca violar), comece pelo
 
 ## Como manter
 
-- `database-schema.md` é **canônico**: o schema Drizzle (`apps/api/src/database/schema/`) deve espelhá-lo; divergência exige atualizar o doc na mesma PR.
+- `database-schema.md` é **canônico**: o schema Drizzle (`apps/api/src/infra/database/schema/`) deve espelhá-lo; divergência exige atualizar o doc na mesma PR.
 - O glossário PT↔EN em `domain.md` é **normativo**: termo em inglês fora do mapa é bug de linguagem.
 - `decisions.md` registra o "porquê". Ao reverter/superar uma decisão, adicione uma nova entrada em vez de reescrever a antiga.
 - `conventions.md` deve crescer quando um padrão novo se firmar ou um anti-pattern aparecer.

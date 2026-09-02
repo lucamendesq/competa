@@ -19,13 +19,13 @@ export class AppErrorFilter implements ExceptionFilter {
       });
     }
 
-    if (exception instanceof HttpException) {
+    if (exception instanceof HttpException && exception.getStatus() === 404) {
       return response
-        .status(exception.getStatus())
-        .json({ error: { code: 'HTTP_ERROR', message: exception.message } });
+        .status(404)
+        .json({ error: { code: 'NOT_FOUND', message: 'Recurso não encontrado.' } });
     }
 
-    // bug ou falha de infra: nunca vaza detalhe para o cliente
+    // HttpException (exceto 404) e erro desconhecido: nunca vaza detalhe para o cliente
     this.logger.error(exception);
     return response
       .status(500)

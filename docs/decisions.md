@@ -16,7 +16,7 @@
 | [D07](#d07--monorepo-frontend--api-nestjs) | Monorepo: frontend + API NestJS separada | Parcialmente superada por D10 |
 | [D08](#d08--better-auth-na-api-nestjs) | Better Auth na API NestJS; guards como fronteira de acesso | Vigente |
 | [D09](#d09--feature-modules-camadas-sob-demanda) | Feature modules; camadas sob demanda; DDD tático descartado | Vigente (item 3 refinado por D10) |
-| [D10](#d10--angular-spa-csr--nx) | Angular SPA (CSR) como frontend; monorepo Nx; mobile em aberto | Vigente |
+| [D10](#d10--angular-spa-csr--nx) | Angular SPA (CSR) como frontend; monorepo Nx; mobile em aberto | Parcialmente superada por D-06 da spec (sem Nx) |
 | [D11](#d11--tailwind--spartan-ui) | Styling do web: Tailwind CSS + Spartan UI | Vigente |
 
 ---
@@ -129,6 +129,8 @@
 **Racional:** um paradigma (módulos/DI/decorators) do front ao back; Nest expressa bounded contexts/eventos/tenant-scoping com suporte de framework; painel é forms/CRUD-pesado (Typed Reactive Forms encaixa); nada precisa de SSR.
 
 **Alternativas rejeitadas:** manter Next frontend-only (subutilizado sem SSR, filosofia distinta do Nest); React SPA/Vite (sem apego a React nem certeza do RN); Angular Universal/SSR (nenhuma página precisa de SEO/first-paint público).
+
+**Status:** parcialmente superada — o item "Monorepo Nx" foi revertido pela D-06 da spec (`docs/superpowers/specs/2026-09-01-backend-mvp-design.md`): **pnpm workspaces puro**, sem Nx. Motivo: dev solo, só dois apps (`web`, `api`) — o ganho de Nx (cache de build, task graph, boundaries) é baixo nessa escala e não paga a cerimônia de configuração/manutenção. Os demais itens da decisão (Angular SPA/CSR, `libs/contracts`, eventos síncronos, escopo multi-tenant estrutural, mobile em aberto) seguem vigentes.
 
 ## D11 — Tailwind + Spartan UI
 

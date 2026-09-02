@@ -17,19 +17,10 @@ export type SignUpEmailResponse = {
   userId: string;
 };
 
-export type SignInEmailInput = Credentials;
-
-export type SignInEmailResponse = {
-  token: string;
-};
-
 export abstract class AuthProvider {
   abstract signUpEmail(
     input: SignUpEmailInput,
   ): Promise<Result<SignUpEmailResponse, unknown>>;
-  abstract signInEmail(
-    input: SignInEmailInput,
-  ): Promise<Result<SignInEmailResponse, unknown>>;
   /** `null` quando não há sessão válida — nunca lança para esse caso. */
   abstract getSession(headers: IncomingHttpHeaders): Promise<AuthSession | null>;
 }

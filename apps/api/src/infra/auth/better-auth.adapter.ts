@@ -5,8 +5,6 @@ import auth from './better-auth.js';
 import {
   AuthProvider,
   AuthSession,
-  SignInEmailInput,
-  SignInEmailResponse,
   SignUpEmailInput,
   SignUpEmailResponse,
 } from '../../modules/auth/auth-provider.js';
@@ -22,20 +20,6 @@ export class BetterAuthAdapter implements AuthProvider {
     }
 
     return success({ userId: result.value.user.id });
-  }
-
-  async signInEmail(
-    input: SignInEmailInput,
-  ): Promise<Result<SignInEmailResponse, unknown>> {
-    const result = await tryCatchAsync(() =>
-      auth.api.signInEmail({ body: input }),
-    );
-
-    if (isFailure(result)) {
-      return result;
-    }
-
-    return success({ token: result.value.token });
   }
 
   async getSession(headers: IncomingHttpHeaders): Promise<AuthSession | null> {

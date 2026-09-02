@@ -20,7 +20,7 @@ Contexto completo: [`docs/product.md`](./docs/product.md).
 
 ## Stack
 
-TypeScript · **Nx** (monorepo) · **Angular SPA (CSR, sem SSR)** + **Tailwind CSS + Spartan UI** · **NestJS** (todo o backend) · Drizzle ORM · Postgres · **Better Auth** (na API) · Cloudflare R2 · `@nestjs/event-emitter` · zod (`libs/contracts`). Mobile futuro: {a decidir — React Native vs Flutter}.
+TypeScript · **pnpm workspaces** (monorepo) · **Angular SPA (CSR, sem SSR)** + **Tailwind CSS + Spartan UI** · **NestJS** (todo o backend) · Drizzle ORM · Postgres · **Better Auth** (na API) · Cloudflare R2 · `@nestjs/event-emitter` · zod (`libs/contracts`). Mobile futuro: {a decidir — React Native vs Flutter}.
 
 ## Estrutura alvo do monorepo
 
@@ -67,12 +67,13 @@ Lista completa de anti-patterns: [`docs/conventions.md`](./docs/conventions.md#o
 
 Mapa completo + termos proibidos: [`docs/domain.md`](./docs/domain.md#glossário-linguagem-ubíqua-pten).
 
-## Como rodar tarefas (Nx)
+## Como rodar tarefas (pnpm)
 
-- Rode tarefas via **`nx`** (`nx run`, `nx run-many`, `nx affected`), não a ferramenta subjacente direta.
-- Prefixe com o gerenciador de pacotes do workspace (ex.: `pnpm nx build`, `npm exec nx test`) — evita o CLI global.
-- Para scaffolding (apps, libs, estrutura), use os generators do Nx (`nx g @nx/<plugin>:<gen>`).
-- Não invente flags de CLI — confira `--help` ou a doc do Nx quando em dúvida.
+- Build de tudo: `pnpm -r build`.
+- Subir a API em modo watch: `pnpm --filter api start:dev`.
+- Aplicar o schema no Postgres: `pnpm --filter api drizzle-push`.
+- Criar uma Contabilidade + convite inicial: `pnpm --filter api create-firm`.
+- Lint: `pnpm --filter api lint`.
 
 ## Documentação
 

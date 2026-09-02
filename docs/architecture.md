@@ -4,7 +4,7 @@
 
 ## Visão Geral
 
-**Monorepo Nx** com dois apps:
+**Monorepo pnpm workspaces** com dois apps:
 
 - **`apps/web`** — **Angular SPA (CSR, sem SSR)** servindo o painel do Contador e a página pública de upload. Consome a API por HTTP (services por recurso, interceptor com `withCredentials`).
 - **`apps/api`** — **NestJS com TODO o backend**: REST em **feature modules** (companies, checklists, periods, requests, messaging), **Better Auth** montado na própria API, Postgres via Drizzle (provider no DI), documentos em Cloudflare R2 (upload direto por URL pré-assinada), **eventos síncronos entre módulos via `@nestjs/event-emitter`**, cron de lembretes via `@nestjs/schedule` e zip por streaming.
@@ -13,7 +13,7 @@
 
 Nada no produto exige SSR (painel autenticado; upload por token, sem SEO). **"Sem SSR" ≠ "sem servidor"**: token, URLs pré-assinadas, fan-out e mensageria vivem no Nest.
 
-Controle de acesso por **Guards/Interceptors request-scoped** (guardrail estrutural, não convenção): `AuthGuard` (sessão) → `TenantGuard`/`@CurrentScope()` injeta `FirmScope` (tipo branded que só `auth/` constrói) — todo repositório o exige, tornando query sem tenant um **erro de compilação**. O fluxo público de upload usa `UploadTokenGuard` (token do `upload_link`, escopo só-upload, fora do Better Auth).
+Controle de acesso por **um guard global** (`TenantGuard`), não por dois guards encadeados: ele resolve a sessão via `AuthProvider.getSession()` (abstract class, DI) e, a partir dela, o `FirmScope` (tipo branded que só `modules/auth/` constrói) — todo repositório o exige, tornando query sem tenant uma violação a ser pega em revisão/lint (não um erro de compilação real; ver [`conventions.md`](./conventions.md) para a regra de lint que audita isso). `@CurrentScope()`/`@Session()` expõem o resultado ao handler. O fluxo público de upload usa `UploadTokenGuard` (token do `upload_link`, escopo só-upload, fora do Better Auth).
 
 ## Estrutura do Monorepo
 
@@ -24,10 +24,9 @@ apps/
   mobile/       # futuro — framework a decidir (RN vs Flutter); consome a MESMA API
 libs/
   contracts/    # schemas zod por recurso — validados no form (web) E no pipe (api)
-nx.json
 ```
 
-Nx no modo simples: scaffolding + boundaries + cache. **Sem CQRS, sem microservices** — só `@Module` + event-emitter síncrono.
+**Sem CQRS, sem microservices** — só `@Module` + event-emitter síncrono.
 
 ### apps/web (Angular)
 
@@ -53,16 +52,17 @@ src/app/
 ```
 src/
   main.ts  app.module.ts
-  config/                    # env validado (zod), drizzle, better-auth
-  auth/                      # montagem Better Auth + AuthGuard + TenantGuard
-                             #   + @CurrentScope() → injeta FirmScope (tipo branded)
-                             #   + UploadTokenGuard (fluxo público de upload)
-  database/
-    schema/                  # Drizzle — espelha docs/database-schema.md
-    migrations/
-    drizzle.module.ts        # Drizzle como provider (injeção via DI)
+  config/                    # env validado (zod)
+  infra/
+    auth/                    # montagem Better Auth (AuthProvider)
+    database/
+      schema/                # Drizzle — espelha docs/database-schema.md
+      migrations/
+      database.module.ts     # Drizzle como provider (injeção via DI)
   common/                    # ZodValidationPipe, exception filter, utils, VOs quando surgirem
   modules/
+    auth/                    # TenantGuard (guard global único) + @CurrentScope()/@Session()
+                             #   → injeta FirmScope (tipo branded) + UploadTokenGuard (upload público)
     companies/               # companies.module|controller|repository.ts + use-cases/
     checklists/              # derive-template, effective-checklist
     periods/                 # open-period.usecase.ts (fan-out + snapshot)
@@ -77,7 +77,7 @@ src/
 | apps/web — features/panel | Painel do Contador: cadastro, templates/overrides, competências, revisão em lote, pendências | Angular (standalone components, signals, Typed Reactive Forms) + Tailwind/Spartan UI |
 | apps/web — features/upload | Página pública de upload (token, multi-arquivo/zip, direto ao R2) | Angular (rota pública, lazy) + Tailwind mobile-first |
 | apps/api — modules/* | Feature modules: controller → use case (onde há lógica) → repository (FirmScope) | NestJS + Drizzle |
-| apps/api — auth/ | Better Auth (`/api/auth/*`) + AuthGuard/TenantGuard/UploadTokenGuard | Better Auth (adapter Drizzle) |
+| apps/api — modules/auth | TenantGuard (guard global único) + UploadTokenGuard | Better Auth (adapter Drizzle) |
 | apps/api — eventos | `PeriodOpened`, `RequestCreated`, `ItemReopened`… entre módulos | `@nestjs/event-emitter` (síncrono) |
 | apps/api — messaging | Providers email/WhatsApp/push (1 interface) + `reminders.cron.ts` | `@nestjs/schedule`, ACL por provedor |
 | libs/contracts | Schemas zod por recurso, compartilhados web ↔ api (↔ mobile) | zod |
@@ -93,7 +93,7 @@ src/
 [Responsável] ─► apps/mobile (futuro, RN|Flutter)┤  contratos: libs/contracts (zod)
                                                  ▼
                                           apps/api (NestJS)
-                           auth/ (Better Auth + Guards → FirmScope/UploadScope)
+                           modules/auth/ (Better Auth + TenantGuard → FirmScope/UploadScope)
                            modules/ companies · checklists · periods · requests
                                 │        eventos síncronos (@nestjs/event-emitter)
                                 ▼                            ▼
@@ -126,4 +126,4 @@ Direção de dependência (convenção, não polícia): **registry → collectio
 
 ## Schema do banco
 
-Fonte canônica: [`database-schema.md`](./database-schema.md). Vive em `apps/api/src/database/`; o schema Drizzle deve espelhar o documento.
+Fonte canônica: [`database-schema.md`](./database-schema.md). Vive em `apps/api/src/infra/database/`; o schema Drizzle deve espelhar o documento.

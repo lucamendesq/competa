@@ -6,13 +6,13 @@ Regras de leitura:
 1. **Faça na ordem.** Cada tarefa só depende da anterior necessária (coluna "Depende").
 2. **Uma tabela por vez.** A coluna "Tabelas novas" diz o que entra no banco. Divergência entre migration e [`database-schema.md`](./database-schema.md) (canônico) é bug — corrija um dos dois na mesma PR.
 3. **Sempre no ar.** A coluna "No ar depois desta" é o que você consegue demonstrar. Se não dá pra demonstrar, a fatia está grande demais — quebre mais.
-4. Stack canônica: **Angular SPA (CSR) + NestJS + Nx + `libs/contracts` (zod) + Drizzle/Postgres + Better Auth + R2** (ver [`decisions.md`](./decisions.md)).
+4. Stack canônica: **Angular SPA (CSR) + NestJS + pnpm workspaces + `libs/contracts` (zod) + Drizzle/Postgres + Better Auth + R2** (ver [`decisions.md`](./decisions.md)).
 
 ## Fase 0 — Esqueleto ambulante (algo no ar já)
 
 | Task | Título | Depende | Tabelas novas | No ar depois desta |
 |------|--------|---------|---------------|--------------------|
-| TASK-001 | Nx + apps vazios (Angular SPA + Nest) + `libs/contracts` + deploy | — | — | web e api "hello" no ar via CI; `/health` responde |
+| TASK-001 | pnpm workspaces + apps vazios (Angular SPA + Nest) + `libs/contracts` + deploy | — | — | web e api "hello" no ar via CI; `/health` responde |
 | TASK-002 | Postgres + Drizzle + 1ª migration + `/health/db` | 001 | `accounting_firm` | migration roda em banco vazio; API confirma conexão consultando o banco |
 
 ## Fase 1 — Auth & tenant (a espinha)

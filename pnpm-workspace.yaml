@@ -6,7 +6,6 @@ allowBuilds:
   esbuild: true
   lmdb: true
   msgpackr-extract: true
-  nx: true
 minimumReleaseAgeExclude:
   - '@inquirer/checkbox@5.2.3'
   - '@inquirer/confirm@6.3.0'
@@ -28,14 +27,3 @@ minimumReleaseAgeExclude:
   - '@nestjs/platform-express@12.0.1'
   - '@nestjs/schematics@12.0.0'
   - '@nestjs/testing@12.0.1'
-  - '@nx/nx-darwin-arm64@23.1.2'
-  - '@nx/nx-darwin-x64@23.1.2'
-  - '@nx/nx-freebsd-x64@23.1.2'
-  - '@nx/nx-linux-arm-gnueabihf@23.1.2'
-  - '@nx/nx-linux-arm64-gnu@23.1.2'
-  - '@nx/nx-linux-arm64-musl@23.1.2'
-  - '@nx/nx-linux-x64-gnu@23.1.2'
-  - '@nx/nx-linux-x64-musl@23.1.2'
-  - '@nx/nx-win32-arm64-msvc@23.1.2'
-  - '@nx/nx-win32-x64-msvc@23.1.2'
-  - nx@23.1.2
