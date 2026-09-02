@@ -11,8 +11,12 @@ import { toFirmScope } from './scope.js';
  *  (era exatamente esse o bug — o AuthGuard do Better Auth podia rodar
  *  depois deste, deixando `request.session` vazio no caminho positivo).
  *  Resolve a sessão via AuthProvider, depois a Contabilidade do Contador
- *  logado, e anexa `request.session` (para o `@Session()` do pacote) e o
- *  FirmScope. */
+ *  logado, e anexa `request.session` (lido pelo nosso `@Session()`, não o
+ *  do pacote) e o FirmScope.
+ *
+ *  Só entende a metadata `'PUBLIC'` (`@AllowAnonymous()`). O `'OPTIONAL'`
+ *  (`@OptionalAuth()`) que o AuthGuard da lib tratava não é suportado — hoje
+ *  nada usa; se alguém aplicar, a rota vira 401 em vez de passar anônima. */
 @Injectable()
 export class TenantGuard implements CanActivate {
   constructor(

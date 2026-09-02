@@ -1,5 +1,4 @@
 import { Controller, Get } from '@nestjs/common';
-import { Session, type UserSession } from '@thallesp/nestjs-better-auth';
 import { and, eq } from 'drizzle-orm';
 import { Database } from '../../infra/database/database.js';
 import {
@@ -8,15 +7,17 @@ import {
   user,
 } from '../../infra/database/schema/index.js';
 import { NotFound } from '../../lib/app-error.js';
+import type { AuthSession } from './auth-provider.js';
 import { CurrentScope } from './current-scope.decorator.js';
 import type { FirmScope } from './scope.js';
+import { Session } from './session.decorator.js';
 
 @Controller('me')
 export class MeController {
   constructor(private readonly db: Database) {}
 
   @Get()
-  async me(@CurrentScope() scope: FirmScope, @Session() session: UserSession) {
+  async me(@CurrentScope() scope: FirmScope, @Session() session: AuthSession) {
     const [row] = await this.db
       .select({
         accountantId: accountant.id,
@@ -39,6 +40,9 @@ export class MeController {
       )
       .limit(1);
 
+    // defensivo: o TenantGuard já derivou `scope` do mesmo `accountant` casado
+    // por `authUserId`, então este `and(...)` sempre acha a linha — não há
+    // caminho conhecido que dispare este 404 hoje.
     if (!row) throw new NotFound();
 
     return {
