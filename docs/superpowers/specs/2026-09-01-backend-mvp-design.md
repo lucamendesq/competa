@@ -99,6 +99,7 @@ export abstract class AppError extends Error {
 | `FORBIDDEN` | 403 | sessão válida sem permissão / fora do escopo |
 | `NOT_FOUND` | 404 | recurso inexistente **ou de outro tenant** (nunca revelar a diferença) |
 | `INVITE_NOT_FOUND` / `INVITE_EXPIRED` / `INVITE_ALREADY_ACCEPTED` | 404 / 410 / 409 | fluxo de convite |
+| `INVITE_EMAIL_MISMATCH` | 422 | signup com email diferente do convidado |
 | `EMAIL_ALREADY_REGISTERED` | 409 | signup com email existente |
 | `COMPANY_WITHOUT_CONTACT_EMAIL` | 422 | fan-out ou envio sem email |
 | `PERIOD_ALREADY_OPEN` | 409 | competência já aberta para o mês |
