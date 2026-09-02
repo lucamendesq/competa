@@ -2,7 +2,7 @@
 
 > **Fonte canônica da estrutura de banco.** Todo código que toque persistência DEVE seguir este documento; divergência entre migration e este doc é bug — corrija um dos dois na mesma PR.
 > Nomes de tabelas/colunas em **inglês**, snake_case singular. Glossário PT↔EN em [`domain.md`](./domain.md#glossário-linguagem-ubíqua-pten).
-> Postgres + Drizzle ORM — schema e migrations vivem em `apps/api/src/database/`. Auth: Better Auth — tabelas `user`, `session`, `account`, `verification` são gerenciadas pela biblioteca (adapter Drizzle) e não são redefinidas aqui.
+> Postgres + Drizzle ORM — schema e migrations vivem em `apps/api/src/infra/database/schema/`. Auth: Better Auth — tabelas `user`, `session`, `account`, `verification` são gerenciadas pela biblioteca (adapter Drizzle) e não são redefinidas aqui.
 
 ## Visão geral (quem referencia quem)
 
@@ -16,8 +16,11 @@ company_checklist_override │              MESSAGING (Comunicação)
       ▲                    │              message (log/outbox de envios e lembretes)
       │                    │
    company ────────────────┘ ◄── contact
-      ▲
+      ▲            ▲
+      │            └── invite (origem: company)
 accounting_firm (tenant) ◄── accountant ──► [Better Auth: user/session/account/verification]
+      ▲
+      └── invite (origem: accounting_firm)
 ```
 
 Direção de dependência (convenção): `registry` → `collection` → `messaging`. Mapeamento: registry = `modules/companies` + `modules/checklists`; collection = `modules/periods` + `modules/requests`; messaging = `modules/messaging`.
@@ -41,11 +44,11 @@ create table accounting_firm (            -- Contabilidade (tenant raiz)
 );
 
 create table accountant (                 -- Contador (N por Contabilidade, via convite — D-01)
+                                          -- name/email vivem em "user" (Better Auth); /me lê via join
+                                          -- por auth_user_id — não duplicar aqui
   id                  uuid primary key,
-  accounting_firm_id  uuid not null references accounting_firm(id),
-  auth_user_id        uuid not null unique references "user"(id),   -- Better Auth user.id
-  name                text not null,
-  email               text not null
+  accounting_firm_id  uuid not null references accounting_firm(id) on delete cascade,
+  auth_user_id        uuid not null unique references "user"(id) on delete cascade
 );
 
 create table document_type (              -- Catálogo (dicionário) de documentos
@@ -83,6 +86,8 @@ create table checklist_template_item (    -- composição N:N template ↔ docum
 create table company (                    -- Empresa (cliente da Contabilidade)
   id                     uuid primary key,
   accounting_firm_id     uuid not null references accounting_firm(id),
+                                          -- sem on delete: apagar uma Contabilidade com Empresas
+                                          -- falha por FK — proteção intencional
   checklist_template_id  uuid not null references checklist_template(id), -- escolhido no cadastro
   name                   text not null,
   cnpj                   text,
@@ -93,7 +98,7 @@ create table company (                    -- Empresa (cliente da Contabilidade)
 
 create table contact (                    -- Responsável (recebe o link, envia documentos)
   id            uuid primary key,
-  company_id    uuid not null references company(id),
+  company_id    uuid not null references company(id) on delete cascade,
   name          text not null,
   email         text not null,            -- invariante: sem email não há Solicitação
   phone         text,                     -- habilita WhatsApp
