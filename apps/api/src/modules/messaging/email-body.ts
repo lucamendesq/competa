@@ -108,3 +108,13 @@ export const inviteEmail = (event: InviteCreatedEvent) => ({
 <p>O convite expira em ${asDate(event.expiresAt.toISOString().slice(0, 10))}.</p>`,
 });
 
+/** Magic link: entrada do Responsável no primeiro acesso e quando o aparelho não tem
+ *  passkey. Link de uso único e curto — o Better Auth cuida da validade. */
+export const magicLinkEmail = ({ url }: { email: string; url: string }) => ({
+  subject: 'Seu link de entrada',
+  body: `<p>Olá.</p>
+<p>Use este link para entrar e enviar seus documentos:</p>
+<p><a href="${url}">${url}</a></p>
+<p>Se não foi você que pediu, ignore este email.</p>`,
+});
+

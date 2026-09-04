@@ -5,6 +5,7 @@ import { Database } from '../../infra/database/database.js';
 import { accountant } from '../../infra/database/schema/index.js';
 import { Forbidden, Unauthenticated } from '../../lib/app-error.js';
 import { AuthProvider } from './auth-provider.js';
+import { CONTACT_ROUTE } from './contact-route.decorator.js';
 import { toFirmScope } from './scope.js';
 
 @Injectable()
@@ -21,6 +22,14 @@ export class TenantGuard implements CanActivate {
       context.getClass(),
     ]);
     if (isAnonymous) return true;
+
+    /* Rota do Responsável: quem resolve é o ContactGuard, com `ContactScope`. Este guard é
+     * global e exigiria vínculo com `accountant` — barraria toda a Fase 10. */
+    const isContactRoute = this.reflector.getAllAndOverride<boolean>(CONTACT_ROUTE, [
+      context.getHandler(),
+      context.getClass(),
+    ]);
+    if (isContactRoute) return true;
 
     const request = context.switchToHttp().getRequest();
     const session = await this.auth.getSession(request.headers);

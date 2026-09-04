@@ -15,6 +15,7 @@ import { PeriodsModule } from './modules/periods/periods.module.js';
 import { RequestsModule } from './modules/requests/requests.module.js';
 import { UploadModule } from './modules/requests/upload.module.js';
 import { MessagingModule } from './modules/messaging/messaging.module.js';
+import { ContactsModule } from './modules/contacts/contacts.module.js';
 
 @Module({
   imports: [
@@ -52,6 +53,7 @@ import { MessagingModule } from './modules/messaging/messaging.module.js';
     RequestsModule,
     UploadModule,
     MessagingModule,
+    ContactsModule,
   ],
   providers: [
     // ordem importa: barra o excesso ANTES de resolver sessão e tocar o banco

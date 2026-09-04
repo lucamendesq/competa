@@ -19,6 +19,9 @@ const envSchema = z.object({
   R2_BUCKET: z.string().optional(),
   RESEND_API_KEY: z.string().optional(),
   EMAIL_FROM: z.string().optional().default('Coleta de Documentos <onboarding@resend.dev>'),
+  VAPID_PUBLIC_KEY: z.string().optional(),
+  VAPID_PRIVATE_KEY: z.string().optional(),
+  VAPID_SUBJECT: z.string().optional().default('mailto:contato@example.com'),
   STORAGE_LOCAL_DIR: z.string().optional().default('.storage'),
 });
 

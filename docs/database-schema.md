@@ -309,6 +309,37 @@ valida `expires_at`/`revoked` e injeta `UploadScope`), `modules/requests/upload.
 | `document.upload_status` | `awaiting_upload → uploaded` (confirmação, que confere tamanho real). Nunca volta; envio não confirmado em 24h é apagado pela faxina |
 | `document.review_status` | `pending → accepted` \| `rejected` — Revisão em lote opera no Item (aceita todos os `document` `uploaded` e `pending` do item de uma vez). **Documento Extra** é revisado individualmente (`POST /documents/:id/review-extra`) e não entra na conta de `complete`. **Aceite é desfazível** (`POST /request-items/:id/undo-accept`): Item volta a `submitted`/`pending` e os Documentos aceitos voltam a `pending` — desfazer não é recusar |
 
+### Fase 10 — acesso do Responsável
+
+```sql
+-- tabela do plugin @better-auth/passkey (WebAuthn): a credencial que sobrevive à
+-- reinstalação do app, porque vive no keychain sincronizado do aparelho
+create table passkey (
+  id           uuid primary key,
+  name         text,
+  public_key   text not null,
+  user_id      uuid not null references "user"(id) on delete cascade,
+  credential_i_d text not null,
+  counter      integer not null,
+  device_type  text not null,
+  backed_up    boolean not null,
+  transports   text,
+  aaguid       text
+);
+
+create table push_subscription (          -- Web Push da PWA do Responsável
+  id          uuid primary key,
+  contact_id  uuid not null references contact(id) on delete cascade,
+  provider    text not null default 'web' check (provider in ('web','fcm')),
+  endpoint    text not null unique,       -- chave natural: o navegador troca a inscrição
+  keys        jsonb not null              -- web: {p256dh, auth}; fcm (futuro): token
+);
+```
+
+> **`verification.id` é `text`, não `uuid`.** A tabela é do Better Auth e a biblioteca grava
+> ali ids próprios que não são uuid (`reserveVerificationValue`, no fluxo de magic link).
+> Quem manda na forma das tabelas de auth é a biblioteca, não a nossa convenção de PK.
+
 ## Seed
 
 O conteúdo do seed (tipos de documento e templates fixos MEI / Simples Serviços / Simples Comércio / Lucro Presumido / Lucro Real) está em [`document-catalog.md`](./document-catalog.md). O seed é idempotente: uma parte mínima entra cedo (destrava templates e cadastro de Empresa) e o conteúdo completo depois. Ver [`roadmap.md`](./roadmap.md) para a ordem das fatias.

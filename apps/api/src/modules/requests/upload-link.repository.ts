@@ -3,6 +3,7 @@ import { asc, eq } from 'drizzle-orm';
 import { Database } from '../../infra/database/database.js';
 import {
   company,
+  contact,
   period,
   request,
   requestItem,
@@ -60,5 +61,21 @@ export class UploadLinkRepository {
       .orderBy(asc(requestItem.name));
 
     return { ...row, items };
+  }
+
+  /** Responsável dono do Link — base da criação de acesso da Fase 10. */
+  async findContact(scope: UploadScope) {
+    const [row] = await this.db
+      .select({
+        id: contact.id,
+        name: contact.name,
+        email: contact.email,
+        authUserId: contact.authUserId,
+      })
+      .from(contact)
+      .where(eq(contact.id, scope.contactId))
+      .limit(1);
+
+    return row;
   }
 }

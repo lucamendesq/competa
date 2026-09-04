@@ -17,9 +17,12 @@ import type { ReminderCandidate } from './reminder-rules.js';
 
 const PENDING_ITEM_STATUS = ['pending', 'rejected'] as const;
 
+/** Vocabulário de `message.purpose` (o check do banco é a mesma lista). */
+type MessagePurpose = 'link_delivery' | 'reminder' | 'rejection' | 'deadline_missed' | 'completion';
+
 type Delivery = {
   requestId: string;
-  purpose: 'link_delivery' | 'reminder' | 'rejection' | 'deadline_missed' | 'completion';
+  purpose: MessagePurpose;
   recipient: string;
   subject: string;
   body: string;
@@ -53,6 +56,44 @@ export class MessageRepository {
     } catch (error) {
       this.logger.error(`envio para ${input.recipient} falhou`, error);
       return false;
+    }
+  }
+
+  /** Registra o envio de push em `message` (channel 'push') com o mesmo contrato do email:
+   *  `sent`/`failed` + `error`, e nunca lança. `recipient` é o endpoint da inscrição. */
+  async deliverPush<T extends { sent: number; failed: number; gone: string[] }>(
+    requestId: string,
+    purpose: MessagePurpose,
+    recipient: string,
+    send: () => Promise<T>,
+  ) {
+    const [row] = await this.db
+      .insert(message)
+      .values({ requestId, channel: 'push', purpose, recipient, status: 'queued' })
+      .returning({ id: message.id });
+
+    try {
+      const result = await send();
+
+      await this.db
+        .update(message)
+        .set(
+          result.sent > 0
+            ? { status: 'sent', sentAt: new Date() }
+            : { status: 'failed', error: `nenhuma inscrição aceitou (${result.failed} falhas)` },
+        )
+        .where(eq(message.id, row.id));
+
+      return result;
+    } catch (error) {
+      const reason = error instanceof Error ? error.message : String(error);
+      await this.db
+        .update(message)
+        .set({ status: 'failed', error: reason })
+        .where(eq(message.id, row.id));
+      this.logger.error(`push para ${recipient} falhou: ${reason}`);
+
+      return undefined;
     }
   }
 
