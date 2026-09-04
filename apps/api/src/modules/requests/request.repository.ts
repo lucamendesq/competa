@@ -153,6 +153,7 @@ export class RequestRepository {
         documentId: document.id,
         requestItemId: document.requestItemId,
         reviewStatus: document.reviewStatus,
+        uploadStatus: document.uploadStatus,
         fileName: document.fileName,
         requestId: request.id,
         requestStatus: request.status,
@@ -178,6 +179,13 @@ export class RequestRepository {
       requestItemId: row.requestItemId,
     });
     if (refusal) throw new InvalidTransition(refusal);
+
+    // mesma guarda do Extra: linha de presign sem arquivo no storage não é documento para
+    // revisar — rejeitá-la rotacionaria o Link e mandaria email de recusa de um envio que
+    // nunca chegou.
+    if (row.uploadStatus !== 'uploaded') {
+      throw new InvalidTransition('Este documento ainda não foi enviado ao storage.');
+    }
 
     // O fan-out sempre cria o Link; sem ele não há como reabrir sem deixar o Responsável
     // sem caminho de reenvio.
@@ -318,6 +326,19 @@ export class RequestRepository {
 
   /** Rotaciona o token do Link e devolve o token em claro (só existe aqui). O `requestId`
    *  vem sempre de uma consulta já escopada. */
+  /** Persiste um token já gerado. Existe separado do `rotateUploadToken` para quem precisa
+   *  MONTAR a mensagem com o link novo e só oficializar a troca depois de o envio dar
+   *  certo — rotacionar antes deixaria o Responsável sem link nenhum se o email falhasse. */
+  async applyUploadToken(requestId: string, tokenHash: string) {
+    const [row] = await this.db
+      .update(uploadLink)
+      .set({ tokenHash, expiresAt: addDays(new Date(), env.UPLOAD_LINK_TTL_DAYS) })
+      .where(eq(uploadLink.requestId, requestId))
+      .returning({ id: uploadLink.id });
+
+    return Boolean(row);
+  }
+
   async rotateUploadToken(requestId: string) {
     const { token, tokenHash } = createToken();
 

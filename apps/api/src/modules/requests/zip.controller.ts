@@ -1,5 +1,5 @@
 import { Readable } from 'node:stream';
-import { Controller, Get, Header, Param, StreamableFile } from '@nestjs/common';
+import { Controller, Get, Param, StreamableFile } from '@nestjs/common';
 import { IdParam } from '@contabilidade/contracts';
 // archiver 8 exporta classes, não uma função default
 import { ZipArchive } from 'archiver';
@@ -22,7 +22,6 @@ export class ZipController {
 
   /** TASK-033 — tudo de UMA Empresa numa Competência. */
   @Get('requests/:id/zip')
-  @Header('content-type', 'application/zip')
   async requestZip(@CurrentScope() scope: FirmScope, @Param(zodPipe(IdParam)) params: IdParam) {
     const found = await this.requests.documentsForRequestZip(scope, params.id);
     if (!found) throw new NotFound('Solicitação não encontrada.');
@@ -35,7 +34,6 @@ export class ZipController {
 
   /** TASK-034 — a Competência inteira, uma pasta por Empresa. */
   @Get('periods/:id/zip')
-  @Header('content-type', 'application/zip')
   async periodZip(@CurrentScope() scope: FirmScope, @Param(zodPipe(IdParam)) params: IdParam) {
     const found = await this.requests.documentsForPeriodZip(scope, params.id);
     if (!found) throw new NotFound('Competência não encontrada.');
@@ -62,7 +60,13 @@ export class ZipController {
     // sem await: finalize() só termina quando o consumidor drenar a resposta
     void archive.finalize();
 
-    return new StreamableFile(archive, { disposition: `attachment; filename="${fileName}"` });
+    // o content-type sai daqui, e não de um @Header: com o header fixo na rota, o 404
+    // "nenhum documento" saía rotulado como application/zip e o cliente baixava um
+    // arquivo quebrado em vez de ver o erro.
+    return new StreamableFile(archive, {
+      type: 'application/zip',
+      disposition: `attachment; filename="${fileName}"`,
+    });
   }
 
   /** Stream que só abre a conexão com o storage quando o archiver chega naquela entrada —

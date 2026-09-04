@@ -90,9 +90,13 @@ create table company (                    -- Empresa (cliente da Contabilidade)
                                           -- falha por FK — proteção intencional
   checklist_template_id  uuid not null references checklist_template(id), -- escolhido no cadastro
   name                   text not null,
-  cnpj                   text,
+  cnpj                   text,                 -- só dígitos; validado com DV (módulo 11)
   flags                  jsonb not null default '{}',
                            -- {"has_employees": bool, "accepts_card_payments": bool, "has_inventory": bool}
+                           -- PATCH /companies/:id MESCLA (jsonb ||): mandar uma flag não
+                           -- apaga as outras. Trocar uma flag para false exige mandá-la
+                           -- explicitamente — apagar por omissão faria o fan-out perder
+                           -- itens de folha sem ninguém pedir
   active                 boolean not null default true
 );
 

@@ -1,5 +1,5 @@
 import assert from 'node:assert/strict';
-import { test } from 'node:test';
+import { test } from 'vitest';
 import {
   GAP_DAYS_WITHOUT_DUE_DATE,
   MAX_REMINDERS_PER_REQUEST,

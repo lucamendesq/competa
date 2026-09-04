@@ -11,7 +11,12 @@ import { zodPipe } from '../../lib/zod-pipe.js';
 import { CurrentScope } from '../auth/current-scope.decorator.js';
 import type { FirmScope } from '../auth/scope.js';
 import { ChecklistRepository } from './checklist.repository.js';
-import { DocumentTypeNotVisible, TemplateAlreadyOwned, TemplateImmutable } from './errors.js';
+import {
+  DocumentTypeNotVisible,
+  TemplateAlreadyOwned,
+  TemplateImmutable,
+  TemplateItemDuplicated,
+} from './errors.js';
 
 @Controller('checklist-templates')
 export class ChecklistTemplatesController {
@@ -52,7 +57,10 @@ export class ChecklistTemplatesController {
     const [visible] = await this.checklists.documentTypesVisible(scope, [body.documentTypeId]);
     if (!visible) throw new DocumentTypeNotVisible();
 
-    return this.checklists.addTemplateItem(params.id, body);
+    const row = await this.checklists.addTemplateItem(params.id, body);
+    if (!row) throw new TemplateItemDuplicated();
+
+    return row;
   }
 
   @Patch(':id/items/:itemId')

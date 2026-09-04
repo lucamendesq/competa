@@ -68,10 +68,19 @@ export class MessageRepository {
         .update(message)
         .set({ status: 'sent', sentAt: new Date() })
         .where(eq(message.id, row.id));
+
+      return true;
     } catch (error) {
       const reason = error instanceof Error ? error.message : String(error);
-      await this.db.update(message).set({ status: 'failed', error: reason }).where(eq(message.id, row.id));
+      await this.db
+        .update(message)
+        .set({ status: 'failed', error: reason })
+        .where(eq(message.id, row.id));
       this.logger.error(`envio ${purpose} para ${recipient} falhou: ${reason}`);
+
+      // devolve o resultado em vez de lançar: quem chamou decide (o lembrete, por exemplo,
+      // não rotaciona o Link se o envio não saiu) — e canal quebrado nunca sobe como erro
+      return false;
     }
   }
 
@@ -104,7 +113,9 @@ export class MessageRepository {
       .innerJoin(period, eq(period.id, request.periodId))
       .innerJoin(company, eq(company.id, request.companyId))
       .where(where)
-      .orderBy(desc(message.createdAt))
+      // desempate por id: a varredura de prazo insere em rajada e `created_at` empata,
+      // deixando a paginação indeterminada (linha repetida ou perdida entre páginas)
+      .orderBy(desc(message.createdAt), desc(message.id))
       .limit(query.perPage)
       .offset((query.page - 1) * query.perPage);
 
@@ -139,7 +150,9 @@ export class MessageRepository {
           eq(message.status, 'failed'),
         ),
       )
-      .orderBy(desc(message.createdAt));
+      // desempate por id: a varredura de prazo insere em rajada e `created_at` empata,
+      // deixando a paginação indeterminada (linha repetida ou perdida entre páginas)
+      .orderBy(desc(message.createdAt), desc(message.id));
   }
 
   /** Insumo da varredura de lembretes; a decisão é do `reminder-rules.ts` (puro).
@@ -184,7 +197,11 @@ export class MessageRepository {
     const stats = await this.db
       .select({
         requestId: message.requestId,
-        reminderCount: sql<number>`count(*) filter (where ${message.purpose} = 'reminder')::int`,
+        // `status <> 'failed'`: o teto de 2 existe por custo de envio (domain.md, risco 2) —
+        // lembrete que não saiu não pode consumir uma das duas cobranças do mês.
+        reminderCount: sql<number>`count(*) filter (
+          where ${message.purpose} = 'reminder' and ${message.status} <> 'failed'
+        )::int`,
         lastMessageAt: sql<Date | null>`max(${message.createdAt})`,
       })
       .from(message)

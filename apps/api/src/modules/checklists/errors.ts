@@ -26,3 +26,12 @@ export class DocumentTypeNotVisible extends AppError {
     super('Tipo de documento inexistente ou de outra Contabilidade.');
   }
 }
+
+export class TemplateItemDuplicated extends AppError {
+  readonly code = 'TEMPLATE_ITEM_DUPLICATED';
+  readonly status = 409;
+
+  constructor() {
+    super('Este Tipo de Documento já está no template. Edite o item existente.');
+  }
+}

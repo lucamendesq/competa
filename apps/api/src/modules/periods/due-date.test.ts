@@ -1,5 +1,5 @@
 import assert from 'node:assert/strict';
-import { test } from 'node:test';
+import { test } from 'vitest';
 import { itemDueDate } from './due-date.js';
 
 test('sem due_day o Item herda o prazo da Competência', () => {

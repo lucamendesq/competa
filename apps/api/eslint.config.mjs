@@ -76,6 +76,15 @@ export default tseslint.config(
     rules: { '@typescript-eslint/no-floating-promises': 'off' },
   },
 
+  /* Testes usam a instância crua para ARRANJAR estado que rota não cria (Empresa inativa,
+   * convite expirado) e para AFIRMAR o que ficou no banco. Não é código de request — não há
+   * sessão para escopar — e são justamente estes arquivos que provam a invariante de tenant.
+   * Forjar o tipo branded com `as` segue proibido aqui também. */
+  {
+    files: ['test/**/*.ts'],
+    rules: { 'no-restricted-imports': 'off' },
+  },
+
   {
     files: ['src/modules/auth/scope.ts', 'src/modules/auth/current-scope.decorator.ts'],
     rules: {

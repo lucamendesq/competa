@@ -1,5 +1,5 @@
 import assert from 'node:assert/strict';
-import { test } from 'node:test';
+import { test } from 'vitest';
 import { parseCsv, parseCsvRecords } from './csv.js';
 
 test('CSV com aspas, vírgula dentro do campo e CRLF', () => {

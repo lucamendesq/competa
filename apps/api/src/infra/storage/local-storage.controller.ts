@@ -13,7 +13,9 @@ export class LocalStorageController {
 
   /* Upload de N arquivos bate aqui N vezes em sequência: contar isso como rajada
    * quebraria envio legítimo de lote. O limite real está no presign, que autoriza. */
-  @SkipThrottle()
+  // `@SkipThrottle()` sozinho só pula o balde `default`: o `short` (30/10s) continuava
+  // valendo e cortava o 31º arquivo do lote com 429. Os dois precisam ser pulados.
+  @SkipThrottle({ default: true, short: true })
   @Put(':storageKey')
   @AllowAnonymous()
   async put(

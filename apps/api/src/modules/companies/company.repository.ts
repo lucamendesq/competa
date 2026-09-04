@@ -1,5 +1,5 @@
 import { Injectable } from '@nestjs/common';
-import { and, count, eq, isNull, or } from 'drizzle-orm';
+import { and, count, eq, isNull, or, sql } from 'drizzle-orm';
 import {
   COMPANY_FLAGS,
   type CompanyFlags,
@@ -117,9 +117,14 @@ export class CompanyRepository {
   }
 
   async update(scope: FirmScope, companyId: string, body: UpdateCompanyBody) {
+    // PATCH parcial de `flags` MESCLA: mandar uma flag não pode apagar as outras.
+    const values = body.flags
+      ? { ...body, flags: sql`${company.flags} || ${JSON.stringify(body.flags)}::jsonb` }
+      : body;
+
     const [row] = await this.db
       .update(company)
-      .set(body)
+      .set(values)
       .where(and(eq(company.id, companyId), eq(company.accountingFirmId, scope)))
       .returning();
 

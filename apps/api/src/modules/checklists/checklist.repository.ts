@@ -220,6 +220,9 @@ export class ChecklistRepository {
     const [row] = await this.db
       .insert(checklistTemplateItem)
       .values({ ...body, checklistTemplateId: templateId })
+      // unique(checklist_template_id, document_type_id): repetir o Tipo de Documento é
+      // conflito de negócio (409), não erro de servidor — quem decide é o controller.
+      .onConflictDoNothing()
       .returning();
 
     return row;
