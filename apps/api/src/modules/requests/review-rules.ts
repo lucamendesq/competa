@@ -29,6 +29,10 @@ export const rejectDocumentRefusal = (input: {
   if (input.requestStatus === 'closed') {
     return 'Esta solicitação foi encerrada: os documentos não podem mais ser revisados.';
   }
+  // Extra não tem Item para reabrir nem link para reenviar: vai pela rota própria.
+  if (!input.requestItemId) {
+    return 'Documento Extra é revisado em /documents/:id/review-extra, não por esta rota.';
+  }
   if (input.reviewStatus === 'rejected') return 'Este documento já foi rejeitado.';
   if (input.reviewStatus === 'accepted') {
     return 'Este documento já foi aceito e não volta para rejeitado.';

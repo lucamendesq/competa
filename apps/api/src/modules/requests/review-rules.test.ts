@@ -47,7 +47,7 @@ test('rejeição é por Documento de Item, e não repete estado final', () => {
       reviewStatus: 'pending',
       requestItemId: null,
     }) ?? '',
-    /Documento Extra/,
+    /review-extra/,
   );
   assert.match(
     rejectDocumentRefusal({
