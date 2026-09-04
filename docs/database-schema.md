@@ -183,8 +183,18 @@ create table document (                   -- arquivo enviado (1 Item : N Documen
   storage_key       text not null,        -- caminho no R2
   file_name         text not null,
   content_type      text not null,
-  size_bytes        bigint not null,
-  uploaded_at       timestamptz not null default now(),
+  size_bytes        bigint not null,      -- na confirmação passa a ser o tamanho REAL do
+                                          -- storage, não o declarado pelo cliente
+  upload_status     text not null default 'awaiting_upload'
+                      check (upload_status in ('awaiting_upload','uploaded')),
+                                          -- linha nasce no presign; só a confirmação
+                                          -- (que confere o objeto) marca 'uploaded'.
+                                          -- Leituras (revisão, zip, painel) exigem
+                                          -- 'uploaded'; faxina diária apaga o resto
+  uploaded_by_contact_id uuid references contact(id) on delete set null,
+                                          -- quem enviou: via Link vem do upload_link,
+                                          -- logado vem da sessão (Fase 10)
+  uploaded_at       timestamptz,          -- preenchido na confirmação
   review_status     text not null default 'pending'
                       check (review_status in ('pending','accepted','rejected')),
   rejection_reason  text
@@ -280,6 +290,9 @@ valida `expires_at`/`revoked` e injeta `UploadScope`), `modules/requests/upload.
 - Valida `token_hash` + `expires_at` + `revoked` e injeta `UploadScope` limitado àquela `request`; escopo **só-upload** (a página exibe nomes/status dos itens; NUNCA lista/baixa conteúdo de documentos).
 - Upload direto ao R2 via URL pré-assinada (4–6 concorrentes); backend só emite URLs e insere `document`.
 - Limites: 100 MB/arquivo; 500 arquivos/envio. Zip aceito como formato, **sem extração**.
+  O limite é **imposto**, não pedido: o presign assina o tamanho (`ContentLength` no R2,
+  HMAC + corte de stream no storage local) e a confirmação confere o objeto real — arquivo
+  ausente, maior que o limite ou diferente do declarado é descartado (linha e objeto).
 - `request.status = 'closed'` → só aceita Documento Extra (`request_item_id IS NULL`).
 
 ## Transições de estado
@@ -289,7 +302,8 @@ valida `expires_at`/`revoked` e injeta `UploadScope`), `modules/requests/upload.
 | `request_item.status` | `pending → submitted` (upload) `→ accepted` \| `rejected` (Revisão); `rejected → pending` (reabertura: **rotaciona o token** do `upload_link` e dispara reenvio SÓ por email — o link anterior morre). Rejeição é por Documento; aceitar o Item aceita todos os Documentos `pending` dele (Documento já `rejected` fica como histórico). |
 | `request.status` | `open → complete` (todos os itens `accepted`, automático); `open\|complete → closed` (ato do Contador; pode fechar com pendências, com aviso) |
 | `period.status` | `open → closed` (ato do Contador) |
-| `document.review_status` | `pending → accepted` \| `rejected` — Revisão em lote opera no Item (aceita todos os `document` do item de uma vez) |
+| `document.upload_status` | `awaiting_upload → uploaded` (confirmação, que confere tamanho real). Nunca volta; envio não confirmado em 24h é apagado pela faxina |
+| `document.review_status` | `pending → accepted` \| `rejected` — Revisão em lote opera no Item (aceita todos os `document` `uploaded` e `pending` do item de uma vez). **Documento Extra** é revisado individualmente (`POST /documents/:id/review-extra`) e não entra na conta de `complete`. **Aceite é desfazível** (`POST /request-items/:id/undo-accept`): Item volta a `submitted`/`pending` e os Documentos aceitos voltam a `pending` — desfazer não é recusar |
 
 ## Seed
 

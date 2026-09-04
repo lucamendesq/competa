@@ -1,6 +1,7 @@
 import { Controller, Param, Put, Query, Req } from '@nestjs/common';
 import { ValidationError } from '../../lib/app-error.js';
 import { AllowAnonymous } from '@thallesp/nestjs-better-auth';
+import { SkipThrottle } from '@nestjs/throttler';
 import type { Request } from 'express';
 import { LocalStorage } from './local.storage.js';
 
@@ -10,11 +11,15 @@ import { LocalStorage } from './local.storage.js';
 export class LocalStorageController {
   constructor(private readonly storage: LocalStorage) {}
 
+  /* Upload de N arquivos bate aqui N vezes em sequência: contar isso como rajada
+   * quebraria envio legítimo de lote. O limite real está no presign, que autoriza. */
+  @SkipThrottle()
   @Put(':storageKey')
   @AllowAnonymous()
   async put(
     @Param('storageKey') storageKey: string,
     @Query('expiresAt') expiresAt: string,
+    @Query('sizeBytes') sizeBytes: string,
     @Query('signature') signature: string,
     @Req() request: Request,
   ) {
@@ -31,6 +36,7 @@ export class LocalStorageController {
     await this.storage.write({
       storageKey,
       expiresAt: Number(expiresAt),
+      sizeBytes: Number(sizeBytes),
       signature: signature ?? '',
       body: request,
     });

@@ -1,6 +1,6 @@
 import { Body, Controller, Param, Post } from '@nestjs/common';
 import { EventEmitter2 } from '@nestjs/event-emitter';
-import { IdParam, RejectDocumentBody } from '@contabilidade/contracts';
+import { IdParam, RejectDocumentBody, ReviewExtraBody } from '@contabilidade/contracts';
 import env from '../../config/env.js';
 import { NotFound } from '../../lib/app-error.js';
 import {
@@ -78,6 +78,32 @@ export class ReviewController {
       requestStatus: result.requestStatus,
       linkRotated: true,
     };
+  }
+
+  /** #8 — Documento Extra é revisado individualmente. Não mexe em Item nem em `complete`,
+   *  e rejeitar Extra não reenvia link (não há item reaberto). */
+  @Post('documents/:id/review-extra')
+  async reviewExtra(
+    @CurrentScope() scope: FirmScope,
+    @Param(zodPipe(IdParam)) params: IdParam,
+    @Body(zodPipe(ReviewExtraBody)) body: ReviewExtraBody,
+  ) {
+    const result = await this.requests.reviewExtraDocument(scope, params.id, {
+      reviewStatus: body.decision,
+      rejectionReason: body.rejectionReason,
+    });
+    if (!result) throw new NotFound('Documento não encontrado.');
+
+    return result;
+  }
+
+  /** #9 — desfazer aceite: correção do Contador, sem email (é interna). */
+  @Post('request-items/:id/undo-accept')
+  async undoAccept(@CurrentScope() scope: FirmScope, @Param(zodPipe(IdParam)) params: IdParam) {
+    const result = await this.requests.undoAcceptItem(scope, params.id);
+    if (!result) throw new NotFound('Item não encontrado.');
+
+    return result;
   }
 
   /** Disparo manual da varredura de prazo (operação/verificação enquanto não há UI e o

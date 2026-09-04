@@ -1,5 +1,6 @@
 import { Logger, Module } from '@nestjs/common';
 import env from '../../config/env.js';
+import { RequestsModule } from '../requests/requests.module.js';
 import { MessageRepository } from './message.repository.js';
 import { MessagesController } from './messages.controller.js';
 import { LogEmail } from './providers/log-email.provider.js';
@@ -15,6 +16,9 @@ new Logger('MessagingModule').log(useResend ? 'ResendEmail' : 'LogEmail (fallbac
 
 /** Fase 5 — envio de mensagens (email/WhatsApp/push) e cron de lembretes. */
 @Module({
+  // para rotacionar o Link no lembrete (o token em claro só existe na rotação).
+  // Sem ciclo: RequestsModule importa apenas StorageModule.
+  imports: [RequestsModule],
   controllers: [MessagesController],
   providers: [
     { provide: MessageProvider, useClass: useResend ? ResendEmail : LogEmail },

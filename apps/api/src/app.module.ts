@@ -5,6 +5,7 @@ import auth from './infra/auth/better-auth.js';
 import { ConfigModule } from '@nestjs/config';
 import { EventEmitterModule } from '@nestjs/event-emitter';
 import { ScheduleModule } from '@nestjs/schedule';
+import { ThrottlerGuard, ThrottlerModule, seconds } from '@nestjs/throttler';
 import { AuthModule } from './modules/auth/auth.module.js';
 import { DatabaseModule } from './infra/database/database.module.js';
 import { TenantGuard } from './modules/auth/tenant.guard.js';
@@ -24,6 +25,15 @@ import { MessagingModule } from './modules/messaging/messaging.module.js';
     EventEmitterModule.forRoot(),
     // cron de lembretes (Fase 5) e de prazo estourado (Fase 6)
     ScheduleModule.forRoot(),
+    /* Rate limiting. Dois baldes: `short` corta rajada e `default` corta abuso sustentado.
+     * A rota pública de upload é a superfície mais exposta (token no email, sem sessão) e
+     * tem limite próprio via @Throttle no controller. */
+    ThrottlerModule.forRoot({
+      throttlers: [
+        { name: 'short', ttl: seconds(10), limit: 30 },
+        { name: 'default', ttl: seconds(60), limit: 120 },
+      ],
+    }),
     BetterAuthModule.forRoot({
       auth,
       disableControllers: false,
@@ -43,6 +53,10 @@ import { MessagingModule } from './modules/messaging/messaging.module.js';
     UploadModule,
     MessagingModule,
   ],
-  providers: [{ provide: APP_GUARD, useClass: TenantGuard }],
+  providers: [
+    // ordem importa: barra o excesso ANTES de resolver sessão e tocar o banco
+    { provide: APP_GUARD, useClass: ThrottlerGuard },
+    { provide: APP_GUARD, useClass: TenantGuard },
+  ],
 })
 export class AppModule {}

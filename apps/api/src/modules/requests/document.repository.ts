@@ -1,5 +1,5 @@
 import { Injectable } from '@nestjs/common';
-import { and, eq, inArray } from 'drizzle-orm';
+import { and, eq, inArray, lt } from 'drizzle-orm';
 import { Database } from '../../infra/database/database.js';
 import { document, period, request, requestItem } from '../../infra/database/schema/index.js';
 import type { UploadScope } from '../auth/scope.js';
@@ -11,6 +11,15 @@ type NewDocument = {
   fileName: string;
   contentType: string;
   sizeBytes: number;
+};
+
+/** Resultado da conferência de um documento na confirmação. */
+export type ConfirmedDocument = {
+  id: string;
+  storageKey: string;
+  fileName: string;
+  requestItemId: string | null;
+  declaredBytes: number;
 };
 
 @Injectable()
@@ -42,19 +51,71 @@ export class DocumentRepository {
     return { ...context, item };
   }
 
+  /** Linha nasce `awaiting_upload`: até a confirmação o arquivo não existe no storage e
+   *  não pode contar como enviado (nem para revisão, nem para zip, nem para o painel). */
   async createMany(scope: UploadScope, documents: NewDocument[]) {
-    await this.db
-      .insert(document)
-      .values(documents.map((row) => ({ ...row, requestId: scope.requestId })));
+    await this.db.insert(document).values(
+      documents.map((row) => ({
+        ...row,
+        requestId: scope.requestId,
+        uploadedByContactId: scope.contactId,
+      })),
+    );
   }
 
-  /** Confirmação do envio: os Itens dos documentos confirmados viram `submitted`. */
-  async confirm(scope: UploadScope, documentIds: string[]) {
+  /** Documentos que a confirmação vai conferir — só os que ainda estão pendentes de envio. */
+  async pendingUpload(scope: UploadScope, documentIds: string[]): Promise<ConfirmedDocument[]> {
+    return this.db
+      .select({
+        id: document.id,
+        storageKey: document.storageKey,
+        fileName: document.fileName,
+        requestItemId: document.requestItemId,
+        declaredBytes: document.sizeBytes,
+      })
+      .from(document)
+      .where(
+        and(
+          eq(document.requestId, scope.requestId),
+          inArray(document.id, documentIds),
+          eq(document.uploadStatus, 'awaiting_upload'),
+        ),
+      );
+  }
+
+  /** Recusa um documento que não passou na conferência: a linha some, o objeto é apagado
+   *  pelo controller. Manter linha órfã seria pior que apagar. */
+  async discard(documentIds: string[]) {
+    if (!documentIds.length) return;
+
+    await this.db.delete(document).where(inArray(document.id, documentIds));
+  }
+
+  /** Confirmação do envio: marca `uploaded` (com o tamanho REAL do storage) e os Itens
+   *  dos documentos confirmados viram `submitted`. */
+  async confirm(scope: UploadScope, confirmed: { id: string; realBytes: number }[]) {
+    if (!confirmed.length) return { confirmed: [], submittedItemIds: [] };
+
     return this.db.transaction(async (tx) => {
       const rows = await tx
         .select({ id: document.id, requestItemId: document.requestItemId })
         .from(document)
-        .where(and(eq(document.requestId, scope.requestId), inArray(document.id, documentIds)));
+        .where(
+          and(
+            eq(document.requestId, scope.requestId),
+            inArray(
+              document.id,
+              confirmed.map((row) => row.id),
+            ),
+          ),
+        );
+
+      for (const row of confirmed) {
+        await tx
+          .update(document)
+          .set({ uploadStatus: 'uploaded', uploadedAt: new Date(), sizeBytes: row.realBytes })
+          .where(eq(document.id, row.id));
+      }
 
       const itemIds = [
         ...new Set(rows.flatMap((row) => (row.requestItemId ? [row.requestItemId] : []))),
@@ -75,5 +136,15 @@ export class DocumentRepository {
 
       return { confirmed: rows.map((row) => row.id), submittedItemIds: itemIds };
     });
+  }
+
+  /** Documentos que pediram URL e nunca confirmaram (PUT falhou, aba fechada, cliente
+   *  desistiu). Ficam invisíveis na leitura por causa do `upload_status`, mas sem faxina
+   *  acumulam linha e objeto no storage para sempre. */
+  async staleAwaitingUpload(olderThan: Date) {
+    return this.db
+      .select({ id: document.id, storageKey: document.storageKey })
+      .from(document)
+      .where(and(eq(document.uploadStatus, 'awaiting_upload'), lt(document.createdAt, olderThan)));
   }
 }

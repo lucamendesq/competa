@@ -1,5 +1,6 @@
 import type {
   DeadlineMissedEvent,
+  InviteCreatedEvent,
   ItemReopenedEvent,
   RequestCompletedEvent,
   RequestCreatedEvent,
@@ -24,10 +25,15 @@ ${deadline(event.periodDueDate)}
 <p>Envie pelo link (não precisa de senha): <a href="${event.uploadUrl}">${event.uploadUrl}</a></p>`,
 });
 
-/** ponytail: o lembrete não traz link novo — o token em claro só existe na emissão e o
- *  banco guarda só o hash; rotacionar o `upload_link` aqui junto da TASK-028. */
+/** O lembrete leva link novo: o cron rotaciona o `upload_link` antes de enviar, então o
+ *  token em claro existe aqui. Sem `uploadUrl` (rotação falhou) cai no texto genérico. */
 export const reminderEmail = (
-  candidate: ReminderCandidate & { companyName: string; contactName: string; referenceMonth: string },
+  candidate: ReminderCandidate & {
+    companyName: string;
+    contactName: string;
+    referenceMonth: string;
+    uploadUrl?: string;
+  },
 ) => ({
   subject: `Lembrete: documentos pendentes de ${asMonth(candidate.referenceMonth)} — ${candidate.companyName}`,
   body: `<p>Olá, ${candidate.contactName}.</p>
@@ -40,7 +46,12 @@ export const reminderEmail = (
     )
     .join('')}</ul>
 ${deadline(nextDueDate(candidate))}
-<p>Use o Link de Upload que você já recebeu por email para enviar os arquivos.</p>`,
+${
+    candidate.uploadUrl
+      ? `<p>Envie pelo link (não precisa de senha): <a href="${candidate.uploadUrl}">${candidate.uploadUrl}</a></p>
+<p>Este link substitui os anteriores.</p>`
+      : '<p>Use o Link de Upload que você já recebeu por email para enviar os arquivos.</p>'
+  }`,
 });
 
 /** Item rejeitado: o link vai rotacionado pela Fase 6, então este email é o único que
@@ -76,3 +87,15 @@ export const deadlineMissedAccountantEmail = (event: DeadlineMissedEvent) => ({
   body: `<p>A empresa <b>${event.companyName}</b> não enviou <b>${event.itemName}</b>, com prazo
 em <b>${asDate(event.dueDate)}</b>. O Responsável (${event.contactEmail}) foi avisado.</p>`,
 });
+
+/** Convite de Contador: não passa por `message` (não há Solicitação a que amarrar a
+ *  linha — `message.request_id` é not null), então o envio é logado só no Logger. */
+export const inviteEmail = (event: InviteCreatedEvent) => ({
+  subject: `Você foi convidado para ${event.firmName}`,
+  body: `<p>Olá.</p>
+<p>Você foi convidado para acessar o sistema de coleta de documentos de
+<b>${event.firmName}</b>.</p>
+<p>Crie sua conta por este link: <a href="${event.inviteUrl}">${event.inviteUrl}</a></p>
+<p>O convite expira em ${asDate(event.expiresAt.toISOString().slice(0, 10))}.</p>`,
+});
+

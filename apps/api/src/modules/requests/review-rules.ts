@@ -29,13 +29,40 @@ export const rejectDocumentRefusal = (input: {
   if (input.requestStatus === 'closed') {
     return 'Esta solicitação foi encerrada: os documentos não podem mais ser revisados.';
   }
-  if (!input.requestItemId) {
-    return 'Documento Extra não passa por revisão: ele não pertence a nenhum item do checklist.';
-  }
   if (input.reviewStatus === 'rejected') return 'Este documento já foi rejeitado.';
   if (input.reviewStatus === 'accepted') {
     return 'Este documento já foi aceito e não volta para rejeitado.';
   }
+
+  return null;
+};
+
+/** Aceitar um Documento Extra é revisão individual: não existe Item para aceitar em lote,
+ *  e Extra nunca entra na conta de `complete` (não é exigência do checklist). */
+export const reviewExtraRefusal = (input: {
+  requestStatus: RequestStatus;
+  reviewStatus: ReviewStatus;
+}) => {
+  if (input.requestStatus === 'closed') {
+    return 'Esta solicitação foi encerrada: os documentos não podem mais ser revisados.';
+  }
+  if (input.reviewStatus === 'accepted') return 'Este documento já está aceito.';
+  if (input.reviewStatus === 'rejected') return 'Este documento já foi rejeitado.';
+
+  return null;
+};
+
+/** Desfazer o aceite de um Item (correção do Contador). O Item volta para `submitted` se
+ *  ainda tem documento enviado, senão para `pending`; os Documentos aceitos voltam a
+ *  `pending` — não viram rejeitados, porque desfazer não é recusar. */
+export const undoAcceptRefusal = (input: {
+  requestStatus: RequestStatus;
+  itemStatus: ItemStatus;
+}) => {
+  if (input.requestStatus === 'closed') {
+    return 'Esta solicitação foi encerrada: o aceite não pode mais ser desfeito.';
+  }
+  if (input.itemStatus !== 'accepted') return 'Este item não está aceito.';
 
   return null;
 };

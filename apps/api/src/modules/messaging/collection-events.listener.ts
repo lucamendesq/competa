@@ -3,12 +3,14 @@ import { OnEvent } from '@nestjs/event-emitter';
 import {
   EVENTS,
   type DeadlineMissedEvent,
+  type InviteCreatedEvent,
   type ItemReopenedEvent,
   type RequestCompletedEvent,
 } from '../../lib/events.js';
 import {
   deadlineMissedAccountantEmail,
   deadlineMissedContactEmail,
+  inviteEmail,
   itemReopenedEmail,
   requestCompletedEmail,
 } from './email-body.js';
@@ -20,6 +22,16 @@ import { MessageRepository } from './message.repository.js';
 @Injectable()
 export class CollectionEventsListener {
   constructor(private readonly messages: MessageRepository) {}
+
+  /** Convite de Contador. Não vai para `message` (a tabela exige `request_id`), então
+   *  falha aqui só aparece no log — o Contador ainda pode reenviar o convite. */
+  @OnEvent(EVENTS.InviteCreated)
+  async onInviteCreated(event: InviteCreatedEvent) {
+    await this.messages.sendWithoutLog({
+      recipient: event.email,
+      ...inviteEmail(event),
+    });
+  }
 
   /** Reabertura do Item: reenvio do Link SÓ por email (invariante do domínio). */
   @OnEvent(EVENTS.ItemReopened)

@@ -1,10 +1,12 @@
 import { Body, Controller, Get, Post, UseGuards } from '@nestjs/common';
 import { AllowAnonymous } from '@thallesp/nestjs-better-auth';
+import { Throttle, seconds } from '@nestjs/throttler';
 import { ConfirmUploadBody, PresignUploadBody } from '@contabilidade/contracts';
 import { v7 as uuidv7 } from 'uuid';
 import {
   MAX_FILES_PER_UPLOAD,
   buildStorageKey,
+  confirmationRefusal,
   rejectionReason,
 } from './file-rules.js';
 import { StorageProvider } from '../../infra/storage/storage.provider.js';
@@ -46,6 +48,9 @@ export class UploadController {
     };
   }
 
+  /* Presign é a rota que custa: cria linha e assina URL. Com um token válido, sem limite,
+   * dá para inflar banco e storage. */
+  @Throttle({ default: { ttl: seconds(60), limit: 20 } })
   @Post('documents')
   async presign(
     @CurrentUploadScope() scope: UploadScope,
@@ -102,7 +107,11 @@ export class UploadController {
         accepted: true,
         documentId,
         storageKey,
-        uploadUrl: await this.storage.presignPut({ storageKey, contentType: file.contentType }),
+        uploadUrl: await this.storage.presignPut({
+          storageKey,
+          contentType: file.contentType,
+          sizeBytes: file.sizeBytes,
+        }),
       });
     }
 
@@ -111,14 +120,48 @@ export class UploadController {
     return { files };
   }
 
+  /** Confirmar é conferir: o tamanho que vale é o que está no storage. Arquivo ausente,
+   *  acima do limite ou diferente do declarado é descartado (linha e objeto) — assim o
+   *  limite de 100 MB deixa de depender da honestidade do cliente e não sobra documento
+   *  fantasma no banco. */
   @Post('documents/confirm')
   async confirm(
     @CurrentUploadScope() scope: UploadScope,
     @Body(zodPipe(ConfirmUploadBody)) body: ConfirmUploadBody,
   ) {
-    const { confirmed, submittedItemIds } = await this.documents.confirm(scope, body.documentIds);
-    if (!confirmed.length) throw new NotFound('Nenhum documento deste envio foi encontrado.');
+    const pending = await this.documents.pendingUpload(scope, body.documentIds);
+    if (!pending.length) throw new NotFound('Nenhum documento deste envio foi encontrado.');
 
-    return { confirmed: confirmed.length, submittedItemIds };
+    const accepted: { id: string; realBytes: number }[] = [];
+    const refused: { documentId: string; fileName: string; reason: string }[] = [];
+
+    for (const row of pending) {
+      const realBytes = await this.storage.statSize(row.storageKey);
+      const reason = confirmationRefusal({
+        fileName: row.fileName,
+        declaredBytes: row.declaredBytes,
+        realBytes,
+      });
+
+      if (reason) {
+        refused.push({ documentId: row.id, fileName: row.fileName, reason });
+        continue;
+      }
+
+      accepted.push({ id: row.id, realBytes: realBytes! });
+    }
+
+    if (refused.length) {
+      await this.documents.discard(refused.map((row) => row.documentId));
+      await Promise.all(
+        pending
+          .filter((row) => refused.some((bad) => bad.documentId === row.id))
+          .map((row) => this.storage.remove(row.storageKey).catch(() => undefined)),
+      );
+    }
+
+    const { confirmed, submittedItemIds } = await this.documents.confirm(scope, accepted);
+
+    return { confirmed: confirmed.length, submittedItemIds, refused };
   }
 }

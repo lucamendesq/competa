@@ -63,3 +63,22 @@ export const buildStorageKey = (input: {
   // Nome de arquivo do Responsável nunca entra no caminho (path traversal / colisão).
   return `firm/${input.accountingFirmId}/period/${input.referenceMonth}/request/${input.requestId}/${input.documentId}${suffix}`;
 };
+
+/** Conferência na confirmação: o tamanho que vale é o do storage, não o declarado.
+ *  `undefined` = objeto não existe (pediu URL e nunca subiu). */
+export const confirmationRefusal = (input: {
+  fileName: string;
+  declaredBytes: number;
+  realBytes: number | undefined;
+}) => {
+  if (input.realBytes === undefined) return 'Arquivo não chegou ao storage.';
+  if (input.realBytes > MAX_FILE_BYTES) {
+    return `Arquivo de ${Math.round(input.realBytes / 1024 / 1024)} MB acima do limite de ${MAX_FILE_BYTES / 1024 / 1024} MB por arquivo.`;
+  }
+  if (input.realBytes !== input.declaredBytes) {
+    return `O arquivo enviado (${input.realBytes} bytes) não tem o tamanho declarado (${input.declaredBytes} bytes).`;
+  }
+
+  return null;
+};
+

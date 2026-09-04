@@ -25,6 +25,9 @@ export const PERIOD_STATUS = ['open', 'closed'] as const;
 export const REQUEST_STATUS = ['open', 'complete', 'closed'] as const;
 export const REQUEST_ITEM_STATUS = ['pending', 'submitted', 'accepted', 'rejected'] as const;
 export const DOCUMENT_REVIEW_STATUS = ['pending', 'accepted', 'rejected'] as const;
+/** `awaiting_upload` = linha criada no presign, arquivo ainda não confirmado no storage.
+ *  Sem isso, presign sem PUT deixa documento fantasma contando como enviado. */
+export const DOCUMENT_UPLOAD_STATUS = ['awaiting_upload', 'uploaded'] as const;
 
 /** Competência — abre uma vez por Contabilidade. */
 export const period = pgTable(
@@ -111,12 +114,22 @@ export const document = pgTable(
     fileName: text('file_name').notNull(),
     contentType: text('content_type').notNull(),
     sizeBytes: bigint('size_bytes', { mode: 'number' }).notNull(),
-    uploadedAt: timestamp('uploaded_at', { withTimezone: true }).notNull().defaultNow(),
+    /** só é preenchido na confirmação: antes disso o arquivo não existe no storage */
+    uploadedAt: timestamp('uploaded_at', { withTimezone: true }),
+    uploadStatus: text('upload_status').notNull().default('awaiting_upload'),
+    /** quem enviou — via Link vem do `upload_link`, logado vem da sessão (Fase 10) */
+    uploadedByContactId: uuid('uploaded_by_contact_id').references(() => contact.id, {
+      onDelete: 'set null',
+    }),
     reviewStatus: text('review_status').notNull().default('pending'),
     rejectionReason: text('rejection_reason'),
     ...timestamps,
   },
-  (t) => [check('document_review_status_chk', oneOf(sql`${t.reviewStatus}`, DOCUMENT_REVIEW_STATUS))],
+  (t) => [
+    check('document_review_status_chk', oneOf(sql`${t.reviewStatus}`, DOCUMENT_REVIEW_STATUS)),
+    check('document_upload_status_chk', oneOf(sql`${t.uploadStatus}`, DOCUMENT_UPLOAD_STATUS)),
+    index('document_pending_upload_idx').on(t.uploadStatus, t.createdAt),
+  ],
 );
 
 /** Link de Upload — token próprio, NÃO é sessão/auth. Só o hash é persistido. */

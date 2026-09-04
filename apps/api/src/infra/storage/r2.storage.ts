@@ -1,5 +1,11 @@
 import type { Readable } from 'node:stream';
-import { GetObjectCommand, PutObjectCommand, S3Client } from '@aws-sdk/client-s3';
+import {
+  DeleteObjectCommand,
+  GetObjectCommand,
+  HeadObjectCommand,
+  PutObjectCommand,
+  S3Client,
+} from '@aws-sdk/client-s3';
 import { getSignedUrl } from '@aws-sdk/s3-request-presigner';
 import { Injectable } from '@nestjs/common';
 import env from '../../config/env.js';
@@ -32,11 +38,34 @@ export class R2Storage extends StorageProvider {
     return Body as Readable;
   }
 
-  presignPut({ storageKey, contentType }: PresignPutInput) {
+  presignPut({ storageKey, contentType, sizeBytes }: PresignPutInput) {
     return getSignedUrl(
       this.client,
-      new PutObjectCommand({ Bucket: env.R2_BUCKET, Key: storageKey, ContentType: contentType }),
-      { expiresIn: PRESIGN_TTL_SECONDS },
+      new PutObjectCommand({
+        Bucket: env.R2_BUCKET,
+        Key: storageKey,
+        ContentType: contentType,
+        // assinado: o R2 recusa o PUT cujo corpo não tem exatamente este tamanho
+        ContentLength: sizeBytes,
+      }),
+      { expiresIn: PRESIGN_TTL_SECONDS, signableHeaders: new Set(['content-length']) },
     );
+  }
+
+  async statSize(storageKey: string) {
+    try {
+      const { ContentLength } = await this.client.send(
+        new HeadObjectCommand({ Bucket: env.R2_BUCKET, Key: storageKey }),
+      );
+
+      return ContentLength;
+    } catch {
+      // objeto ausente é resposta válida aqui: presign sem PUT
+      return undefined;
+    }
+  }
+
+  async remove(storageKey: string) {
+    await this.client.send(new DeleteObjectCommand({ Bucket: env.R2_BUCKET, Key: storageKey }));
   }
 }

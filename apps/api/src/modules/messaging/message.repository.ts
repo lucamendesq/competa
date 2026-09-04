@@ -44,6 +44,18 @@ export class MessageRepository {
   /** Sem `FirmScope`: quem chama é o listener do evento ou o cron — não há sessão, e o
    *  `request_id` já vem do fan-out/varredura, que nasceram dentro de um escopo.
    *  Nunca lança: falha de canal vira linha `failed` + log (regra 9/10). */
+  /** Envio que não tem Solicitação para amarrar (convite). Sem linha em `message`, mas
+   *  com a mesma garantia: falha de canal é logada e não propaga. */
+  async sendWithoutLog(input: { recipient: string; subject: string; body: string }) {
+    try {
+      await this.provider.send(input);
+      return true;
+    } catch (error) {
+      this.logger.error(`envio para ${input.recipient} falhou`, error);
+      return false;
+    }
+  }
+
   async deliver({ requestId, purpose, recipient, subject, body }: Delivery) {
     const [row] = await this.db
       .insert(message)

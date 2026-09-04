@@ -57,7 +57,17 @@ export type DeadlineMissedEvent = {
   accountantEmails: string[];
 };
 
+/** Convite de Contador emitido (registry → messaging). `inviteUrl` viaja no evento pelo
+ *  mesmo motivo do Link de Upload: o token em claro só existe na emissão. */
+export type InviteCreatedEvent = {
+  email: string;
+  firmName: string;
+  inviteUrl: string;
+  expiresAt: Date;
+};
+
 export const EVENTS = {
+  InviteCreated: 'InviteCreated',
   RequestCreated: 'RequestCreated',
   ItemReopened: 'ItemReopened',
   RequestCompleted: 'RequestCompleted',
@@ -65,6 +75,7 @@ export const EVENTS = {
 } as const;
 
 export type EventPayloads = {
+  InviteCreated: InviteCreatedEvent;
   RequestCreated: RequestCreatedEvent;
   ItemReopened: ItemReopenedEvent;
   RequestCompleted: RequestCompletedEvent;

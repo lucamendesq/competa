@@ -19,6 +19,8 @@ import type { FirmScope } from '../auth/scope.js';
 import { InvalidTransition } from './errors.js';
 import {
   acceptItemRefusal,
+  reviewExtraRefusal,
+  undoAcceptRefusal,
   missedDeadline,
   rejectDocumentRefusal,
   requestStatusAfterReview,
@@ -80,9 +82,12 @@ export class RequestRepository {
         uploadedAt: document.uploadedAt,
         reviewStatus: document.reviewStatus,
         rejectionReason: document.rejectionReason,
+        uploadedByContactId: document.uploadedByContactId,
       })
       .from(document)
-      .where(eq(document.requestId, requestId))
+      // documento em `awaiting_upload` é linha de presign sem arquivo no storage: não
+      // aparece na revisão, no zip nem no painel
+      .where(and(eq(document.requestId, requestId), eq(document.uploadStatus, 'uploaded')))
       .orderBy(asc(document.uploadedAt));
 
     return {
@@ -113,6 +118,7 @@ export class RequestRepository {
           and(
             eq(document.requestItemId, requestItemId),
             eq(document.reviewStatus, 'pending'),
+            eq(document.uploadStatus, 'uploaded'),
           ),
         )
         .returning({ id: document.id });
@@ -419,7 +425,7 @@ export class RequestRepository {
       .innerJoin(request, eq(request.id, document.requestId))
       .innerJoin(company, eq(company.id, request.companyId))
       .leftJoin(requestItem, eq(requestItem.id, document.requestItemId))
-      .where(eq(document.requestId, requestId))
+      .where(and(eq(document.requestId, requestId), eq(document.uploadStatus, 'uploaded')))
       .orderBy(asc(requestItem.name), asc(document.uploadedAt));
 
     return { ...head, documents };
@@ -448,9 +454,115 @@ export class RequestRepository {
       .innerJoin(period, eq(period.id, request.periodId))
       .innerJoin(company, eq(company.id, request.companyId))
       .leftJoin(requestItem, eq(requestItem.id, document.requestItemId))
-      .where(and(eq(request.periodId, periodId), eq(period.accountingFirmId, scope)))
+      .where(
+        and(
+          eq(request.periodId, periodId),
+          eq(period.accountingFirmId, scope),
+          eq(document.uploadStatus, 'uploaded'),
+        ),
+      )
       .orderBy(asc(company.name), asc(requestItem.name), asc(document.uploadedAt));
 
     return { ...head, documents };
+  }
+
+  /** #8 — Documento Extra é revisável individualmente (não há Item para revisar em lote).
+   *  Aceitar/rejeitar Extra não mexe em `request_item` nem no `complete`: Extra não é
+   *  exigência do checklist. Rejeitar Extra também não reenvia link — não há item reaberto. */
+  async reviewExtraDocument(
+    scope: FirmScope,
+    documentId: string,
+    decision: { reviewStatus: 'accepted' | 'rejected'; rejectionReason?: string },
+  ) {
+    const [row] = await this.db
+      .select({
+        id: document.id,
+        fileName: document.fileName,
+        reviewStatus: document.reviewStatus,
+        requestItemId: document.requestItemId,
+        uploadStatus: document.uploadStatus,
+        requestStatus: request.status,
+      })
+      .from(document)
+      .innerJoin(request, eq(request.id, document.requestId))
+      .innerJoin(period, eq(period.id, request.periodId))
+      .where(and(eq(document.id, documentId), eq(period.accountingFirmId, scope)))
+      .limit(1);
+
+    if (!row) return undefined;
+    if (row.requestItemId) {
+      throw new InvalidTransition(
+        'Este documento pertence a um item: aceite pelo item (em lote) ou rejeite pelo documento.',
+      );
+    }
+    if (row.uploadStatus !== 'uploaded') {
+      throw new InvalidTransition('Este documento ainda não foi enviado ao storage.');
+    }
+
+    const refusal = reviewExtraRefusal({
+      requestStatus: row.requestStatus as RequestStatus,
+      reviewStatus: row.reviewStatus as ReviewStatus,
+    });
+    if (refusal) throw new InvalidTransition(refusal);
+
+    const [updated] = await this.db
+      .update(document)
+      .set({
+        reviewStatus: decision.reviewStatus,
+        rejectionReason: decision.rejectionReason ?? null,
+      })
+      .where(eq(document.id, documentId))
+      .returning({
+        id: document.id,
+        fileName: document.fileName,
+        reviewStatus: document.reviewStatus,
+        rejectionReason: document.rejectionReason,
+      });
+
+    return updated;
+  }
+
+  /** #9 — desfazer o aceite de um Item (correção do Contador). Volta para `submitted` se
+   *  ainda há documento enviado, senão `pending`; os Documentos aceitos voltam a `pending`
+   *  (desfazer não é recusar) e a Solicitação deixa de estar `complete`. Não dispara email:
+   *  é correção interna, e o lembrete/varredura de prazo cobrem o resto. */
+  async undoAcceptItem(scope: FirmScope, requestItemId: string) {
+    const context = await this.itemContext(scope, requestItemId);
+    if (!context) return undefined;
+
+    const refusal = undoAcceptRefusal(context);
+    if (refusal) throw new InvalidTransition(refusal);
+
+    return this.db.transaction(async (tx) => {
+      const reverted = await tx
+        .update(document)
+        .set({ reviewStatus: 'pending' })
+        .where(
+          and(
+            eq(document.requestItemId, requestItemId),
+            eq(document.reviewStatus, 'accepted'),
+            eq(document.uploadStatus, 'uploaded'),
+          ),
+        )
+        .returning({ id: document.id });
+
+      const itemStatus = reverted.length > 0 ? 'submitted' : 'pending';
+
+      await tx
+        .update(requestItem)
+        .set({ status: itemStatus })
+        .where(eq(requestItem.id, requestItemId));
+
+      const requestStatus = await this.syncRequestStatus(tx, context.requestId);
+
+      return {
+        requestId: context.requestId,
+        requestItemId,
+        itemName: context.itemName,
+        itemStatus,
+        revertedDocuments: reverted.length,
+        requestStatus,
+      };
+    });
   }
 }

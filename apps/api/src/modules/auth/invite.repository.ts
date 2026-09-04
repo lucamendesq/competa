@@ -52,4 +52,15 @@ export class InviteRepository {
 
     return row;
   }
+
+  /** Nome da Contabilidade para o corpo do convite. */
+  async firmName(scope: FirmScope) {
+    const [row] = await this.db
+      .select({ name: accountingFirm.name })
+      .from(accountingFirm)
+      .where(eq(accountingFirm.id, scope))
+      .limit(1);
+
+    return row?.name ?? '';
+  }
 }

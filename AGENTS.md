@@ -72,7 +72,8 @@ Mapa completo + termos proibidos: [`docs/domain.md`](./docs/domain.md#glossário
 
 - Build de tudo: `pnpm -r build`.
 - Subir a API em modo watch: `pnpm --filter api start:dev`.
-- Aplicar o schema no Postgres: `pnpm --filter api drizzle-push`.
+- Gerar migration a partir do schema: `pnpm --filter api db:generate`; aplicar: `db:migrate`.
+- Rodar o seed do produto: `pnpm --filter api db:seed`.
 - Criar uma Contabilidade + convite inicial: `pnpm --filter api create-firm`.
 - Lint: `pnpm --filter api lint`.
 

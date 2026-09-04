@@ -1,5 +1,7 @@
 import { Injectable, Logger } from '@nestjs/common';
 import { Cron, CronExpression } from '@nestjs/schedule';
+import env from '../../config/env.js';
+import { RequestRepository } from '../requests/request.repository.js';
 import { reminderEmail } from './email-body.js';
 import { MessageRepository } from './message.repository.js';
 import { pickReminders } from './reminder-rules.js';
@@ -8,7 +10,10 @@ import { pickReminders } from './reminder-rules.js';
 export class RemindersCron {
   private readonly logger = new Logger(RemindersCron.name);
 
-  constructor(private readonly messages: MessageRepository) {}
+  constructor(
+    private readonly messages: MessageRepository,
+    private readonly requests: RequestRepository,
+  ) {}
 
   @Cron(CronExpression.EVERY_DAY_AT_9AM)
   async scheduled() {
@@ -21,11 +26,18 @@ export class RemindersCron {
     const due = pickReminders(candidates, new Date());
 
     for (const candidate of due) {
+      // Rotaciona o Link a cada lembrete: o token em claro só existe neste instante (o
+      // banco guarda o hash), então é a única forma de o lembrete levar link clicável.
+      // Efeito colateral aceito: o link do email anterior morre — o lembrete mais recente
+      // é sempre o que funciona.
+      const token = await this.requests.rotateUploadToken(candidate.requestId);
+      const uploadUrl = token ? `${env.WEB_URL}/envio/${token}` : undefined;
+
       await this.messages.deliver({
         requestId: candidate.requestId,
         purpose: 'reminder',
         recipient: candidate.contactEmail,
-        ...reminderEmail(candidate),
+        ...reminderEmail({ ...candidate, uploadUrl }),
       });
     }
 

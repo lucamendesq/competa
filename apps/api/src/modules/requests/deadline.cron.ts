@@ -5,8 +5,15 @@ import { format } from 'date-fns';
 import env from '../../config/env.js';
 import { EVENTS, type DeadlineMissedEvent } from '../../lib/events.js';
 import type { FirmScope } from '../auth/scope.js';
+import { subHours } from 'date-fns';
+import { StorageProvider } from '../../infra/storage/storage.provider.js';
+import { DocumentRepository } from './document.repository.js';
 import { effectiveDueDate } from './review-rules.js';
 import { RequestRepository } from './request.repository.js';
+
+/** Presign sem PUT: janela generosa porque o cliente pode estar subindo 500 arquivos
+ *  grandes numa conexão ruim. */
+const STALE_UPLOAD_HOURS = 24;
 
 /** Varredura de prazo estourado: emite `DeadlineMissed` (avisa Responsável E Contador).
  *
@@ -19,6 +26,8 @@ export class DeadlineCron {
 
   constructor(
     private readonly requests: RequestRepository,
+    private readonly documents: DocumentRepository,
+    private readonly storage: StorageProvider,
     private readonly events: EventEmitter2,
   ) {}
 
@@ -26,6 +35,24 @@ export class DeadlineCron {
   async daily() {
     const { notified } = await this.scan(null);
     if (notified.length) this.logger.log(`Prazo estourado: ${notified.length} item(ns) avisado(s).`);
+
+    const discarded = await this.discardStaleUploads();
+    if (discarded) this.logger.log(`Faxina: ${discarded} envio(s) não confirmado(s) removido(s).`);
+  }
+
+  /** Apaga linha e objeto de envio nunca confirmado. Público para a rota de operação. */
+  async discardStaleUploads() {
+    const stale = await this.documents.staleAwaitingUpload(
+      subHours(new Date(), STALE_UPLOAD_HOURS),
+    );
+    if (!stale.length) return 0;
+
+    await this.documents.discard(stale.map((row) => row.id));
+    await Promise.all(
+      stale.map((row) => this.storage.remove(row.storageKey).catch(() => undefined)),
+    );
+
+    return stale.length;
   }
 
   async scan(scope: FirmScope | null) {
