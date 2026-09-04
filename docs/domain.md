@@ -50,7 +50,7 @@ Os 3 contexts são um **mapa conceitual** (vocabulário, invariantes, direção 
 - Uma competência só abre uma vez por Contabilidade (`unique(accounting_firm_id, reference_month)`); pode abrir dentro do próprio mês de referência (itens `due_month_offset = 0`).
 - Checklist da Solicitação **congelado na abertura** (snapshot em `request_item` — nome/formatos/due_date copiados).
 - Empresa Y NUNCA acessa documento da Empresa X; rotas de upload usam `UploadTokenGuard` → `UploadScope` limitado àquela solicitação, **SÓ escrita** — nunca listam/baixam conteúdo.
-- Documento acessível apenas ao Contador da Contabilidade dona e ao Responsável que enviou (LGPD).
+- Documento acessível apenas ao Contador da Contabilidade dona e aos Responsáveis **da Empresa** (LGPD). Decisão de 2026-09-04 (Fase 10): a visibilidade é por Empresa, não por pessoa — o checklist é obrigação da Empresa e os Responsáveis a representam, então esconder o envio de um do outro só geraria retrabalho e item "enviado" sem explicação. O **histórico de quem enviou** é preservado e exibido (`document.uploaded_by_contact_id`). A barreira que continua valendo: **conteúdo de documento não é servido ao Responsável** — ele vê nome, status, prazo e autor, nunca o arquivo de volta.
 - Item aceito só muda via reabertura; rejeição reabre o Item E dispara reenvio de link SÓ por email.
 - Encerramento é ato exclusivo do Contador (pode encerrar com pendências 🟡, com aviso); Documento Extra aceito mesmo após encerramento.
 - Revisão em lote: aceitar um Item aceita todos os seus Documentos.

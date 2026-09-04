@@ -126,6 +126,24 @@ Regras de leitura:
 | TASK-036 | Decisão RN vs Flutter (spike curto) + registro da decisão | 025, 027 | — | decisão de framework mobile registrada em [`decisions.md`](./decisions.md) |
 | TASK-037 | App do Responsável (upload autenticado + push FCM) | 036 | — | app com upload + notificações push |
 
+## Fase 10 — Experiência do Responsável (PWA + passkey)
+
+> Aprovada em 2026-09-04. Desenho completo em
+> [`docs/superpowers/specs/2026-09-04-fase-10-responsavel-design.md`](./superpowers/specs/2026-09-04-fase-10-responsavel-design.md).
+> Login sem senha: **passkey/biometria** com **magic link** como plano B; conta criada em
+> auto-serviço a partir do Link de Upload; visibilidade **por Empresa** com histórico de quem
+> enviou. **A PWA (F10-6) é desenvolvida pelo fundador** — o backend entrega as rotas.
+
+| Task | Título | Depende | Tabelas novas | Demonstrável depois desta |
+|------|--------|---------|---------------|---------------------------|
+| F10-1 | Magic link + criar acesso pelo Link de Upload + `ContactScope`/`ContactGuard` + `/me/contact` | 022 | `push_subscription`, `passkey` (plugin) | Responsável cria conta pelo link e vê quem ele é |
+| F10-2 | Passkey: registro e login | F10-1 | — | entra por biometria; reinstalar não pede email |
+| F10-3 | Leitura: `/my/pending`, `/my/periods`, `/my/periods/:id` com autoria | F10-1, 027 | — | ele vê o que falta, o que mandou, o que foi rejeitado e por quê |
+| F10-4 | Upload logado (`ContactScope`, sem link) | F10-3 | — | envia sem depender do email |
+| F10-5 | Web Push nos eventos existentes | F10-1, 025 | — | push de novo pedido, rejeição e prazo |
+| F10-6 🚧 | PWA Angular (fora de escopo — fundador) | F10-4 | — | — |
+| F10-7 | Revogação de acesso pelo Contador | F10-1 | — | Contador corta o acesso de um Responsável |
+
 ## Marcos de validação (dopamina + negócio)
 
 - **Após TASK-005:** você loga num painel de verdade. (fim da fundação)

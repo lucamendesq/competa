@@ -86,7 +86,7 @@ Diretivas (`eslint-disable-next-line`, `@ts-expect-error`) não são comentário
 - Não chamar API da Meta/SES/FCM fora de `modules/messaging/providers/`.
 - Não introduzir CQRS/microservices/fila na v1 — só `@Module` + event-emitter síncrono.
 - Rotas do fluxo de upload NUNCA listam ou baixam conteúdo de documentos — só upload (nomes/status dos itens é permitido).
-- Não expor documento a quem não é o Contador da Contabilidade dona ou o Responsável que enviou (LGPD).
+- Não expor documento a quem não é o Contador da Contabilidade dona ou Responsável da Empresa (LGPD) — e ao Responsável nunca se serve o **conteúdo** do arquivo, só nome/status/prazo/autor (ver [`domain.md`](./domain.md)).
 - Não extrair zip no servidor nem parsear XML de NF na v1.
 - Não criar pastas `entities/`/`vo/`/`usecases/` nem serviço pass-through — só controller e repositório.
 - Não comentar código que se explica sozinho — renomear/extrair antes; comentário só nos casos da seção acima.
