@@ -1,5 +1,6 @@
 import { Injectable } from '@nestjs/common';
-import { and, count, eq, inArray } from 'drizzle-orm';
+import { and, asc, count, eq, ne } from 'drizzle-orm';
+import { inArray } from 'drizzle-orm';
 import type { OpenPeriodBody } from '@contabilidade/contracts';
 import { addDays } from 'date-fns';
 import env from '../../config/env.js';
@@ -15,7 +16,8 @@ import {
 } from '../../infra/database/schema/index.js';
 import type { FirmScope } from '../auth/scope.js';
 import { ChecklistRepository } from '../checklists/checklist.repository.js';
-import { PeriodAlreadyOpen } from './errors.js';
+import { summarizePending, type PanelRow } from '../requests/review-rules.js';
+import { PeriodAlreadyClosed, PeriodAlreadyOpen } from './errors.js';
 import { planFanOut, type RequestPlan } from './fan-out.js';
 
 /** O driver embrulha o erro do Postgres; procuramos a constraint na cadeia de causas
@@ -82,7 +84,13 @@ export class PeriodRepository {
     if (companies.length === 0) return [];
 
     const contacts = await this.db
-      .select({ id: contact.id, companyId: contact.companyId, email: contact.email })
+      .select({
+        id: contact.id,
+        companyId: contact.companyId,
+        name: contact.name,
+        email: contact.email,
+        phone: contact.phone,
+      })
       .from(contact)
       .where(
         inArray(
@@ -208,6 +216,71 @@ export class PeriodRepository {
       .where(and(eq(request.periodId, periodId), eq(requestItem.status, 'pending')));
 
     return { ...row, pendingItemCount: pending.value };
+  }
+
+  /** Painel de Pendências ("quem faltou"): uma linha por Empresa da Competência, com o
+   *  que falta e o prazo efetivo. `leftJoin` no Item para a Empresa sem nenhum Item
+   *  ainda aparecer no painel. */
+  async pendingPanel(scope: FirmScope, periodId: string) {
+    const rows = await this.db
+      .select({
+        companyId: company.id,
+        companyName: company.name,
+        requestId: request.id,
+        requestStatus: request.status,
+        itemId: requestItem.id,
+        itemName: requestItem.name,
+        itemStatus: requestItem.status,
+        itemDueDate: requestItem.dueDate,
+        periodDueDate: period.dueDate,
+      })
+      .from(request)
+      .innerJoin(period, eq(period.id, request.periodId))
+      .innerJoin(company, eq(company.id, request.companyId))
+      .leftJoin(requestItem, eq(requestItem.requestId, request.id))
+      .where(and(eq(request.periodId, periodId), eq(period.accountingFirmId, scope)))
+      .orderBy(asc(company.name), asc(requestItem.dueDate), asc(requestItem.name));
+
+    return summarizePending(rows as PanelRow[]);
+  }
+
+  /** Encerrar a Competência encerra as Solicitações dela — ato exclusivo do Contador,
+   *  permitido com pendências (o controller devolve o aviso). */
+  async closePeriod(scope: FirmScope, periodId: string) {
+    const [row] = await this.db
+      .select({ id: period.id, status: period.status })
+      .from(period)
+      .where(and(eq(period.id, periodId), eq(period.accountingFirmId, scope)))
+      .limit(1);
+
+    if (!row) return undefined;
+    if (row.status === 'closed') throw new PeriodAlreadyClosed();
+
+    const [pending] = await this.db
+      .select({ value: count() })
+      .from(requestItem)
+      .innerJoin(request, eq(request.id, requestItem.requestId))
+      .where(and(eq(request.periodId, periodId), ne(requestItem.status, 'accepted')));
+
+    return this.db.transaction(async (tx) => {
+      const closedRequests = await tx
+        .update(request)
+        .set({ status: 'closed', closedAt: new Date() })
+        .where(and(eq(request.periodId, periodId), ne(request.status, 'closed')))
+        .returning({ id: request.id });
+
+      const [closed] = await tx
+        .update(period)
+        .set({ status: 'closed' })
+        .where(eq(period.id, periodId))
+        .returning({ id: period.id, referenceMonth: period.referenceMonth, status: period.status });
+
+      return {
+        ...closed,
+        closedRequestCount: closedRequests.length,
+        pendingItemCount: pending.value,
+      };
+    });
   }
 
   async listRequests(scope: FirmScope, periodId: string) {

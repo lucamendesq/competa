@@ -72,21 +72,32 @@ Regras de leitura:
 
 ## Fase 5 — Comunicação (messaging): email fecha o loop de cobrança
 
+> **Estado (2026-09-04): entregue e verificado por HTTP.** `MessageProvider` com `ResendEmail`
+> e `LogEmail` (sem `RESEND_API_KEY`, cai no log de dev — mesmo padrão do D12); todo envio
+> vira linha em `message`; canal quebrado **nunca** bloqueia o fluxo (`status='failed'` +
+> `error`). Lembretes com decisão pura e testada em `modules/messaging/reminder-rules.ts`.
+> **Não verificado:** envio real pela Resend (sem chave/domínio).
+
 | Task | Título | Depende | Tabelas novas | Demonstrável depois desta |
 |------|--------|---------|---------------|---------------------------|
-| TASK-025 | Interface de provider + email (Resend/SES) + `message`; envia link na abertura | 020, 017 | `message` | ao abrir competência, Responsável recebe o link por email; envio logado |
-| TASK-026 | Cron de lembretes agrupados (máx. 2; com/sem prazo) | 025, 018 | — | lembretes automáticos de pendência por Solicitação |
+| ✅ TASK-025 | Interface de provider + email (Resend/SES) + `message`; envia link na abertura | 020, 017 | `message` | ao abrir competência, Responsável recebe o link por email; envio logado |
+| ✅ TASK-026 | Cron de lembretes agrupados (máx. 2; com/sem prazo) | 025, 018 | — | lembretes automáticos de pendência por Solicitação |
 
 ## Fase 6 — Coleta: revisão, pendências, encerramento
 
+> **Estado (2026-09-04): entregue e verificado por HTTP**, incluindo o loop completo
+> abertura → email → upload público → rejeição no painel → token rotacionado → reenvio por
+> email. Transições de estado e "quem faltou" em `modules/requests/review-rules.ts` (puro,
+> testado).
+
 | Task | Título | Depende | Tabelas novas | Demonstrável depois desta |
 |------|--------|---------|---------------|---------------------------|
-| TASK-027 | Revisão em lote por Item (aceitar Item / rejeitar Documento) | 022 | — | revisar no painel; aceitar Item aceita todos os docs; rejeição reabre Item |
-| TASK-028 | Reenvio de Link SÓ por email na reabertura do Item | 027, 025 | — | rejeitar dispara novo link por email |
-| TASK-029 | `request` → `complete` automático (todos os itens aceitos) | 027 | — | Solicitação se marca completa sozinha |
-| TASK-030 | Painel de Pendências "quem faltou" + `MessageFailed` visível | 027, 025 | — | painel mostra por Empresa o que falta; canal quebrado aparece |
-| TASK-031 | Encerrar Solicitação / Competência (pode com pendências) | 029 | — | Contador encerra (palavra final, com aviso) |
-| TASK-032 | `DeadlineMissed` por item (cron) → notifica Responsável + Contador | 019, 026 | — | estouro de prazo avisa os dois lados |
+| ✅ TASK-027 | Revisão em lote por Item (aceitar Item / rejeitar Documento) | 022 | — | revisar no painel; aceitar Item aceita todos os docs; rejeição reabre Item |
+| ✅ TASK-028 | Reenvio de Link SÓ por email na reabertura do Item | 027, 025 | — | rejeitar dispara novo link por email |
+| ✅ TASK-029 | `request` → `complete` automático (todos os itens aceitos) | 027 | — | Solicitação se marca completa sozinha |
+| ✅ TASK-030 | Painel de Pendências "quem faltou" + `MessageFailed` visível | 027, 025 | — | painel mostra por Empresa o que falta; canal quebrado aparece |
+| ✅ TASK-031 | Encerrar Solicitação / Competência (pode com pendências) | 029 | — | Contador encerra (palavra final, com aviso) |
+| ✅ TASK-032 | `DeadlineMissed` por item (cron) → notifica Responsável + Contador | 019, 026 | — | estouro de prazo avisa os dois lados |
 
 ## Fase 7 — Entrega: zip
 

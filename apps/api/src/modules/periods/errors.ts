@@ -8,3 +8,12 @@ export class PeriodAlreadyOpen extends AppError {
     super(`A competência ${referenceMonth.slice(0, 7)} já foi aberta nesta Contabilidade.`);
   }
 }
+
+export class PeriodAlreadyClosed extends AppError {
+  readonly code = 'PERIOD_ALREADY_CLOSED';
+  readonly status = 409;
+
+  constructor() {
+    super('Esta competência já foi encerrada.');
+  }
+}

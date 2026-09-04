@@ -13,12 +13,19 @@ type ChecklistLine = {
   applies: boolean;
 };
 
-type CompanyRow = { id: string; name: string; contact?: { id: string } };
+type CompanyRow = {
+  id: string;
+  name: string;
+  contact?: { id: string; name: string; email: string; phone: string | null };
+};
 
 export type RequestPlan = {
   companyId: string;
   companyName: string;
   contactId: string;
+  contactName: string;
+  contactEmail: string;
+  contactPhone: string | null;
   token: string;
   tokenHash: string;
   expiresAt: Date;
@@ -64,6 +71,9 @@ export const planFanOut = (input: {
       companyId: row.id,
       companyName: row.name,
       contactId: row.contact!.id,
+      contactName: row.contact!.name,
+      contactEmail: row.contact!.email,
+      contactPhone: row.contact!.phone,
       ...input.createToken(),
       expiresAt: input.expiresAt,
       items: input

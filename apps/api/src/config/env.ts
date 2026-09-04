@@ -17,6 +17,8 @@ const envSchema = z.object({
   R2_ACCESS_KEY_ID: z.string().optional(),
   R2_SECRET_ACCESS_KEY: z.string().optional(),
   R2_BUCKET: z.string().optional(),
+  RESEND_API_KEY: z.string().optional(),
+  EMAIL_FROM: z.string().optional().default('Coleta de Documentos <onboarding@resend.dev>'),
   STORAGE_LOCAL_DIR: z.string().optional().default('.storage'),
 });
 

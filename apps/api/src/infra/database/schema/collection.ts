@@ -85,6 +85,9 @@ export const requestItem = pgTable(
      *  NULL → herda period.due_date → sem prazo */
     dueDate: date('due_date'),
     status: text().notNull().default('pending'),
+    /** quando o estouro de prazo deste Item já foi avisado — idempotência do cron
+     *  (DeadlineMissed). Em memória, reiniciar a API reavisaria o cliente. */
+    deadlineNotifiedAt: timestamp('deadline_notified_at', { withTimezone: true }),
     ...timestamps,
   },
   (t) => [

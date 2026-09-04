@@ -26,7 +26,9 @@
     "@nestjs/common": "^12.0.1",
     "@nestjs/config": "^12.0.0",
     "@nestjs/core": "^12.0.1",
+    "@nestjs/event-emitter": "^12.0.0",
     "@nestjs/platform-express": "^12.0.1",
+    "@nestjs/schedule": "^12.0.1",
     "@thallesp/nestjs-better-auth": "^2.7.0",
     "better-auth": "^1.7.2",
     "date-fns": "^4.4.0",
@@ -34,6 +36,7 @@
     "drizzle-orm": "1.0.0-rc.4",
     "pg": "^8.23.0",
     "reflect-metadata": "^0.2.2",
+    "resend": "^6.25.0",
     "rxjs": "^7.8.1",
     "uuid": "^14.0.2",
     "zod": "^4.4.3"

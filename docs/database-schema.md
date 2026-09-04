@@ -168,7 +168,11 @@ create table request_item (               -- Item — SNAPSHOT congelado na aber
   due_date          date,                 -- congelado: reference_month + due_month_offset + due_day;
                                           -- NULL → herda period.due_date → sem prazo
   status            text not null default 'pending'
-                      check (status in ('pending','submitted','accepted','rejected'))
+                      check (status in ('pending','submitted','accepted','rejected')),
+  deadline_notified_at timestamptz     -- idempotência do cron de DeadlineMissed: já avisei
+                                       -- este Item. Estado em memória reavisaria o cliente
+                                       -- a cada restart da API. A reabertura do Item limpa
+                                       -- a marca, então prazo que estoura de novo avisa.
 );
 create index request_item_pending_idx on request_item (request_id, status); -- Painel de Pendências
 
@@ -201,17 +205,22 @@ create table upload_link (                -- Link de Upload (token próprio; NÃ
 ```sql
 create table message (                    -- log/outbox de tudo que sai
   id          uuid primary key,
-  request_id  uuid not null references request(id),
+  request_id  uuid not null references request(id) on delete cascade,
   channel     text not null check (channel in ('email','whatsapp','push')),
   purpose     text not null check (purpose in
                 ('link_delivery','reminder','rejection','deadline_missed','completion')),
   recipient   text not null,
   status      text not null default 'queued'
                 check (status in ('queued','sent','delivered','failed')),
-  sent_at     timestamptz
+  sent_at     timestamptz,
+  error       text                          -- motivo da falha do provedor; é o que o
+                                            -- Painel de Pendências mostra (MessageFailed)
 );
 create index message_reminder_idx on message (request_id, purpose);
 -- cadência máx. 2 lembretes = count(*) where purpose='reminder' por request (sem tabela extra)
+-- Janela escolhida na Fase 5 (constantes em modules/messaging/reminder-rules.ts, puro e testado):
+-- com prazo, lembra a partir de D-3 com gap mínimo de 3 dias; sem prazo, cadência semanal.
+-- Falha de canal nunca bloqueia o fluxo: vira status='failed' + error e segue.
 ```
 
 ## Consultas/algoritmos canônicos
@@ -267,7 +276,7 @@ valida `expires_at`/`revoked` e injeta `UploadScope`), `modules/requests/upload.
 
 | Entidade | Transições |
 |----------|-----------|
-| `request_item.status` | `pending → submitted` (upload) `→ accepted` \| `rejected` (Revisão); `rejected → pending` (reabertura, dispara reenvio de link SÓ por email) |
+| `request_item.status` | `pending → submitted` (upload) `→ accepted` \| `rejected` (Revisão); `rejected → pending` (reabertura: **rotaciona o token** do `upload_link` e dispara reenvio SÓ por email — o link anterior morre). Rejeição é por Documento; aceitar o Item aceita todos os Documentos `pending` dele (Documento já `rejected` fica como histórico). |
 | `request.status` | `open → complete` (todos os itens `accepted`, automático); `open\|complete → closed` (ato do Contador; pode fechar com pendências, com aviso) |
 | `period.status` | `open → closed` (ato do Contador) |
 | `document.review_status` | `pending → accepted` \| `rejected` — Revisão em lote opera no Item (aceita todos os `document` do item de uma vez) |
