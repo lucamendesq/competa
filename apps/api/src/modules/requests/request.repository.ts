@@ -390,4 +390,67 @@ export class RequestRepository {
       .set({ deadlineNotifiedAt: new Date() })
       .where(inArray(requestItem.id, requestItemIds));
   }
+
+  /** Documentos de UMA Solicitação para o zip (TASK-033). Escopo por join até `period` da
+   *  Contabilidade — Solicitação de outro tenant não existe para esta consulta. */
+  async documentsForRequestZip(scope: FirmScope, requestId: string) {
+    const [head] = await this.db
+      .select({
+        companyName: company.name,
+        referenceMonth: period.referenceMonth,
+      })
+      .from(request)
+      .innerJoin(period, eq(period.id, request.periodId))
+      .innerJoin(company, eq(company.id, request.companyId))
+      .where(and(eq(request.id, requestId), eq(period.accountingFirmId, scope)))
+      .limit(1);
+
+    if (!head) return undefined;
+
+    const documents = await this.db
+      .select({
+        storageKey: document.storageKey,
+        fileName: document.fileName,
+        itemName: requestItem.name,
+        companyName: company.name,
+        reviewStatus: document.reviewStatus,
+      })
+      .from(document)
+      .innerJoin(request, eq(request.id, document.requestId))
+      .innerJoin(company, eq(company.id, request.companyId))
+      .leftJoin(requestItem, eq(requestItem.id, document.requestItemId))
+      .where(eq(document.requestId, requestId))
+      .orderBy(asc(requestItem.name), asc(document.uploadedAt));
+
+    return { ...head, documents };
+  }
+
+  /** Documentos de TODA a Competência (TASK-034), separados por Empresa no zip. */
+  async documentsForPeriodZip(scope: FirmScope, periodId: string) {
+    const [head] = await this.db
+      .select({ referenceMonth: period.referenceMonth })
+      .from(period)
+      .where(and(eq(period.id, periodId), eq(period.accountingFirmId, scope)))
+      .limit(1);
+
+    if (!head) return undefined;
+
+    const documents = await this.db
+      .select({
+        storageKey: document.storageKey,
+        fileName: document.fileName,
+        itemName: requestItem.name,
+        companyName: company.name,
+        reviewStatus: document.reviewStatus,
+      })
+      .from(document)
+      .innerJoin(request, eq(request.id, document.requestId))
+      .innerJoin(period, eq(period.id, request.periodId))
+      .innerJoin(company, eq(company.id, request.companyId))
+      .leftJoin(requestItem, eq(requestItem.id, document.requestItemId))
+      .where(and(eq(request.periodId, periodId), eq(period.accountingFirmId, scope)))
+      .orderBy(asc(company.name), asc(requestItem.name), asc(document.uploadedAt));
+
+    return { ...head, documents };
+  }
 }

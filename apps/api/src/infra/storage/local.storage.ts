@@ -1,5 +1,5 @@
 import { createHmac, timingSafeEqual } from 'node:crypto';
-import { createWriteStream } from 'node:fs';
+import { createReadStream, createWriteStream } from 'node:fs';
 import { mkdir } from 'node:fs/promises';
 import { dirname, join, resolve, sep } from 'node:path';
 import type { Readable } from 'node:stream';
@@ -27,6 +27,10 @@ export class LocalStorage extends StorageProvider {
     return url.toString();
   }
 
+  async openRead(storageKey: string) {
+    return createReadStream(this.safePath(storageKey));
+  }
+
   async write(input: { storageKey: string; expiresAt: number; signature: string; body: Readable }) {
     // A assinatura é a única barreira desta rota (não há sessão nem token de link aqui):
     // sem a checagem, qualquer um escreve arquivo no disco da API.
@@ -39,11 +43,19 @@ export class LocalStorage extends StorageProvider {
       throw new Forbidden('URL de upload inválida ou expirada.');
     }
 
-    const path = join(root, input.storageKey);
-    if (!path.startsWith(root + sep)) throw new Forbidden('URL de upload inválida ou expirada.');
+    const path = this.safePath(input.storageKey);
 
     await mkdir(dirname(path), { recursive: true });
     await pipeline(input.body, createWriteStream(path));
+
+    return path;
+  }
+
+  /** `storageKey` vem do banco, mas escapar do diretório de storage é a diferença entre
+   *  ler um documento e ler /etc/passwd — a checagem fica no ponto único. */
+  private safePath(storageKey: string) {
+    const path = join(root, storageKey);
+    if (!path.startsWith(root + sep)) throw new Forbidden('Caminho de arquivo inválido.');
 
     return path;
   }

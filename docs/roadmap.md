@@ -101,10 +101,17 @@ Regras de leitura:
 
 ## Fase 7 — Entrega: zip
 
+> **Estado (2026-09-04): entregue e verificado por HTTP.** `GET /requests/:id/zip` e
+> `GET /periods/:id/zip`, streaming de ponta a ponta (`StorageProvider.openRead` → archiver →
+> resposta; nada em memória nem em disco intermediário). Zip sem recompressão (`store`): os
+> documentos já chegam comprimidos e o egress do R2 é grátis. Documento **rejeitado não entra
+> na entrega**; Documento Extra vai em pasta própria; nome repetido no mesmo Item ganha
+> sufixo. Nomes/colisões em `modules/requests/zip.ts` (puro, testado).
+
 | Task | Título | Depende | Tabelas novas | Demonstrável depois desta |
 |------|--------|---------|---------------|---------------------------|
-| TASK-033 | Zip por Empresa/Competência (streaming do R2) | 022 | — | baixar tudo de uma Empresa/competência num zip |
-| TASK-034 | Zip da Competência inteira (todas as Empresas) 🟡 | 033 | — | baixar a competência inteira de uma vez |
+| ✅ TASK-033 | Zip por Empresa/Competência (streaming do R2) | 022 | — | baixar tudo de uma Empresa/competência num zip |
+| ✅ TASK-034 | Zip da Competência inteira (todas as Empresas) | 033 | — | baixar a competência inteira de uma vez |
 
 ## Fase 8 — WhatsApp
 

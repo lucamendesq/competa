@@ -260,6 +260,16 @@ where o.company_id = :company_id and o.action = 'add';
 4. Criar `request_item` com snapshot (name, description, accepted_formats) e `due_date` calculado: `reference_month + (due_month_offset || interval month) + due_day`, senão `NULL` (herda `period.due_date`).
 5. Gerar `upload_link` (token aleatório ≥ 32 bytes; armazenar só o hash) e emitir evento `RequestCreated` → `messaging`.
 
+### Entrega em zip (rotas do painel — `FirmScope`)
+
+`GET /requests/:id/zip` (uma Empresa numa Competência) e `GET /periods/:id/zip` (a
+Competência inteira, uma pasta por Empresa). Streaming: `StorageProvider.openRead` alimenta
+o archiver, que escreve direto na resposta — o zip nunca existe inteiro em memória nem em
+disco, e cada objeto do storage só é aberto quando chega a vez dele. Sem recompressão
+(`store`). Documento com `review_status='rejected'` **fica fora** da entrega (foi recusado
+na revisão); Documento Extra vai em `Documentos Extra/`. Montagem dos nomes (sanitização e
+colisão) em `modules/requests/zip.ts`.
+
 ### Regras de upload (rotas públicas do Link de Upload — `UploadTokenGuard`)
 
 Implementação: `modules/auth/upload-token.guard.ts` (resolve o `upload_link` pelo hash,
