@@ -6,7 +6,7 @@ Guia para agentes de IA (e humanos novos) trabalharem neste repositório. Leia i
 
 SaaS que elimina o garimpo manual de documentos contábeis: a **Contabilidade** define o checklist mensal de cada **Empresa**, **"abre a competência"**, e o sistema cobra por email/WhatsApp, recebe os arquivos por **link sem senha**, mostra no painel **"quem faltou"** e entrega tudo em **zip por empresa/competência**. Público: escritórios contábeis pequenos (1–5 pessoas). **Dev solo.**
 
-> **Estado: pré-código (greenfield).** Ainda não há `apps/` nem `libs/`. Os documentos descrevem a **intenção de design** aprovada — construa seguindo-a; ao divergir, atualize o doc na mesma mudança.
+> **Estado (2026-09-03): backend das Fases 0–2 no ar** (auth/tenant + cadastro: catálogo, templates, Empresas, Responsáveis, overrides, checklist efetivo). `apps/web` ainda é o scaffold do Angular — nenhuma tela existe. Os documentos descrevem a **intenção de design** aprovada; ao divergir, atualize o doc na mesma mudança.
 
 Contexto completo: [`docs/product.md`](./docs/product.md).
 
@@ -42,12 +42,13 @@ docs/           # documentação viva (comece por docs/README.md)
 2. **`FirmScope`/`UploadScope` em todo repositório.** Tipos branded criados só pelos guards de `auth/`. Query sem escopo **não compila**; contornar o tipo é **bug de segurança**. Contabilidade A nunca vê dados da B (LGPD/sigilo).
 3. **Fluxo de upload é só-escrita.** As rotas com `UploadTokenGuard` exibem nomes/status dos itens mas **NUNCA listam ou baixam conteúdo** de documentos. O Link de Upload é token próprio — não passa pelo Better Auth.
 4. **Snapshot congelado na abertura.** Ao "abrir a competência", os itens são copiados (nome/formatos/`due_date`) para `request_item`; mudança posterior no template não afeta solicitações abertas.
-5. **Camada sob demanda (Nest).** Use case só onde há lógica real; CRUD simples → controller chama o repositório direto. Sem `entities/`/`vo/` (tipo = `$inferSelect` do Drizzle); sem use case pass-through.
-6. **Comunicação entre módulos = eventos síncronos** via `@nestjs/event-emitter` (direção: companies/checklists → periods/requests → messaging). **Sem CQRS, sem microservices, sem fila/outbox na v1.**
-7. **Styling = Tailwind + Spartan UI.** Utilities por padrão; Spartan em `shared/ui/`. **Angular Material está fora.** `.scss` de componente é exceção rara.
-8. **`libs/contracts` (zod) é a única fonte de validação** — mesmos schemas no form do Angular e no pipe do Nest. Componente nunca chama `HttpClient` direto (sempre via service da feature).
-9. **Provedores externos** (SES/Resend, Meta, FCM) só atrás de interface em `modules/messaging/providers/`. Falha de canal nunca bloqueia o fluxo (degrada WhatsApp → email).
-10. **`docs/database-schema.md` é canônico.** O schema Drizzle deve espelhá-lo; divergência exige atualizar o doc na mesma PR. Sem extração de zip nem parsing de XML de NF na v1.
+5. **Código sem comentários.** O nome da função/variável explica o quê; o `git log` e os `docs/` explicam o porquê. Comentário só quando o código, mesmo bem escrito, não consegue dizer sozinho: bug/limitação de biblioteca externa, workaround não óbvio, invariante de segurança que um refactor inocente quebraria, ou `ponytail:` marcando um atalho deliberado. Na dúvida, **não comente** — renomeie ou extraia. Nunca comentário que repete a linha seguinte, cabeçalho de arquivo, JSDoc de tipo já tipado, ou comentário de "seção".
+6. **Duas camadas, só (Nest): controller → repositório.** Não existe pasta `usecases/`. Regra de negócio com lógica real (derivar template, importar CSV, checklist efetivo) vira **método do repositório do módulo**; o controller valida, orquestra e traduz erro em HTTP. Sem `entities/`/`vo/` (tipo = `$inferSelect` do Drizzle). Lógica pura sem banco (merge, parser) fica em módulo solto (`effective-checklist.ts`, `csv.ts`).
+7. **Comunicação entre módulos = eventos síncronos** via `@nestjs/event-emitter` (direção: companies/checklists → periods/requests → messaging). **Sem CQRS, sem microservices, sem fila/outbox na v1.**
+8. **Styling = Tailwind + Spartan UI.** Utilities por padrão; Spartan em `shared/ui/`. **Angular Material está fora.** `.scss` de componente é exceção rara.
+9. **`libs/contracts` (zod) é a única fonte de validação** — mesmos schemas no form do Angular e no pipe do Nest. Componente nunca chama `HttpClient` direto (sempre via service da feature).
+10. **Provedores externos** (SES/Resend, Meta, FCM) só atrás de interface em `modules/messaging/providers/`. Falha de canal nunca bloqueia o fluxo (degrada WhatsApp → email).
+11. **`docs/database-schema.md` é canônico.** O schema Drizzle deve espelhá-lo; divergência exige atualizar o doc na mesma PR. Sem extração de zip nem parsing de XML de NF na v1.
 
 Lista completa de anti-patterns: [`docs/conventions.md`](./docs/conventions.md#o-que-não-fazer-anti-patterns).
 

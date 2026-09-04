@@ -6,6 +6,11 @@ import { ConfigModule } from '@nestjs/config';
 import { AuthModule } from './modules/auth/auth.module.js';
 import { DatabaseModule } from './infra/database/database.module.js';
 import { TenantGuard } from './modules/auth/tenant.guard.js';
+import { ChecklistsModule } from './modules/checklists/checklists.module.js';
+import { CompaniesModule } from './modules/companies/companies.module.js';
+import { PeriodsModule } from './modules/periods/periods.module.js';
+import { RequestsModule } from './modules/requests/requests.module.js';
+import { UploadModule } from './modules/requests/upload.module.js';
 
 @Module({
   imports: [
@@ -24,8 +29,12 @@ import { TenantGuard } from './modules/auth/tenant.guard.js';
     }),
     DatabaseModule,
     AuthModule,
+    ChecklistsModule,
+    CompaniesModule,
+    PeriodsModule,
+    RequestsModule,
+    UploadModule,
   ],
-  controllers: [],
   providers: [{ provide: APP_GUARD, useClass: TenantGuard }],
 })
 export class AppModule {}

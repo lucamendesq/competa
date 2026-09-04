@@ -70,7 +70,7 @@ create table checklist_template (         -- Template de Checklist ("Template ME
 
 create table checklist_template_item (    -- composição N:N template ↔ documento
   id                     uuid primary key,
-  checklist_template_id  uuid not null references checklist_template(id),
+  checklist_template_id  uuid not null references checklist_template(id) on delete cascade,
   document_type_id       uuid not null references document_type(id),
   periodicity            text not null default 'monthly'
                            check (periodicity in ('monthly','annual','on_demand')),
@@ -123,7 +123,7 @@ create table invite (                     -- Convite (D-03): serve os dois casos
 
 create table company_checklist_override ( -- edição leve por Empresa
   id                uuid primary key,
-  company_id        uuid not null references company(id),
+  company_id        uuid not null references company(id) on delete cascade,
   document_type_id  uuid not null references document_type(id),
   action            text not null check (action in ('add','remove')),
   -- campos abaixo exigidos quando action = 'add' (espelham checklist_template_item):
@@ -131,6 +131,8 @@ create table company_checklist_override ( -- edição leve por Empresa
   annual_month      smallint,
   due_day           smallint,
   due_month_offset  smallint,
+  condition_flag    text,
+  required          boolean,
   unique (company_id, document_type_id)
 );
 ```
@@ -158,7 +160,7 @@ create table request (                    -- Solicitação (UMA Empresa em UMA C
 
 create table request_item (               -- Item — SNAPSHOT congelado na abertura
   id                uuid primary key,
-  request_id        uuid not null references request(id),
+  request_id        uuid not null references request(id) on delete cascade,
   document_type_id  uuid references document_type(id),  -- só p/ relatórios; campos abaixo são cópia
   name              text not null,        -- copiado do document_type na abertura
   description       text,                 -- copiado
@@ -186,7 +188,7 @@ create table document (                   -- arquivo enviado (1 Item : N Documen
 
 create table upload_link (                -- Link de Upload (token próprio; NÃO é sessão/auth)
   id          uuid primary key,
-  request_id  uuid not null references request(id),
+  request_id  uuid not null references request(id) on delete cascade,
   contact_id  uuid not null references contact(id),
   token_hash  text not null unique,       -- nunca o token em claro
   expires_at  timestamptz not null,
@@ -216,6 +218,13 @@ create index message_reminder_idx on message (request_id, purpose);
 
 ### Checklist efetivo de uma Empresa (template − removidos + adicionados)
 
+Ponto único de verdade no código: `ChecklistRepository.effectiveChecklist()`
+(`apps/api/src/modules/checklists/`), com o merge puro em `effective-checklist.ts`.
+Regras que o SQL abaixo não expressa e o merge implementa: um override `add` do
+MESMO `document_type` **substitui** a linha do template (edição, não duplicata), e
+cada linha volta com `source` (`template` | `override`) e `applies` (resultado de
+`condition_flag` contra `company.flags` — a mesma regra do fan-out).
+
 ```sql
 select dt.id, dt.name, dt.accepted_formats, dt.description,
        ti.periodicity, ti.annual_month, ti.due_day, ti.due_month_offset
@@ -243,6 +252,11 @@ where o.company_id = :company_id and o.action = 'add';
 5. Gerar `upload_link` (token aleatório ≥ 32 bytes; armazenar só o hash) e emitir evento `RequestCreated` → `messaging`.
 
 ### Regras de upload (rotas públicas do Link de Upload — `UploadTokenGuard`)
+
+Implementação: `modules/auth/upload-token.guard.ts` (resolve o `upload_link` pelo hash,
+valida `expires_at`/`revoked` e injeta `UploadScope`), `modules/requests/upload.controller.ts`
+(3 rotas: ver checklist, pedir URLs, confirmar), regras puras em
+`modules/requests/file-rules.ts` e storage em `infra/storage/` (ver D12).
 
 - Valida `token_hash` + `expires_at` + `revoked` e injeta `UploadScope` limitado àquela `request`; escopo **só-upload** (a página exibe nomes/status dos itens; NUNCA lista/baixa conteúdo de documentos).
 - Upload direto ao R2 via URL pré-assinada (4–6 concorrentes); backend só emite URLs e insere `document`.

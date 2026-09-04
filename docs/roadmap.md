@@ -25,37 +25,50 @@ Regras de leitura:
 
 ## Fase 2 — Cadastro (registry): catálogo, templates, empresas
 
+> **Estado (2026-09-03): backend das fatias 006–015 entregue e verificado por HTTP.**
+> As telas Angular do painel (incluindo o shell que a TASK-005 não entregou) ficaram
+> para uma fatia própria de frontend — o "no painel" das colunas abaixo hoje é
+> demonstrável pela API. Ver o log de execução da fase.
+
 | Task | Título | Depende | Tabelas novas | Demonstrável depois desta |
 |------|--------|---------|---------------|---------------------------|
-| TASK-006 | `document_type` + seed mínimo + `GET /document-types` | 005 | `document_type` | catálogo mínimo consultável |
-| TASK-007 | `checklist_template` (+item) + seed de 1 template fixo (MEI) | 006 | `checklist_template`, `checklist_template_item` | 1 template fixo listável (destrava criar Empresa) |
-| TASK-008 | `company` + criar/listar Empresa (referencia template) | 007 | `company` | cadastrar e ver 1 Empresa no painel, escopada por tenant |
-| TASK-009 | `contact` + Responsável na Empresa (email obrigatório) | 008 | `contact` | Empresa com Responsável; sem email → bloqueado |
-| TASK-010 | Editar Empresa + flags (jsonb) + desativar (soft delete) | 009 | — | editar dados/flags e desativar Empresa |
-| TASK-011 | Importar planilha (CSV/XLSX) com relatório por linha | 010 | — | importar carteira inteira de uma vez |
-| TASK-012 | Seed completo: catálogo inteiro + 5 templates fixos (idempotente) | 007 | — | catálogo e os 5 templates do produto completos |
-| TASK-013 | Derivar template próprio + editar itens do derivado | 012 | — | template do tenant editável (`derived_from`) |
-| TASK-014 | `company_checklist_override` (add/remove por Empresa) | 013, 009 | `company_checklist_override` | edição leve do checklist por Empresa |
-| TASK-015 | `getEffectiveChecklist(companyId)` — consulta canônica única | 014 | — | checklist efetivo (template − remove + add) num único ponto; prévia na tela da Empresa |
+| ✅ TASK-006 | `document_type` + seed mínimo + `GET /document-types` | 005 | `document_type` | catálogo mínimo consultável |
+| ✅ TASK-007 | `checklist_template` (+item) + seed de 1 template fixo (MEI) | 006 | `checklist_template`, `checklist_template_item` | 1 template fixo listável (destrava criar Empresa) |
+| ✅ TASK-008 | `company` + criar/listar Empresa (referencia template) | 007 | `company` | cadastrar e ver 1 Empresa no painel, escopada por tenant |
+| ✅ TASK-009 | `contact` + Responsável na Empresa (email obrigatório) | 008 | `contact` | Empresa com Responsável; sem email → bloqueado |
+| ✅ TASK-010 | Editar Empresa + flags (jsonb) + desativar (soft delete) | 009 | — | editar dados/flags e desativar Empresa |
+| ✅ TASK-011 | Importar planilha (CSV/XLSX) com relatório por linha | 010 | — | importar carteira inteira de uma vez |
+| ✅ TASK-012 | Seed completo: catálogo inteiro + 5 templates fixos (idempotente) | 007 | — | catálogo e os 5 templates do produto completos |
+| ✅ TASK-013 | Derivar template próprio + editar itens do derivado | 012 | — | template do tenant editável (`derived_from`) |
+| ✅ TASK-014 | `company_checklist_override` (add/remove por Empresa) | 013, 009 | `company_checklist_override` | edição leve do checklist por Empresa |
+| ✅ TASK-015 | `getEffectiveChecklist(companyId)` — consulta canônica única | 014 | — | checklist efetivo (template − remove + add) num único ponto; prévia na tela da Empresa |
 
 ## Fase 3 — Coleta CORE: abrir a Competência
 
+> **Estado (2026-09-04): entregue e verificado por HTTP.** `POST /periods` faz o fan-out
+> completo (Solicitação + snapshot dos Itens + prazo congelado + Link de Upload) numa
+> transação; decisão do fan-out isolada em `modules/periods/fan-out.ts` (pura, testada).
+
 | Task | Título | Depende | Tabelas novas | Demonstrável depois desta |
 |------|--------|---------|---------------|---------------------------|
-| TASK-016 | `period` + abrir Competência vazia (só cria o period, unicidade) | 005 | `period` | abrir a competência 1x por Contabilidade; tela "abrir competência" |
-| TASK-017 | `request` + fan-out (1 Solicitação por Empresa ativa c/ email) | 016, 009 | `request` | abrir gera N Solicitações; Empresas sem email listadas como aviso |
-| TASK-018 | `request_item` + snapshot congelado + filtros de periodicidade/flag | 017, 015 | `request_item` | cada Solicitação com itens copiados do checklist efetivo |
-| TASK-019 | `due_date` por item (congelado) + fallback `period.due_date` | 018 | — | prazos por item calculados na abertura |
-| TASK-020 | `upload_link` + geração de token (hash) por Solicitação | 017 | `upload_link` | cada Solicitação nasce com um Link de Upload (token só como hash) |
+| ✅ TASK-016 | `period` + abrir Competência vazia (só cria o period, unicidade) | 005 | `period` | abrir a competência 1x por Contabilidade; tela "abrir competência" |
+| ✅ TASK-017 | `request` + fan-out (1 Solicitação por Empresa ativa c/ email) | 016, 009 | `request` | abrir gera N Solicitações; Empresas sem email listadas como aviso |
+| ✅ TASK-018 | `request_item` + snapshot congelado + filtros de periodicidade/flag | 017, 015 | `request_item` | cada Solicitação com itens copiados do checklist efetivo |
+| ✅ TASK-019 | `due_date` por item (congelado) + fallback `period.due_date` | 018 | — | prazos por item calculados na abertura |
+| ✅ TASK-020 | `upload_link` + geração de token (hash) por Solicitação | 017 | `upload_link` | cada Solicitação nasce com um Link de Upload (token só como hash) |
 
 ## Fase 4 — Upload público (o diferencial "sem senha")
 
+> **Estado (2026-09-04): entregue e verificado por HTTP**, ponta-a-ponta com o token gerado
+> pelo fan-out real da Fase 3 (ver D12 para storage). Falta a **tela** Angular — hoje o
+> fluxo se prova por `GET /upload/:token` + presign + `PUT` + confirmação.
+
 | Task | Título | Depende | Tabelas novas | Demonstrável depois desta |
 |------|--------|---------|---------------|---------------------------|
-| TASK-021 | `UploadTokenGuard` + página pública mostrando o checklist (só-upload) | 020, 018 | — | abrir o link (sem senha) mostra itens/status/prazos; expirado → erro genérico |
-| TASK-022 | `document` + upload de 1 arquivo direto ao R2 (URL pré-assinada) | 021 | `document` | enviar 1 arquivo a 1 item; item vira `submitted` |
-| TASK-023 | Multi-arquivo + zip sem extração + recusa por formato/limites | 022 | — | N arquivos e zip; validação de formato e limites (100 MB / 500) |
-| TASK-024 | Documento Extra + bloqueio de itens quando Solicitação encerrada | 022 | — | enviar Extra a qualquer momento; itens bloqueiam ao encerrar |
+| ✅ TASK-021 | `UploadTokenGuard` + página pública mostrando o checklist (só-upload) | 020, 018 | — | abrir o link (sem senha) mostra itens/status/prazos; expirado → erro genérico |
+| ✅ TASK-022 | `document` + upload de 1 arquivo direto ao R2 (URL pré-assinada) | 021 | `document` | enviar 1 arquivo a 1 item; item vira `submitted` |
+| ✅ TASK-023 | Multi-arquivo + zip sem extração + recusa por formato/limites | 022 | — | N arquivos e zip; validação de formato e limites (100 MB / 500) |
+| ✅ TASK-024 | Documento Extra + bloqueio de itens quando Solicitação encerrada | 022 | — | enviar Extra a qualquer momento; itens bloqueiam ao encerrar |
 
 ## Fase 5 — Comunicação (messaging): email fecha o loop de cobrança
 

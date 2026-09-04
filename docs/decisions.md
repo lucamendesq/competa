@@ -79,7 +79,7 @@
 
 ## D07 — Monorepo: frontend + API NestJS
 
-**Contexto:** a D01 previa monólito Next.js fullstack. O modelo híbrido do Next (Server Components/Actions/Route Handlers) exigia uma tabela de decisão por operação — o fundador prefere o paradigma único Controller → Use Case → Repositório, com tudo exposto como API HTTP. Cargas que favorecem um processo Node persistente: cron de lembretes e streaming de zip.
+**Contexto:** a D01 previa monólito Next.js fullstack. O modelo híbrido do Next (Server Components/Actions/Route Handlers) exigia uma tabela de decisão por operação — o fundador prefere o paradigma único Controller → Repositório, com tudo exposto como API HTTP. Cargas que favorecem um processo Node persistente: cron de lembretes e streaming de zip.
 
 **Decisão:** **monorepo** com frontend e **API NestJS separada**. **Toda operação é endpoint REST da API Nest** (sem Server Actions, sem lógica de negócio no front). Drizzle/migrations/schema em `apps/api/src/database/`. Cron via `@nestjs/schedule`; zip por streaming; contratos zod compartilhados desde o dia 1.
 
@@ -105,11 +105,11 @@
 
 **Decisão:**
 1. **O feature module do Nest É o bounded context na dose certa** — organização por feature, nunca por camada.
-2. **Camada sob demanda:** use case só onde há lógica real; CRUD simples → controller → repository direto. Um repositório por módulo.
+2. **Duas camadas: controller → repository.** Um repositório por módulo, sem camada de use case (revisto em 2026-09-04: a camada só existia em 4 pontos e cada um era um repasse a mais para ler; a lógica real virou método do repositório).
 3. **Eventos de domínio são vocabulário** (nos docs); no código, comunicação entre módulos (item refinado por D10 → `@nestjs/event-emitter` síncrono).
 4. **Sem `entities/`/`vo/`:** tipo da entidade = `$inferSelect` do Drizzle; VOs em `common/` quando surgirem.
 5. **Direção de dependência é convenção, não polícia:** companies/checklists → periods/requests → messaging.
-6. **O que NÃO se abre mão:** `FirmScope`/`UploadScope` nos repositórios, interface única por provedor de mensagem, invariantes nos use cases, contratos zod em `libs/contracts`.
+6. **O que NÃO se abre mão:** `FirmScope`/`UploadScope` nos repositórios, interface única por provedor de mensagem, invariantes cobertas por transação no repositório, contratos zod em `libs/contracts`.
 
 **Alternativas rejeitadas:** DDD tático completo (indireção paga em toda feature; vale para times grandes); organização por camada (cada mudança toca 4+ pastas, briga com o Nest).
 
@@ -141,3 +141,26 @@
 **Consequências:** um único sistema de estilo; componentes Spartan vivem no repo (customização de marca sem lutar contra encapsulamento). Em troca: widgets pesados (datepicker, table, dialog) exigem composição via Spartan/CDK.
 
 **Alternativas rejeitadas:** Angular Material (visual opinado, customização dolorosa); SCSS por componente (overhead de arquivo/nomenclatura em app CRUD-pesado).
+
+## D12 — StorageProvider: R2 em produção, disco em dev
+
+**Contexto:** a fatia central do produto (upload direto por URL pré-assinada, TASK-022) precisa
+de storage S3-compatible, mas o projeto roda local e ninguém quer criar bucket para abrir a API.
+
+**Decisão:** `StorageProvider` (abstract class no DI) com **duas** implementações em
+`apps/api/src/infra/storage/`: `R2Storage` (Cloudflare R2 via `@aws-sdk/client-s3` +
+`s3-request-presigner`, wrapper mínimo/conformista) e `LocalStorage` (dev). A escolha é da
+composição: as 4 vars `R2_*` presentes ⇒ R2; ausentes ⇒ disco em `STORAGE_LOCAL_DIR`
+(default `.storage`, no `.gitignore`). No modo local a "URL pré-assinada" aponta para
+`PUT /storage/local/:storageKey` da própria API, assinada por HMAC com `BETTER_AUTH_SECRET`
+(assinatura + expiração + proteção de path traversal); essa rota só é registrada no modo local.
+
+**Consequências:** a fatia é demonstrável sem credencial e o caminho de produção existe.
+Em troca, é uma exceção consciente à regra "sem interface com uma implementação só" — aqui
+há duas de verdade — e o `R2Storage` segue **não verificado contra o R2 real** (PUT aceito
+pelo bucket, CORS do bucket e `ContentType` no R2). `size_bytes` é o declarado pelo cliente:
+a URL pré-assinada não assina `Content-Length` (teto anotado em `file-rules.ts`).
+
+**Alternativas rejeitadas:** só R2 (bloqueia o dev sem bucket, contra "cada fatia é
+demonstrável"); só disco (deixa a hipótese central — upload direto, egress grátis — não provada).
+

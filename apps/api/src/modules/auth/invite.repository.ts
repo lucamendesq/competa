@@ -3,13 +3,17 @@ import { and, eq, isNull } from 'drizzle-orm';
 import { Database } from '../../infra/database/database.js';
 import { accountingFirm, company, invite } from '../../infra/database/schema/index.js';
 import { hashToken } from '../../lib/token.js';
+import { InviteAlreadyAccepted, InviteExpired, InviteNotFound } from './errors.js';
 import type { FirmScope } from './scope.js';
 
 @Injectable()
 export class InviteRepository {
   constructor(private readonly db: Database) {}
 
-  async createForFirm(scope: FirmScope, input: { email: string; tokenHash: string; expiresAt: Date }) {
+  async createForFirm(
+    scope: FirmScope,
+    input: { email: string; tokenHash: string; expiresAt: Date },
+  ) {
     const [row] = await this.db
       .insert(invite)
       .values({ ...input, accountingFirmId: scope })
@@ -18,8 +22,6 @@ export class InviteRepository {
     return row;
   }
 
-  /** Busca pelo token em claro — só o hash existe no banco. Traz o nome da
-   *  origem para a tela de convite ("Você foi convidado por X"). */
   async findByToken(token: string) {
     const [row] = await this.db
       .select({
@@ -41,8 +43,13 @@ export class InviteRepository {
     return row;
   }
 
-  /** Aceita um executor opcional para participar da transação do signup. */
-  async markAccepted(inviteId: string, tx: Database = this.db) {
-    await tx.update(invite).set({ acceptedAt: new Date() }).where(eq(invite.id, inviteId));
+  async findUsable(token: string) {
+    const row = await this.findByToken(token);
+
+    if (!row) throw new InviteNotFound();
+    if (row.acceptedAt) throw new InviteAlreadyAccepted();
+    if (row.expiresAt < new Date()) throw new InviteExpired();
+
+    return row;
   }
 }

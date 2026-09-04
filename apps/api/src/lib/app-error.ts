@@ -1,5 +1,3 @@
-/** Erro de negócio. Viaja como valor dentro de Result e só vira HTTP no
- *  AppErrorFilter. `message` é PT-BR e exibível ao usuário final. */
 export abstract class AppError extends Error {
   abstract readonly code: string;
   abstract readonly status: number;
@@ -17,7 +15,6 @@ export class ValidationError extends AppError {
   readonly status = 422;
 }
 
-/** Também usado quando o recurso é de outro tenant — nunca revelar a diferença. */
 export class NotFound extends AppError {
   readonly code = 'NOT_FOUND';
   readonly status = 404;

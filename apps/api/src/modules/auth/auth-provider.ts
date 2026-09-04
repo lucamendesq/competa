@@ -18,9 +18,6 @@ export type SignUpEmailResponse = {
 };
 
 export abstract class AuthProvider {
-  abstract signUpEmail(
-    input: SignUpEmailInput,
-  ): Promise<Result<SignUpEmailResponse, unknown>>;
-  /** `null` quando não há sessão válida — nunca lança para esse caso. */
+  abstract signUpEmail(input: SignUpEmailInput): Promise<Result<SignUpEmailResponse, unknown>>;
   abstract getSession(headers: IncomingHttpHeaders): Promise<AuthSession | null>;
 }

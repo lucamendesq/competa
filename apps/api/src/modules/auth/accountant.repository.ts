@@ -1,18 +1,14 @@
 import { Injectable } from '@nestjs/common';
 import { and, eq } from 'drizzle-orm';
 import { Database } from '../../infra/database/database.js';
-import { accountant, accountingFirm, user } from '../../infra/database/schema/index.js';
+import { accountant, accountingFirm, invite, user } from '../../infra/database/schema/index.js';
 import type { FirmScope } from './scope.js';
 
 @Injectable()
 export class AccountantRepository {
   constructor(private readonly db: Database) {}
 
-  /** Contador da sessão + dados da Contabilidade. Filtra por `authUserId` E
-   *  pelo escopo: uma Contabilidade pode ter vários Contadores (convite da
-   *  Task 6), então só o escopo devolveria um Contador arbitrário da firm
-   *  em vez de quem está logado. */
-  async findBySession(scope: FirmScope, authUserId: string) {
+  async findMe(scope: FirmScope, authUserId: string) {
     const [row] = await this.db
       .select({
         accountantId: accountant.id,
@@ -28,5 +24,18 @@ export class AccountantRepository {
       .limit(1);
 
     return row;
+  }
+
+  async acceptInvite(input: { authUserId: string; accountingFirmId: string; inviteId: string }) {
+    await this.db.transaction(async (tx) => {
+      await tx
+        .insert(accountant)
+        .values({ authUserId: input.authUserId, accountingFirmId: input.accountingFirmId });
+      await tx.update(invite).set({ acceptedAt: new Date() }).where(eq(invite.id, input.inviteId));
+    });
+  }
+
+  async deleteAuthUser(authUserId: string) {
+    await this.db.delete(user).where(eq(user.id, authUserId));
   }
 }

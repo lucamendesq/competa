@@ -1,7 +1,30 @@
-import { boolean, check, jsonb, pgTable, text, timestamp, uuid } from 'drizzle-orm/pg-core';
-import { sql } from 'drizzle-orm';
+import {
+  boolean,
+  check,
+  jsonb,
+  pgTable,
+  smallint,
+  text,
+  timestamp,
+  unique,
+  uuid,
+  type AnyPgColumn,
+} from 'drizzle-orm/pg-core';
+import { sql, type SQL } from 'drizzle-orm';
+import {
+  DOCUMENT_CATEGORIES,
+  OVERRIDE_ACTIONS,
+  PERIODICITIES,
+  type CompanyFlags,
+} from '@contabilidade/contracts';
 import { user } from './auth.js';
 import { id, timestamps } from './columns.js';
+
+const oneOf = (column: SQL, values: readonly string[]) =>
+  sql`${column} in (${sql.join(
+    values.map((value) => sql`${value}`),
+    sql`, `,
+  )})`;
 
 export const accountingFirm = pgTable('accounting_firm', {
   id: id(),
@@ -21,14 +44,63 @@ export const accountant = pgTable('accountant', {
   ...timestamps,
 });
 
+export const documentType = pgTable(
+  'document_type',
+  {
+    id: id(),
+    accountingFirmId: uuid('accounting_firm_id').references(() => accountingFirm.id),
+    name: text().notNull(),
+    category: text().notNull(),
+    acceptedFormats: text('accepted_formats').array().notNull().default(['pdf']),
+    description: text(),
+    ...timestamps,
+  },
+  (t) => [check('document_type_category_chk', oneOf(sql`${t.category}`, DOCUMENT_CATEGORIES))],
+);
+
+export const checklistTemplate = pgTable('checklist_template', {
+  id: id(),
+  accountingFirmId: uuid('accounting_firm_id').references(() => accountingFirm.id),
+  name: text().notNull(),
+  derivedFrom: uuid('derived_from').references((): AnyPgColumn => checklistTemplate.id),
+  ...timestamps,
+});
+
+export const checklistTemplateItem = pgTable(
+  'checklist_template_item',
+  {
+    id: id(),
+    checklistTemplateId: uuid('checklist_template_id')
+      .notNull()
+      .references(() => checklistTemplate.id, { onDelete: 'cascade' }),
+    documentTypeId: uuid('document_type_id')
+      .notNull()
+      .references(() => documentType.id),
+    periodicity: text().notNull().default('monthly'),
+    annualMonth: smallint('annual_month'),
+    dueDay: smallint('due_day'),
+    dueMonthOffset: smallint('due_month_offset').notNull().default(1),
+    conditionFlag: text('condition_flag'),
+    required: boolean().notNull().default(true),
+    ...timestamps,
+  },
+  (t) => [
+    unique('checklist_template_item_uidx').on(t.checklistTemplateId, t.documentTypeId),
+    check('checklist_template_item_periodicity_chk', oneOf(sql`${t.periodicity}`, PERIODICITIES)),
+  ],
+);
+
 export const company = pgTable('company', {
   id: id(),
   accountingFirmId: uuid('accounting_firm_id')
     .notNull()
     .references(() => accountingFirm.id),
+  checklistTemplateId: uuid('checklist_template_id')
+    .notNull()
+    .references(() => checklistTemplate.id),
   name: text().notNull(),
   cnpj: text(),
-  flags: jsonb().notNull().default({}),
+  flags: jsonb().$type<CompanyFlags>().notNull().default({}),
   active: boolean().notNull().default(true),
   ...timestamps,
 });
@@ -64,5 +136,34 @@ export const invite = pgTable(
   },
   (t) => [
     check('invite_has_one_origin', sql`num_nonnulls(${t.accountingFirmId}, ${t.companyId}) = 1`),
+  ],
+);
+
+export const companyChecklistOverride = pgTable(
+  'company_checklist_override',
+  {
+    id: id(),
+    companyId: uuid('company_id')
+      .notNull()
+      .references(() => company.id, { onDelete: 'cascade' }),
+    documentTypeId: uuid('document_type_id')
+      .notNull()
+      .references(() => documentType.id),
+    action: text().notNull(),
+    periodicity: text(),
+    annualMonth: smallint('annual_month'),
+    dueDay: smallint('due_day'),
+    dueMonthOffset: smallint('due_month_offset'),
+    conditionFlag: text('condition_flag'),
+    required: boolean(),
+    ...timestamps,
+  },
+  (t) => [
+    unique('company_checklist_override_uidx').on(t.companyId, t.documentTypeId),
+    check('company_checklist_override_action_chk', oneOf(sql`${t.action}`, OVERRIDE_ACTIONS)),
+    check(
+      'company_checklist_override_periodicity_chk',
+      sql`${t.periodicity} is null or ${oneOf(sql`${t.periodicity}`, PERIODICITIES)}`,
+    ),
   ],
 );

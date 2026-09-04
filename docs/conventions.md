@@ -23,16 +23,31 @@ TypeScript · **pnpm workspaces** · **Angular (SPA, CSR — sem SSR)** · **Tai
 
 ## Backend (NestJS)
 
-1. **Camada sob demanda:** use case só onde há lógica real (fan-out, revisão, importação, zip); CRUD simples → controller chama o repositório direto. Um repositório por módulo. Use case pass-through é anti-pattern.
+1. **Duas camadas: controller → repositório.** Um repositório por módulo; **não existe camada de use case** — o projeto é pequeno demais para pagar a indireção. O que seria use case (fan-out, revisão, importação, zip) é um **método do repositório**, transação inclusa. O controller fica com validação de entrada, checagens de escopo/estado e a tradução para HTTP. Lógica pura sem banco (merge de checklist, parser de CSV) vive em módulo solto no próprio feature module, testável direto.
 2. **Sem `entities/` nem `vo/`:** o tipo da entidade é `typeof table.$inferSelect` do Drizzle; VO nasce em `common/` quando aparecer — não antes.
 3. **Comunicação entre módulos = eventos síncronos via `@nestjs/event-emitter`** (nomes do mapa EN). Direção por convenção: companies/checklists → periods/requests → messaging. Sem fila/outbox na v1.
 4. Provedores externos (SES/Resend, Meta, FCM) só atrás da interface em `modules/messaging/providers/`.
-5. Organização **por feature**, nunca por camada (`controllers/`, `usecases/` no topo brigam com o sistema de Modules do Nest).
+5. Organização **por feature**, nunca por camada (`controllers/`, `services/` no topo brigam com o sistema de Modules do Nest).
+
+## Comentários
+
+**O padrão é código sem comentário.** Nome de função, de variável e assinatura de tipo carregam o "o quê"; o "porquê" mora na mensagem de commit e nos `docs/`. Comentário é a última saída, não a primeira.
+
+Escreva um comentário **só** quando o código não tem como dizer sozinho:
+
+- bug, limitação ou comportamento surpreendente de biblioteca externa (com link/versão);
+- workaround cuja remoção parece inofensiva e não é;
+- invariante de segurança/atomicidade que um refactor inocente quebraria;
+- `ponytail:` marcando um atalho deliberado e o gatilho para trocá-lo.
+
+Nunca: comentário que repete a linha seguinte, cabeçalho decorativo de arquivo, JSDoc que só redigita o tipo, comentário de "seção", código comentado (o git guarda). Se o trecho precisa de explicação, primeiro tente renomear ou extrair uma função com nome melhor — na maioria das vezes resolve.
+
+Diretivas (`eslint-disable-next-line`, `@ts-expect-error`) não são comentários — são instruções ao compilador/linter; use quando necessário, com o motivo na própria linha.
 
 ## Banco de dados
 
 - **[`database-schema.md`](./database-schema.md) é canônico** — o schema Drizzle (`apps/api/src/infra/database/schema/`) deve espelhá-lo; divergência exige atualizar o doc na mesma PR.
-- **Todo repositório exige `FirmScope` (ou `UploadScope`) como parâmetro** — tipos branded criados SÓ pelo `TenantGuard`/`UploadTokenGuard` em `modules/auth/`. Uma regra de lint (`no-restricted-imports`/`no-restricted-syntax` em `eslint.config.mjs`) audita que `Database` só é importado por repositório/guard/use case/script e que os construtores de escopo só são importados dentro de `modules/auth/`; contornar o tipo é **bug de segurança**, não de estilo.
+- **Todo repositório exige `FirmScope` (ou `UploadScope`) como parâmetro** — tipos branded criados SÓ pelo `TenantGuard`/`UploadTokenGuard` em `modules/auth/`. Uma regra de lint (`no-restricted-imports`/`no-restricted-syntax` em `eslint.config.mjs`) audita que `Database` só é importado por repositório/guard/script e que os construtores de escopo só são importados dentro de `modules/auth/`; contornar o tipo é **bug de segurança**, não de estilo.
 - PK `uuid` gerado na aplicação (uuidv7, não `gen_random_uuid()` do Postgres); FKs com sufixo `_id`; estados como `text` + `check` (nunca enum nativo do Postgres); timestamps `timestamptz`, `created_at` default `now()` em toda tabela.
 
 ## API
@@ -73,6 +88,7 @@ TypeScript · **pnpm workspaces** · **Angular (SPA, CSR — sem SSR)** · **Tai
 - Rotas do fluxo de upload NUNCA listam ou baixam conteúdo de documentos — só upload (nomes/status dos itens é permitido).
 - Não expor documento a quem não é o Contador da Contabilidade dona ou o Responsável que enviou (LGPD).
 - Não extrair zip no servidor nem parsear XML de NF na v1.
-- Não criar pastas `entities/`/`vo/` nem use case pass-through — camada sob demanda.
+- Não criar pastas `entities/`/`vo/`/`usecases/` nem serviço pass-through — só controller e repositório.
+- Não comentar código que se explica sozinho — renomear/extrair antes; comentário só nos casos da seção acima.
 - Não construir o que é Generic: auth (Better Auth), storage (R2), billing → integrar.
 - Não divergir de `database-schema.md` sem atualizar o documento na mesma mudança.

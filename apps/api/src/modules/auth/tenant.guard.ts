@@ -7,16 +7,6 @@ import { Forbidden, Unauthenticated } from '../../lib/app-error.js';
 import { AuthProvider } from './auth-provider.js';
 import { toFirmScope } from './scope.js';
 
-/** Único guard global: nenhuma rota depende de ordem entre dois APP_GUARD
- *  (era exatamente esse o bug — o AuthGuard do Better Auth podia rodar
- *  depois deste, deixando `request.session` vazio no caminho positivo).
- *  Resolve a sessão via AuthProvider, depois a Contabilidade do Contador
- *  logado, e anexa `request.session` (lido pelo nosso `@Session()`, não o
- *  do pacote) e o FirmScope.
- *
- *  Só entende a metadata `'PUBLIC'` (`@AllowAnonymous()`). O `'OPTIONAL'`
- *  (`@OptionalAuth()`) que o AuthGuard da lib tratava não é suportado — hoje
- *  nada usa; se alguém aplicar, a rota vira 401 em vez de passar anônima. */
 @Injectable()
 export class TenantGuard implements CanActivate {
   constructor(
@@ -26,7 +16,6 @@ export class TenantGuard implements CanActivate {
   ) {}
 
   async canActivate(context: ExecutionContext) {
-    // 'PUBLIC' é a chave que @AllowAnonymous() grava (SetMetadata("PUBLIC", true))
     const isAnonymous = this.reflector.getAllAndOverride<boolean>('PUBLIC', [
       context.getHandler(),
       context.getClass(),
@@ -45,7 +34,6 @@ export class TenantGuard implements CanActivate {
       .where(eq(accountant.authUserId, session.user.id))
       .limit(1);
 
-    // Responsável com App loga mas não é Contador — painel é fora do alcance dele
     if (!row) throw new Forbidden('Esta conta não pertence a uma Contabilidade.');
 
     request.firmScope = toFirmScope(row.accountingFirmId);

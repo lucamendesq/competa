@@ -25,7 +25,6 @@ export class AppErrorFilter implements ExceptionFilter {
         .json({ error: { code: 'NOT_FOUND', message: 'Recurso não encontrado.' } });
     }
 
-    // HttpException (exceto 404) e erro desconhecido: nunca vaza detalhe para o cliente
     this.logger.error(exception);
     return response
       .status(500)

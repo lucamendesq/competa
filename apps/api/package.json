@@ -14,11 +14,14 @@
     "start:debug": "nest start --inspect --watch",
     "start:prod": "node dist/main",
     "lint": "eslint .",
+    "test": "node --import tsx --test \"src/**/*.test.ts\"",
     "db:migrate": "drizzle-kit push",
     "db:seed": "tsx src/infra/database/seeds/index.ts",
     "create-firm": "tsx src/scripts/create-firm.ts"
   },
   "dependencies": {
+    "@aws-sdk/client-s3": "^3.1125.0",
+    "@aws-sdk/s3-request-presigner": "^3.1125.0",
     "@contabilidade/contracts": "workspace:*",
     "@nestjs/common": "^12.0.1",
     "@nestjs/config": "^12.0.0",

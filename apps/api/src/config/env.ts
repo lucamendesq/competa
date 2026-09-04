@@ -12,6 +12,12 @@ const envSchema = z.object({
   BETTER_AUTH_URL: z.string({ error: 'BETTER_AUTH_URL is required' }),
   WEB_URL: z.url({ error: 'WEB_URL is required' }),
   INVITE_TTL_DAYS: z.string().optional().transform(Number).default(7),
+  UPLOAD_LINK_TTL_DAYS: z.string().optional().transform(Number).default(30),
+  R2_ACCOUNT_ID: z.string().optional(),
+  R2_ACCESS_KEY_ID: z.string().optional(),
+  R2_SECRET_ACCESS_KEY: z.string().optional(),
+  R2_BUCKET: z.string().optional(),
+  STORAGE_LOCAL_DIR: z.string().optional().default('.storage'),
 });
 
 type Env = z.infer<typeof envSchema>;

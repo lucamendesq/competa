@@ -63,9 +63,9 @@ src/
   modules/
     auth/                    # TenantGuard (guard global único) + @CurrentScope()/@Session()
                              #   → injeta FirmScope (tipo branded) + UploadTokenGuard (upload público)
-    companies/               # companies.module|controller|repository.ts + use-cases/
-    checklists/              # derive-template, effective-checklist
-    periods/                 # open-period.usecase.ts (fan-out + snapshot)
+    companies/               # companies.module|controller|repository.ts (import CSV no repositório)
+    checklists/              # checklist.repository.ts (derive/efetivo) + effective-checklist.ts (merge puro)
+    periods/                 # period.repository.ts (fan-out + snapshot)
     requests/                # review-item, close-request, generate-zip, upload
     messaging/               # providers/ (email, whatsapp, push — 1 interface) + reminders.cron.ts
 ```
@@ -76,7 +76,7 @@ src/
 |-----------|-----------------|------------|
 | apps/web — features/panel | Painel do Contador: cadastro, templates/overrides, competências, revisão em lote, pendências | Angular (standalone components, signals, Typed Reactive Forms) + Tailwind/Spartan UI |
 | apps/web — features/upload | Página pública de upload (token, multi-arquivo/zip, direto ao R2) | Angular (rota pública, lazy) + Tailwind mobile-first |
-| apps/api — modules/* | Feature modules: controller → use case (onde há lógica) → repository (FirmScope) | NestJS + Drizzle |
+| apps/api — modules/* | Feature modules: controller → repository (FirmScope). Duas camadas, sem use case | NestJS + Drizzle |
 | apps/api — modules/auth | TenantGuard (guard global único) + UploadTokenGuard | Better Auth (adapter Drizzle) |
 | apps/api — eventos | `PeriodOpened`, `RequestCreated`, `ItemReopened`… entre módulos | `@nestjs/event-emitter` (síncrono) |
 | apps/api — messaging | Providers email/WhatsApp/push (1 interface) + `reminders.cron.ts` | `@nestjs/schedule`, ACL por provedor |
