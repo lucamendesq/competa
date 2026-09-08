@@ -4,10 +4,10 @@
   <app-error-state message="Não conseguimos carregar o template." (retry)="template.reload()" />
 } @else if (template.value(); as data) {
   <app-page-header
-    [title]="data.name"
+    [title]="editable() ? 'Editar modelo' : data.name"
     [description]="
       editable()
-        ? 'Modelo próprio: você pode ajustar periodicidade, prazos e condições.'
+        ? 'Ajuste nome, periodicidade, prazos e condições. Nada vale antes de salvar.'
         : 'Modelo do produto: somente leitura. Duplique para editar.'
     "
   >
@@ -27,8 +27,31 @@
     <a hlmBtn variant="outline" routerLink="/checklists">Voltar</a>
   </app-page-header>
 
+  @if (editable()) {
+    <section class="bg-card border-border rounded-xl border p-4">
+      <div class="flex max-w-md flex-col gap-1.5">
+        <label hlmLabel for="template-name">
+          Nome do modelo <span class="text-destructive" aria-hidden="true">*</span
+          ><span class="sr-only">(obrigatório)</span>
+        </label>
+        <input
+          hlmInput
+          id="template-name"
+          type="text"
+          maxlength="120"
+          [value]="draftName()"
+          [disabled]="acting()"
+          (input)="draftName.set($any($event.target).value)"
+        />
+        <p class="text-muted-foreground text-xs">
+          É este nome que aparece na hora de escolher o checklist de uma empresa.
+        </p>
+      </div>
+    </section>
+  }
+
   <section class="bg-card border-border rounded-xl border">
-    @if (!data.items.length) {
+    @if (!visibleItems().length) {
       <p class="text-muted-foreground p-6 text-sm">Este template ainda não tem itens.</p>
     } @else {
       <div hlmTableContainer class="overflow-x-auto">
@@ -53,10 +76,17 @@
             </tr>
           </thead>
           <tbody hlmTBody>
-            @for (item of data.items; track item.id) {
+            @for (item of visibleItems(); track item.id) {
               <tr hlmTr>
                 <th hlmTd scope="row">
-                  <span class="block text-sm font-medium">{{ item.name }}</span>
+                  <span class="block text-sm font-medium">
+                    {{ item.name }}
+                    @if (item.added) {
+                      <span class="text-info ml-1 text-[11px] font-semibold">(novo)</span>
+                    } @else if (isDirty(item)) {
+                      <span class="text-warning ml-1 text-[11px] font-semibold">(alterado)</span>
+                    }
+                  </span>
                   <span class="text-muted-foreground mt-0.5 block text-xs">
                     {{ CATEGORY_LABEL[item.category] ?? item.category }} ·
                     {{ item.acceptedFormats.join(', ') }}
@@ -109,7 +139,30 @@
                   }
                 </td>
 
-                <td hlmTd class="text-xs">{{ deliveryMonth(item) }}</td>
+                <td hlmTd class="text-xs">
+                  <!-- Item anual precisava escolher o mês: a tela só mostrava o texto, e
+                       trocar a periodicidade para "anual" travava tudo em Janeiro. -->
+                  @if (editable() && item.periodicity === 'annual') {
+                    <label class="sr-only" [attr.for]="'annual-month-' + item.id">
+                      Mês de entrega de {{ item.name }}
+                    </label>
+                    <select
+                      hlmInput
+                      [id]="'annual-month-' + item.id"
+                      class="h-8 w-36"
+                      [disabled]="acting()"
+                      (change)="changeAnnualMonth(item, $any($event.target).value)"
+                    >
+                      @for (month of months; track month; let index = $index) {
+                        <option [value]="index + 1" [selected]="index + 1 === item.annualMonth">
+                          {{ month }}
+                        </option>
+                      }
+                    </select>
+                  } @else {
+                    {{ deliveryMonth(item) }}
+                  }
+                </td>
 
                 <td hlmTd>
                   <button
@@ -119,7 +172,7 @@
                     class="focus-visible:ring-ring relative inline-flex h-6 w-11 shrink-0 items-center rounded-full transition-colors focus-visible:ring-2 focus-visible:ring-offset-2 focus-visible:outline-none disabled:opacity-50"
                     [class]="item.required ? 'bg-primary' : 'bg-muted border-border border'"
                     [disabled]="acting() || !editable()"
-                    (click)="update(item, { required: !item.required })"
+                    (click)="toggleRequired(item)"
                   >
                     <span class="sr-only">
                       {{ item.name }} {{ item.required ? 'é obrigatório' : 'é opcional' }}
@@ -179,6 +232,48 @@
     }
   </section>
 
+  <!-- Barra fixa: o rascunho só existe nesta tela, então salvar e descartar precisam estar
+       visíveis o tempo todo (mesmo padrão da revisão em lote). -->
+  @if (editable() && hasChanges()) {
+    <div class="h-20" aria-hidden="true"></div>
+    <div
+      class="border-border bg-card fixed inset-x-0 bottom-0 z-40 border-t p-3 shadow-[0_-4px_12px_rgba(15,23,42,0.08)]"
+      role="region"
+      aria-label="Alterações do modelo"
+    >
+      <div class="mx-auto flex max-w-5xl flex-wrap items-center justify-end gap-3">
+        <p class="mr-auto text-sm">
+          <b>{{ pendingCount() }}</b>
+          {{ pendingCount() === 1 ? 'alteração pendente' : 'alterações pendentes' }}
+          <span class="text-muted-foreground"> · nada muda para as empresas até você salvar </span>
+        </p>
+        <button hlmBtn variant="ghost" [disabled]="acting()" (click)="discard()">Descartar</button>
+        <button hlmBtn [disabled]="acting() || !draftName().trim()" (click)="save()">
+          {{ acting() ? 'Salvando…' : 'Salvar alterações' }}
+        </button>
+      </div>
+    </div>
+  }
+
+  <app-modal
+    [open]="confirmingLeave()"
+    (openChange)="$event ? null : resolveLeave(false)"
+    title="Sair sem salvar?"
+    description="As alterações do modelo ainda não foram gravadas."
+  >
+    <p class="text-sm">
+      Você tem {{ pendingCount() }} {{ pendingCount() === 1 ? 'alteração' : 'alterações' }} nesta
+      tela. Sair agora descarta tudo.
+    </p>
+
+    <div
+      class="border-border bg-muted/40 -mx-5 -mb-5 mt-5 flex flex-wrap justify-end gap-2 border-t p-4"
+    >
+      <button hlmBtn variant="ghost" (click)="resolveLeave(false)">Continuar editando</button>
+      <button hlmBtn variant="destructive" (click)="resolveLeave(true)">Descartar e sair</button>
+    </div>
+  </app-modal>
+
   <app-modal
     [open]="catalogOpen()"
     (openChange)="catalogOpen.set($event)"
@@ -191,7 +286,7 @@
       [acting]="acting()"
       searchId="search-template-catalog"
       emptyLabel="Todos os documentos do catálogo já estão neste template."
-      (add)="add($event.id, $event.name)"
+      (add)="add($event)"
     />
 
     <div
@@ -207,8 +302,8 @@
     title="Remover item do template?"
   >
     <p class="text-sm">
-      {{ confirmRemoval()?.name }} deixa de ser exigido pelas empresas que usam este template.
-      Competências já abertas não mudam.
+      {{ confirmRemoval()?.name }} sai da lista agora e deixa de ser exigido pelas empresas que usam
+      este modelo <strong>quando você salvar</strong>. Competências já abertas não mudam.
     </p>
 
     <div
@@ -219,7 +314,7 @@
         hlmBtn
         variant="destructive"
         [disabled]="acting()"
-        (click)="remover(confirmRemoval()!)"
+        (click)="remove(confirmRemoval()!)"
       >
         Remover item
       </button>

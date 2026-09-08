@@ -202,6 +202,23 @@ export class ChecklistRepository {
     return source.length;
   }
 
+  /** Só o modelo da própria Contabilidade (o controller garante com `requireOwned`): o do
+   *  produto é compartilhado por todos os tenants. */
+  async renameTemplate(templateId: string, name: string) {
+    const [row] = await this.db
+      .update(checklistTemplate)
+      .set({ name })
+      .where(eq(checklistTemplate.id, templateId))
+      .returning({
+        id: checklistTemplate.id,
+        name: checklistTemplate.name,
+        derivedFrom: checklistTemplate.derivedFrom,
+        accountingFirmId: checklistTemplate.accountingFirmId,
+      });
+
+    return row;
+  }
+
   async deriveTemplate(scope: FirmScope, source: { id: string; name: string }, name?: string) {
     return this.db.transaction(async (tx) => {
       const derived = await this.createTemplate(

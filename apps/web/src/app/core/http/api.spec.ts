@@ -57,6 +57,26 @@ describe('recurso da API em estado de erro', () => {
     expect(resource.error()).toBeInstanceOf(HttpErrorResponse);
   });
 
+  /** A regressão que isto trava: `reload()` deixava `isLoading()` true de novo, e as telas
+   *  trocam o conteúdo por esqueleto quando ele é true — a tela piscava a cada alteração
+   *  salva (relatado na edição de template). */
+  it('reload não volta para isLoading: o conteúdo anterior fica na tela', async () => {
+    const resource = runInInjectionContext(injector, () => apiResource<{ id: string }>(() => '/r'));
+
+    expect(resource.isLoading()).toBe(true);
+    await settle('/r', (req) => req.flush({ data: { id: 'antes' } }));
+    expect(resource.isLoading()).toBe(false);
+
+    resource.reload();
+    TestBed.tick();
+
+    expect(resource.isLoading()).toBe(false);
+    expect(resource.value()).toEqual({ id: 'antes' });
+
+    await settle('/r', (req) => req.flush({ data: { id: 'depois' } }));
+    expect(resource.value()).toEqual({ id: 'depois' });
+  });
+
   it('no caminho feliz o valor real passa intacto', async () => {
     const resource = runInInjectionContext(injector, () => apiResource<{ id: string }>(() => '/z'));
 

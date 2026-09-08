@@ -17,6 +17,11 @@ const annualMessage = { message: 'Item anual exige annualMonth.', path: ['annual
 export const DeriveTemplateBody = z.object({ name: z.string().trim().min(1).optional() });
 export type DeriveTemplateBody = z.infer<typeof DeriveTemplateBody>;
 
+/** Renomear o modelo próprio: o nome era escolhido só na duplicação e não havia como
+ *  corrigi-lo depois. */
+export const UpdateTemplateBody = z.object({ name: z.string().trim().min(1).max(120) });
+export type UpdateTemplateBody = z.infer<typeof UpdateTemplateBody>;
+
 export const CreateTemplateItemBody = z
   .object({ documentTypeId: z.uuid(), ...scheduling })
   .refine(annualNeedsMonth, annualMessage);

@@ -4,6 +4,7 @@ import {
   DeriveTemplateBody,
   IdParam,
   TemplateItemParam,
+  UpdateTemplateBody,
   UpdateTemplateItemBody,
 } from '@contabilidade/contracts';
 import { NotFound } from '../../lib/app-error.js';
@@ -44,6 +45,17 @@ export class ChecklistTemplatesController {
     if (source.accountingFirmId) throw new TemplateAlreadyOwned();
 
     return this.checklists.deriveTemplate(scope, source, body.name);
+  }
+
+  @Patch(':id')
+  async rename(
+    @CurrentScope() scope: FirmScope,
+    @Param(zodPipe(IdParam)) params: IdParam,
+    @Body(zodPipe(UpdateTemplateBody)) body: UpdateTemplateBody,
+  ) {
+    await this.requireOwned(scope, params.id);
+
+    return this.checklists.renameTemplate(params.id, body.name);
   }
 
   @Post(':id/items')

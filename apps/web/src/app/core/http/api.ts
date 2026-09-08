@@ -81,6 +81,12 @@ const valueOnError = <T>(resource: HttpResourceRef<T>, onError: () => T) => {
   Object.assign(guarded, { set: raw.set, update: raw.update, asReadonly: raw.asReadonly });
   (resource as { value: unknown }).value = guarded;
 
+  /** `isLoading()` é true também em REFETCH (`status === 'reloading'`), e toda tela troca o
+   *  conteúdo por esqueleto quando ele é true: depois de cada `reload()` a tela piscava.
+   *  Aqui ele passa a significar "primeira carga", que é quando o esqueleto faz sentido —
+   *  o refetch mantém o conteúdo anterior na tela até o novo chegar. */
+  (resource as { isLoading: unknown }).isLoading = computed(() => resource.status() === 'loading');
+
   return resource;
 };
 

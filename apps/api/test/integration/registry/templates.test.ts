@@ -255,3 +255,47 @@ test('adicionar duas vezes o mesmo Tipo de Documento no template responde 409, n
   expect(repeated.status).toBe(409);
   expect(repeated.body.error.code).toBe('TEMPLATE_ITEM_DUPLICATED');
 });
+
+/** Renomear: o nome só era escolhido na duplicação, e o Contador não tinha como corrigir
+ *  depois. Vale só para o modelo próprio — o do produto é compartilhado entre tenants. */
+test('renomear o modelo próprio muda o nome; o do produto responde 409', async () => {
+  const { session, produto, derived } = await withDerived();
+
+  const renamed = await http(app)
+    .patch(`/checklist-templates/${derived.id}`)
+    .set('cookie', session.cookie)
+    .send({ name: 'MEI comércio' })
+    .expect(200);
+
+  expect(renamed.body.data.name).toBe('MEI comércio');
+
+  const reread = await http(app)
+    .get(`/checklist-templates/${derived.id}`)
+    .set('cookie', session.cookie)
+    .expect(200);
+  expect(reread.body.data.name).toBe('MEI comércio');
+
+  await http(app)
+    .patch(`/checklist-templates/${produto.id}`)
+    .set('cookie', session.cookie)
+    .send({ name: 'Tentativa' })
+    .expect(409);
+});
+
+test('renomear com nome vazio é recusado, e modelo de outra Contabilidade responde 404', async () => {
+  const { session, derived } = await withDerived();
+
+  await http(app)
+    .patch(`/checklist-templates/${derived.id}`)
+    .set('cookie', session.cookie)
+    .send({ name: '   ' })
+    .expect(422);
+
+  const intruder = await createAccountantSession(app, { firmName: 'Outra Contabilidade' });
+
+  await http(app)
+    .patch(`/checklist-templates/${derived.id}`)
+    .set('cookie', intruder.cookie)
+    .send({ name: 'Roubado' })
+    .expect(404);
+});

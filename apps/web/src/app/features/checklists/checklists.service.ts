@@ -69,6 +69,10 @@ export class ChecklistsService {
     );
   }
 
+  rename(id: string, name: string) {
+    return this.api.patch<TemplateDetail>(`/checklist-templates/${id}`, { name });
+  }
+
   derive(id: string, name?: string) {
     return this.api.post<Template & { itemCount: number }>(
       `/checklist-templates/${id}/derive`,
@@ -84,7 +88,7 @@ export class ChecklistsService {
     return this.api.patch<TemplateItem>(`/checklist-templates/${templateId}/items/${itemId}`, body);
   }
 
-  removerItem(templateId: string, itemId: string) {
+  removeItem(templateId: string, itemId: string) {
     return this.api.delete<void>(`/checklist-templates/${templateId}/items/${itemId}`);
   }
 }
