@@ -1,5 +1,4 @@
 import { Component, computed, inject, signal } from '@angular/core';
-import { NgOptimizedImage } from '@angular/common';
 import { Router, RouterLink, RouterLinkActive, RouterOutlet } from '@angular/router';
 import { NgIcon, provideIcons } from '@ng-icons/core';
 import {
@@ -17,10 +16,11 @@ import {
 } from '@ng-icons/lucide';
 import { AuthService } from '../core/auth/auth.service';
 import { ThemeService } from '../core/ui/theme.service';
+import { Logo } from '../shared/logo';
 
 @Component({
   selector: 'app-panel-layout',
-  imports: [RouterOutlet, RouterLink, RouterLinkActive, NgIcon, NgOptimizedImage],
+  imports: [RouterOutlet, RouterLink, RouterLinkActive, NgIcon, Logo],
   providers: [
     provideIcons({
       lucideBuilding2,

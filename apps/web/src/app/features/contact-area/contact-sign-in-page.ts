@@ -9,6 +9,7 @@ import { HlmLabel } from '@spartan-ng/helm/label';
 import { AuthService } from '../../core/auth/auth.service';
 import { authClient } from '../../core/auth/auth-client';
 import { Toaster } from '../../core/ui/toast';
+import { Logo } from '../../shared/logo';
 
 /** Entrada do Responsável, com as TRÊS portas de propósito: quem aceitou um convite tem
  *  senha; quem ativou pelo Link de Upload não tem e entra por passkey ou magic link. As
@@ -16,7 +17,7 @@ import { Toaster } from '../../core/ui/toast';
  *  fora sem explicação. */
 @Component({
   selector: 'app-contact-sign-in-page',
-  imports: [FormField, RouterLink, NgIcon, HlmButtonImports, HlmInputImports, HlmLabel],
+  imports: [FormField, RouterLink, NgIcon, HlmButtonImports, HlmInputImports, HlmLabel, Logo],
   providers: [provideIcons({ lucideFingerprint, lucideMail })],
   templateUrl: './contact-sign-in-page.html',
 })

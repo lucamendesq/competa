@@ -29,6 +29,7 @@ import { displayItemStatus, itemRejections, needsResend } from '../../shared/ite
 import { isOverdue, monthLabel, dateBr, fileSize } from '../../shared/format';
 import { FileResult, uploadFiles } from '../../shared/upload';
 import { UploadService } from './upload.service';
+import { Logo } from '../../shared/logo';
 
 @Component({
   selector: 'app-upload-page',
@@ -40,6 +41,7 @@ import { UploadService } from './upload.service';
     UploadFeedback,
     StatusPill,
     ResendNotice,
+    Logo,
   ],
   providers: [
     provideIcons({

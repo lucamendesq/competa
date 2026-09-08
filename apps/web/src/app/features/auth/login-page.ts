@@ -1,4 +1,3 @@
-import { NgOptimizedImage } from '@angular/common';
 import { Component, inject, signal } from '@angular/core';
 import { Router, RouterLink } from '@angular/router';
 import { FormField, email, form, required, submit } from '@angular/forms/signals';
@@ -14,18 +13,11 @@ import { HlmButtonImports } from '@spartan-ng/helm/button';
 import { HlmInputImports } from '@spartan-ng/helm/input';
 import { HlmLabel } from '@spartan-ng/helm/label';
 import { AuthService } from '../../core/auth/auth.service';
+import { Logo } from '../../shared/logo';
 
 @Component({
   selector: 'app-login-page',
-  imports: [
-    FormField,
-    RouterLink,
-    NgIcon,
-    HlmButtonImports,
-    HlmInputImports,
-    HlmLabel,
-    NgOptimizedImage,
-  ],
+  imports: [FormField, RouterLink, NgIcon, HlmButtonImports, HlmInputImports, HlmLabel, Logo],
   providers: [
     provideIcons({ lucideArrowRight, lucideCircleAlert, lucideDownload, lucideLink, lucideZap }),
   ],

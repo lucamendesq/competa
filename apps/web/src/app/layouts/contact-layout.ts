@@ -10,10 +10,11 @@ import {
 } from '@ng-icons/lucide';
 import { AuthService } from '../core/auth/auth.service';
 import { ThemeService } from '../core/ui/theme.service';
+import { Logo } from '../shared/logo';
 
 @Component({
   selector: 'app-contact-layout',
-  imports: [RouterOutlet, RouterLink, RouterLinkActive, NgIcon],
+  imports: [RouterOutlet, RouterLink, RouterLinkActive, NgIcon, Logo],
   providers: [
     provideIcons({ lucideClipboardList, lucideHistory, lucideLogOut, lucideMoon, lucideSun }),
   ],

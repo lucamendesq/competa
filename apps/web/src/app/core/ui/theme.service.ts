@@ -30,7 +30,7 @@ export class ThemeService {
       // `theme-color` fora do efeito ficaria dessincronizado do tema depois do toggle
       this.document
         .querySelector('meta[name="theme-color"]')
-        ?.setAttribute('content', this.dark() ? '#0B1220' : '#111B34');
+        ?.setAttribute('content', this.dark() ? '#0B1220' : '#0E1A36');
     });
 
     effect(() => {

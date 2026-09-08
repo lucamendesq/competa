@@ -1,0 +1,18 @@
+{
+  "buildPath": "code",
+  "detector": {
+    "ignoreRules": [],
+    "ignoreFiles": [],
+    "ignoreValues": [
+      {
+        "rule": "broken-image",
+        "value": "*",
+        "files": [
+          "apps/web/src/app/shared/logo.ts"
+        ],
+        "createdAt": "2026-09-08T23:39:36.052Z",
+        "reason": "src vem de [src]=\"file(tone)\", que retorna brand/logo-*.svg; os quatro arquivos existem em public/brand (verificado com ls)"
+      }
+    ]
+  }
+}

@@ -7,13 +7,14 @@ import { HlmButtonImports } from '@spartan-ng/helm/button';
 import { HlmInputImports } from '@spartan-ng/helm/input';
 import { HlmLabel } from '@spartan-ng/helm/label';
 import { Api } from '../../core/http/api';
+import { Logo } from '../../shared/logo';
 
 /** "Perdi meu link" (D14, item 6). A tela mostra a MESMA confirmação em todos os casos —
  *  email com acesso, Responsável sem acesso e email desconhecido —, porque a resposta da
  *  API é idêntica de propósito: distinguir revelaria quem é cliente de quem. */
 @Component({
   selector: 'app-recover-link-page',
-  imports: [FormField, RouterLink, NgIcon, HlmButtonImports, HlmInputImports, HlmLabel],
+  imports: [FormField, RouterLink, NgIcon, HlmButtonImports, HlmInputImports, HlmLabel, Logo],
   providers: [provideIcons({ lucideArrowRight, lucideMailCheck })],
   templateUrl: './recover-link-page.html',
 })

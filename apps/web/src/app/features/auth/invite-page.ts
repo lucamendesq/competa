@@ -16,6 +16,7 @@ import { HlmLabel } from '@spartan-ng/helm/label';
 import { Api, apiResource } from '../../core/http/api';
 import { apiErrorMessage } from '../../core/http/api-error';
 import { AuthService } from '../../core/auth/auth.service';
+import { Logo } from '../../shared/logo';
 
 const passwordCriteria = (password: string) => ({
   criteria: [
@@ -34,7 +35,7 @@ type Invite = {
 
 @Component({
   selector: 'app-invite-page',
-  imports: [FormField, RouterLink, NgIcon, HlmButtonImports, HlmInputImports, HlmLabel],
+  imports: [FormField, RouterLink, NgIcon, HlmButtonImports, HlmInputImports, HlmLabel, Logo],
   providers: [
     provideIcons({ lucideArrowRight, lucideCheck, lucideCircle, lucideCircleAlert, lucideClock }),
   ],
