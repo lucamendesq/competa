@@ -71,12 +71,12 @@ test('inexistente, expirado e revogado devolvem exatamente a MESMA resposta', as
 
 test('token de outra Solicitação não alcança Item desta', async () => {
   const { token, otherToken } = await setup();
-  const alheio = await firstItem(otherToken);
+  const foreign = await firstItem(otherToken);
 
   const response = await http(app)
     .post(`/upload/${token}/documents`)
     .send({
-      requestItemId: alheio.id,
+      requestItemId: foreign.id,
       files: [{ fileName: 'nota.pdf', contentType: 'application/pdf', sizeBytes: 10 }],
     })
     .expect(404);
@@ -106,11 +106,36 @@ test('token de outra Solicitação não confirma Documento desta', async () => {
 test('a página pública funciona SEM sessão e ignora sessão de Contador', async () => {
   const { token, session } = await setup();
 
-  const anonimo = await http(app).get(`/upload/${token}`).expect(200);
-  const comSessao = await http(app).get(`/upload/${token}`).set('cookie', session.cookie).expect(200);
+  const anonymous = await http(app).get(`/upload/${token}`).expect(200);
+  const withSession = await http(app)
+    .get(`/upload/${token}`)
+    .set('cookie', session.cookie)
+    .expect(200);
 
-  expect(comSessao.body.data).toEqual(anonimo.body.data);
-  expect(JSON.stringify(comSessao.body.data)).not.toMatch(/fileName|storageKey|documents/);
+  expect(withSession.body.data).toEqual(anonymous.body.data);
+});
+
+/** O escopo do Link é só-escrita: nome e status do arquivo o Responsável precisa ver (é
+ *  como ele sabe o que já mandou e o que foi recusado), mas `storage_key` — a única chave
+ *  que dá acesso ao conteúdo — não pode vazar, e não existe rota de leitura por token. */
+test('a página pública mostra nome e status do arquivo, nunca a chave do storage', async () => {
+  const { token } = await setup();
+  const item = await firstItem(token);
+  const sent = await uploadFile(app, token, { fileName: 'nota.pdf', requestItemId: item.id });
+  expect(sent.accepted).toBe(true);
+
+  const response = await http(app).get(`/upload/${token}`).expect(200);
+  const target = response.body.data.items.find((row: { id: string }) => row.id === item.id);
+
+  expect(target.documents).toEqual([
+    {
+      fileName: 'nota.pdf',
+      reviewStatus: 'pending',
+      rejectionReason: null,
+      requestItemId: item.id,
+    },
+  ]);
+  expect(JSON.stringify(response.body.data)).not.toMatch(/storageKey|storage_key/);
 });
 
 test('sessão de Contador não salva token inválido (sem escalada de privilégio)', async () => {

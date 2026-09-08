@@ -6,7 +6,7 @@ Guia para agentes de IA (e humanos novos) trabalharem neste repositório. Leia i
 
 SaaS que elimina o garimpo manual de documentos contábeis: a **Contabilidade** define o checklist mensal de cada **Empresa**, **"abre a competência"**, e o sistema cobra por email/WhatsApp, recebe os arquivos por **link sem senha**, mostra no painel **"quem faltou"** e entrega tudo em **zip por empresa/competência**. Público: escritórios contábeis pequenos (1–5 pessoas). **Dev solo.**
 
-> **Estado (2026-09-03): backend das Fases 0–2 no ar** (auth/tenant + cadastro: catálogo, templates, Empresas, Responsáveis, overrides, checklist efetivo). `apps/web` ainda é o scaffold do Angular — nenhuma tela existe. Os documentos descrevem a **intenção de design** aprovada; ao divergir, atualize o doc na mesma mudança.
+> **Estado (2026-09-08): backend das Fases 0–10 no ar e as telas do painel + envio + área do Responsável entregues** (ver [`docs/frontend-status.md`](./docs/frontend-status.md)). Os documentos descrevem a **intenção de design** aprovada; ao divergir, atualize o doc na mesma mudança.
 
 Contexto completo: [`docs/product.md`](./docs/product.md).
 
@@ -40,38 +40,52 @@ docs/           # documentação viva (comece por docs/README.md)
 
 1. **Nomenclatura EN/PT.** Identificadores em inglês pelo glossário **normativo** ([`docs/domain.md`](./docs/domain.md#glossário-linguagem-ubíqua-pten)); nunca EN fora do mapa. **Proibidos soltos:** `client`, `user`, `month` → use `company`/`accounting_firm`, `accountant`/`contact`, `period`/`reference_month`. (Exceção: tabela `user` do Better Auth.)
 2. **`FirmScope`/`UploadScope`/`ContactScope` em todo repositório.** Tipos branded criados só pelos guards de `auth/`. Query sem escopo **não compila**; contornar o tipo é **bug de segurança**. Contabilidade A nunca vê dados da B (LGPD/sigilo).
-3. **Fluxo de upload é só-escrita.** As rotas com `UploadTokenGuard` exibem nomes/status dos itens mas **NUNCA listam ou baixam conteúdo** de documentos. O Link de Upload é token próprio — não passa pelo Better Auth.
+3. **Fluxo de upload é só-escrita.** As rotas com `UploadTokenGuard` exibem nome/status/prazo dos Itens e o **nome** dos arquivos já enviados (com status da revisão e motivo da rejeição — o Responsável precisa saber o que mandou), mas **NUNCA devolvem conteúdo, `storage_key` ou rota de download** de documentos. O Link de Upload é token próprio — não passa pelo Better Auth.
 4. **Snapshot congelado na abertura.** Ao "abrir a competência", os itens são copiados (nome/formatos/`due_date`) para `request_item`; mudança posterior no template não afeta solicitações abertas.
 5. **Código sem comentários.** O nome da função/variável explica o quê; o `git log` e os `docs/` explicam o porquê. Comentário só quando o código, mesmo bem escrito, não consegue dizer sozinho: bug/limitação de biblioteca externa, workaround não óbvio, invariante de segurança que um refactor inocente quebraria, ou `ponytail:` marcando um atalho deliberado. Na dúvida, **não comente** — renomeie ou extraia. Nunca comentário que repete a linha seguinte, cabeçalho de arquivo, JSDoc de tipo já tipado, ou comentário de "seção".
 6. **Duas camadas, só (Nest): controller → repositório.** Não existe pasta `usecases/`. Regra de negócio com lógica real (derivar template, importar CSV, checklist efetivo) vira **método do repositório do módulo**; o controller valida, orquestra e traduz erro em HTTP. Sem `entities/`/`vo/` (tipo = `$inferSelect` do Drizzle). Lógica pura sem banco (merge, parser) fica em módulo solto (`effective-checklist.ts`, `csv.ts`).
 7. **Comunicação entre módulos = eventos síncronos** via `@nestjs/event-emitter` (direção: companies/checklists → periods/requests → messaging). **Sem CQRS, sem microservices, sem fila/outbox na v1.**
-8. **Styling = Tailwind + Spartan UI.** Utilities por padrão; Spartan em `shared/ui/`. **Angular Material está fora.** `.scss` de componente é exceção rara.
-9. **`libs/contracts` (zod) é a única fonte de validação** — mesmos schemas no form do Angular e no pipe do Nest. Componente nunca chama `HttpClient` direto (sempre via service da feature).
-10. **Provedores externos** (SES/Resend, Meta, FCM) só atrás de interface em `modules/messaging/providers/`. Falha de canal nunca bloqueia o fluxo (degrada WhatsApp → email).
-11. **`docs/database-schema.md` é canônico.** O schema Drizzle deve espelhá-lo; divergência exige atualizar o doc na mesma PR. Sem extração de zip nem parsing de XML de NF na v1.
+8. **Nomes de pasta/arquivo do `apps/web` também são inglês** (`features/companies/`, `layouts/panel-layout.ts`). PT-BR fica no **path da URL** e no texto de tela.
+9. **Styling = Tailwind + Spartan UI.** Utilities por padrão; Spartan em `shared/ui/`. **Angular Material está fora.** `.scss` de componente é exceção rara.
+10. **`libs/contracts` (zod) é a única fonte de validação** — mesmos schemas no form do Angular e no pipe do Nest. Componente nunca chama `HttpClient` direto (sempre via service da feature).
+11. **Provedores externos** (Resend, R2, Meta, FCM) só atrás de interface em `modules/messaging/providers/` e `infra/storage/`. Falha de canal nunca bloqueia o fluxo (degrada WhatsApp → email). **Quem escolhe a implementação é o `NODE_ENV`** (D15): fora de produção nenhum provedor real é usado — disco, console, console — e em produção a subida falha nomeando a credencial que falta. Não volte a chavear por "a variável existe".
+12. **Conta do Responsável é opcional e nunca pré-requisito** (D14). O Link de Upload é a única porta obrigatória do produto. Qualquer ideia sobre acesso que crie trabalho ou espera para o Contador está errada.
+13. **`docs/database-schema.md` é canônico.** O schema Drizzle deve espelhá-lo; divergência exige atualizar o doc na mesma PR. Sem extração de zip nem parsing de XML de NF na v1.
 
 Lista completa de anti-patterns: [`docs/conventions.md`](./docs/conventions.md#o-que-não-fazer-anti-patterns).
 
+## Armadilha: `libs/contracts` é consumido COMPILADO
+
+Os apps importam `@contabilidade/contracts` do `dist`, não do `src`. Editar um schema e não
+recompilar deixa o app validando contra o schema **antigo** — e o sintoma não é um erro, é
+**um botão que não faz nada**: o formulário do Angular fica inválido e o `submit()` não
+chama a ação, em silêncio. Já custou duas sessões de caça.
+
+Use `pnpm dev` na raiz (compila e fica em watch). Se subir os apps na mão, rode
+`pnpm --filter contracts build` a cada mudança de contrato **e reinicie a API** — o watch do
+Nest observa só `apps/api`, então ele não vê o `dist` novo.
+
 ## Glossário rápido (o essencial)
 
-| PT (docs/UI) | EN (código/banco) | É… |
-|---|---|---|
-| Contabilidade | `accounting_firm` | o tenant (quem paga o SaaS) |
-| Contador | `accountant` | usuário da Contabilidade |
-| Empresa | `company` | quem envia os documentos |
-| Responsável | `contact` | pessoa da Empresa que recebe o link |
-| Competência | `period` (`reference_month`) | o mês de referência dos documentos |
-| Solicitação | `request` | pedido de docs de 1 Empresa em 1 Competência |
-| Item | `request_item` | um documento exigido (snapshot congelado) |
-| Documento | `document` | arquivo enviado (1 Item : N Documentos) |
-| Link de Upload | `upload_link` | URL sem senha, só-upload, com expiração |
+| PT (docs/UI)   | EN (código/banco)            | É…                                           |
+| -------------- | ---------------------------- | -------------------------------------------- |
+| Contabilidade  | `accounting_firm`            | o tenant (quem paga o SaaS)                  |
+| Contador       | `accountant`                 | usuário da Contabilidade                     |
+| Empresa        | `company`                    | quem envia os documentos                     |
+| Responsável    | `contact`                    | pessoa da Empresa que recebe o link          |
+| Competência    | `period` (`reference_month`) | o mês de referência dos documentos           |
+| Solicitação    | `request`                    | pedido de docs de 1 Empresa em 1 Competência |
+| Item           | `request_item`               | um documento exigido (snapshot congelado)    |
+| Documento      | `document`                   | arquivo enviado (1 Item : N Documentos)      |
+| Link de Upload | `upload_link`                | URL sem senha, só-upload, com expiração      |
 
 Mapa completo + termos proibidos: [`docs/domain.md`](./docs/domain.md#glossário-linguagem-ubíqua-pten).
 
 ## Como rodar tarefas (pnpm)
 
+- **Subir tudo em watch: `pnpm dev`** (raiz). O `predev` compila `libs/contracts` ANTES, e o watch dos contratos roda junto — subir os apps sem isso deixa o schema velho em memória.
 - Build de tudo: `pnpm -r build`.
-- Subir a API em modo watch: `pnpm --filter api start:dev`.
+- Subir só a API em modo watch: `pnpm --filter api dev`.
 - Gerar migration a partir do schema: `pnpm --filter api db:generate`; aplicar: `db:migrate`.
 - Rodar o seed do produto: `pnpm --filter api db:seed`.
 - Criar uma Contabilidade + convite inicial: `pnpm --filter api create-firm`.
@@ -79,13 +93,13 @@ Mapa completo + termos proibidos: [`docs/domain.md`](./docs/domain.md#glossário
 
 ## Documentação
 
-| Doc | Para |
-|-----|------|
-| [`docs/product.md`](./docs/product.md) | propósito, público, atores, marca, mercado |
-| [`docs/architecture.md`](./docs/architecture.md) | monorepo, apps, componentes, integrações |
-| [`docs/domain.md`](./docs/domain.md) | subdomínios, invariantes, jornada, glossário, eventos |
-| [`docs/conventions.md`](./docs/conventions.md) | código, API, testes, env, git, anti-patterns |
-| [`docs/database-schema.md`](./docs/database-schema.md) | **canônico** — DDL, algoritmos, transições de estado |
-| [`docs/document-catalog.md`](./docs/document-catalog.md) | seed: tipos de documento + templates fixos |
-| [`docs/decisions.md`](./docs/decisions.md) | por que cada escolha (D01–D11) |
-| [`docs/roadmap.md`](./docs/roadmap.md) | backlog v1 em fatias finas + marcos |
+| Doc                                                      | Para                                                  |
+| -------------------------------------------------------- | ----------------------------------------------------- |
+| [`docs/product.md`](./docs/product.md)                   | propósito, público, atores, marca, mercado            |
+| [`docs/architecture.md`](./docs/architecture.md)         | monorepo, apps, componentes, integrações              |
+| [`docs/domain.md`](./docs/domain.md)                     | subdomínios, invariantes, jornada, glossário, eventos |
+| [`docs/conventions.md`](./docs/conventions.md)           | código, API, testes, env, git, anti-patterns          |
+| [`docs/database-schema.md`](./docs/database-schema.md)   | **canônico** — DDL, algoritmos, transições de estado  |
+| [`docs/document-catalog.md`](./docs/document-catalog.md) | seed: tipos de documento + templates fixos            |
+| [`docs/decisions.md`](./docs/decisions.md)               | por que cada escolha (D01–D15)                        |
+| [`docs/roadmap.md`](./docs/roadmap.md)                   | backlog v1 em fatias finas + marcos                   |

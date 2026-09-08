@@ -50,8 +50,8 @@ test('rejeitar Documento grava o motivo, devolve o Item para pending e rotaciona
     requestItemId: item.id,
   });
 
-  const hashAntes = await hashOf(requestId);
-  const { response, token: novoToken } = await rejectDocument(
+  const hashBefore = await hashOf(requestId);
+  const { response, token: freshToken } = await rejectDocument(
     app,
     cookie,
     documentId,
@@ -74,10 +74,10 @@ test('rejeitar Documento grava o motivo, devolve o Item para pending e rotaciona
   expect(saved.status).toBe('pending');
 
   // hash novo no banco, token anterior morto, token novo vivo
-  expect(await hashOf(requestId)).not.toBe(hashAntes);
+  expect(await hashOf(requestId)).not.toBe(hashBefore);
   await http(app).get(`/upload/${token}`).expect(404);
-  expect(novoToken).toBeTruthy();
-  await http(app).get(`/upload/${novoToken}`).expect(200);
+  expect(freshToken).toBeTruthy();
+  await http(app).get(`/upload/${freshToken}`).expect(200);
 });
 
 test('motivo com menos de 3 caracteres é recusado com 422 e não rejeita nada', async () => {
@@ -102,12 +102,12 @@ test('rejeitar o mesmo Documento duas vezes responde 409', async () => {
   const item = await itemNamed(app, cookie, requestId, 'Extrato bancário');
   const documentId = await uploadOk(app, token, { fileName: 'e.pdf', requestItemId: item.id });
 
-  const primeira = await rejectDocument(app, cookie, documentId, 'Mês errado');
-  expect(primeira.response.status).toBe(201);
+  const first = await rejectDocument(app, cookie, documentId, 'Mês errado');
+  expect(first.response.status).toBe(201);
 
-  const segunda = await rejectDocument(app, cookie, documentId, 'Mês errado de novo');
-  expect(segunda.response.status).toBe(409);
-  expect(segunda.response.body.error.message).toMatch(/já foi rejeitado/i);
+  const second = await rejectDocument(app, cookie, documentId, 'Mês errado de novo');
+  expect(second.response.status).toBe(409);
+  expect(second.response.body.error.message).toMatch(/já foi rejeitado/i);
 });
 
 test('rejeitar Documento já aceito responde 409 — aceito não volta para rejeitado', async () => {
@@ -119,7 +119,7 @@ test('rejeitar Documento já aceito responde 409 — aceito não volta para reje
 
   const { response } = await rejectDocument(app, cookie, documentId, 'Mudei de ideia');
   expect(response.status).toBe(409);
-  expect(response.body.error.message).toMatch(/já foi aceito/i);
+  expect(response.body.error.message).toMatch(/já foi accepted/i);
 
   const [row] = await db.select().from(document).where(eq(document.id, documentId));
   expect(row.reviewStatus).toBe('accepted');
@@ -145,7 +145,7 @@ test('rejeitar Documento de Solicitação encerrada responde 409', async () => {
   const { response } = await rejectDocument(app, cookie, documentId, 'Documento errado');
 
   expect(response.status).toBe(409);
-  expect(response.body.error.message).toMatch(/encerrada/i);
+  expect(response.body.error.message).toMatch(/closed/i);
 
   const [row] = await db.select().from(document).where(eq(document.id, documentId));
   expect(row.reviewStatus).toBe('pending');
@@ -154,21 +154,21 @@ test('rejeitar Documento de Solicitação encerrada responde 409', async () => {
 test('Documento em awaiting_upload não é rejeitável: 409 e o Link não é rotacionado', async () => {
   const { cookie, requestId, token } = await setupReview(app);
   const item = await itemNamed(app, cookie, requestId, 'Extrato bancário');
-  const fantasma = await presignOnly(app, token, {
+  const ghost = await presignOnly(app, token, {
     fileName: 'nunca-subiu.pdf',
     requestItemId: item.id,
   });
 
-  const hashAntes = await hashOf(requestId);
-  const { response } = await rejectDocument(app, cookie, fantasma, 'Não recebi nada');
+  const hashBefore = await hashOf(requestId);
+  const { response } = await rejectDocument(app, cookie, ghost, 'Não recebi nada');
 
   expect(response.status).toBe(409);
-  expect(response.body.error.message).toMatch(/ainda não foi enviado/i);
+  expect(response.body.error.message).toMatch(/ainda não foi sent/i);
 
   // o Responsável não pode perder o link por um envio que nunca chegou
-  expect(await hashOf(requestId)).toBe(hashAntes);
+  expect(await hashOf(requestId)).toBe(hashBefore);
   await http(app).get(`/upload/${token}`).expect(200);
 
-  const [row] = await db.select().from(document).where(eq(document.id, fantasma));
+  const [row] = await db.select().from(document).where(eq(document.id, ghost));
   expect(row.reviewStatus).toBe('pending');
 });

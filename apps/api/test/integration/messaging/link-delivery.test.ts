@@ -4,7 +4,12 @@ import { afterAll, beforeAll, beforeEach, expect, test } from 'vitest';
 import { message } from '../../../src/infra/database/schema/index.js';
 import { createTestApp, http } from '../../app.js';
 import { db, resetDatabase } from '../../db.js';
-import { createAccountantSession, createCompany, insertCompany, openPeriod } from '../../factories.js';
+import {
+  createAccountantSession,
+  createCompany,
+  insertCompany,
+  openPeriod,
+} from '../../factories.js';
 import { spyProvider, waitFor } from './provider-spy.js';
 
 /** Fase 5, entrega na abertura: uma `message` `link_delivery` por Solicitação, com o
@@ -31,7 +36,7 @@ const messages = () => db.select().from(message);
 
 test('abrir a Competência entrega um Link por Solicitação, com sent_at e o mesmo uploadUrl da resposta', async () => {
   const session = await createAccountantSession(app);
-  const padaria = await createCompany(app, session.cookie, { name: 'Padaria Central' });
+  const bakery = await createCompany(app, session.cookie, { name: 'Padaria Central' });
   await createCompany(app, session.cookie, { name: 'Zé Materiais' });
 
   const period = await openPeriod(app, session.cookie, { referenceMonth: '2026-07' });
@@ -52,17 +57,17 @@ test('abrir a Competência entrega um Link por Solicitação, com sent_at e o me
     period.requests.map((request) => request.id).sort(),
   );
 
-  const requestPadaria = period.requests.find((row) => row.companyName === 'Padaria Central')!;
-  const [linhaPadaria] = await messages().where(eq(message.requestId, requestPadaria.id));
-  const contatoPadaria = await http(app)
-    .get(`/companies/${padaria.id}`)
+  const bakeryRequest = period.requests.find((row) => row.companyName === 'Padaria Central')!;
+  const [bakeryRow] = await messages().where(eq(message.requestId, bakeryRequest.id));
+  const bakeryContact = await http(app)
+    .get(`/companies/${bakery.id}`)
     .set('cookie', session.cookie)
     .expect(200);
 
-  expect(linhaPadaria.recipient).toBe(contatoPadaria.body.data.contacts[0].email);
+  expect(bakeryRow.recipient).toBe(bakeryContact.body.data.contacts[0].email);
 
-  const email = provider.lastTo(linhaPadaria.recipient)!;
-  expect(email.body).toContain(requestPadaria.uploadUrl);
+  const email = provider.lastTo(bakeryRow.recipient)!;
+  expect(email.body).toContain(bakeryRequest.uploadUrl);
   expect(email.subject).toContain('Padaria Central');
 });
 
@@ -83,7 +88,10 @@ test('Empresa ativa sem Responsável não gera Solicitação nem message — só
 
   expect(rows).toHaveLength(1);
   expect(rows[0].requestId).toBe(period.requests[0].id);
-  expect(provider.sent).toHaveLength(1);
+  /* Filtra pelo Link: cadastrar Empresa também manda convite de acesso (decisão de
+   * 2026-09-07), então contar tudo o que saiu diria 2 sem dizer nada sobre o fan-out. */
+  const withLink = provider.sent.filter((email) => email.body.includes('/envio/'));
+  expect(withLink).toHaveLength(1);
 });
 
 test('o link entregue por email abre o checklist — é o token que vale', async () => {
@@ -91,7 +99,11 @@ test('o link entregue por email abre o checklist — é o token que vale', async
   await createCompany(app, session.cookie, { name: 'Padaria Central' });
 
   const period = await openPeriod(app, session.cookie, { referenceMonth: '2026-07' });
-  const email = await waitFor(async () => provider.sent.at(0), 'nenhum email saiu');
+  /* O email do Link, não o primeiro que saiu: o convite de acesso do cadastro vem antes. */
+  const email = await waitFor(
+    async () => provider.sent.find((sent) => sent.body.includes('/envio/')),
+    'nenhum email com Link de Upload saiu',
+  );
 
   const token = email.body.match(/envio\/([A-Za-z0-9_-]+)/)![1];
   const checklist = await http(app).get(`/upload/${token}`).expect(200);

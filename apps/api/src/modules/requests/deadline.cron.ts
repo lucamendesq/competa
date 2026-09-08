@@ -34,13 +34,13 @@ export class DeadlineCron {
   @Cron(CronExpression.EVERY_DAY_AT_7AM)
   async daily() {
     const { notified } = await this.scan(null);
-    if (notified.length) this.logger.log(`Prazo estourado: ${notified.length} item(ns) avisado(s).`);
+    if (notified.length)
+      this.logger.log(`Prazo estourado: ${notified.length} item(ns) avisado(s).`);
 
     const discarded = await this.discardStaleUploads();
     if (discarded) this.logger.log(`Faxina: ${discarded} envio(s) não confirmado(s) removido(s).`);
   }
 
-  /** Apaga linha e objeto de envio nunca confirmado. Público para a rota de operação. */
   async discardStaleUploads() {
     const stale = await this.documents.staleAwaitingUpload(
       subHours(new Date(), STALE_UPLOAD_HOURS),
@@ -67,8 +67,12 @@ export class DeadlineCron {
     // Um token por Solicitação por varredura: rotacionar por item deixaria o email do item
     // anterior com um link já morto.
     const tokenByRequest = new Map<string, string>();
-    const notified: { requestItemId: string; itemName: string; companyName: string; dueDate: string }[] =
-      [];
+    const notified: {
+      requestItemId: string;
+      itemName: string;
+      companyName: string;
+      dueDate: string;
+    }[] = [];
 
     for (const row of pendingNotice) {
       const token =
@@ -99,6 +103,10 @@ export class DeadlineCron {
 
     await this.requests.markDeadlineNotified(notified.map((row) => row.requestItemId));
 
-    return { overdue: overdue.length, alreadyNotified: overdue.length - pendingNotice.length, notified };
+    return {
+      overdue: overdue.length,
+      alreadyNotified: overdue.length - pendingNotice.length,
+      notified,
+    };
   }
 }

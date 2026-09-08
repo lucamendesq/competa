@@ -32,7 +32,11 @@ beforeEach(async () => {
   resetThrottle(app);
 });
 
-const company = async (firmId: string, flags: Record<string, boolean> = {}, templateId?: string) => {
+const company = async (
+  firmId: string,
+  flags: Record<string, boolean> = {},
+  templateId?: string,
+) => {
   const row = await insertCompany(firmId, {
     name: 'Padaria Central',
     flags,
@@ -113,16 +117,16 @@ test('due_day além do fim do mês clampa para o último dia (31 em fevereiro)',
   });
   await company(session.firm.id, {}, templateId);
 
-  const comum = await openPeriod(app, session.cookie, { referenceMonth: '2026-01' });
-  expect((await dueByName(comum.requests[0].id)).get(CATALOG.nf_emitidas.name)).toBe('2026-02-28');
+  const shared = await openPeriod(app, session.cookie, { referenceMonth: '2026-01' });
+  expect((await dueByName(shared.requests[0].id)).get(CATALOG.nf_emitidas.name)).toBe('2026-02-28');
 
-  const bissexto = await openPeriod(app, session.cookie, { referenceMonth: '2024-01' });
-  expect((await dueByName(bissexto.requests[0].id)).get(CATALOG.nf_emitidas.name)).toBe(
+  const leapYear = await openPeriod(app, session.cookie, { referenceMonth: '2024-01' });
+  expect((await dueByName(leapYear.requests[0].id)).get(CATALOG.nf_emitidas.name)).toBe(
     '2024-02-29',
   );
 
-  const abril = await openPeriod(app, session.cookie, { referenceMonth: '2026-04' });
-  expect((await dueByName(abril.requests[0].id)).get(CATALOG.nf_emitidas.name)).toBe('2026-05-31');
+  const april = await openPeriod(app, session.cookie, { referenceMonth: '2026-04' });
+  expect((await dueByName(april.requests[0].id)).get(CATALOG.nf_emitidas.name)).toBe('2026-05-31');
 });
 
 test('o prazo congelado atravessa a virada do ano', async () => {

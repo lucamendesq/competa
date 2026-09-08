@@ -41,25 +41,27 @@ const scenario = async () => {
   await createCompany(app, session.cookie, { name: 'Zé Materiais' });
 
   provider.breakChannel('provedor de email fora do ar');
-  const falhou = await openPeriod(app, session.cookie, { referenceMonth: '2026-07' });
+  const failed = await openPeriod(app, session.cookie, { referenceMonth: '2026-07' });
   await waitForMessages(2);
 
   provider.healChannel();
-  const saiu = await openPeriod(app, session.cookie, { referenceMonth: '2026-08' });
+  const left = await openPeriod(app, session.cookie, { referenceMonth: '2026-08' });
   await waitForMessages(4);
 
-  return { session, falhou, saiu };
+  return { session, failed, left };
 };
 
 const list = async (cookie: string, query: Record<string, string | number> = {}) => {
-  const response = await http(app)
-    .get('/messages')
-    .set('cookie', cookie)
-    .query(query)
-    .expect(200);
+  const response = await http(app).get('/messages').set('cookie', cookie).query(query).expect(200);
 
   return response.body as {
-    data: { id: string; requestId: string; periodId: string; status: string; companyName: string }[];
+    data: {
+      id: string;
+      requestId: string;
+      periodId: string;
+      status: string;
+      companyName: string;
+    }[];
     meta: { page: number; perPage: number; total: number };
   };
 };
@@ -67,14 +69,14 @@ const list = async (cookie: string, query: Record<string, string | number> = {})
 test('paginação: meta.total conta tudo, a página traz só o pedido', async () => {
   const { session } = await scenario();
 
-  const primeira = await list(session.cookie, { page: 1, perPage: 1 });
-  expect(primeira.data).toHaveLength(1);
-  expect(primeira.meta).toEqual({ page: 1, perPage: 1, total: 4 });
+  const first = await list(session.cookie, { page: 1, perPage: 1 });
+  expect(first.data).toHaveLength(1);
+  expect(first.meta).toEqual({ page: 1, perPage: 1, total: 4 });
 
-  const segunda = await list(session.cookie, { page: 2, perPage: 1 });
-  expect(segunda.data).toHaveLength(1);
-  expect(segunda.data[0].id).not.toBe(primeira.data[0].id);
-  expect(segunda.meta.total).toBe(4);
+  const second = await list(session.cookie, { page: 2, perPage: 1 });
+  expect(second.data).toHaveLength(1);
+  expect(second.data[0].id).not.toBe(first.data[0].id);
+  expect(second.meta.total).toBe(4);
 
   const quinta = await list(session.cookie, { page: 5, perPage: 1 });
   expect(quinta.data).toHaveLength(0);
@@ -84,13 +86,13 @@ test('paginação: meta.total conta tudo, a página traz só o pedido', async ()
 test('filtro por status separa o que saiu do que falhou', async () => {
   const { session } = await scenario();
 
-  const falhas = await list(session.cookie, { status: 'failed' });
-  expect(falhas.meta.total).toBe(2);
-  expect(falhas.data.every((row) => row.status === 'failed')).toBe(true);
+  const failures = await list(session.cookie, { status: 'failed' });
+  expect(failures.meta.total).toBe(2);
+  expect(failures.data.every((row) => row.status === 'failed')).toBe(true);
 
-  const enviadas = await list(session.cookie, { status: 'sent' });
-  expect(enviadas.meta.total).toBe(2);
-  expect(enviadas.data.every((row) => row.status === 'sent')).toBe(true);
+  const sent = await list(session.cookie, { status: 'sent' });
+  expect(sent.meta.total).toBe(2);
+  expect(sent.data.every((row) => row.status === 'sent')).toBe(true);
 
   expect(await list(session.cookie, { status: 'delivered' })).toMatchObject({
     data: [],
@@ -99,20 +101,20 @@ test('filtro por status separa o que saiu do que falhou', async () => {
 });
 
 test('filtro por requestId e por periodId', async () => {
-  const { session, falhou, saiu } = await scenario();
-  const request = falhou.requests[0];
+  const { session, failed, left } = await scenario();
+  const request = failed.requests[0];
 
   const porRequest = await list(session.cookie, { requestId: request.id });
   expect(porRequest.meta.total).toBe(1);
   expect(porRequest.data[0].requestId).toBe(request.id);
   expect(porRequest.data[0].companyName).toBe(request.companyName);
 
-  const porPeriod = await list(session.cookie, { periodId: saiu.id });
+  const porPeriod = await list(session.cookie, { periodId: left.id });
   expect(porPeriod.meta.total).toBe(2);
-  expect(porPeriod.data.every((row) => row.periodId === saiu.id)).toBe(true);
+  expect(porPeriod.data.every((row) => row.periodId === left.id)).toBe(true);
 
-  const combinado = await list(session.cookie, { periodId: saiu.id, status: 'failed' });
-  expect(combinado.meta.total).toBe(0);
+  const merged = await list(session.cookie, { periodId: left.id, status: 'failed' });
+  expect(merged.meta.total).toBe(0);
 });
 
 test('filtro que não é uuid é recusado com 422 — não vira listagem inteira', async () => {
@@ -129,15 +131,15 @@ test('filtro que não é uuid é recusado com 422 — não vira listagem inteira
 });
 
 test('escopo por tenant: outra Contabilidade vê total 0 mesmo passando os ids da primeira', async () => {
-  const { falhou, saiu } = await scenario();
-  const outra = await createAccountantSession(app, { firmName: 'Contabilidade B' });
+  const { failed, left } = await scenario();
+  const other = await createAccountantSession(app, { firmName: 'Contabilidade B' });
 
-  expect(await list(outra.cookie)).toMatchObject({ data: [], meta: { total: 0 } });
-  expect(await list(outra.cookie, { requestId: falhou.requests[0].id })).toMatchObject({
+  expect(await list(other.cookie)).toMatchObject({ data: [], meta: { total: 0 } });
+  expect(await list(other.cookie, { requestId: failed.requests[0].id })).toMatchObject({
     data: [],
     meta: { total: 0 },
   });
-  expect(await list(outra.cookie, { periodId: saiu.id })).toMatchObject({
+  expect(await list(other.cookie, { periodId: left.id })).toMatchObject({
     data: [],
     meta: { total: 0 },
   });
@@ -150,41 +152,41 @@ test('sem sessão não se lê o log de envios', async () => {
 });
 
 test('failuresByPeriod devolve só as falhas daquela Competência', async () => {
-  const { session, falhou, saiu } = await scenario();
+  const { session, failed, left } = await scenario();
 
-  const painelFalhou = await http(app)
-    .get(`/periods/${falhou.id}/pending-panel`)
+  const panelFailed = await http(app)
+    .get(`/periods/${failed.id}/pending-panel`)
     .set('cookie', session.cookie)
     .expect(200);
 
   type Failure = { purpose: string; error: string; requestId: string };
-  const falhas: Failure[] = painelFalhou.body.data.flatMap(
+  const failures: Failure[] = panelFailed.body.data.flatMap(
     (row: { channelFailures: Failure[] }) => row.channelFailures,
   );
-  expect(falhas).toHaveLength(2);
-  expect(falhas.every((row) => row.purpose === 'link_delivery')).toBe(true);
-  expect(falhas.every((row) => row.error.includes('provedor de email fora do ar'))).toBe(true);
-  expect(falhas.map((row) => row.requestId).sort()).toEqual(
-    falhou.requests.map((row) => row.id).sort(),
+  expect(failures).toHaveLength(2);
+  expect(failures.every((row) => row.purpose === 'link_delivery')).toBe(true);
+  expect(failures.every((row) => row.error.includes('provedor de email fora do ar'))).toBe(true);
+  expect(failures.map((row) => row.requestId).sort()).toEqual(
+    failed.requests.map((row) => row.id).sort(),
   );
 
-  const painelSaiu = await http(app)
-    .get(`/periods/${saiu.id}/pending-panel`)
+  const panelReturned = await http(app)
+    .get(`/periods/${left.id}/pending-panel`)
     .set('cookie', session.cookie)
     .expect(200);
 
   expect(
-    painelSaiu.body.data.flatMap((row: { channelFailures: [] }) => row.channelFailures),
+    panelReturned.body.data.flatMap((row: { channelFailures: [] }) => row.channelFailures),
   ).toHaveLength(0);
 });
 
 test('failuresByPeriod não atravessa tenant: a Competência da outra Contabilidade é 404', async () => {
-  const { falhou } = await scenario();
-  const outra = await createAccountantSession(app, { firmName: 'Contabilidade B' });
+  const { failed } = await scenario();
+  const other = await createAccountantSession(app, { firmName: 'Contabilidade B' });
 
   const response = await http(app)
-    .get(`/periods/${falhou.id}/pending-panel`)
-    .set('cookie', outra.cookie)
+    .get(`/periods/${failed.id}/pending-panel`)
+    .set('cookie', other.cookie)
     .expect(404);
 
   expect(response.body.error.code).toBe('NOT_FOUND');

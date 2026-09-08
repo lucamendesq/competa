@@ -1,5 +1,20 @@
-import { Body, Controller, Delete, Get, HttpCode, Param, Post, Query, UseGuards } from '@nestjs/common';
-import { IdParam, MyPresignBody, PaginationQuery, PushSubscriptionBody } from '@contabilidade/contracts';
+import {
+  Body,
+  Controller,
+  Delete,
+  Get,
+  HttpCode,
+  Param,
+  Post,
+  Query,
+  UseGuards,
+} from '@nestjs/common';
+import {
+  IdParam,
+  MyPresignBody,
+  PaginationQuery,
+  PushSubscriptionBody,
+} from '@contabilidade/contracts';
 import { ConfirmUploadBody } from '@contabilidade/contracts';
 import { NotFound } from '../../lib/app-error.js';
 import { paginated } from '../../lib/response.interceptor.js';
@@ -31,7 +46,6 @@ export class ContactsController {
     return row;
   }
 
-  /** "O que falta agora": o espelho do Painel de Pendências, do lado de quem envia. */
   @Get('pending')
   async pending(@CurrentContactScope() scope: ContactScope) {
     const rows = await this.contacts.pending(scope);
@@ -47,6 +61,7 @@ export class ContactsController {
         acceptedFormats: row.acceptedFormats,
         status: row.itemStatus,
         dueDate: effectiveDueDate({ dueDate: row.itemDueDate, periodDueDate: row.periodDueDate }),
+        rejections: row.rejections,
       },
     }));
   }
@@ -61,8 +76,6 @@ export class ContactsController {
     return paginated(rows, { page: query.page, perPage: query.perPage, total });
   }
 
-  /** Histórico: o que mandou, o que foi aceito, o que foi rejeitado e por quê — e quem
-   *  enviou cada arquivo, porque a Empresa pode ter mais de um Responsável. */
   @Get('periods/:id')
   async periodDetail(
     @CurrentContactScope() scope: ContactScope,

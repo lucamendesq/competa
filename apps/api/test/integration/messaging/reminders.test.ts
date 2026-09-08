@@ -61,12 +61,13 @@ const setup = async (body: { referenceMonth: string; dueDate?: string }) => {
 
 /** "Faz N dias que a última mensagem saiu" — sem esperar o calendário. */
 const ageMessages = (days: number) =>
-  db.execute(
-    sql`update message set created_at = now() - ${sql.raw(`interval '${days} days'`)}`,
-  );
+  db.execute(sql`update message set created_at = now() - ${sql.raw(`interval '${days} days'`)}`);
 
 const runReminders = async (cookie: string) => {
-  const response = await http(app).post('/messages/reminders/run').set('cookie', cookie).expect(201);
+  const response = await http(app)
+    .post('/messages/reminders/run')
+    .set('cookie', cookie)
+    .expect(201);
 
   return response.body.data as { scanned: number; sent: number };
 };
@@ -199,10 +200,7 @@ test('Item rejeitado conta como pendente e volta a ser cobrado', async () => {
   // `rejected` no Item não é alcançável por rota (a rejeição do Documento devolve o Item
   // para `pending`), mas é status normativo do schema: aqui se prova que a varredura o
   // trata como pendente.
-  await db
-    .update(requestItem)
-    .set({ status: 'rejected' })
-    .where(eq(requestItem.id, items[0].id));
+  await db.update(requestItem).set({ status: 'rejected' }).where(eq(requestItem.id, items[0].id));
 
   await ageMessages(9);
   const result = await runReminders(session.cookie);
@@ -215,20 +213,20 @@ test('Item rejeitado conta como pendente e volta a ser cobrado', async () => {
 
 test('lembrete entregue leva link NOVO, que funciona, e aposenta o anterior', async () => {
   const { session, token, request } = await setup({ referenceMonth: '2026-07' });
-  const [antes] = await db.select().from(uploadLink).where(eq(uploadLink.requestId, request.id));
+  const [before] = await db.select().from(uploadLink).where(eq(uploadLink.requestId, request.id));
 
   await ageMessages(4);
   expect((await runReminders(session.cookie)).sent).toBe(1);
 
-  const [depois] = await db.select().from(uploadLink).where(eq(uploadLink.requestId, request.id));
-  expect(depois.tokenHash).not.toBe(antes.tokenHash);
-  expect(depois.id).toBe(antes.id);
+  const [after] = await db.select().from(uploadLink).where(eq(uploadLink.requestId, request.id));
+  expect(after.tokenHash).not.toBe(before.tokenHash);
+  expect(after.id).toBe(before.id);
 
-  const [linha] = await reminders();
-  const novoToken = provider.lastTo(linha.recipient)!.body.match(/envio\/([A-Za-z0-9_-]+)/)![1];
-  expect(novoToken).not.toBe(token);
+  const [row] = await reminders();
+  const freshToken = provider.lastTo(row.recipient)!.body.match(/envio\/([A-Za-z0-9_-]+)/)![1];
+  expect(freshToken).not.toBe(token);
 
-  const checklist = await http(app).get(`/upload/${novoToken}`).expect(200);
+  const checklist = await http(app).get(`/upload/${freshToken}`).expect(200);
   expect(checklist.body.data.company).toBe('Padaria Central');
   await http(app).get(`/upload/${token}`).expect(404);
 });
@@ -241,9 +239,9 @@ test('a falha do lembrete não some: fica failed com error e não conta como env
   // `sent` conta entrega, não tentativa: canal quebrado não pode reportar lembrete enviado
   expect((await runReminders(session.cookie)).sent).toBe(0);
 
-  const [linha] = await reminders();
-  expect(linha.status).toBe('failed');
-  expect(linha.error).toContain('provedor de email fora do ar');
+  const [row] = await reminders();
+  expect(row.status).toBe('failed');
+  expect(row.error).toContain('provedor de email fora do ar');
 
   provider.healChannel();
   const [pendente] = await db
@@ -255,19 +253,19 @@ test('a falha do lembrete não some: fica failed com error e não conta como env
 
 test('lembrete que falhou NÃO deixa o Responsável sem link que funcione', async () => {
   const { session, token, request } = await setup({ referenceMonth: '2026-07' });
-  const [antes] = await db.select().from(uploadLink).where(eq(uploadLink.requestId, request.id));
+  const [before] = await db.select().from(uploadLink).where(eq(uploadLink.requestId, request.id));
 
   provider.breakChannel('provedor de email fora do ar');
   await ageMessages(4);
   await runReminders(session.cookie);
 
-  const [linha] = await reminders();
-  expect(linha.status).toBe('failed');
+  const [row] = await reminders();
+  expect(row.status).toBe('failed');
 
   // A regra: canal quebrado não pode custar o acesso do Responsável. O Link não é
   // rotacionado quando o envio falha, então o token da abertura continua valendo.
-  const [depois] = await db.select().from(uploadLink).where(eq(uploadLink.requestId, request.id));
-  expect(depois.tokenHash).toBe(antes.tokenHash);
+  const [after] = await db.select().from(uploadLink).where(eq(uploadLink.requestId, request.id));
+  expect(after.tokenHash).toBe(before.tokenHash);
   await http(app).get(`/upload/${token}`).expect(200);
 });
 

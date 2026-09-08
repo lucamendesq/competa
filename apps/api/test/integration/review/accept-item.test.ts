@@ -38,9 +38,9 @@ test('aceitar o Item aceita TODOS os seus Documentos enviados numa tacada', asyn
   const { cookie, requestId, token } = await setupReview(app);
   const item = await itemNamed(app, cookie, requestId, 'Notas fiscais emitidas');
 
-  const primeiro = await uploadOk(app, token, { fileName: 'nf-1.pdf', requestItemId: item.id });
-  const segundo = await uploadOk(app, token, { fileName: 'nf-2.pdf', requestItemId: item.id });
-  const terceiro = await uploadOk(app, token, { fileName: 'nf-3.pdf', requestItemId: item.id });
+  const first = await uploadOk(app, token, { fileName: 'nf-1.pdf', requestItemId: item.id });
+  const second = await uploadOk(app, token, { fileName: 'nf-2.pdf', requestItemId: item.id });
+  const third = await uploadOk(app, token, { fileName: 'nf-3.pdf', requestItemId: item.id });
 
   const response = await http(app)
     .post(`/request-items/${item.id}/accept`)
@@ -51,7 +51,7 @@ test('aceitar o Item aceita TODOS os seus Documentos enviados numa tacada', asyn
 
   const rows = await db.select().from(document);
   expect(rows.map((row) => row.reviewStatus)).toEqual(['accepted', 'accepted', 'accepted']);
-  expect(new Set(rows.map((row) => row.id))).toEqual(new Set([primeiro, segundo, terceiro]));
+  expect(new Set(rows.map((row) => row.id))).toEqual(new Set([first, second, third]));
 
   const [saved] = await db.select().from(requestItem).where(eq(requestItem.id, item.id));
   expect(saved.status).toBe('accepted');
@@ -61,12 +61,12 @@ test('Documento já rejeitado permanece rejeitado e NÃO é aceito junto com o I
   const { cookie, requestId, token } = await setupReview(app);
   const item = await itemNamed(app, cookie, requestId, 'Extrato bancário');
 
-  const recusado = await uploadOk(app, token, { fileName: 'errado.pdf', requestItemId: item.id });
-  const rejeicao = await rejectDocument(app, cookie, recusado, 'Extrato do mês errado');
-  expect(rejeicao.response.status).toBe(201);
+  const refused = await uploadOk(app, token, { fileName: 'errado.pdf', requestItemId: item.id });
+  const rejection = await rejectDocument(app, cookie, refused, 'Extrato do mês errado');
+  expect(rejection.response.status).toBe(201);
 
   // token rotacionado na rejeição: o reenvio usa o link novo
-  const correto = await uploadOk(app, rejeicao.token!, {
+  const correto = await uploadOk(app, rejection.token!, {
     fileName: 'certo.pdf',
     requestItemId: item.id,
   });
@@ -78,12 +78,12 @@ test('Documento já rejeitado permanece rejeitado e NÃO é aceito junto com o I
 
   expect(response.body.data.acceptedDocuments).toBe(1);
 
-  const [rejeitado] = await db.select().from(document).where(eq(document.id, recusado));
+  const [rejeitado] = await db.select().from(document).where(eq(document.id, refused));
   expect(rejeitado.reviewStatus).toBe('rejected');
   expect(rejeitado.rejectionReason).toBe('Extrato do mês errado');
 
-  const [aceito] = await db.select().from(document).where(eq(document.id, correto));
-  expect(aceito.reviewStatus).toBe('accepted');
+  const [accepted] = await db.select().from(document).where(eq(document.id, correto));
+  expect(accepted.reviewStatus).toBe('accepted');
 });
 
 test('aceitar Item pending (sem nenhum documento) responde 409 com o motivo', async () => {
@@ -96,7 +96,7 @@ test('aceitar Item pending (sem nenhum documento) responde 409 com o motivo', as
     .expect(409);
 
   expect(response.body.error.code).toBe('INVALID_TRANSITION');
-  expect(response.body.error.message).toMatch(/ainda não tem documentos enviados/i);
+  expect(response.body.error.message).toMatch(/ainda não tem documents sent/i);
 
   const [saved] = await db.select().from(requestItem).where(eq(requestItem.id, item.id));
   expect(saved.status).toBe('pending');
@@ -114,7 +114,7 @@ test('aceitar Item já aceito responde 409', async () => {
     .set('cookie', cookie)
     .expect(409);
 
-  expect(response.body.error.message).toMatch(/já está aceito/i);
+  expect(response.body.error.message).toMatch(/já está accepted/i);
 });
 
 test('aceitar Item de Solicitação encerrada responde 409', async () => {
@@ -129,7 +129,7 @@ test('aceitar Item de Solicitação encerrada responde 409', async () => {
     .set('cookie', cookie)
     .expect(409);
 
-  expect(response.body.error.message).toMatch(/encerrada/i);
+  expect(response.body.error.message).toMatch(/closed/i);
 
   const [saved] = await db.select().from(requestItem).where(eq(requestItem.id, item.id));
   expect(saved.status).toBe('submitted');
@@ -139,27 +139,27 @@ test('Documento awaiting_upload não é aceito nem faz o Item ser revisável', a
   const { cookie, requestId, token } = await setupReview(app);
   const item = await itemNamed(app, cookie, requestId, 'Livro caixa');
 
-  const fantasma = await presignOnly(app, token, {
+  const ghost = await presignOnly(app, token, {
     fileName: 'nunca-subiu.pdf',
     requestItemId: item.id,
   });
 
-  const recusa = await http(app)
+  const rejection = await http(app)
     .post(`/request-items/${item.id}/accept`)
     .set('cookie', cookie)
     .expect(409);
-  expect(recusa.body.error.message).toMatch(/ainda não tem documentos enviados/i);
+  expect(rejection.body.error.message).toMatch(/ainda não tem documents sent/i);
 
   // agora com um documento de verdade: o fantasma continua fora do lote
   await uploadOk(app, token, { fileName: 'caixa.pdf', requestItemId: item.id });
-  const aceite = await http(app)
+  const accepted = await http(app)
     .post(`/request-items/${item.id}/accept`)
     .set('cookie', cookie)
     .expect(201);
 
-  expect(aceite.body.data.acceptedDocuments).toBe(1);
+  expect(accepted.body.data.acceptedDocuments).toBe(1);
 
-  const [row] = await db.select().from(document).where(eq(document.id, fantasma));
+  const [row] = await db.select().from(document).where(eq(document.id, ghost));
   expect(row.uploadStatus).toBe('awaiting_upload');
   expect(row.reviewStatus).toBe('pending');
 

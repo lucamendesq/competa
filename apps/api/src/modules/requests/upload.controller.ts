@@ -10,8 +10,9 @@ import type { UploadScope } from '../auth/scope.js';
 import { UploadService } from './upload.service.js';
 import { UploadLinkRepository } from './upload-link.repository.js';
 
-/** Rotas públicas do Link de Upload: só-escrita. Exibem nome/status/prazo dos Itens,
- *  nunca listam nem devolvem conteúdo de `document`. `@AllowAnonymous()` porque o
+/** Rotas públicas do Link de Upload: só-escrita. Exibem nome/status/prazo dos Itens e o
+ *  NOME dos arquivos já enviados (o Responsável precisa saber o que mandou), mas nunca
+ *  devolvem conteúdo de `document` nem `storage_key`, e não existe rota de download aqui. `@AllowAnonymous()` porque o
  *  TenantGuard é global e este fluxo não passa pelo Better Auth. */
 @Controller('upload/:token')
 @AllowAnonymous()
@@ -24,11 +25,18 @@ export class UploadController {
 
   @Get()
   async checklist(@CurrentUploadScope() scope: UploadScope) {
-    const checklist = await this.links.findChecklist(scope);
+    const [checklist, owner] = await Promise.all([
+      this.links.findChecklist(scope),
+      this.links.findContact(scope),
+    ]);
     if (!checklist) throw new NotFound('Solicitação não encontrada.');
 
     return {
       company: checklist.companyName,
+      accountingFirm: checklist.accountingFirmName,
+      /* A tela de sucesso não oferece "ativar acesso" a quem já tem — a rota responderia
+       * 409 e o Responsável veria um erro por clicar no que lhe foi oferecido. */
+      hasAccess: Boolean(owner?.authUserId),
       referenceMonth: checklist.referenceMonth,
       dueDate: checklist.periodDueDate,
       status: checklist.status,
@@ -36,6 +44,7 @@ export class UploadController {
         ...item,
         dueDate: item.dueDate ?? checklist.periodDueDate,
       })),
+      extraDocuments: checklist.extraDocuments,
     };
   }
 

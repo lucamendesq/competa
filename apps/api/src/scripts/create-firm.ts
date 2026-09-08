@@ -17,10 +17,7 @@ if (!values.name || !values.email) {
 const { token, tokenHash } = createToken();
 
 await db.transaction(async (tx) => {
-  const [firm] = await tx
-    .insert(accountingFirm)
-    .values({ name: values.name! })
-    .returning();
+  const [firm] = await tx.insert(accountingFirm).values({ name: values.name! }).returning();
 
   await tx.insert(invite).values({
     tokenHash,

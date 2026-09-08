@@ -1,12 +1,50 @@
-/* To learn more about Typescript configuration file: https://www.typescriptlang.org/docs/handbook/tsconfig-json.html. */
-/* To learn more about Angular compiler options: https://angular.dev/reference/configs/angular-compiler-options. */
 {
   "extends": "../../tsconfig.base.json",
   "compilerOptions": {
     "noPropertyAccessFromIndexSignature": true,
     "importHelpers": true,
     "target": "ES2022",
-    "module": "preserve"
+    "module": "preserve",
+    "paths": {
+      "@spartan-ng/helm/button": ["./src/ui/button/src/index.ts"],
+      "@spartan-ng/helm/utils": ["./src/ui/utils/src/index.ts"],
+      "@spartan-ng/helm/alert": ["./src/ui/alert/src/index.ts"],
+      "@spartan-ng/helm/alert-dialog": ["./src/ui/alert-dialog/src/index.ts"],
+      "@spartan-ng/helm/attachment": ["./src/ui/attachment/src/index.ts"],
+      "@spartan-ng/helm/avatar": ["./src/ui/avatar/src/index.ts"],
+      "@spartan-ng/helm/badge": ["./src/ui/badge/src/index.ts"],
+      "@spartan-ng/helm/breadcrumb": ["./src/ui/breadcrumb/src/index.ts"],
+      "@spartan-ng/helm/card": ["./src/ui/card/src/index.ts"],
+      "@spartan-ng/helm/checkbox": ["./src/ui/checkbox/src/index.ts"],
+      "@spartan-ng/helm/collapsible": ["./src/ui/collapsible/src/index.ts"],
+      "@spartan-ng/helm/date-picker": ["./src/ui/date-picker/src/index.ts"],
+      "@spartan-ng/helm/calendar": ["./src/ui/calendar/src/index.ts"],
+      "@spartan-ng/helm/select": ["./src/ui/select/src/index.ts"],
+      "@spartan-ng/helm/popover": ["./src/ui/popover/src/index.ts"],
+      "@spartan-ng/helm/input-group": ["./src/ui/input-group/src/index.ts"],
+      "@spartan-ng/helm/input": ["./src/ui/input/src/index.ts"],
+      "@spartan-ng/helm/textarea": ["./src/ui/textarea/src/index.ts"],
+      "@spartan-ng/helm/dialog": ["./src/ui/dialog/src/index.ts"],
+      "@spartan-ng/helm/dropdown-menu": ["./src/ui/dropdown-menu/src/index.ts"],
+      "@spartan-ng/helm/empty": ["./src/ui/empty/src/index.ts"],
+      "@spartan-ng/helm/field": ["./src/ui/field/src/index.ts"],
+      "@spartan-ng/helm/label": ["./src/ui/label/src/index.ts"],
+      "@spartan-ng/helm/separator": ["./src/ui/separator/src/index.ts"],
+      "@spartan-ng/helm/pagination": ["./src/ui/pagination/src/index.ts"],
+      "@spartan-ng/helm/progress": ["./src/ui/progress/src/index.ts"],
+      "@spartan-ng/helm/radio-group": ["./src/ui/radio-group/src/index.ts"],
+      "@spartan-ng/helm/sheet": ["./src/ui/sheet/src/index.ts"],
+      "@spartan-ng/helm/sidebar": ["./src/ui/sidebar/src/index.ts"],
+      "@spartan-ng/helm/skeleton": ["./src/ui/skeleton/src/index.ts"],
+      "@spartan-ng/helm/tooltip": ["./src/ui/tooltip/src/index.ts"],
+      "@spartan-ng/helm/sonner": ["./src/ui/sonner/src/index.ts"],
+      "@spartan-ng/helm/spinner": ["./src/ui/spinner/src/index.ts"],
+      "@spartan-ng/helm/switch": ["./src/ui/switch/src/index.ts"],
+      "@spartan-ng/helm/table": ["./src/ui/table/src/index.ts"],
+      "@spartan-ng/helm/tabs": ["./src/ui/tabs/src/index.ts"],
+      "@spartan-ng/helm/toggle-group": ["./src/ui/toggle-group/src/index.ts"],
+      "@spartan-ng/helm/toggle": ["./src/ui/toggle/src/index.ts"]
+    }
   },
   "angularCompilerOptions": {
     "enableI18nLegacyMessageIdFormat": false,

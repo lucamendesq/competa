@@ -2,17 +2,16 @@ import type { IncomingHttpHeaders } from 'node:http';
 import { Injectable } from '@nestjs/common';
 import { fromNodeHeaders } from 'better-auth/node';
 import auth from './better-auth.js';
-import { eq } from 'drizzle-orm';
-import { db } from '../database/index.js';
-import { user } from '../database/schema/auth.js';
 import {
   AuthProvider,
   AuthSession,
+  PasswordlessSignInInput,
   SignUpEmailInput,
   SignUpEmailResponse,
-  PasswordlessUserInput,
 } from '../../modules/auth/auth-provider.js';
 import { isFailure, Result, success, tryCatchAsync } from '../../lib/either.js';
+import { withoutSendingMagicLink } from './magic-link-sender.js';
+import { MagicLinkUnavailable } from '../../modules/auth/errors.js';
 
 @Injectable()
 export class BetterAuthAdapter implements AuthProvider {
@@ -26,23 +25,30 @@ export class BetterAuthAdapter implements AuthProvider {
     return success({ userId: result.value.user.id });
   }
 
-  /** Sem senha: o `user` é criado direto (não há credencial a guardar). Email que já tem
-   *  conta é reaproveitado — identidade duplicada quebraria o login por email. */
-  async createPasswordlessUser(input: PasswordlessUserInput) {
-    const [existing] = await db
-      .select({ id: user.id, name: user.name })
-      .from(user)
-      .where(eq(user.email, input.email))
-      .limit(1);
+  async signInPasswordless(input: PasswordlessSignInInput) {
+    const link = await withoutSendingMagicLink(() =>
+      auth.api.signInMagicLink({
+        body: { email: input.email, name: input.name },
+        headers: new Headers(),
+      }),
+    );
 
-    if (existing) return { userId: existing.id, name: existing.name };
+    if (!link) throw new MagicLinkUnavailable();
 
-    const [created] = await db
-      .insert(user)
-      .values({ name: input.name, email: input.email, emailVerified: false })
-      .returning({ id: user.id, name: user.name });
+    const verified = await auth.api.magicLinkVerify({
+      query: { token: link.token },
+      headers: new Headers(),
+      asResponse: true,
+    });
 
-    return { userId: created.id, name: created.name };
+    const session = await auth.api.getSession({ headers: forwardCookies(verified) });
+    if (!session) throw new MagicLinkUnavailable();
+
+    return { userId: session.user.id, setCookie: verified.headers.getSetCookie() };
+  }
+
+  async sendSignInLink(email: string) {
+    await auth.api.signInMagicLink({ body: { email }, headers: new Headers() });
   }
 
   async getSession(headers: IncomingHttpHeaders): Promise<AuthSession | null> {
@@ -53,3 +59,11 @@ export class BetterAuthAdapter implements AuthProvider {
     return { user: { id, name, email } };
   }
 }
+
+const forwardCookies = (response: Response) =>
+  new Headers({
+    cookie: response.headers
+      .getSetCookie()
+      .map((value) => value.split(';')[0])
+      .join('; '),
+  });

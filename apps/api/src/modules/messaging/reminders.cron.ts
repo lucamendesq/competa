@@ -21,7 +21,6 @@ export class RemindersCron {
     await this.run();
   }
 
-  /** Público para a rota de operação disparar a mesma varredura do cron. */
   async run() {
     const candidates = await this.messages.reminderCandidates();
     const due = pickReminders(candidates, new Date());

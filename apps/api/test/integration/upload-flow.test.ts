@@ -42,14 +42,20 @@ const itemNamed = async (token: string, fragment: string) => {
   return item as { id: string; name: string; acceptedFormats: string[] };
 };
 
-test('link sem senha mostra o checklist e nunca devolve documento', async () => {
+test('link sem senha mostra o checklist e nunca devolve a chave do storage', async () => {
   const { token } = await setup();
 
   const response = await http(app).get(`/upload/${token}`).expect(200);
 
   expect(response.body.data.company).toBe('Padaria Central');
   expect(response.body.data.items.length).toBeGreaterThan(0);
-  expect(JSON.stringify(response.body.data)).not.toMatch(/fileName|storageKey|documents/);
+  // sem envio, nenhum Item tem arquivo para listar
+  expect(
+    response.body.data.items.every((item: { documents: [] }) => item.documents.length === 0),
+  ).toBe(true);
+  /* Só-escrita: o Responsável vê nome e status do que mandou, nunca a chave que dá
+   * acesso ao conteúdo — e não há rota de leitura sob o UploadTokenGuard. */
+  expect(JSON.stringify(response.body.data)).not.toMatch(/storageKey|storage_key/);
 });
 
 test('upload confirmado marca o Item submitted e grava o tamanho real com autoria', async () => {
@@ -94,7 +100,7 @@ test('formato fora do checklist é recusado sem derrubar o lote', async () => {
   const [ok, refused] = response.body.data.files;
   expect(ok.accepted).toBe(true);
   expect(refused.accepted).toBe(false);
-  expect(refused.reason).toMatch(/Formato \.exe não aceito/);
+  expect(refused.reason).toMatch(/Formato \.exe não accepted/);
 });
 
 test('documento sem confirmação não conta como enviado', async () => {
@@ -113,13 +119,13 @@ test('documento sem confirmação não conta como enviado', async () => {
   expect(row.uploadStatus).toBe('awaiting_upload');
   expect(row.uploadedAt).toBeNull();
 
-  const painel = await http(app)
+  const panel = await http(app)
     .get(`/requests/${period.requests[0].id}`)
     .set('cookie', session.cookie)
     .expect(200);
 
-  const documentos = painel.body.data.items.flatMap((i: { documents: [] }) => i.documents);
-  expect(documentos).toHaveLength(0);
+  const documents = panel.body.data.items.flatMap((i: { documents: [] }) => i.documents);
+  expect(documents).toHaveLength(0);
 });
 
 test('token inexistente responde igual a token válido inexistente — sem revelar o motivo', async () => {

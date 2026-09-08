@@ -1,0 +1,188 @@
+<a
+  class="text-muted-foreground hover:text-foreground inline-flex items-center gap-1 text-sm"
+  routerLink="/minha-area/competencias"
+>
+  <ng-icon name="lucideArrowLeft" class="text-base" aria-hidden="true" />
+  Histórico
+</a>
+
+@if (detail.isLoading()) {
+  <app-loading-rows [count]="6" />
+} @else if (detail.error()) {
+  <app-error-state message="Não conseguimos carregar esta competência." (retry)="detail.reload()" />
+} @else if (detail.value(); as data) {
+  <div class="mt-3 flex flex-wrap items-center gap-2">
+    <h1 class="text-xl font-semibold tracking-tight">
+      {{ monthLabel(data.referenceMonth) }}
+    </h1>
+    <app-status-pill [status]="data.requestStatus" />
+  </div>
+
+  @if (data.dueDate) {
+    <p class="text-muted-foreground mt-1 text-sm tabular-nums">
+      Prazo geral {{ dateBr(data.dueDate) }}
+    </p>
+  }
+
+  @if (closed()) {
+    <p class="bg-muted border-border mt-4 rounded-lg border p-3 text-sm" role="status">
+      Esta competência foi encerrada pela sua contabilidade — os itens não aceitam mais envios.
+    </p>
+  }
+
+  <ul class="mt-4 flex flex-col gap-3" role="list">
+    @for (item of data.items; track item.id) {
+      <li
+        class="bg-card rounded-xl border"
+        [class]="needsResend(item) ? 'border-red-300' : 'border-border'"
+      >
+        <div class="flex flex-wrap items-start gap-3 p-4">
+          <div class="min-w-0 flex-1">
+            <div class="flex flex-wrap items-center gap-2">
+              <h2 class="text-base font-semibold">{{ item.name }}</h2>
+              <app-status-pill [status]="displayItemStatus(item)" />
+            </div>
+
+            @if (item.description) {
+              <p class="text-muted-foreground mt-1 text-sm">{{ item.description }}</p>
+            }
+
+            @if (needsResend(item)) {
+              <div class="mt-2 rounded-lg border border-red-200 bg-red-50 p-3">
+                <p class="text-sm font-semibold text-red-900">Precisa reenviar</p>
+                @for (rejection of itemRejections(item); track $index) {
+                  <p class="mt-1 text-xs text-red-800">
+                    {{ rejection.fileName }}: {{ rejection.rejectionReason }}
+                  </p>
+                }
+                <p class="mt-2 text-xs text-red-800">Envie o documento corrigido abaixo.</p>
+              </div>
+            }
+
+            <p class="mt-2 flex flex-wrap items-center gap-x-3 text-xs">
+              <span class="text-muted-foreground">
+                Aceita: {{ item.acceptedFormats.join(', ').toUpperCase() }}
+              </span>
+              <app-due-date [dueDate]="item.dueDate" [done]="item.status === 'accepted'" />
+            </p>
+          </div>
+
+          @if (!closed() && item.status !== 'accepted') {
+            <button
+              hlmBtn
+              variant="outline"
+              size="sm"
+              [attr.aria-expanded]="expanded() === item.id"
+              [attr.aria-controls]="'detail-upload-' + item.id"
+              (click)="toggle(item.id)"
+            >
+              <ng-icon name="lucideUpload" aria-hidden="true" />
+              Enviar
+            </button>
+          }
+        </div>
+
+        @if (item.documents.length) {
+          <ul class="border-border mx-4 mb-4 divide-y rounded-lg border" role="list">
+            @for (file of item.documents; track file.id) {
+              <li class="flex flex-wrap items-center gap-2 p-3">
+                <ng-icon
+                  name="lucideFile"
+                  class="text-muted-foreground shrink-0 text-base"
+                  aria-hidden="true"
+                />
+                <div class="min-w-0 flex-1">
+                  <p class="truncate text-sm">{{ file.fileName }}</p>
+                  <p class="text-muted-foreground mt-0.5 text-xs tabular-nums">
+                    {{ fileSize(file.sizeBytes) }} · {{ dateTimeBr(file.uploadedAt) }}
+                    @if (file.uploadedByName) {
+                      · enviado por {{ file.uploadedByName }}
+                    }
+                  </p>
+                  @if (file.rejectionReason) {
+                    <p class="mt-1 text-xs text-red-700">Recusado: {{ file.rejectionReason }}</p>
+                  }
+                </div>
+                <app-status-pill [status]="file.reviewStatus" />
+              </li>
+            }
+          </ul>
+        }
+
+        @if (expanded() === item.id) {
+          <div [id]="'detail-upload-' + item.id" class="border-border border-t p-4">
+            <label
+              appDropZone
+              [dropDisabled]="sending()"
+              (dropped)="send($event, item.id)"
+              class="border-border hover:bg-muted focus-within:ring-ring flex min-h-24 cursor-pointer flex-col items-center justify-center gap-2 rounded-lg border-2 border-dashed p-4 text-center focus-within:ring-2"
+            >
+              <span class="text-sm font-medium"
+                >Arraste os arquivos aqui ou toque para escolher</span
+              >
+              <input
+                type="file"
+                multiple
+                class="sr-only"
+                [disabled]="sending()"
+                (change)="pick($event, item.id)"
+              />
+            </label>
+          </div>
+        }
+      </li>
+    }
+  </ul>
+
+  <section class="bg-card border-border mt-6 rounded-xl border p-4">
+    <h2 class="text-base font-semibold">Documentos extras</h2>
+    <p class="text-muted-foreground mt-1 text-sm">
+      Arquivos que você mandou fora da lista. Pode enviar mesmo com a competência encerrada.
+    </p>
+
+    <label
+      appDropZone
+      [dropDisabled]="sending()"
+      (dropped)="send($event, null)"
+      class="border-border hover:bg-muted focus-within:ring-ring mt-3 flex min-h-20 cursor-pointer flex-col items-center justify-center gap-1 rounded-lg border-2 border-dashed p-4 text-center focus-within:ring-2"
+    >
+      <span class="text-sm font-medium">Arraste os arquivos aqui ou toque para escolher</span>
+      <input
+        type="file"
+        multiple
+        class="sr-only"
+        [disabled]="sending()"
+        (change)="pick($event, null)"
+      />
+    </label>
+
+    @if (data.extraDocuments.length) {
+      <ul class="border-border mt-3 divide-y rounded-lg border" role="list">
+        @for (file of data.extraDocuments; track file.id) {
+          <li class="flex flex-wrap items-center gap-2 p-3">
+            <ng-icon
+              name="lucideFile"
+              class="text-muted-foreground shrink-0 text-base"
+              aria-hidden="true"
+            />
+            <div class="min-w-0 flex-1">
+              <p class="truncate text-sm">{{ file.fileName }}</p>
+              <p class="text-muted-foreground mt-0.5 text-xs tabular-nums">
+                {{ fileSize(file.sizeBytes) }} · {{ dateTimeBr(file.uploadedAt) }}
+              </p>
+            </div>
+            <app-status-pill [status]="file.reviewStatus" />
+          </li>
+        }
+      </ul>
+    }
+  </section>
+}
+
+<app-upload-feedback
+  [sending]="sending()"
+  [progress]="sendProgress()"
+  [results]="results()"
+  (dismiss)="results.set(null)"
+  (retry)="send($event, retryTarget())"
+/>

@@ -1,6 +1,6 @@
 packages:
-  - "apps/*"
-  - "libs/*"
+  - 'apps/*'
+  - 'libs/*'
 allowBuilds:
   '@parcel/watcher': true
   esbuild: true

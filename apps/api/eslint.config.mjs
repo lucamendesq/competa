@@ -15,15 +15,15 @@ const DB_INSTANCE_IMPORT = {
 };
 
 const SCOPE_CONSTRUCTOR_IMPORT = {
-  selector: "ImportSpecifier[imported.name=/^(toFirmScope|toUploadScope)$/]",
+  selector: 'ImportSpecifier[imported.name=/^(toFirmScope|toUploadScope|toContactScope)$/]',
   message:
-    'toFirmScope/toUploadScope só podem ser importados dentro de src/modules/auth/ — o escopo nasce no guard.',
+    'toFirmScope/toUploadScope/toContactScope só podem ser importados dentro de src/modules/auth/ — o escopo nasce no guard.',
 };
 
 const SCOPE_CAST = {
-  selector: "TSAsExpression[typeAnnotation.typeName.name=/^(FirmScope|UploadScope)$/]",
+  selector: 'TSAsExpression[typeAnnotation.typeName.name=/^(FirmScope|UploadScope|ContactScope)$/]',
   message:
-    'Não force o tipo branded com `as`. FirmScope/UploadScope só são construídos por toFirmScope/toUploadScope, dentro de src/modules/auth/.',
+    'Não force o tipo branded com `as`. FirmScope/UploadScope/ContactScope só são construídos pelos `to*Scope`, dentro de src/modules/auth/.',
 };
 
 export default tseslint.config(

@@ -1,0 +1,70 @@
+import { Component, computed, inject, signal } from '@angular/core';
+import { NgOptimizedImage } from '@angular/common';
+import { Router, RouterLink, RouterLinkActive, RouterOutlet } from '@angular/router';
+import { NgIcon, provideIcons } from '@ng-icons/core';
+import {
+  lucideBuilding2,
+  lucideCalendarRange,
+  lucideChevronDown,
+  lucideLogOut,
+  lucideMail,
+  lucideMenu,
+  lucideSettings,
+  lucideSquareCheckBig,
+  lucideX,
+} from '@ng-icons/lucide';
+import { AuthService } from '../core/auth/auth.service';
+
+@Component({
+  selector: 'app-panel-layout',
+  imports: [RouterOutlet, RouterLink, RouterLinkActive, NgIcon, NgOptimizedImage],
+  providers: [
+    provideIcons({
+      lucideBuilding2,
+      lucideCalendarRange,
+      lucideChevronDown,
+      lucideLogOut,
+      lucideMail,
+      lucideMenu,
+      lucideSettings,
+      lucideSquareCheckBig,
+      lucideX,
+    }),
+  ],
+  templateUrl: './panel-layout.html',
+})
+export class PanelLayout {
+  private readonly auth = inject(AuthService);
+  private readonly router = inject(Router);
+
+  protected readonly menuOpen = signal(false);
+  protected readonly profileOpen = signal(false);
+
+  protected readonly firmName = computed(() => this.auth.accountant()?.accountingFirm.name ?? '');
+  protected readonly isOwner = computed(() => this.auth.accountant()?.accountant.owner === true);
+  protected readonly accountantName = computed(() => this.auth.accountant()?.accountant.name ?? '');
+  protected readonly accountantEmail = computed(
+    () => this.auth.accountant()?.accountant.email ?? '',
+  );
+  protected readonly initials = computed(() =>
+    this.accountantName()
+      .split(' ')
+      .filter(Boolean)
+      .slice(0, 2)
+      .map((part) => part[0]?.toUpperCase() ?? '')
+      .join(''),
+  );
+
+  protected readonly nav = [
+    { path: '/competencias', label: 'Competências', icon: 'lucideCalendarRange' },
+    { path: '/empresas', label: 'Empresas', icon: 'lucideBuilding2' },
+    { path: '/checklists', label: 'Checklists', icon: 'lucideSquareCheckBig' },
+    { path: '/mensagens', label: 'Mensagens', icon: 'lucideMail' },
+    { path: '/configuracoes', label: 'Configurações', icon: 'lucideSettings' },
+  ];
+
+  protected async sair() {
+    await this.auth.signOut();
+    await this.router.navigate(['/entrar']);
+  }
+}

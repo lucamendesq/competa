@@ -1,10 +1,20 @@
 import type { INestApplication } from '@nestjs/common';
 import { eq } from 'drizzle-orm';
 import { afterAll, beforeAll, beforeEach, expect, test } from 'vitest';
-import { period, request, requestItem, uploadLink } from '../../../src/infra/database/schema/index.js';
+import {
+  period,
+  request,
+  requestItem,
+  uploadLink,
+} from '../../../src/infra/database/schema/index.js';
 import { createTestApp, http } from '../../app.js';
 import { db, resetDatabase } from '../../db.js';
-import { createAccountantSession, createCompany, insertCompany, openPeriod } from '../../factories.js';
+import {
+  createAccountantSession,
+  createCompany,
+  insertCompany,
+  openPeriod,
+} from '../../factories.js';
 import { resetThrottle, useOwnPort } from './_helpers.js';
 
 /** Abrir a Competência: normalização do mês, unicidade por Contabilidade e escopo. */

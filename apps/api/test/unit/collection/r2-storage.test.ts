@@ -75,13 +75,13 @@ test('o checksum flexível do SDK não vai na assinatura (o R2 recusaria o PUT)'
 });
 
 test('assinaturas de chaves diferentes não se confundem', async () => {
-  const outra = await storage.presignPut({
+  const other = await storage.presignPut({
     storageKey: 'firm/abc/period/2026-07-01/request/def/outro.pdf',
     contentType: 'application/pdf',
     sizeBytes: 1234,
   });
 
   expect(new URL(await presign()).searchParams.get('X-Amz-Signature')).not.toBe(
-    new URL(outra).searchParams.get('X-Amz-Signature'),
+    new URL(other).searchParams.get('X-Amz-Signature'),
   );
 });

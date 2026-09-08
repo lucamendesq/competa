@@ -1,11 +1,6 @@
 import assert from 'node:assert/strict';
 import { test } from 'vitest';
-import {
-  MAX_FILE_BYTES,
-  buildStorageKey,
-  fileExtension,
-  rejectionReason,
-} from './file-rules.js';
+import { MAX_FILE_BYTES, buildStorageKey, fileExtension, rejectionReason } from './file-rules.js';
 
 const pdf = { fileName: 'Notas Fiscais.PDF', contentType: 'application/pdf', sizeBytes: 1024 };
 
@@ -17,7 +12,7 @@ test('extensão vem do nome do arquivo, com fallback no content-type', () => {
 
 test('formato fora dos accepted_formats do Item é recusado', () => {
   assert.equal(rejectionReason(pdf, ['pdf', 'zip']), null);
-  assert.match(rejectionReason(pdf, ['xml']) ?? '', /Formato \.pdf não aceito/);
+  assert.match(rejectionReason(pdf, ['xml']) ?? '', /Formato \.pdf não accepted/);
 });
 
 test('zip é formato como qualquer outro (sem extração)', () => {

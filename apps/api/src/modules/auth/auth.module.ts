@@ -12,7 +12,7 @@ import { InviteRepository } from './invite.repository.js';
     AccountantRepository,
     InviteRepository,
   ],
-  exports: [AuthProvider],
+  exports: [AuthProvider, InviteRepository],
   controllers: [AuthController, InviteController],
 })
 export class AuthModule {}

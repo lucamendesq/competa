@@ -9,8 +9,8 @@ import { clearRateLimit } from './helpers.js';
 
 /** Catálogo: o dicionário do produto mais o que a Contabilidade acrescentou. */
 
-const TOTAL_DO_PRODUTO = Object.keys(CATALOG).length;
-const FISCAIS_DO_PRODUTO = Object.values(CATALOG).filter((e) => e.category === 'fiscal').length;
+const PRODUCT_TOTAL = Object.keys(CATALOG).length;
+const PRODUCT_TAX_ITEMS = Object.values(CATALOG).filter((e) => e.category === 'fiscal').length;
 
 let app: INestApplication;
 
@@ -35,8 +35,8 @@ test('catálogo devolve o seed do produto marcado como isProduct', async () => {
     .set('cookie', session.cookie)
     .expect(200);
 
-  expect(response.body.meta.total).toBe(TOTAL_DO_PRODUTO);
-  expect(response.body.data).toHaveLength(TOTAL_DO_PRODUTO);
+  expect(response.body.meta.total).toBe(PRODUCT_TOTAL);
+  expect(response.body.data).toHaveLength(PRODUCT_TOTAL);
   expect(response.body.data.every((row: { isProduct: boolean }) => row.isProduct)).toBe(true);
 });
 
@@ -48,29 +48,29 @@ test('filtro por categoria devolve só aquela categoria e o total daquela catego
     .set('cookie', session.cookie)
     .expect(200);
 
-  expect(response.body.meta.total).toBe(FISCAIS_DO_PRODUTO);
-  expect(
-    response.body.data.every((row: { category: string }) => row.category === 'fiscal'),
-  ).toBe(true);
+  expect(response.body.meta.total).toBe(PRODUCT_TAX_ITEMS);
+  expect(response.body.data.every((row: { category: string }) => row.category === 'fiscal')).toBe(
+    true,
+  );
 });
 
 test('paginação do catálogo respeita perPage e mantém o total do filtro', async () => {
   const session = await createAccountantSession(app);
 
-  const primeira = await http(app)
+  const first = await http(app)
     .get('/document-types?page=1&perPage=3')
     .set('cookie', session.cookie)
     .expect(200);
-  const segunda = await http(app)
+  const second = await http(app)
     .get('/document-types?page=2&perPage=3')
     .set('cookie', session.cookie)
     .expect(200);
 
-  expect(primeira.body.data).toHaveLength(3);
-  expect(primeira.body.meta).toEqual({ page: 1, perPage: 3, total: TOTAL_DO_PRODUTO });
-  expect(segunda.body.data).toHaveLength(3);
-  const idsPrimeira = primeira.body.data.map((r: { id: string }) => r.id);
-  expect(segunda.body.data.some((r: { id: string }) => idsPrimeira.includes(r.id))).toBe(false);
+  expect(first.body.data).toHaveLength(3);
+  expect(first.body.meta).toEqual({ page: 1, perPage: 3, total: PRODUCT_TOTAL });
+  expect(second.body.data).toHaveLength(3);
+  const idsOfFirst = first.body.data.map((r: { id: string }) => r.id);
+  expect(second.body.data.some((r: { id: string }) => idsOfFirst.includes(r.id))).toBe(false);
 });
 
 test('Tipo de Documento da própria Contabilidade entra no catálogo sem virar seed do produto', async () => {

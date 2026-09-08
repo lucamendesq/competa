@@ -121,7 +121,7 @@ test('prazo estourado avisa o Responsável (com link) e cada Contador (sem link)
   const { session } = await setup('2026-01');
 
   // segundo Contador na MESMA Contabilidade, pelo fluxo real de convite
-  const convite = await http(app)
+  const invite = await http(app)
     .post('/invites')
     .set('cookie', session.cookie)
     .send({ email: 'segundo-contador@teste.com' })
@@ -129,32 +129,36 @@ test('prazo estourado avisa o Responsável (com link) e cada Contador (sem link)
 
   await http(app)
     .post('/auth/sign-up')
-    .query({ token: convite.body.data.url.split('/').pop() })
-    .send({ name: 'Segundo Contador', email: 'segundo-contador@teste.com', password: 'senha-forte-123' })
+    .query({ token: invite.body.data.url.split('/').pop() })
+    .send({
+      name: 'Segundo Contador',
+      email: 'segundo-contador@teste.com',
+      password: 'senha-forte-123',
+    })
     .expect(201);
 
   const scan = await http(app).post('/deadlines/scan').set('cookie', session.cookie).expect(201);
-  const itensAvisados = scan.body.data.notified.length as number;
-  expect(itensAvisados).toBeGreaterThan(0);
+  const notifiedItems = scan.body.data.notified.length as number;
+  expect(notifiedItems).toBeGreaterThan(0);
 
   // por item avisado: 1 email para o Responsável + 1 para cada Contador
-  const esperado = itensAvisados * 3;
-  const rows = await waitForPurpose('deadline_missed', esperado);
-  expect(rows).toHaveLength(esperado);
+  const expected = notifiedItems * 3;
+  const rows = await waitForPurpose('deadline_missed', expected);
+  expect(rows).toHaveLength(expected);
 
   const recipients = new Set(rows.map((row) => row.recipient));
   expect(recipients.has(session.email)).toBe(true);
   expect(recipients.has('segundo-contador@teste.com')).toBe(true);
   expect(recipients.size).toBe(3);
 
-  const doContador = provider.lastTo(session.email)!;
-  expect(doContador.body).not.toContain('/envio/');
-  expect(doContador.body).toContain('não enviou');
+  const ofAccountant = provider.lastTo(session.email)!;
+  expect(ofAccountant.body).not.toContain('/envio/');
+  expect(ofAccountant.body).toContain('não enviou');
 
-  const responsavel = [...recipients].find(
+  const contact = [...recipients].find(
     (email) => email !== session.email && email !== 'segundo-contador@teste.com',
   )!;
-  expect(provider.lastTo(responsavel)!.body).toMatch(/envio\/[A-Za-z0-9_-]+/);
+  expect(provider.lastTo(contact)!.body).toMatch(/envio\/[A-Za-z0-9_-]+/);
 });
 
 test('convite manda email sem criar linha em message', async () => {

@@ -12,7 +12,7 @@ import {
   requestItem,
   user,
 } from '../../infra/database/schema/index.js';
-import type { ContactScope, FirmScope } from '../auth/scope.js';
+import type { ContactScope, FirmScope, UploadScope } from '../auth/scope.js';
 
 /** Tudo aqui é escopado por `ContactScope`: o Responsável alcança a Empresa dele e mais
  *  nada. Nenhum método devolve `storage_key` nem conteúdo — ele vê nome, status, prazo e
@@ -21,7 +21,6 @@ import type { ContactScope, FirmScope } from '../auth/scope.js';
 export class ContactRepository {
   constructor(private readonly db: Database) {}
 
-  /** Vínculo do Responsável com a Empresa e a Contabilidade que o cobra. */
   async profile(scope: ContactScope) {
     const [row] = await this.db
       .select({
@@ -42,7 +41,21 @@ export class ContactRepository {
     return row;
   }
 
-  /** Contato pelo `auth_user_id` da sessão — usado logo depois de criar o acesso. */
+  async findByEmailInCompany(companyId: string, email: string) {
+    const [row] = await this.db
+      .select({
+        id: contact.id,
+        name: contact.name,
+        email: contact.email,
+        authUserId: contact.authUserId,
+      })
+      .from(contact)
+      .where(and(eq(contact.companyId, companyId), eq(contact.email, email)))
+      .limit(1);
+
+    return row;
+  }
+
   async findByAuthUser(authUserId: string) {
     const [row] = await this.db
       .select({ id: contact.id, companyId: contact.companyId })
@@ -53,8 +66,37 @@ export class ContactRepository {
     return row;
   }
 
-  /** Cria a conta do Responsável a partir do Link: vincula o `user` ao `contact`. Só o
-   *  contato do Link é aceito, e só se ainda não tiver acesso. */
+  /** Solicitações abertas de um email de Responsável, para o "perdi meu link" reenviar o
+   *  Link de Upload. Único método sem escopo branded: a entrada É o email, e quem chama é
+   *  a rota pública de recuperação, que responde igual em todos os casos e nunca devolve
+   *  nada ao cliente. Não usar em rota que exiba dado. */
+  async openRequestsForEmail(email: string) {
+    return this.db
+      .select({
+        requestId: request.id,
+        contactId: contact.id,
+        contactName: contact.name,
+        contactEmail: contact.email,
+        companyName: company.name,
+        referenceMonth: period.referenceMonth,
+        periodDueDate: period.dueDate,
+        hasAccess: contact.authUserId,
+      })
+      .from(contact)
+      .innerJoin(company, eq(company.id, contact.companyId))
+      .innerJoin(request, eq(request.companyId, company.id))
+      .innerJoin(period, eq(period.id, request.periodId))
+      .where(
+        and(
+          eq(contact.email, email),
+          eq(company.active, true),
+          eq(request.status, 'open'),
+          eq(period.status, 'open'),
+        ),
+      )
+      .orderBy(desc(period.referenceMonth));
+  }
+
   async linkAuthUser(contactId: string, authUserId: string) {
     const [row] = await this.db
       .update(contact)
@@ -65,9 +107,8 @@ export class ContactRepository {
     return row;
   }
 
-  /** O que falta agora: itens não aceitos da Competência aberta, com prazo efetivo. */
   async pending(scope: ContactScope) {
-    return this.db
+    const items = await this.db
       .select({
         requestId: request.id,
         requestStatus: request.status,
@@ -93,9 +134,38 @@ export class ContactRepository {
         ),
       )
       .orderBy(asc(requestItem.dueDate), asc(requestItem.name));
+
+    // O Item recusado volta para `pending` (invariante do domínio: `rejected → pending`),
+    // então o status sozinho não distingue "nunca enviei" de "enviei e voltou". Sem os
+    // motivos aqui, o Painel de Pendências pedia reenvio sem dizer o quê corrigir.
+    const itemIds = items.map((row) => row.itemId);
+
+    const rejections = itemIds.length
+      ? await this.db
+          .select({
+            requestItemId: document.requestItemId,
+            fileName: document.fileName,
+            rejectionReason: document.rejectionReason,
+          })
+          .from(document)
+          .where(
+            and(
+              inArray(document.requestItemId, itemIds),
+              eq(document.reviewStatus, 'rejected'),
+              eq(document.uploadStatus, 'uploaded'),
+            ),
+          )
+          .orderBy(asc(document.uploadedAt))
+      : [];
+
+    return items.map((item) => ({
+      ...item,
+      rejections: rejections
+        .filter((row) => row.requestItemId === item.itemId)
+        .map((row) => ({ fileName: row.fileName, rejectionReason: row.rejectionReason })),
+    }));
   }
 
-  /** Competências da Empresa, mais recente primeiro. */
   async periods(scope: ContactScope, query: { page: number; perPage: number }) {
     const where = eq(request.companyId, scope.companyId);
 
@@ -126,8 +196,6 @@ export class ContactRepository {
     return { rows, total: total.value };
   }
 
-  /** Detalhe de uma Competência: itens com status e os arquivos enviados, com QUEM enviou.
-   *  `storage_key` fica fora de propósito — nome, tamanho e autoria bastam. */
   async periodDetail(scope: ContactScope, periodId: string) {
     const [head] = await this.db
       .select({
@@ -186,8 +254,6 @@ export class ContactRepository {
     };
   }
 
-  /** A Solicitação tem que ser da Empresa do Responsável — é o que autoriza o upload
-   *  logado a reaproveitar o pipeline do fluxo por link. */
   async ownsRequest(scope: ContactScope, requestId: string) {
     const [row] = await this.db
       .select({ id: request.id })
@@ -198,9 +264,11 @@ export class ContactRepository {
     return Boolean(row);
   }
 
-  /** Inscrição de push: `endpoint` é chave natural, então reinscrever é upsert. */
+  /** Inscrição de push: `endpoint` é chave natural, então reinscrever é upsert. Aceita os
+   *  dois escopos que resolvem um `contact`: a área logada e o Link de Upload — push não
+   *  depende de conta (D14), e é pelo Link que ele é oferecido. */
   async savePushSubscription(
-    scope: ContactScope,
+    scope: ContactScope | UploadScope,
     input: { endpoint: string; keys: Record<string, string> },
   ) {
     const [row] = await this.db
@@ -229,12 +297,10 @@ export class ContactRepository {
     return row;
   }
 
-  /** Inscrição que o navegador descartou (404/410 no envio). */
   async deletePushSubscriptionByEndpoint(endpoint: string) {
     await this.db.delete(pushSubscription).where(eq(pushSubscription.endpoint, endpoint));
   }
 
-  /** Inscrições dos Responsáveis de uma Solicitação — usado pelo envio de push. */
   async subscriptionsForRequest(requestId: string) {
     return this.db
       .select({
@@ -279,7 +345,6 @@ export class ContactRepository {
     return { revoked: true as const };
   }
 
-  /** Responsáveis com acesso — para o painel do Contador saber quem revogar. */
   async withAccess(scope: FirmScope, companyId: string) {
     return this.db
       .select({ id: contact.id, name: contact.name, email: contact.email })

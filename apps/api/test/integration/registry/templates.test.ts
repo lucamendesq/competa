@@ -15,7 +15,7 @@ import { clearRateLimit } from './helpers.js';
 /** Template de Checklist: o do produto é imutável, a Contabilidade deriva o seu. */
 
 let app: INestApplication;
-const FANTASMA = '01a06884-0000-7000-8000-0000000000ff';
+const GHOST = '01a06884-0000-7000-8000-0000000000ff';
 
 beforeAll(async () => {
   app = await createTestApp();
@@ -31,16 +31,16 @@ beforeEach(async () => {
 });
 
 /** Contabilidade com um template derivado (o único editável). */
-const comDerivado = async () => {
+const withDerived = async () => {
   const session = await createAccountantSession(app);
   const produto = await productTemplate();
-  const derivado = await http(app)
+  const derived = await http(app)
     .post(`/checklist-templates/${produto.id}/derive`)
     .set('cookie', session.cookie)
     .send({ name: 'Meu MEI' })
     .expect(201);
 
-  return { session, produto, derivado: derivado.body.data as { id: string; itemCount: number } };
+  return { session, produto, derived: derived.body.data as { id: string; itemCount: number } };
 };
 
 test('listagem mostra os 5 templates do produto marcados como isProduct e com contagem de itens', async () => {
@@ -65,10 +65,10 @@ test('template do produto devolve os itens com os dados do catálogo', async () 
     .set('cookie', session.cookie)
     .expect(200);
 
-  const extrato = response.body.data.items.find(
+  const statement = response.body.data.items.find(
     (i: { documentTypeId: string }) => i.documentTypeId === CATALOG.extrato_bancario.id,
   );
-  expect(extrato).toMatchObject({
+  expect(statement).toMatchObject({
     name: CATALOG.extrato_bancario.name,
     acceptedFormats: CATALOG.extrato_bancario.acceptedFormats,
     periodicity: 'monthly',
@@ -111,12 +111,12 @@ test('template do produto é imutável: adicionar, editar e remover item respond
 });
 
 test('derivar cria cópia da Contabilidade com derivedFrom e TODOS os itens da origem', async () => {
-  const { session, produto, derivado } = await comDerivado();
+  const { session, produto, derived } = await withDerived();
 
   const [row] = await db
     .select()
     .from(checklistTemplate)
-    .where(eq(checklistTemplate.id, derivado.id));
+    .where(eq(checklistTemplate.id, derived.id));
   expect(row.accountingFirmId).toBe(session.firm.id);
   expect(row.derivedFrom).toBe(produto.id);
 
@@ -125,11 +125,11 @@ test('derivar cria cópia da Contabilidade com derivedFrom e TODOS os itens da o
     .set('cookie', session.cookie)
     .expect(200);
   const copia = await http(app)
-    .get(`/checklist-templates/${derivado.id}`)
+    .get(`/checklist-templates/${derived.id}`)
     .set('cookie', session.cookie)
     .expect(200);
 
-  expect(derivado.itemCount).toBe(origem.body.data.items.length);
+  expect(derived.itemCount).toBe(origem.body.data.items.length);
   expect(copia.body.data.items.map((i: { documentTypeId: string }) => i.documentTypeId)).toEqual(
     origem.body.data.items.map((i: { documentTypeId: string }) => i.documentTypeId),
   );
@@ -150,10 +150,10 @@ test('derivar sem nome herda o nome da origem', async () => {
 });
 
 test('derivar template que já é da Contabilidade responde 409 — edite-o direto', async () => {
-  const { session, derivado } = await comDerivado();
+  const { session, derived } = await withDerived();
 
   const response = await http(app)
-    .post(`/checklist-templates/${derivado.id}/derive`)
+    .post(`/checklist-templates/${derived.id}/derive`)
     .set('cookie', session.cookie)
     .send({ name: 'Cópia da cópia' })
     .expect(409);
@@ -162,66 +162,66 @@ test('derivar template que já é da Contabilidade responde 409 — edite-o dire
 });
 
 test('item anual sem annualMonth é recusado com 422; com o mês entra', async () => {
-  const { session, derivado } = await comDerivado();
+  const { session, derived } = await withDerived();
 
-  const recusa = await http(app)
-    .post(`/checklist-templates/${derivado.id}/items`)
+  const rejection = await http(app)
+    .post(`/checklist-templates/${derived.id}/items`)
     .set('cookie', session.cookie)
     .send({ documentTypeId: CATALOG.guia_iss.id, periodicity: 'annual' })
     .expect(422);
-  expect(JSON.stringify(recusa.body.error.details)).toMatch(/annualMonth/);
+  expect(JSON.stringify(rejection.body.error.details)).toMatch(/annualMonth/);
 
   await http(app)
-    .post(`/checklist-templates/${derivado.id}/items`)
+    .post(`/checklist-templates/${derived.id}/items`)
     .set('cookie', session.cookie)
     .send({ documentTypeId: CATALOG.guia_iss.id, periodicity: 'annual', annualMonth: 12 })
     .expect(201);
 });
 
 test('item com Tipo de Documento de outra Contabilidade é recusado com 422', async () => {
-  const { session, derivado } = await comDerivado();
-  const outra = await createFirm('Vizinha');
-  const [alheio] = await db
+  const { session, derived } = await withDerived();
+  const other = await createFirm('Vizinha');
+  const [foreign] = await db
     .insert(documentType)
-    .values({ accountingFirmId: outra.id, name: 'Doc da vizinha', category: 'fiscal' })
+    .values({ accountingFirmId: other.id, name: 'Doc da vizinha', category: 'fiscal' })
     .returning();
 
   const response = await http(app)
-    .post(`/checklist-templates/${derivado.id}/items`)
+    .post(`/checklist-templates/${derived.id}/items`)
     .set('cookie', session.cookie)
-    .send({ documentTypeId: alheio.id })
+    .send({ documentTypeId: foreign.id })
     .expect(422);
 
   expect(response.body.error.code).toBe('DOCUMENT_TYPE_NOT_VISIBLE');
 });
 
 test('item do template derivado é editável e removível, e o inexistente responde 404', async () => {
-  const { session, derivado } = await comDerivado();
-  const criado = await http(app)
-    .post(`/checklist-templates/${derivado.id}/items`)
+  const { session, derived } = await withDerived();
+  const created = await http(app)
+    .post(`/checklist-templates/${derived.id}/items`)
     .set('cookie', session.cookie)
     .send({ documentTypeId: CATALOG.guia_iss.id, dueDay: 10 })
     .expect(201);
 
   const editado = await http(app)
-    .patch(`/checklist-templates/${derivado.id}/items/${criado.body.data.id}`)
+    .patch(`/checklist-templates/${derived.id}/items/${created.body.data.id}`)
     .set('cookie', session.cookie)
     .send({ required: false, dueDay: 20 })
     .expect(200);
   expect(editado.body.data).toMatchObject({ required: false, dueDay: 20 });
 
   await http(app)
-    .delete(`/checklist-templates/${derivado.id}/items/${criado.body.data.id}`)
+    .delete(`/checklist-templates/${derived.id}/items/${created.body.data.id}`)
     .set('cookie', session.cookie)
     .expect(204);
 
   await http(app)
-    .patch(`/checklist-templates/${derivado.id}/items/${FANTASMA}`)
+    .patch(`/checklist-templates/${derived.id}/items/${GHOST}`)
     .set('cookie', session.cookie)
     .send({ required: false })
     .expect(404);
   await http(app)
-    .delete(`/checklist-templates/${derivado.id}/items/${FANTASMA}`)
+    .delete(`/checklist-templates/${derived.id}/items/${GHOST}`)
     .set('cookie', session.cookie)
     .expect(404);
 });
@@ -229,29 +229,29 @@ test('item do template derivado é editável e removível, e o inexistente respo
 test('template inexistente responde 404 na leitura e na derivação', async () => {
   const session = await createAccountantSession(app);
 
-  await http(app).get(`/checklist-templates/${FANTASMA}`).set('cookie', session.cookie).expect(404);
+  await http(app).get(`/checklist-templates/${GHOST}`).set('cookie', session.cookie).expect(404);
   await http(app)
-    .post(`/checklist-templates/${FANTASMA}/derive`)
+    .post(`/checklist-templates/${GHOST}/derive`)
     .set('cookie', session.cookie)
     .send({})
     .expect(404);
 });
 
 test('adicionar duas vezes o mesmo Tipo de Documento no template responde 409, não 500', async () => {
-  const { session, derivado } = await comDerivado();
+  const { session, derived } = await withDerived();
   const body = { documentTypeId: CATALOG.guia_iss.id };
 
   await http(app)
-    .post(`/checklist-templates/${derivado.id}/items`)
+    .post(`/checklist-templates/${derived.id}/items`)
     .set('cookie', session.cookie)
     .send(body)
     .expect(201);
 
-  const repetido = await http(app)
-    .post(`/checklist-templates/${derivado.id}/items`)
+  const repeated = await http(app)
+    .post(`/checklist-templates/${derived.id}/items`)
     .set('cookie', session.cookie)
     .send(body);
 
-  expect(repetido.status).toBe(409);
-  expect(repetido.body.error.code).toBe('TEMPLATE_ITEM_DUPLICATED');
+  expect(repeated.status).toBe(409);
+  expect(repeated.body.error.code).toBe('TEMPLATE_ITEM_DUPLICATED');
 });

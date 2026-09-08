@@ -28,7 +28,8 @@ export const createAccountantSession = async (
   app: INestApplication,
   options: { firmName?: string; email?: string; password?: string } = {},
 ) => {
-  const email = options.email ?? `contador-${Date.now()}-${Math.round(performance.now())}@teste.com`;
+  const email =
+    options.email ?? `contador-${Date.now()}-${Math.round(performance.now())}@teste.com`;
   const password = options.password ?? 'senha-forte-123';
   const firm = await createFirm(options.firmName);
   const { token, tokenHash } = createToken();
@@ -54,6 +55,36 @@ export const createAccountantSession = async (
   return { firm, email, password, cookie: cookieHeader(signIn.headers['set-cookie']) };
 };
 
+/** Acesso do Responsável pelo caminho real do "Convidar para o app": convite da Empresa →
+ *  senha → entra. A conta é opcional (D14), então só os testes da área logada precisam
+ *  dela. Quem ativa pelo Link de Upload não tem senha — esse caminho é outro. */
+export const createContactAccess = async (
+  app: INestApplication,
+  input: { companyId: string; email: string; name?: string; password?: string },
+) => {
+  const password = input.password ?? 'senha-forte-123';
+  const { token, tokenHash } = createToken();
+
+  await db.insert(invite).values({
+    email: input.email,
+    tokenHash,
+    companyId: input.companyId,
+    expiresAt: addDays(new Date(), 7),
+  });
+
+  await http(app)
+    .post(`/invites/${token}/contact-account`)
+    .send({ ...(input.name ? { name: input.name } : {}), password })
+    .expect(201);
+
+  const signIn = await http(app)
+    .post('/api/auth/sign-in/email')
+    .send({ email: input.email, password })
+    .expect(200);
+
+  return { email: input.email, password, cookie: cookieHeader(signIn.headers['set-cookie']) };
+};
+
 /** Template fixo do produto (MEI) — o seed do catálogo garante que existe. */
 export const productTemplate = async (name = 'Template MEI') => {
   const [template] = await db
@@ -67,26 +98,37 @@ export const productTemplate = async (name = 'Template MEI') => {
   return template;
 };
 
+/** Empresa pela rota. Conta do Responsável NÃO é criada por padrão: ela é opcional e
+ *  nunca pré-requisito de cobrar documento (D14). Quem testa a área logada pede
+ *  `access: true`. */
 export const createCompany = async (
   app: INestApplication,
   cookie: string,
-  overrides: Record<string, unknown> = {},
+  overrides: Record<string, unknown> & { access?: boolean } = {},
 ) => {
+  const { access = false, ...rest } = overrides;
   const template = await productTemplate();
   const body = {
     name: 'Empresa Teste',
     checklistTemplateId: template.id,
     contact: { name: 'Responsável Teste', email: `resp-${Date.now()}@teste.com` },
-    ...overrides,
+    ...rest,
   };
 
-  const response = await http(app)
-    .post('/companies')
-    .set('cookie', cookie)
-    .send(body)
-    .expect(201);
+  const response = await http(app).post('/companies').set('cookie', cookie).send(body).expect(201);
+  const created = response.body.data as {
+    id: string;
+    name: string;
+    contacts: { id: string; email: string }[];
+  };
 
-  return response.body.data as { id: string; name: string; contacts: { id: string }[] };
+  if (access) {
+    for (const row of created.contacts) {
+      await createContactAccess(app, { companyId: created.id, email: row.email });
+    }
+  }
+
+  return created;
 };
 
 /** Empresa direto no banco quando o teste precisa de um estado que a rota não cria

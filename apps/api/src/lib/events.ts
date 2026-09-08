@@ -11,7 +11,6 @@ export type RequestCreatedEvent = {
   requestId: string;
   periodId: string;
   referenceMonth: string;
-  /** prazo geral da Competência (fallback dos itens sem prazo próprio) */
   periodDueDate: string | null;
   companyId: string;
   companyName: string;
@@ -36,6 +35,20 @@ export type ItemReopenedEvent = {
   uploadUrl: string;
 };
 
+/** Revisão publicada em lote. É o evento que substitui N `ItemReopened` numa revisão com
+ *  várias rejeições: um email só, listando o que foi aceito e o que precisa voltar.
+ *  `uploadUrl` só existe quando houve rejeição de Item (aí o Link é rotacionado uma vez;
+ *  rejeitar Extra não reabre nada e não invalida o link). */
+export type ReviewPublishedEvent = {
+  requestId: string;
+  companyName: string;
+  contactName: string;
+  contactEmail: string;
+  acceptedItemNames: string[];
+  rejected: { itemName: string | null; fileName: string; rejectionReason: string }[];
+  uploadUrl: string | null;
+};
+
 export type RequestCompletedEvent = {
   requestId: string;
   companyName: string;
@@ -43,7 +56,6 @@ export type RequestCompletedEvent = {
   contactEmail: string;
 };
 
-/** Estouro de prazo de um Item: avisa Responsável E Contador. */
 export type DeadlineMissedEvent = {
   requestId: string;
   requestItemId: string;
@@ -53,12 +65,9 @@ export type DeadlineMissedEvent = {
   contactName: string;
   contactEmail: string;
   uploadUrl: string;
-  /** emails dos Contadores da Contabilidade dona */
   accountantEmails: string[];
 };
 
-/** Convite de Contador emitido (registry → messaging). `inviteUrl` viaja no evento pelo
- *  mesmo motivo do Link de Upload: o token em claro só existe na emissão. */
 export type InviteCreatedEvent = {
   email: string;
   firmName: string;
@@ -66,18 +75,47 @@ export type InviteCreatedEvent = {
   expiresAt: Date;
 };
 
+export type ContactInvitedEvent = {
+  contactId: string;
+  contactName: string;
+  contactEmail: string;
+  companyName: string;
+  firmName: string;
+  inviteUrl: string;
+  expiresAt: Date;
+};
+
+/** "Perdi meu link": reenvia o Link de Upload de uma Solicitação aberta. Não gera login e
+ *  NÃO notifica o Contador (D14, item 6) — é recuperação do Responsável, não pendência
+ *  dele. `uploadUrl` já é o link rotacionado. */
+export type UploadLinkResentEvent = {
+  requestId: string;
+  referenceMonth: string;
+  periodDueDate: string | null;
+  companyName: string;
+  contactName: string;
+  contactEmail: string;
+  uploadUrl: string;
+};
+
 export const EVENTS = {
   InviteCreated: 'InviteCreated',
+  ContactInvited: 'ContactInvited',
+  UploadLinkResent: 'UploadLinkResent',
   RequestCreated: 'RequestCreated',
   ItemReopened: 'ItemReopened',
+  ReviewPublished: 'ReviewPublished',
   RequestCompleted: 'RequestCompleted',
   DeadlineMissed: 'DeadlineMissed',
 } as const;
 
 export type EventPayloads = {
   InviteCreated: InviteCreatedEvent;
+  ContactInvited: ContactInvitedEvent;
+  UploadLinkResent: UploadLinkResentEvent;
   RequestCreated: RequestCreatedEvent;
   ItemReopened: ItemReopenedEvent;
+  ReviewPublished: ReviewPublishedEvent;
   RequestCompleted: RequestCompletedEvent;
   DeadlineMissed: DeadlineMissedEvent;
 };

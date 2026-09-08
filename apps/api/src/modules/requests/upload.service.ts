@@ -12,9 +12,6 @@ import {
   rejectionReason,
 } from './file-rules.js';
 
-/** O pipeline de envio, um só: a página pública (token do Link) e a área logada do
- *  Responsável (Fase 10) entram pela mesma porta, cada uma com o seu guard produzindo o
- *  `UploadScope`. Duplicar isso seria duplicar as regras de formato, limite e conferência. */
 @Injectable()
 export class UploadService {
   constructor(
@@ -87,8 +84,6 @@ export class UploadService {
     return { files };
   }
 
-  /** Confirmar é conferir: o tamanho que vale é o do storage. Arquivo ausente, acima do
-   *  limite ou diferente do declarado é descartado (linha e objeto). */
   async confirm(scope: UploadScope, documentIds: string[]) {
     const pending = await this.documents.pendingUpload(scope, documentIds);
     if (!pending.length) throw new NotFound('Nenhum documento deste envio foi encontrado.');

@@ -5,9 +5,7 @@ import { LocalStorage } from './local.storage.js';
 import { R2Storage } from './r2.storage.js';
 import { StorageProvider } from './storage.provider.js';
 
-const useR2 = Boolean(
-  env.R2_ACCOUNT_ID && env.R2_ACCESS_KEY_ID && env.R2_SECRET_ACCESS_KEY && env.R2_BUCKET,
-);
+const useR2 = env.NODE_ENV === 'production';
 
 new Logger('StorageModule').log(
   useR2 ? 'R2Storage (Cloudflare R2)' : `LocalStorage (${env.STORAGE_LOCAL_DIR})`,

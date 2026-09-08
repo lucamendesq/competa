@@ -14,7 +14,7 @@ import { createFirm } from '../../factories.js';
 /** O seed do produto roda em toda migração e em todo deploy. Se ele não for idempotente,
  *  o catálogo duplica e todo template do produto vira lixo. */
 
-const ITENS_ESPERADOS: Record<string, number> = {
+const EXPECTED_ITEMS: Record<string, number> = {
   'Template MEI': 10,
   'Template Simples — Serviços': 14,
   'Template Simples — Comércio': 18,
@@ -33,17 +33,17 @@ beforeEach(async () => {
 });
 
 test('rodar o seed de novo não duplica Tipo de Documento nem Template de Checklist', async () => {
-  const tiposAntes = await total(documentType);
+  const typesBefore = await total(documentType);
   const templatesAntes = await total(checklistTemplate);
-  const [itensAntes] = await db.select({ value: count() }).from(checklistTemplateItem);
+  const [itemsBefore] = await db.select({ value: count() }).from(checklistTemplateItem);
 
   await seedDocumentTypes();
   await seedDocumentTypes();
 
-  expect(await total(documentType)).toBe(tiposAntes);
+  expect(await total(documentType)).toBe(typesBefore);
   expect(await total(checklistTemplate)).toBe(templatesAntes);
-  const [itensDepois] = await db.select({ value: count() }).from(checklistTemplateItem);
-  expect(itensDepois.value).toBe(itensAntes.value);
+  const [itemsAfter] = await db.select({ value: count() }).from(checklistTemplateItem);
+  expect(itemsAfter.value).toBe(itemsBefore.value);
 });
 
 test('o seed entrega o catálogo inteiro e os 5 templates do produto', async () => {
@@ -67,7 +67,7 @@ test('cada template fixo do produto tem a contagem de itens esperada', async () 
       .from(checklistTemplateItem)
       .where(eq(checklistTemplateItem.checklistTemplateId, template.id));
 
-    expect({ [template.name]: value }).toEqual({ [template.name]: ITENS_ESPERADOS[template.name] });
+    expect({ [template.name]: value }).toEqual({ [template.name]: EXPECTED_ITEMS[template.name] });
   }
 });
 
@@ -77,20 +77,20 @@ test('rodar o seed de novo não toca no que a Contabilidade cadastrou', async ()
     .insert(documentType)
     .values({ accountingFirmId: firm.id, name: 'Doc próprio', category: 'fiscal' })
     .returning();
-  const [derivado] = await db
+  const [derived] = await db
     .insert(checklistTemplate)
     .values({ accountingFirmId: firm.id, name: 'Template próprio' })
     .returning();
 
   await seedDocumentTypes();
 
-  const [tipo] = await db.select().from(documentType).where(eq(documentType.id, proprio.id));
+  const [kind] = await db.select().from(documentType).where(eq(documentType.id, proprio.id));
   const [template] = await db
     .select()
     .from(checklistTemplate)
-    .where(eq(checklistTemplate.id, derivado.id));
+    .where(eq(checklistTemplate.id, derived.id));
 
-  expect(tipo.name).toBe('Doc próprio');
+  expect(kind.name).toBe('Doc próprio');
   expect(template.name).toBe('Template próprio');
   expect(await total(documentType)).toBe(Object.keys(CATALOG).length + 1);
 });

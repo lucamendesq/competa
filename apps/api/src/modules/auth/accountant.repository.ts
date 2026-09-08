@@ -16,6 +16,7 @@ export class AccountantRepository {
         email: user.email,
         firmId: accountingFirm.id,
         firmName: accountingFirm.name,
+        owner: accountant.owner,
       })
       .from(accountant)
       .innerJoin(user, eq(user.id, accountant.authUserId))
@@ -26,11 +27,33 @@ export class AccountantRepository {
     return row;
   }
 
+  /** Só o dono convida — e o dono é quem provisionou a Contabilidade (`create-firm`),
+   *  ou seja, o Contador que entra pelo email do escritório. */
+  async isOwner(scope: FirmScope, authUserId: string) {
+    const [row] = await this.db
+      .select({ owner: accountant.owner })
+      .from(accountant)
+      .where(and(eq(accountant.authUserId, authUserId), eq(accountant.accountingFirmId, scope)))
+      .limit(1);
+
+    return row?.owner === true;
+  }
+
   async acceptInvite(input: { authUserId: string; accountingFirmId: string; inviteId: string }) {
     await this.db.transaction(async (tx) => {
-      await tx
-        .insert(accountant)
-        .values({ authUserId: input.authUserId, accountingFirmId: input.accountingFirmId });
+      /* O primeiro Contador da Contabilidade é o dono. `accountant_owner_uidx` (índice
+       * único parcial) garante um só por tenant mesmo se dois signups correrem juntos. */
+      const [existente] = await tx
+        .select({ id: accountant.id })
+        .from(accountant)
+        .where(eq(accountant.accountingFirmId, input.accountingFirmId))
+        .limit(1);
+
+      await tx.insert(accountant).values({
+        authUserId: input.authUserId,
+        accountingFirmId: input.accountingFirmId,
+        owner: !existente,
+      });
       await tx.update(invite).set({ acceptedAt: new Date() }).where(eq(invite.id, input.inviteId));
     });
   }

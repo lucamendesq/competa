@@ -1,0 +1,28 @@
+<section class="bg-card border-border max-w-2xl rounded-xl border">
+  <div class="border-border border-b p-4">
+    <h2 class="text-sm font-semibold">Contabilidade</h2>
+    <p class="text-muted-foreground mt-1 text-xs">Dados do tenant e da sua conta de Contador.</p>
+  </div>
+
+  <dl class="divide-border divide-y">
+    <div class="flex flex-wrap items-center justify-between gap-2 p-4">
+      <dt class="text-muted-foreground text-xs">Nome da contabilidade</dt>
+      <dd class="text-sm font-medium">{{ firmName() }}</dd>
+    </div>
+    <div class="flex flex-wrap items-center justify-between gap-2 p-4">
+      <dt class="text-muted-foreground text-xs">Seu nome</dt>
+      <dd class="text-sm">{{ accountantName() }}</dd>
+    </div>
+    <div class="flex flex-wrap items-center justify-between gap-2 p-4">
+      <dt class="text-muted-foreground text-xs">Seu e-mail</dt>
+      <dd class="text-sm">{{ accountantEmail() }}</dd>
+    </div>
+  </dl>
+
+  <div class="border-border bg-muted/40 border-t p-4">
+    <p class="text-muted-foreground text-xs">
+      Editar o nome da contabilidade, o logotipo e o e-mail de contato ainda não é possível: a API
+      não expõe essas alterações. Enquanto isso, o nome é o definido na criação da contabilidade.
+    </p>
+  </div>
+</section>

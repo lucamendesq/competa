@@ -1,9 +1,11 @@
 import { Injectable } from '@nestjs/common';
-import { asc, eq } from 'drizzle-orm';
+import { and, asc, eq } from 'drizzle-orm';
 import { Database } from '../../infra/database/database.js';
 import {
+  accountingFirm,
   company,
   contact,
+  document,
   period,
   request,
   requestItem,
@@ -30,40 +32,63 @@ export class UploadLinkRepository {
     return row;
   }
 
-  /** O que a página pública mostra. Documentos NUNCA entram aqui (escopo só-upload). */
+  /** O que a página pública mostra. Só METADADOS de documento entram aqui — nome, status
+   *  da revisão e motivo da rejeição —, nunca `storage_key` nem conteúdo: o Responsável
+   *  precisa saber o que ele já mandou, mas o escopo do Link segue sendo só-escrita e não
+   *  existe rota de leitura/download por token. */
   async findChecklist(scope: UploadScope) {
     const [row] = await this.db
       .select({
         companyName: company.name,
+        accountingFirmName: accountingFirm.name,
         referenceMonth: period.referenceMonth,
         periodDueDate: period.dueDate,
         status: request.status,
       })
       .from(request)
       .innerJoin(company, eq(company.id, request.companyId))
+      .innerJoin(accountingFirm, eq(accountingFirm.id, company.accountingFirmId))
       .innerJoin(period, eq(period.id, request.periodId))
       .where(eq(request.id, scope.requestId))
       .limit(1);
 
     if (!row) return undefined;
 
-    const items = await this.db
-      .select({
-        id: requestItem.id,
-        name: requestItem.name,
-        description: requestItem.description,
-        acceptedFormats: requestItem.acceptedFormats,
-        dueDate: requestItem.dueDate,
-        status: requestItem.status,
-      })
-      .from(requestItem)
-      .where(eq(requestItem.requestId, scope.requestId))
-      .orderBy(asc(requestItem.name));
+    const [items, documents] = await Promise.all([
+      this.db
+        .select({
+          id: requestItem.id,
+          name: requestItem.name,
+          description: requestItem.description,
+          acceptedFormats: requestItem.acceptedFormats,
+          dueDate: requestItem.dueDate,
+          status: requestItem.status,
+        })
+        .from(requestItem)
+        .where(eq(requestItem.requestId, scope.requestId))
+        .orderBy(asc(requestItem.name)),
+      this.db
+        .select({
+          requestItemId: document.requestItemId,
+          fileName: document.fileName,
+          reviewStatus: document.reviewStatus,
+          rejectionReason: document.rejectionReason,
+        })
+        .from(document)
+        .where(and(eq(document.requestId, scope.requestId), eq(document.uploadStatus, 'uploaded')))
+        .orderBy(asc(document.uploadedAt)),
+    ]);
 
-    return { ...row, items };
+    return {
+      ...row,
+      items: items.map((item) => ({
+        ...item,
+        documents: documents.filter((file) => file.requestItemId === item.id),
+      })),
+      extraDocuments: documents.filter((file) => !file.requestItemId),
+    };
   }
 
-  /** Responsável dono do Link — base da criação de acesso da Fase 10. */
   async findContact(scope: UploadScope) {
     const [row] = await this.db
       .select({

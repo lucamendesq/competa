@@ -58,8 +58,7 @@ export class LocalStorage extends StorageProvider {
     // sem a checagem, qualquer um escreve arquivo no disco da API.
     const expected = Buffer.from(sign(input.storageKey, input.expiresAt, input.sizeBytes));
     const given = Buffer.from(input.signature);
-    const signatureMatches =
-      expected.length === given.length && timingSafeEqual(expected, given);
+    const signatureMatches = expected.length === given.length && timingSafeEqual(expected, given);
 
     if (!signatureMatches || input.expiresAt * 1000 < Date.now()) {
       throw new Forbidden('URL de upload inválida ou expirada.');

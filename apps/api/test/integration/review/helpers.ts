@@ -23,7 +23,12 @@ export type ReviewItem = {
   status: string;
   dueDate: string | null;
   acceptedFormats: string[];
-  documents: { id: string; fileName: string; reviewStatus: string; rejectionReason: string | null }[];
+  documents: {
+    id: string;
+    fileName: string;
+    reviewStatus: string;
+    rejectionReason: string | null;
+  }[];
 };
 
 /** Contabilidade + Empresa + Competência aberta, com o token em claro do Link. */

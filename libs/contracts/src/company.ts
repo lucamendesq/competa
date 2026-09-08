@@ -34,9 +34,10 @@ export const Cnpj = z
   .refine(cnpjCheckDigitsMatch, 'CNPJ inválido: dígitos verificadores não conferem');
 
 export const ContactBody = z.object({
-  name: z.string().trim().min(1),
-  email: z.email(),
-  phone: z.string().trim().min(8).optional(),
+  name: z.string().trim().min(1, 'Informe o nome do Responsável.'),
+  // a mensagem chega ao usuário (formulário do Angular e relatório de importação)
+  email: z.email('E-mail inválido.'),
+  phone: z.string().trim().min(8, 'Telefone incompleto.').optional(),
 });
 export type ContactBody = z.infer<typeof ContactBody>;
 

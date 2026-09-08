@@ -22,9 +22,7 @@ import { ContactsModule } from './modules/contacts/contacts.module.js';
     ConfigModule.forRoot({
       isGlobal: true,
     }),
-    // eventos síncronos in-process entre módulos (sem fila/outbox na v1)
     EventEmitterModule.forRoot(),
-    // cron de lembretes (Fase 5) e de prazo estourado (Fase 6)
     ScheduleModule.forRoot(),
     /* Rate limiting. Dois baldes: `short` corta rajada e `default` corta abuso sustentado.
      * A rota pública de upload é a superfície mais exposta (token no email, sem sessão) e

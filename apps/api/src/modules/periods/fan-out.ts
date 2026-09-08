@@ -1,6 +1,5 @@
 import { itemDueDate } from './due-date.js';
 
-/** Uma linha do checklist efetivo, do jeito que o ChecklistRepository devolve. */
 type ChecklistLine = {
   documentTypeId: string;
   name: string;
@@ -16,7 +15,12 @@ type ChecklistLine = {
 type CompanyRow = {
   id: string;
   name: string;
-  contact?: { id: string; name: string; email: string; phone: string | null };
+  contact?: {
+    id: string;
+    name: string;
+    email: string;
+    phone: string | null;
+  };
 };
 
 export type RequestPlan = {
@@ -45,9 +49,8 @@ export const entersFanOut = (line: ChecklistLine, referenceMonthNumber: number) 
   (line.periodicity === 'monthly' ||
     (line.periodicity === 'annual' && line.annualMonth === referenceMonthNumber));
 
-/** Decide, sem tocar no banco, o que a abertura vai gravar: uma Solicitação por Empresa
- *  ativa com Responsável, com os itens já filtrados e o prazo congelado. Empresa ativa sem
- *  Responsável não gera Solicitação — vira aviso para o Contador (invariante do domínio). */
+const canBeCharged = (row: CompanyRow) => Boolean(row.contact?.email);
+
 export const planFanOut = (input: {
   companies: CompanyRow[];
   checklistFor: (companyId: string) => ChecklistLine[];
@@ -58,35 +61,34 @@ export const planFanOut = (input: {
   const referenceMonthNumber = Number(input.referenceMonth.slice(5, 7));
 
   const warnings = input.companies
-    .filter((row) => !row.contact)
+    .filter((row) => !canBeCharged(row))
     .map((row) => ({
       companyId: row.id,
       companyName: row.name,
-      reason: 'Empresa ativa sem Responsável com email — nenhuma Solicitação foi criada.',
+      reason: 'Empresa ativa sem Responsável cadastrado.',
+      blockedBy: 'contact' as const,
     }));
 
-  const plans: RequestPlan[] = input.companies
-    .filter((row) => row.contact)
-    .map((row) => ({
-      companyId: row.id,
-      companyName: row.name,
-      contactId: row.contact!.id,
-      contactName: row.contact!.name,
-      contactEmail: row.contact!.email,
-      contactPhone: row.contact!.phone,
-      ...input.createToken(),
-      expiresAt: input.expiresAt,
-      items: input
-        .checklistFor(row.id)
-        .filter((line) => entersFanOut(line, referenceMonthNumber))
-        .map((line) => ({
-          documentTypeId: line.documentTypeId,
-          name: line.name,
-          description: line.description,
-          acceptedFormats: line.acceptedFormats,
-          dueDate: itemDueDate(input.referenceMonth, line.dueDay, line.dueMonthOffset),
-        })),
-    }));
+  const plans: RequestPlan[] = input.companies.filter(canBeCharged).map((row) => ({
+    companyId: row.id,
+    companyName: row.name,
+    contactId: row.contact!.id,
+    contactName: row.contact!.name,
+    contactEmail: row.contact!.email,
+    contactPhone: row.contact!.phone,
+    ...input.createToken(),
+    expiresAt: input.expiresAt,
+    items: input
+      .checklistFor(row.id)
+      .filter((line) => entersFanOut(line, referenceMonthNumber))
+      .map((line) => ({
+        documentTypeId: line.documentTypeId,
+        name: line.name,
+        description: line.description,
+        acceptedFormats: line.acceptedFormats,
+        dueDate: itemDueDate(input.referenceMonth, line.dueDay, line.dueMonthOffset),
+      })),
+  }));
 
   return { plans, warnings };
 };

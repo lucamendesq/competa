@@ -78,10 +78,6 @@ export const verification = pgTable(
   (table) => [index('verification_identifier_idx').on(table.identifier)],
 );
 
-/** Tabela do plugin `@better-auth/passkey` (WebAuthn). É a credencial que sobrevive à
- *  reinstalação do app: a chave vive no keychain sincronizado do aparelho, então o
- *  Responsável entra por biometria sem precisar de email de novo (Fase 10, decisão do
- *  brainstorm de 2026-09-04). */
 export const passkey = pgTable(
   'passkey',
   {

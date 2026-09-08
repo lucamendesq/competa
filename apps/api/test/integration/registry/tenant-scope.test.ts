@@ -17,7 +17,7 @@ import { clearRateLimit } from './helpers.js';
  *  não pode nem saber que o recurso da A existe — 404, nunca 403 nem 200. */
 
 let app: INestApplication;
-const FANTASMA = '01a06884-0000-7000-8000-0000000000ff';
+const GHOST = '01a06884-0000-7000-8000-0000000000ff';
 
 beforeAll(async () => {
   app = await createTestApp();
@@ -32,23 +32,23 @@ beforeEach(async () => {
   clearRateLimit(app);
 });
 
-const duasContabilidades = async () => {
+const twoFirms = async () => {
   const a = await createAccountantSession(app, { firmName: 'Contabilidade A' });
-  const empresa = await createCompany(app, a.cookie, { name: 'Empresa da A' });
-  const contato = await insertContact(empresa.id);
+  const company = await createCompany(app, a.cookie, { name: 'Empresa da A' });
+  const contato = await insertContact(company.id);
   const b = await createAccountantSession(app, { firmName: 'Contabilidade B' });
   clearRateLimit(app);
 
-  return { a, b, empresa, contato };
+  return { a, b, company, contato };
 };
 
 test('B recebe 404 em toda leitura de recurso da A — nunca 403 nem 200', async () => {
-  const { b, empresa } = await duasContabilidades();
+  const { b, company } = await twoFirms();
   const rotas = [
-    `/companies/${empresa.id}`,
-    `/companies/${empresa.id}/contacts`,
-    `/companies/${empresa.id}/checklist`,
-    `/companies/${empresa.id}/checklist-overrides`,
+    `/companies/${company.id}`,
+    `/companies/${company.id}/contacts`,
+    `/companies/${company.id}/checklist`,
+    `/companies/${company.id}/checklist-overrides`,
   ];
 
   for (const rota of rotas) {
@@ -58,57 +58,54 @@ test('B recebe 404 em toda leitura de recurso da A — nunca 403 nem 200', async
 });
 
 test('B recebe 404 em toda escrita em recurso da A — a Empresa da A não muda', async () => {
-  const { a, b, empresa, contato } = await duasContabilidades();
+  const { a, b, company, contato } = await twoFirms();
 
   await http(app)
-    .patch(`/companies/${empresa.id}`)
+    .patch(`/companies/${company.id}`)
     .set('cookie', b.cookie)
     .send({ name: 'Sequestrada' })
     .expect(404);
-  await http(app).delete(`/companies/${empresa.id}`).set('cookie', b.cookie).expect(404);
+  await http(app).delete(`/companies/${company.id}`).set('cookie', b.cookie).expect(404);
   await http(app)
-    .post(`/companies/${empresa.id}/contacts`)
+    .post(`/companies/${company.id}/contacts`)
     .set('cookie', b.cookie)
     .send({ name: 'Intruso', email: 'intruso@b.com' })
     .expect(404);
   await http(app)
-    .patch(`/companies/${empresa.id}/contacts/${contato.id}`)
+    .patch(`/companies/${company.id}/contacts/${contato.id}`)
     .set('cookie', b.cookie)
     .send({ name: 'Intruso' })
     .expect(404);
   await http(app)
-    .delete(`/companies/${empresa.id}/contacts/${contato.id}`)
+    .delete(`/companies/${company.id}/contacts/${contato.id}`)
     .set('cookie', b.cookie)
     .expect(404);
   await http(app)
-    .put(`/companies/${empresa.id}/checklist-overrides`)
+    .put(`/companies/${company.id}/checklist-overrides`)
     .set('cookie', b.cookie)
     .send({ documentTypeId: CATALOG.guia_iss.id, action: 'remove' })
     .expect(404);
   await http(app)
-    .delete(`/companies/${empresa.id}/checklist-overrides/${CATALOG.guia_iss.id}`)
+    .delete(`/companies/${company.id}/checklist-overrides/${CATALOG.guia_iss.id}`)
     .set('cookie', b.cookie)
     .expect(404);
 
   clearRateLimit(app);
-  const depois = await http(app)
-    .get(`/companies/${empresa.id}`)
-    .set('cookie', a.cookie)
-    .expect(200);
-  expect(depois.body.data.name).toBe('Empresa da A');
-  expect(depois.body.data.active).toBe(true);
-  expect(depois.body.data.contacts).toHaveLength(2);
+  const after = await http(app).get(`/companies/${company.id}`).set('cookie', a.cookie).expect(200);
+  expect(after.body.data.name).toBe('Empresa da A');
+  expect(after.body.data.active).toBe(true);
+  expect(after.body.data.contacts).toHaveLength(2);
 });
 
 test('template derivado pela A é invisível para a B — 404 na leitura e em toda edição', async () => {
-  const { a, b } = await duasContabilidades();
+  const { a, b } = await twoFirms();
   const produto = await productTemplate();
-  const derivado = await http(app)
+  const derived = await http(app)
     .post(`/checklist-templates/${produto.id}/derive`)
     .set('cookie', a.cookie)
     .send({ name: 'Template só da A' })
     .expect(201);
-  const id = derivado.body.data.id as string;
+  const id = derived.body.data.id as string;
   clearRateLimit(app);
 
   await http(app).get(`/checklist-templates/${id}`).set('cookie', b.cookie).expect(404);
@@ -123,34 +120,34 @@ test('template derivado pela A é invisível para a B — 404 na leitura e em to
     .send({ documentTypeId: CATALOG.guia_iss.id })
     .expect(404);
   await http(app)
-    .patch(`/checklist-templates/${id}/items/${FANTASMA}`)
+    .patch(`/checklist-templates/${id}/items/${GHOST}`)
     .set('cookie', b.cookie)
     .send({ required: false })
     .expect(404);
   await http(app)
-    .delete(`/checklist-templates/${id}/items/${FANTASMA}`)
+    .delete(`/checklist-templates/${id}/items/${GHOST}`)
     .set('cookie', b.cookie)
     .expect(404);
 
-  const listaDaB = await http(app).get('/checklist-templates').set('cookie', b.cookie).expect(200);
-  expect(listaDaB.body.data.map((t: { name: string }) => t.name)).not.toContain('Template só da A');
+  const listOfB = await http(app).get('/checklist-templates').set('cookie', b.cookie).expect(200);
+  expect(listOfB.body.data.map((t: { name: string }) => t.name)).not.toContain('Template só da A');
 });
 
 test('listagem de Empresas não vaza linha nem total de outro tenant', async () => {
-  const { a, b } = await duasContabilidades();
+  const { a, b } = await twoFirms();
   await insertCompany(b.firm.id, { name: 'Empresa da B 1' });
   await insertCompany(b.firm.id, { name: 'Empresa da B 2' });
 
-  const daA = await http(app).get('/companies').set('cookie', a.cookie).expect(200);
-  expect(daA.body.data.map((r: { name: string }) => r.name)).toEqual(['Empresa da A']);
-  expect(daA.body.meta.total).toBe(1);
+  const ofA = await http(app).get('/companies').set('cookie', a.cookie).expect(200);
+  expect(ofA.body.data.map((r: { name: string }) => r.name)).toEqual(['Empresa da A']);
+  expect(ofA.body.meta.total).toBe(1);
 
-  const daB = await http(app).get('/companies').set('cookie', b.cookie).expect(200);
-  expect(daB.body.meta.total).toBe(2);
+  const ofB = await http(app).get('/companies').set('cookie', b.cookie).expect(200);
+  expect(ofB.body.meta.total).toBe(2);
 });
 
 test('Tipo de Documento próprio da A não aparece no catálogo da B nem serve para a B', async () => {
-  const { a, b, empresa } = await duasContabilidades();
+  const { a, b, company } = await twoFirms();
   const [proprio] = await db
     .insert(documentType)
     .values({
@@ -161,26 +158,26 @@ test('Tipo de Documento próprio da A não aparece no catálogo da B nem serve p
     })
     .returning();
 
-  const catalogoDaB = await http(app)
+  const catalogOfB = await http(app)
     .get('/document-types?perPage=100')
     .set('cookie', b.cookie)
     .expect(200);
-  expect(catalogoDaB.body.data.map((r: { id: string }) => r.id)).not.toContain(proprio.id);
+  expect(catalogOfB.body.data.map((r: { id: string }) => r.id)).not.toContain(proprio.id);
 
-  const empresaDaB = await insertCompany(b.firm.id, { name: 'Empresa da B' });
-  const recusa = await http(app)
-    .put(`/companies/${empresaDaB.id}/checklist-overrides`)
+  const companyOfB = await insertCompany(b.firm.id, { name: 'Empresa da B' });
+  const rejection = await http(app)
+    .put(`/companies/${companyOfB.id}/checklist-overrides`)
     .set('cookie', b.cookie)
     .send({ documentTypeId: proprio.id, action: 'add' })
     .expect(422);
-  expect(recusa.body.error.code).toBe('DOCUMENT_TYPE_NOT_VISIBLE');
+  expect(rejection.body.error.code).toBe('DOCUMENT_TYPE_NOT_VISIBLE');
 
-  const catalogoDaA = await http(app)
+  const catalogOfA = await http(app)
     .get('/document-types?perPage=100')
     .set('cookie', a.cookie)
     .expect(200);
-  expect(catalogoDaA.body.data.map((r: { id: string }) => r.id)).toContain(proprio.id);
-  expect(empresa.id).toBeDefined();
+  expect(catalogOfA.body.data.map((r: { id: string }) => r.id)).toContain(proprio.id);
+  expect(company.id).toBeDefined();
 });
 
 test('sem sessão nenhuma rota do Cadastro responde — 401, não 404', async () => {

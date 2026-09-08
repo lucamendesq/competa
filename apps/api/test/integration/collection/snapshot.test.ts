@@ -75,15 +75,12 @@ test('o Item copia name, description e accepted_formats do checklist efetivo', a
   const opened = await openPeriod(app, session.cookie, { referenceMonth: '2026-07' });
 
   const items = await itemsOf(session.cookie, opened.requests[0].id);
-  const extrato = items.find((item) => item.name === CATALOG.extrato_bancario.name)!;
+  const statement = items.find((item) => item.name === CATALOG.extrato_bancario.name)!;
 
-  expect(extrato.description).toBe(CATALOG.extrato_bancario.description);
-  expect(extrato.acceptedFormats).toEqual([...CATALOG.extrato_bancario.acceptedFormats]);
+  expect(statement.description).toBe(CATALOG.extrato_bancario.description);
+  expect(statement.acceptedFormats).toEqual([...CATALOG.extrato_bancario.acceptedFormats]);
 
-  const [row] = await db
-    .select()
-    .from(requestItem)
-    .where(eq(requestItem.id, extrato.id));
+  const [row] = await db.select().from(requestItem).where(eq(requestItem.id, statement.id));
   expect(row.documentTypeId).toBe(CATALOG.extrato_bancario.id);
 });
 
@@ -106,39 +103,39 @@ test('item on_demand NUNCA entra no fan-out', async () => {
 test('item annual entra só na competência do annual_month (dezembro sim, agosto não)', async () => {
   const session = await createAccountantSession(app);
   await createCompany(app, session.cookie, { name: 'Padaria Central' });
-  const anual = CATALOG.relatorio_anual_receitas_mei.name;
+  const annual = CATALOG.relatorio_anual_receitas_mei.name;
 
-  const agosto = await openPeriod(app, session.cookie, { referenceMonth: '2026-08' });
-  expect((await itemsOf(session.cookie, agosto.requests[0].id)).map((i) => i.name)).not.toContain(
-    anual,
+  const august = await openPeriod(app, session.cookie, { referenceMonth: '2026-08' });
+  expect((await itemsOf(session.cookie, august.requests[0].id)).map((i) => i.name)).not.toContain(
+    annual,
   );
 
   const dezembro = await openPeriod(app, session.cookie, { referenceMonth: '2026-12' });
   expect((await itemsOf(session.cookie, dezembro.requests[0].id)).map((i) => i.name)).toContain(
-    anual,
+    annual,
   );
 });
 
 test('condition_flag filtra o snapshot pelas flags da Empresa', async () => {
   const session = await createAccountantSession(app);
-  const semFolha = await insertCompany(session.firm.id, { name: 'Sem Empregados' });
-  await insertContact(semFolha.id);
-  const comFolha = await insertCompany(session.firm.id, {
+  const withoutPayroll = await insertCompany(session.firm.id, { name: 'Sem Empregados' });
+  await insertContact(withoutPayroll.id);
+  const withPayroll = await insertCompany(session.firm.id, {
     name: 'Com Empregados',
     flags: { has_employees: true },
   });
-  await insertContact(comFolha.id);
+  await insertContact(withPayroll.id);
 
   const opened = await openPeriod(app, session.cookie, { referenceMonth: '2026-07' });
   const byName = new Map(opened.requests.map((row) => [row.companyName, row.id]));
 
   const folha = CATALOG.variaveis_folha.name;
-  expect((await itemsOf(session.cookie, byName.get('Sem Empregados')!)).map((i) => i.name)).not.toContain(
-    folha,
-  );
-  expect((await itemsOf(session.cookie, byName.get('Com Empregados')!)).map((i) => i.name)).toContain(
-    folha,
-  );
+  expect(
+    (await itemsOf(session.cookie, byName.get('Sem Empregados')!)).map((i) => i.name),
+  ).not.toContain(folha);
+  expect(
+    (await itemsOf(session.cookie, byName.get('Com Empregados')!)).map((i) => i.name),
+  ).toContain(folha);
 });
 
 test('alterar o template DEPOIS de abrir não muda a Solicitação já aberta', async () => {
@@ -154,12 +151,12 @@ test('alterar o template DEPOIS de abrir não muda a Solicitação já aberta', 
     .set('cookie', session.cookie)
     .expect(200);
   const templateItems = template.body.data.items as { id: string; name: string }[];
-  const extrato = templateItems.find((item) => item.name === CATALOG.extrato_bancario.name)!;
+  const statement = templateItems.find((item) => item.name === CATALOG.extrato_bancario.name)!;
 
   // remove um item, muda o prazo de outro e adiciona um terceiro — nada disso pode vazar
   // para a Solicitação aberta.
   await http(app)
-    .delete(`/checklist-templates/${templateId}/items/${extrato.id}`)
+    .delete(`/checklist-templates/${templateId}/items/${statement.id}`)
     .set('cookie', session.cookie)
     .expect(204);
   await http(app)
@@ -167,9 +164,9 @@ test('alterar o template DEPOIS de abrir não muda a Solicitação já aberta', 
     .set('cookie', session.cookie)
     .send({ documentTypeId: CATALOG.aluguel.id, dueDay: 10, dueMonthOffset: 1 })
     .expect(201);
-  const dasPago = templateItems.find((item) => item.name === CATALOG.das_pago.name)!;
+  const dasPaid = templateItems.find((item) => item.name === CATALOG.das_pago.name)!;
   await http(app)
-    .patch(`/checklist-templates/${templateId}/items/${dasPago.id}`)
+    .patch(`/checklist-templates/${templateId}/items/${dasPaid.id}`)
     .set('cookie', session.cookie)
     .send({ dueDay: 1, dueMonthOffset: 0 })
     .expect(200);

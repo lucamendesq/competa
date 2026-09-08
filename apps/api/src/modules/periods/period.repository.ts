@@ -1,5 +1,5 @@
 import { Injectable } from '@nestjs/common';
-import { and, asc, count, eq, ne } from 'drizzle-orm';
+import { and, asc, count, eq, ne, sql } from 'drizzle-orm';
 import { inArray } from 'drizzle-orm';
 import type { OpenPeriodBody } from '@contabilidade/contracts';
 import { addDays } from 'date-fns';
@@ -9,6 +9,7 @@ import { Database } from '../../infra/database/database.js';
 import {
   company,
   contact,
+  document,
   period,
   request,
   requestItem,
@@ -39,9 +40,6 @@ export class PeriodRepository {
     private readonly checklists: ChecklistRepository,
   ) {}
 
-  /** Abrir a Competência: lê o checklist efetivo de cada Empresa ativa, decide o fan-out
-   *  em `planFanOut` (puro) e grava tudo numa transação. O token em claro volta para o
-   *  controller montar o link — só ali ele existe. */
   async openPeriod(scope: FirmScope, body: OpenPeriodBody) {
     const companies = await this.activeCompanies(scope);
 
@@ -50,10 +48,13 @@ export class PeriodRepository {
     const checklists = new Map(
       await Promise.all(
         companies
-          .filter((row) => row.contact)
+          .filter((row) => row.contact?.email)
           .map(
             async (row) =>
-              [row.id, (await this.checklists.effectiveChecklist(scope, row.id))?.items ?? []] as const,
+              [
+                row.id,
+                (await this.checklists.effectiveChecklist(scope, row.id))?.items ?? [],
+              ] as const,
           ),
       ),
     );
@@ -73,7 +74,6 @@ export class PeriodRepository {
     return { period: row, warnings, plans, requestIdByCompany };
   }
 
-  /** Empresas ativas da Contabilidade com o Responsável mais antigo (se houver). */
   async activeCompanies(scope: FirmScope) {
     const companies = await this.db
       .select({ id: company.id, name: company.name })
@@ -106,7 +106,6 @@ export class PeriodRepository {
     }));
   }
 
-  /** Abertura inteira numa transação: se um Item falhar, nenhuma Solicitação sobra. */
   async openWithFanOut(
     scope: FirmScope,
     input: { referenceMonth: string; dueDate?: string },
@@ -123,7 +122,8 @@ export class PeriodRepository {
           })
           .returning();
 
-        if (plans.length === 0) return { period: row, requestIdByCompany: new Map<string, string>() };
+        if (plans.length === 0)
+          return { period: row, requestIdByCompany: new Map<string, string>() };
 
         const requests = await tx
           .insert(request)
@@ -218,9 +218,6 @@ export class PeriodRepository {
     return { ...row, pendingItemCount: pending.value };
   }
 
-  /** Painel de Pendências ("quem faltou"): uma linha por Empresa da Competência, com o
-   *  que falta e o prazo efetivo. `leftJoin` no Item para a Empresa sem nenhum Item
-   *  ainda aparecer no painel. */
   async pendingPanel(scope: FirmScope, periodId: string) {
     const rows = await this.db
       .select({
@@ -233,6 +230,14 @@ export class PeriodRepository {
         itemStatus: requestItem.status,
         itemDueDate: requestItem.dueDate,
         periodDueDate: period.dueDate,
+        // `exists` em vez de join: um Item com dois arquivos rejeitados duplicaria a linha
+        // e contaria a Empresa duas vezes no painel.
+        hasRejection: sql<boolean>`exists (
+          select 1 from ${document}
+          where ${document.requestItemId} = ${requestItem.id}
+            and ${document.reviewStatus} = 'rejected'
+            and ${document.uploadStatus} = 'uploaded'
+        )`,
       })
       .from(request)
       .innerJoin(period, eq(period.id, request.periodId))
@@ -244,8 +249,6 @@ export class PeriodRepository {
     return summarizePending(rows as PanelRow[]);
   }
 
-  /** Encerrar a Competência encerra as Solicitações dela — ato exclusivo do Contador,
-   *  permitido com pendências (o controller devolve o aviso). */
   async closePeriod(scope: FirmScope, periodId: string) {
     const [row] = await this.db
       .select({ id: period.id, status: period.status })

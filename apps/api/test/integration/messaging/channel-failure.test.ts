@@ -4,12 +4,7 @@ import { afterAll, beforeAll, beforeEach, expect, test } from 'vitest';
 import { invite, message, requestItem } from '../../../src/infra/database/schema/index.js';
 import { createTestApp, http } from '../../app.js';
 import { db, resetDatabase } from '../../db.js';
-import {
-  createAccountantSession,
-  createCompany,
-  openPeriod,
-  uploadFile,
-} from '../../factories.js';
+import { createAccountantSession, createCompany, openPeriod, uploadFile } from '../../factories.js';
 import { spyProvider, waitFor } from './provider-spy.js';
 
 /** Invariante das regras 9/10: falha de canal NUNCA bloqueia o fluxo. Com o provider
@@ -51,11 +46,11 @@ test('abrir a Competência conclui mesmo com o canal quebrado, e a falha fica re
   expect(period.requests).toHaveLength(1);
   expect(period.requests[0].itemCount).toBeGreaterThan(0);
 
-  const painel = await http(app)
+  const panel = await http(app)
     .get(`/requests/${period.requests[0].id}`)
     .set('cookie', session.cookie)
     .expect(200);
-  expect(painel.body.data.items.length).toBe(period.requests[0].itemCount);
+  expect(panel.body.data.items.length).toBe(period.requests[0].itemCount);
 
   const [row] = await waitForFailures(1);
   expect(row.purpose).toBe('link_delivery');
@@ -107,18 +102,12 @@ test('prazo estourado: a varredura conclui e registra falha para Responsável e 
   // competência antiga: os prazos dos itens (dia 5) já venceram
   await openPeriod(app, session.cookie, { referenceMonth: '2026-01' });
 
-  const scan = await http(app)
-    .post('/deadlines/scan')
-    .set('cookie', session.cookie)
-    .expect(201);
+  const scan = await http(app).post('/deadlines/scan').set('cookie', session.cookie).expect(201);
 
   expect(scan.body.data.notified.length).toBeGreaterThan(0);
 
   const rows = await waitFor(async () => {
-    const all = await db
-      .select()
-      .from(message)
-      .where(eq(message.purpose, 'deadline_missed'));
+    const all = await db.select().from(message).where(eq(message.purpose, 'deadline_missed'));
     const done = all.filter((row) => row.status === 'failed');
     return done.length >= 2 && done.length === all.length ? done : undefined;
   }, 'as falhas de deadline_missed não foram registradas');

@@ -1,11 +1,20 @@
-import { Body, Controller, Delete, Get, Param, Post, UseGuards } from '@nestjs/common';
+import { Body, Controller, Delete, Get, Param, Post, Res, UseGuards } from '@nestjs/common';
 import { AllowAnonymous } from '@thallesp/nestjs-better-auth';
 import { Throttle, seconds } from '@nestjs/throttler';
-import { CreateContactAccessBody, IdParam } from '@contabilidade/contracts';
+import {
+  AcceptContactInviteBody,
+  ActivateContactAccessBody,
+  IdParam,
+  InviteTokenParam,
+  PushSubscriptionBody,
+} from '@contabilidade/contracts';
+import type { Response } from 'express';
 import * as z from 'zod';
 import { NotFound } from '../../lib/app-error.js';
 import { zodPipe } from '../../lib/zod-pipe.js';
 import { AuthProvider } from '../auth/auth-provider.js';
+import { EmailAlreadyRegistered, InviteTargetUnsupported } from '../auth/errors.js';
+import { InviteRepository } from '../auth/invite.repository.js';
 import { CurrentScope } from '../auth/current-scope.decorator.js';
 import type { FirmScope, UploadScope } from '../auth/scope.js';
 import { UploadTokenGuard } from '../auth/upload-token.guard.js';
@@ -13,11 +22,13 @@ import { CurrentUploadScope } from '../auth/upload-scope.decorator.js';
 import { UploadLinkRepository } from '../requests/upload-link.repository.js';
 import { ContactRepository } from './contact.repository.js';
 import { AccessAlreadyExists } from './errors.js';
+import { isFailure } from '../../lib/either.js';
+import { APIError } from 'better-auth/api';
 
-/** Criação de acesso a partir do Link de Upload (Fase 10, F10-1). O token do Link já prova
- *  posse do email do Responsável — mesma força de um magic link —, então não há senha nem
- *  convite: ele clica em "criar meu acesso" na própria página de envio. */
-@Controller('upload/:token/account')
+/** Ofertas da tela de sucesso do envio (D14): ativar avisos neste aparelho e ativar acesso.
+ *  As duas ficam atrás do `UploadTokenGuard` — o token do Link já resolve o `contact`, e
+ *  nenhuma delas é pré-requisito de enviar documento. */
+@Controller('upload/:token')
 @AllowAnonymous()
 @UseGuards(UploadTokenGuard)
 export class ContactAccessController {
@@ -29,34 +40,86 @@ export class ContactAccessController {
 
   /* Limite apertado: é rota pública que cria usuário. */
   @Throttle({ default: { ttl: seconds(60), limit: 5 } })
-  @Post()
-  async create(
+  @Post('access')
+  async activate(
     @CurrentUploadScope() scope: UploadScope,
-    @Body(zodPipe(CreateContactAccessBody)) body: CreateContactAccessBody,
+    @Body(zodPipe(ActivateContactAccessBody)) body: ActivateContactAccessBody,
+    @Res({ passthrough: true }) response: Response,
   ) {
     const owner = await this.links.findContact(scope);
     if (!owner) throw new NotFound('Solicitação não encontrada.');
     if (owner.authUserId) throw new AccessAlreadyExists();
 
-    const created = await this.auth.createPasswordlessUser({
-      name: body.name?.trim() || owner.name,
+    const name = body.name?.trim() || owner.name;
+    const session = await this.auth.signInPasswordless({ name, email: owner.email });
+
+    await this.contacts.linkAuthUser(owner.id, session.userId);
+    response.setHeader('set-cookie', session.setCookie);
+
+    return { email: owner.email, name };
+  }
+
+  /** Push não depende de conta: a subscription se liga ao `contact`, então sobrevive ao
+   *  fan-out do mês seguinte, que emite um `upload_link` novo (D14, item 3). */
+  @Post('push')
+  async subscribe(
+    @CurrentUploadScope() scope: UploadScope,
+    @Body(zodPipe(PushSubscriptionBody)) body: PushSubscriptionBody,
+  ) {
+    return this.contacts.savePushSubscription(scope, body);
+  }
+}
+
+@Controller('invites/:token/contact-account')
+@AllowAnonymous()
+export class ContactInviteAccountController {
+  constructor(
+    private readonly contacts: ContactRepository,
+    private readonly invites: InviteRepository,
+    private readonly auth: AuthProvider,
+  ) {}
+
+  @Throttle({ default: { ttl: seconds(60), limit: 5 } })
+  @Post()
+  async accept(
+    @Param(zodPipe(InviteTokenParam)) params: InviteTokenParam,
+    @Body(zodPipe(AcceptContactInviteBody)) body: AcceptContactInviteBody,
+  ) {
+    const found = await this.invites.findUsable(params.token);
+    if (!found.companyId) throw new InviteTargetUnsupported();
+
+    const owner = await this.contacts.findByEmailInCompany(found.companyId, found.email);
+    if (!owner) throw new NotFound('Responsável não encontrado nesta Empresa.');
+    if (owner.authUserId) throw new AccessAlreadyExists();
+
+    const name = body.name?.trim() || owner.name;
+    const signUp = await this.auth.signUpEmail({
+      name,
       email: owner.email,
+      password: body.password,
     });
 
-    await this.contacts.linkAuthUser(owner.id, created.userId);
+    if (isFailure(signUp)) {
+      const duplicate =
+        signUp.error instanceof APIError &&
+        signUp.error.body?.code === 'USER_ALREADY_EXISTS_USE_ANOTHER_EMAIL';
 
-    /* Sessão NÃO é criada aqui: o front conclui a entrada por passkey (registro no
-     * aparelho) ou por magic link no email do próprio Responsável. Assim a criação de
-     * conta não vira, por si só, uma sessão emitida a partir de um link que circula. */
-    return { email: owner.email, name: created.name, nextStep: 'passkey_or_magic_link' as const };
+      if (duplicate) throw new EmailAlreadyRegistered();
+      throw signUp.error;
+    }
+
+    await this.contacts.linkAuthUser(owner.id, signUp.value.userId);
+    await this.invites.markAccepted(found.id);
+
+    /* O front entra em seguida com o mesmo email e senha: a sessão não sai daqui para não
+     * nascer de um link que circula por email. Da tela, é um passo só. */
+    return { email: owner.email, name, nextStep: 'sign_in' as const };
   }
 }
 
 const ContactAccessParam = z.object({ id: z.uuid(), contactId: z.uuid() });
 type ContactAccessParam = z.infer<typeof ContactAccessParam>;
 
-/** Revogação pelo Contador (F10-7). Conceder acesso sem poder revogar é defeito de
- *  segurança, não falta de feature. */
 @Controller('companies/:id/contacts')
 export class ContactAccessAdminController {
   constructor(private readonly contacts: ContactRepository) {}

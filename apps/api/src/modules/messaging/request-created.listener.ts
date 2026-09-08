@@ -8,8 +8,6 @@ import { MessageRepository } from './message.repository.js';
 export class RequestCreatedListener {
   constructor(private readonly messages: MessageRepository) {}
 
-  /** Abertura da Competência → Link de Upload para o Responsável. O `uploadUrl` só existe
-   *  no payload: o banco guarda apenas o hash do token. */
   @OnEvent(EVENTS.RequestCreated)
   async deliverUploadLink(event: RequestCreatedEvent) {
     await this.messages.deliver({

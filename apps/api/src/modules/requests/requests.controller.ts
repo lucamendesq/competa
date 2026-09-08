@@ -18,7 +18,6 @@ export class RequestsController {
     return row;
   }
 
-  /** Encerrar é ato exclusivo do Contador e vale mesmo com pendências (aviso na resposta). */
   @Post(':id/close')
   async close(@CurrentScope() scope: FirmScope, @Param(zodPipe(IdParam)) params: IdParam) {
     const closed = await this.requests.closeRequest(scope, params.id);

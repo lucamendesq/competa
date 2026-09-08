@@ -1,6 +1,6 @@
 import * as z from 'zod';
+import { optionalText } from './common.js';
 
-/** Contratos do fluxo público de upload (Fase 4). */
 /** `strict()`: `requestItemId` é do corpo, não de cada arquivo. Sem isso, cliente que
  *  manda o id dentro do arquivo tem a chave descartada pelo pipe e recebe silenciosamente
  *  um Documento Extra, com o Item continuando pendente. */
@@ -13,7 +13,6 @@ export const UploadFile = z
   .strict();
 export type UploadFile = z.infer<typeof UploadFile>;
 
-/** `requestItemId` ausente/nulo = Documento Extra. */
 export const PresignUploadBody = z.object({
   requestItemId: z.uuid().nullish(),
   files: z.array(UploadFile).min(1),
@@ -25,21 +24,20 @@ export const ConfirmUploadBody = z.object({
 });
 export type ConfirmUploadBody = z.infer<typeof ConfirmUploadBody>;
 
-/** Criar acesso a partir do Link de Upload: o token já prova posse do email do Responsável
- *  (decisão da Fase 10), então não há senha nem convite — só a confirmação do nome. */
-export const CreateContactAccessBody = z.object({
-  name: z.string().trim().min(1).optional(),
+/** Ativar acesso a partir do Link de Upload: um toque, SEM senha. O token já provou posse
+ *  da caixa e o fan-out manda um link novo todo mês (e o "perdi meu link" reenvia), então
+ *  esta porta nunca fecha — não há por que cobrar uma credencial que se usa 1×/mês. */
+export const ActivateContactAccessBody = z.object({
+  name: optionalText(),
 });
-export type CreateContactAccessBody = z.infer<typeof CreateContactAccessBody>;
+export type ActivateContactAccessBody = z.infer<typeof ActivateContactAccessBody>;
 
-/** Inscrição de Web Push do navegador do Responsável. */
 export const PushSubscriptionBody = z.object({
   endpoint: z.url(),
   keys: z.object({ p256dh: z.string().min(1), auth: z.string().min(1) }),
 });
 export type PushSubscriptionBody = z.infer<typeof PushSubscriptionBody>;
 
-/** Upload logado: mesmo formato do fluxo por link, sem o token na URL. */
 export const MyPresignBody = z.object({
   requestId: z.uuid(),
   requestItemId: z.uuid().nullish(),

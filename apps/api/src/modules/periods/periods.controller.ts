@@ -89,8 +89,6 @@ export class PeriodsController {
     return this.periods.listRequests(scope, params.id);
   }
 
-  /** "Quem faltou" por Empresa + as falhas de canal da Competência (a Fase 5 nunca
-   *  bloqueia o fluxo, então a falha só existe se aparecer aqui). */
   @Get(':id/pending-panel')
   async pendingPanel(@CurrentScope() scope: FirmScope, @Param(zodPipe(IdParam)) params: IdParam) {
     if (!(await this.periods.findOwnedId(scope, params.id))) {
@@ -116,7 +114,6 @@ export class PeriodsController {
     }));
   }
 
-  /** Encerrar a Competência encerra as Solicitações dela; pode encerrar com pendências. */
   @Post(':id/close')
   async close(@CurrentScope() scope: FirmScope, @Param(zodPipe(IdParam)) params: IdParam) {
     const closed = await this.periods.closePeriod(scope, params.id);

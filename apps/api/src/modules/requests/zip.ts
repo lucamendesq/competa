@@ -1,10 +1,6 @@
-/** Montagem dos nomes de entrada do zip. Puro de propósito: colisão de nome e caractere
- *  ilegal é o que estraga um zip de 300 arquivos, e isso se testa sem banco nem storage. */
-
 export type ZipDocument = {
   storageKey: string;
   fileName: string;
-  /** NULL = Documento Extra */
   itemName: string | null;
   companyName: string;
   reviewStatus: string;
@@ -21,8 +17,6 @@ const sanitize = (name: string) =>
     .trim()
     .slice(0, 120) || 'sem-nome';
 
-/** Documento Extra não tem Item; vai numa pasta própria para o Contador saber que chegou
- *  fora do checklist. */
 const folderFor = (document: ZipDocument, withCompany: boolean) =>
   [
     withCompany ? sanitize(document.companyName) : null,
@@ -45,8 +39,6 @@ const dedupe = (path: string, used: Set<string>) => {
   return candidate;
 };
 
-/** Documento rejeitado fica FORA da entrega: foi recusado na revisão, não é documento da
- *  competência. `withCompany` separa por Empresa no zip da Competência inteira. */
 export const zipEntries = (documents: ZipDocument[], withCompany: boolean): ZipEntry[] => {
   const used = new Set<string>();
 
@@ -63,7 +55,6 @@ export const zipEntries = (documents: ZipDocument[], withCompany: boolean): ZipE
     });
 };
 
-/** Nome do arquivo baixado: `mercado-central-2026-10.zip`. */
 export const zipFileName = (label: string, referenceMonth: string) =>
   `${label
     .normalize('NFD')

@@ -1,0 +1,19 @@
+<app-page-header title="Configurações" description="Sua contabilidade, sua equipe e os canais." />
+
+<nav class="border-border border-b" aria-label="Seções de configuração">
+  <ul class="flex flex-wrap gap-1">
+    @for (tab of tabs; track tab.path) {
+      <li>
+        <a
+          [routerLink]="tab.path"
+          routerLinkActive="border-primary text-foreground font-semibold"
+          class="text-muted-foreground focus-visible:ring-ring flex h-10 items-center border-b-2 border-transparent px-3 text-sm focus-visible:ring-2 focus-visible:outline-none"
+        >
+          {{ tab.label }}
+        </a>
+      </li>
+    }
+  </ul>
+</nav>
+
+<router-outlet />

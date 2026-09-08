@@ -15,18 +15,18 @@ Critério de pronto: o ciclo inteiro roda ponta-a-ponta via HTTP, sem frontend.
 
 ## 2. Decisões desta spec (deltas sobre os docs canônicos)
 
-| # | Decisão | Supera / altera |
-|---|---|---|
-| D-01 | **N Contadores por Contabilidade**, via convite. O responsável pela firm convida; o convidado se cadastra pelo token. | `product.md` ("v1: único por tenant"), `domain.md` |
-| D-02 | **Não existe signup aberto.** A Contabilidade é criada por script CLI (`create-firm`), não por rota HTTP nem rota de admin. Cobrança acontece fora do produto (concierge) até validar as hipóteses 🔴. | `roadmap.md` TASK-004 ("signup atômico") |
-| D-03 | Tabela **`invite`** (nova) serve os dois casos: convidar Contador (`accounting_firm_id`) e convidar Responsável para o App (`company_id`). Exatamente uma origem por convite. | `database-schema.md` (tabela nova) |
-| D-04 | **`contact.auth_user_id` é nullable** — login do Responsável é opcional (existe só para push/App). O fluxo de upload nunca exige conta. | confirma `database-schema.md`; encerra a ambiguidade com o requisito de push |
-| D-05 | Renomes no código existente: `accounting` → `accounting_firm`; `representative` → `contact` (com `auth_user_id` nullable). | alinha código ao glossário normativo |
-| D-06 | **Sem Nx.** pnpm workspace puro; `libs/contracts` é um pacote pnpm comum. | `architecture.md`, `conventions.md`, `decisions.md` D10 |
-| D-07 | Coluna `public_id` (nanoid) é **removida** de todas as tabelas — nenhum consumidor; o Link de Upload tem token próprio. | código existente (`shared-schemas.ts`) |
-| D-08 | Cron com **`@nestjs/schedule`** (não `node-cron`). | confirma `architecture.md` |
-| D-09 | Envelope de resposta e formato de erro definidos no §4 e §5. | fecha os `{a definir}` de `conventions.md` §API |
-| D-10 | Layout mantém `src/infra/` (já existente) como camada de adaptadores; `src/database/` dos docs = `src/infra/database/`. Arquivos em kebab-case. | ajusta `architecture.md` §apps/api |
+| #    | Decisão                                                                                                                                                                                                | Supera / altera                                                              |
+| ---- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ | ---------------------------------------------------------------------------- |
+| D-01 | **N Contadores por Contabilidade**, via convite. O responsável pela firm convida; o convidado se cadastra pelo token.                                                                                  | `product.md` ("v1: único por tenant"), `domain.md`                           |
+| D-02 | **Não existe signup aberto.** A Contabilidade é criada por script CLI (`create-firm`), não por rota HTTP nem rota de admin. Cobrança acontece fora do produto (concierge) até validar as hipóteses 🔴. | `roadmap.md` TASK-004 ("signup atômico")                                     |
+| D-03 | Tabela **`invite`** (nova) serve os dois casos: convidar Contador (`accounting_firm_id`) e convidar Responsável para o App (`company_id`). Exatamente uma origem por convite.                          | `database-schema.md` (tabela nova)                                           |
+| D-04 | **`contact.auth_user_id` é nullable** — login do Responsável é opcional (existe só para push/App). O fluxo de upload nunca exige conta.                                                                | confirma `database-schema.md`; encerra a ambiguidade com o requisito de push |
+| D-05 | Renomes no código existente: `accounting` → `accounting_firm`; `representative` → `contact` (com `auth_user_id` nullable).                                                                             | alinha código ao glossário normativo                                         |
+| D-06 | **Sem Nx.** pnpm workspace puro; `libs/contracts` é um pacote pnpm comum.                                                                                                                              | `architecture.md`, `conventions.md`, `decisions.md` D10                      |
+| D-07 | Coluna `public_id` (nanoid) é **removida** de todas as tabelas — nenhum consumidor; o Link de Upload tem token próprio.                                                                                | código existente (`shared-schemas.ts`)                                       |
+| D-08 | Cron com **`@nestjs/schedule`** (não `node-cron`).                                                                                                                                                     | confirma `architecture.md`                                                   |
+| D-09 | Envelope de resposta e formato de erro definidos no §4 e §5.                                                                                                                                           | fecha os `{a definir}` de `conventions.md` §API                              |
+| D-10 | Layout mantém `src/infra/` (já existente) como camada de adaptadores; `src/database/` dos docs = `src/infra/database/`. Arquivos em kebab-case.                                                        | ajusta `architecture.md` §apps/api                                           |
 
 ---
 
@@ -70,8 +70,8 @@ Envelope aplicado por um `ResponseInterceptor` global — o controller devolve o
   "error": {
     "code": "INVITE_EXPIRED",
     "message": "Este convite expirou. Peça um novo ao seu contador.",
-    "details": { "expiresAt": "2026-08-20T12:00:00Z" }
-  }
+    "details": { "expiresAt": "2026-08-20T12:00:00Z" },
+  },
 }
 ```
 
@@ -79,7 +79,7 @@ Envelope aplicado por um `ResponseInterceptor` global — o controller devolve o
 
 ```ts
 export abstract class AppError extends Error {
-  abstract readonly code: string;   // SCREAMING_SNAKE, estável, consumido pelo cliente
+  abstract readonly code: string; // SCREAMING_SNAKE, estável, consumido pelo cliente
   abstract readonly status: number; // HTTP
   readonly details?: unknown;
 }
@@ -94,23 +94,23 @@ export abstract class AppError extends Error {
 
 **Catálogo inicial de códigos** (cresce por módulo, sempre documentado aqui):
 
-| code | status | quando |
-|---|---|---|
-| `VALIDATION_ERROR` | 422 | input reprovado pelo schema zod |
-| `UNAUTHENTICATED` | 401 | sem sessão válida |
-| `FORBIDDEN` | 403 | sessão válida sem permissão / fora do escopo |
-| `NOT_FOUND` | 404 | recurso inexistente **ou de outro tenant** (nunca revelar a diferença) |
-| `INVITE_NOT_FOUND` / `INVITE_EXPIRED` / `INVITE_ALREADY_ACCEPTED` | 404 / 410 / 409 | fluxo de convite |
-| `INVITE_EMAIL_MISMATCH` | 422 | signup com email diferente do convidado |
-| `EMAIL_ALREADY_REGISTERED` | 409 | signup com email existente |
-| `COMPANY_WITHOUT_CONTACT_EMAIL` | 422 | fan-out ou envio sem email |
-| `PERIOD_ALREADY_OPEN` | 409 | competência já aberta para o mês |
-| `PERIOD_CLOSED` / `REQUEST_CLOSED` | 409 | operação em ciclo encerrado |
-| `UPLOAD_LINK_INVALID` / `UPLOAD_LINK_EXPIRED` / `UPLOAD_LINK_REVOKED` | 404 / 410 / 410 | Link de Upload (mensagem genérica — não revela existência) |
-| `FILE_TOO_LARGE` / `TOO_MANY_FILES` / `FORMAT_NOT_ACCEPTED` | 422 | limites de upload |
-| `ITEM_NOT_REVIEWABLE` | 409 | transição de estado inválida do Item |
-| `INVITE_TARGET_UNSUPPORTED` | 501 | convite cujo destino (ex.: Empresa/`contact`) ainda não tem fluxo de aceite implementado |
-| `INTERNAL_ERROR` | 500 | fallback |
+| code                                                                  | status          | quando                                                                                   |
+| --------------------------------------------------------------------- | --------------- | ---------------------------------------------------------------------------------------- |
+| `VALIDATION_ERROR`                                                    | 422             | input reprovado pelo schema zod                                                          |
+| `UNAUTHENTICATED`                                                     | 401             | sem sessão válida                                                                        |
+| `FORBIDDEN`                                                           | 403             | sessão válida sem permissão / fora do escopo                                             |
+| `NOT_FOUND`                                                           | 404             | recurso inexistente **ou de outro tenant** (nunca revelar a diferença)                   |
+| `INVITE_NOT_FOUND` / `INVITE_EXPIRED` / `INVITE_ALREADY_ACCEPTED`     | 404 / 410 / 409 | fluxo de convite                                                                         |
+| `INVITE_EMAIL_MISMATCH`                                               | 422             | signup com email diferente do convidado                                                  |
+| `EMAIL_ALREADY_REGISTERED`                                            | 409             | signup com email existente                                                               |
+| `COMPANY_WITHOUT_CONTACT_EMAIL`                                       | 422             | fan-out ou envio sem email                                                               |
+| `PERIOD_ALREADY_OPEN`                                                 | 409             | competência já aberta para o mês                                                         |
+| `PERIOD_CLOSED` / `REQUEST_CLOSED`                                    | 409             | operação em ciclo encerrado                                                              |
+| `UPLOAD_LINK_INVALID` / `UPLOAD_LINK_EXPIRED` / `UPLOAD_LINK_REVOKED` | 404 / 410 / 410 | Link de Upload (mensagem genérica — não revela existência)                               |
+| `FILE_TOO_LARGE` / `TOO_MANY_FILES` / `FORMAT_NOT_ACCEPTED`           | 422             | limites de upload                                                                        |
+| `ITEM_NOT_REVIEWABLE`                                                 | 409             | transição de estado inválida do Item                                                     |
+| `INVITE_TARGET_UNSUPPORTED`                                           | 501             | convite cujo destino (ex.: Empresa/`contact`) ainda não tem fluxo de aceite implementado |
+| `INTERNAL_ERROR`                                                      | 500             | fallback                                                                                 |
 
 ---
 
@@ -120,8 +120,10 @@ export abstract class AppError extends Error {
 
 ```ts
 declare const brand: unique symbol;
-export type FirmScope   = string & { readonly [brand]: 'FirmScope' };   // accounting_firm_id
-export type UploadScope = { requestId: string; contactId: string } & { readonly [brand]: 'UploadScope' };
+export type FirmScope = string & { readonly [brand]: 'FirmScope' }; // accounting_firm_id
+export type UploadScope = { requestId: string; contactId: string } & {
+  readonly [brand]: 'UploadScope';
+};
 ```
 
 - Construídos **exclusivamente** pelos guards de `src/modules/auth/`. Nenhum outro arquivo pode fazer o cast — é bug de segurança (LGPD/sigilo), não estilo.
@@ -208,60 +210,65 @@ create table invite (
 Todas as rotas abaixo de `/` exigem `AuthGuard + TenantGuard`, exceto as marcadas **(pública)**.
 
 ### 9.1 auth
-| Método | Rota | Notas |
-|---|---|---|
-| — | `/api/auth/*` | Better Auth: login, logout, sessão |
-| GET | `/invites/:token` **(pública)** | preview: nome da Contabilidade/Empresa, email do convite, validade |
-| POST | `/auth/sign-up?token=…` **(pública)** | aceita convite → cria `user` + (`accountant` \| `contact.auth_user_id`) em transação; compensa deletando o `user` se a transação falhar |
-| POST | `/invites` | Contador convida Contador (`email`) → dispara email |
-| POST | `/companies/:id/invites` | convida Responsável para o App (opcional) |
-| GET | `/me` | contador + firm do escopo |
+
+| Método | Rota                                  | Notas                                                                                                                                   |
+| ------ | ------------------------------------- | --------------------------------------------------------------------------------------------------------------------------------------- |
+| —      | `/api/auth/*`                         | Better Auth: login, logout, sessão                                                                                                      |
+| GET    | `/invites/:token` **(pública)**       | preview: nome da Contabilidade/Empresa, email do convite, validade                                                                      |
+| POST   | `/auth/sign-up?token=…` **(pública)** | aceita convite → cria `user` + (`accountant` \| `contact.auth_user_id`) em transação; compensa deletando o `user` se a transação falhar |
+| POST   | `/invites`                            | Contador convida Contador (`email`) → dispara email                                                                                     |
+| POST   | `/companies/:id/invites`              | convida Responsável para o App (opcional)                                                                                               |
+| GET    | `/me`                                 | contador + firm do escopo                                                                                                               |
 
 ### 9.2 checklists
-| Método | Rota |
-|---|---|
-| GET | `/document-types` (seed do produto + da firm) |
-| POST · PATCH · DELETE | `/document-types[/:id]` (só os da firm) |
-| GET | `/checklist-templates` (fixos + derivados) |
-| GET | `/checklist-templates/:id` |
-| POST | `/checklist-templates/:id/derive` → cópia editável com `derived_from` |
-| PATCH · DELETE | `/checklist-templates/:id` (só derivados) |
-| POST · PATCH · DELETE | `/checklist-templates/:id/items[/:itemId]` |
+
+| Método                | Rota                                                                  |
+| --------------------- | --------------------------------------------------------------------- |
+| GET                   | `/document-types` (seed do produto + da firm)                         |
+| POST · PATCH · DELETE | `/document-types[/:id]` (só os da firm)                               |
+| GET                   | `/checklist-templates` (fixos + derivados)                            |
+| GET                   | `/checklist-templates/:id`                                            |
+| POST                  | `/checklist-templates/:id/derive` → cópia editável com `derived_from` |
+| PATCH · DELETE        | `/checklist-templates/:id` (só derivados)                             |
+| POST · PATCH · DELETE | `/checklist-templates/:id/items[/:itemId]`                            |
 
 ### 9.3 companies
-| Método | Rota |
-|---|---|
-| GET · POST | `/companies` (filtros `?active=&q=`) |
-| GET · PATCH | `/companies/:id` |
-| DELETE | `/companies/:id` → `active = false` |
-| POST | `/companies/import` (CSV/XLSX) → `{ imported, failed: [{ line, code, message }] }` |
-| POST · PATCH · DELETE | `/companies/:id/contacts[/:contactId]` |
-| GET · PUT | `/companies/:id/checklist-overrides` |
-| GET | `/companies/:id/effective-checklist` (consulta canônica única) |
+
+| Método                | Rota                                                                               |
+| --------------------- | ---------------------------------------------------------------------------------- |
+| GET · POST            | `/companies` (filtros `?active=&q=`)                                               |
+| GET · PATCH           | `/companies/:id`                                                                   |
+| DELETE                | `/companies/:id` → `active = false`                                                |
+| POST                  | `/companies/import` (CSV/XLSX) → `{ imported, failed: [{ line, code, message }] }` |
+| POST · PATCH · DELETE | `/companies/:id/contacts[/:contactId]`                                             |
+| GET · PUT             | `/companies/:id/checklist-overrides`                                               |
+| GET                   | `/companies/:id/effective-checklist` (consulta canônica única)                     |
 
 ### 9.4 periods
-| Método | Rota |
-|---|---|
-| GET | `/periods` |
-| POST | `/periods` `{ referenceMonth, dueDate? }` → cria + **fan-out**; responde `{ period, requestsCreated, skipped: [{ companyId, code }] }` |
-| GET | `/periods/:id` (resumo com contadores por status) |
-| GET | `/periods/:id/pending` — Painel "quem faltou" (por Empresa: itens pendentes, enviados, aceitos, mensagens falhadas) |
-| POST | `/periods/:id/close` |
-| GET | `/periods/:id/zip` |
+
+| Método | Rota                                                                                                                                   |
+| ------ | -------------------------------------------------------------------------------------------------------------------------------------- |
+| GET    | `/periods`                                                                                                                             |
+| POST   | `/periods` `{ referenceMonth, dueDate? }` → cria + **fan-out**; responde `{ period, requestsCreated, skipped: [{ companyId, code }] }` |
+| GET    | `/periods/:id` (resumo com contadores por status)                                                                                      |
+| GET    | `/periods/:id/pending` — Painel "quem faltou" (por Empresa: itens pendentes, enviados, aceitos, mensagens falhadas)                    |
+| POST   | `/periods/:id/close`                                                                                                                   |
+| GET    | `/periods/:id/zip`                                                                                                                     |
 
 ### 9.5 requests, revisão e upload público
-| Método | Rota | Notas |
-|---|---|---|
-| GET | `/requests?periodId=&status=&companyId=` | |
-| GET | `/requests/:id` | itens + documentos `stored` |
-| POST | `/request-items/:id/accept` | revisão **em lote**: aceita todos os documentos do Item; Item → `accepted` |
-| POST | `/request-items/:id/reject` `{ reason }` | Item → `rejected` → reabre para `pending`; emite `ItemReopened` (reenvio SÓ por email) |
-| POST | `/requests/:id/close` | palavra final do Contador; pode fechar com pendências |
-| POST | `/requests/:id/resend-link` | reenvio manual por email |
-| GET | `/requests/:id/zip` | streaming R2 → `archiver`; layout `empresa/competencia/item/arquivo` |
-| GET | `/u/:token` **(pública)** | dados da Solicitação e dos Itens — **nunca** documentos |
-| POST | `/u/:token/uploads` **(pública)** | `[{ requestItemId?, fileName, contentType, sizeBytes }]` → valida formato/limites, insere `document` (`pending`) e devolve `{ documentId, uploadUrl }` por arquivo |
-| POST | `/u/:token/uploads/:documentId/confirm` **(pública)** | `document → stored`; `request_item → submitted` |
+
+| Método | Rota                                                  | Notas                                                                                                                                                              |
+| ------ | ----------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
+| GET    | `/requests?periodId=&status=&companyId=`              |                                                                                                                                                                    |
+| GET    | `/requests/:id`                                       | itens + documentos `stored`                                                                                                                                        |
+| POST   | `/request-items/:id/accept`                           | revisão **em lote**: aceita todos os documentos do Item; Item → `accepted`                                                                                         |
+| POST   | `/request-items/:id/reject` `{ reason }`              | Item → `rejected` → reabre para `pending`; emite `ItemReopened` (reenvio SÓ por email)                                                                             |
+| POST   | `/requests/:id/close`                                 | palavra final do Contador; pode fechar com pendências                                                                                                              |
+| POST   | `/requests/:id/resend-link`                           | reenvio manual por email                                                                                                                                           |
+| GET    | `/requests/:id/zip`                                   | streaming R2 → `archiver`; layout `empresa/competencia/item/arquivo`                                                                                               |
+| GET    | `/u/:token` **(pública)**                             | dados da Solicitação e dos Itens — **nunca** documentos                                                                                                            |
+| POST   | `/u/:token/uploads` **(pública)**                     | `[{ requestItemId?, fileName, contentType, sizeBytes }]` → valida formato/limites, insere `document` (`pending`) e devolve `{ documentId, uploadUrl }` por arquivo |
+| POST   | `/u/:token/uploads/:documentId/confirm` **(pública)** | `document → stored`; `request_item → submitted`                                                                                                                    |
 
 Limites: 100 MB por arquivo, 500 arquivos por envio; `.zip` aceito **sem extração**. `request.status = 'closed'` → só Documento Extra (`request_item_id IS NULL`).
 
@@ -269,15 +276,15 @@ Limites: 100 MB por arquivo, 500 arquivos por envio; `.zip` aceito **sem extraç
 
 ## 10. Eventos (`@nestjs/event-emitter`, síncrono)
 
-| Evento | Emitido por | Consumido por |
-|---|---|---|
-| `PeriodOpened` | periods | messaging (log) |
-| `RequestCreated` | periods (fan-out) | messaging → envia Link de Upload por email |
-| `ItemReopened` | requests (rejeição) | messaging → reenvia link **só por email** |
-| `RequestCompleted` | requests (todos os itens aceitos) | messaging (notifica Contador) |
-| `DeadlineMissed` | messaging (cron) | messaging → notifica Responsável + Contador |
-| `MessageFailed` | messaging (provider) | visível no Painel de Pendências |
-| `InviteCreated` | auth | messaging → email do convite |
+| Evento             | Emitido por                       | Consumido por                               |
+| ------------------ | --------------------------------- | ------------------------------------------- |
+| `PeriodOpened`     | periods                           | messaging (log)                             |
+| `RequestCreated`   | periods (fan-out)                 | messaging → envia Link de Upload por email  |
+| `ItemReopened`     | requests (rejeição)               | messaging → reenvia link **só por email**   |
+| `RequestCompleted` | requests (todos os itens aceitos) | messaging (notifica Contador)               |
+| `DeadlineMissed`   | messaging (cron)                  | messaging → notifica Responsável + Contador |
+| `MessageFailed`    | messaging (provider)              | visível no Painel de Pendências             |
+| `InviteCreated`    | auth                              | messaging → email do convite                |
 
 Direção: registry → collection → messaging. Sem fila, sem outbox, sem CQRS.
 
@@ -285,12 +292,12 @@ Direção: registry → collection → messaging. Sem fila, sem outbox, sem CQRS
 
 ## 11. Integrações externas
 
-| Porta (abstract class) | Implementação | Onde |
-|---|---|---|
-| `StorageProvider` — `presignPut`, `getStream`, `delete` | R2 via `@aws-sdk/client-s3` + `s3-request-presigner` | `infra/storage/` |
-| `EmailProvider` — `send({ to, subject, html })` | Resend | `infra/email/` |
-| `AuthProvider` | Better Auth (já existe) | `infra/auth/` |
-| `Clock` — `now()` | `SystemClock` | `lib/clock.ts` — testar prazos sem congelar o relógio do processo |
+| Porta (abstract class)                                  | Implementação                                        | Onde                                                              |
+| ------------------------------------------------------- | ---------------------------------------------------- | ----------------------------------------------------------------- |
+| `StorageProvider` — `presignPut`, `getStream`, `delete` | R2 via `@aws-sdk/client-s3` + `s3-request-presigner` | `infra/storage/`                                                  |
+| `EmailProvider` — `send({ to, subject, html })`         | Resend                                               | `infra/email/`                                                    |
+| `AuthProvider`                                          | Better Auth (já existe)                              | `infra/auth/`                                                     |
+| `Clock` — `now()`                                       | `SystemClock`                                        | `lib/clock.ts` — testar prazos sem congelar o relógio do processo |
 
 - Falha de canal **nunca** bloqueia o fluxo: `message.status = 'failed'` + `MessageFailed`; a Solicitação segue de pé.
 - Cron (`@nestjs/schedule`): lembretes agrupados por Solicitação (**máx. 2**, contados em `message` por `purpose='reminder'`) e varredura diária de `due_date` estourado.

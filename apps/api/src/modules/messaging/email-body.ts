@@ -1,20 +1,19 @@
 import type {
+  ContactInvitedEvent,
   DeadlineMissedEvent,
   InviteCreatedEvent,
   ItemReopenedEvent,
   RequestCompletedEvent,
+  ReviewPublishedEvent,
   RequestCreatedEvent,
+  UploadLinkResentEvent,
 } from '../../lib/events.js';
 import { nextDueDate, type ReminderCandidate } from './reminder-rules.js';
 
 /** Dado do usuário (nome, empresa, motivo da rejeição, nome de item) vai para dentro de
  *  HTML: sem escapar, "Zé <b>& Cia</b>" viaja como markup no email. */
 const escape = (value: string) =>
-  value
-    .replace(/&/g, '&amp;')
-    .replace(/</g, '&lt;')
-    .replace(/>/g, '&gt;')
-    .replace(/"/g, '&quot;');
+  value.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;');
 
 const asMonth = (referenceMonth: string) => {
   const [year, month] = referenceMonth.split('-');
@@ -24,6 +23,29 @@ const asMonth = (referenceMonth: string) => {
 const asDate = (date: string) => date.split('-').reverse().join('/');
 
 const deadline = (date: string | null) => (date ? `<p>Prazo: <b>${asDate(date)}</b>.</p>` : '');
+
+export const accessInviteEmail = (event: ContactInvitedEvent) => ({
+  subject: `Acompanhe os documentos de ${escape(event.companyName)} pelo aplicativo`,
+  body: `<p>Olá, ${escape(event.contactName)}.</p>
+<p>A <b>${escape(event.firmName)}</b> usa este sistema para receber os documentos contábeis
+de <b>${escape(event.companyName)}</b>. Você continua podendo enviar tudo pelo link que
+chega por email, sem senha — mas se quiser, pode ativar um acesso e passar a ver o
+histórico das competências anteriores e receber aviso no celular.</p>
+<p><a href="${event.inviteUrl}">${event.inviteUrl}</a></p>
+<p style="color:#64748b;font-size:12px">Este convite vale até
+${asDate(event.expiresAt.toISOString().slice(0, 10))} e não é obrigatório.</p>`,
+});
+
+export const linkResentEmail = (event: UploadLinkResentEvent) => ({
+  subject: `Seu link de envio — ${escape(event.companyName)}, ${asMonth(event.referenceMonth)}`,
+  body: `<p>Olá, ${escape(event.contactName)}.</p>
+<p>Aqui está o link para enviar os documentos da competência
+<b>${asMonth(event.referenceMonth)}</b> de <b>${escape(event.companyName)}</b>.</p>
+${deadline(event.periodDueDate)}
+<p>Envie por aqui (não precisa de senha): <a href="${event.uploadUrl}">${event.uploadUrl}</a></p>
+<p style="color:#64748b;font-size:12px">O link anterior deixou de funcionar. Se não foi você
+que pediu, ignore este email.</p>`,
+});
 
 export const linkDeliveryEmail = (event: RequestCreatedEvent) => ({
   subject: `Documentos de ${asMonth(event.referenceMonth)} — ${escape(event.companyName)}`,
@@ -51,16 +73,16 @@ export const reminderEmail = (
 <ul>${candidate.pendingItems
     .map(
       (item) =>
-        `<li>${escape(item.name)}${item.dueDate ?? candidate.periodDueDate ? ` — até ${asDate((item.dueDate ?? candidate.periodDueDate)!)}` : ''}</li>`,
+        `<li>${escape(item.name)}${(item.dueDate ?? candidate.periodDueDate) ? ` — até ${asDate((item.dueDate ?? candidate.periodDueDate)!)}` : ''}</li>`,
     )
     .join('')}</ul>
 ${deadline(nextDueDate(candidate))}
 ${
-    candidate.uploadUrl
-      ? `<p>Envie pelo link (não precisa de senha): <a href="${candidate.uploadUrl}">${candidate.uploadUrl}</a></p>
+  candidate.uploadUrl
+    ? `<p>Envie pelo link (não precisa de senha): <a href="${candidate.uploadUrl}">${candidate.uploadUrl}</a></p>
 <p>Este link substitui os anteriores.</p>`
-      : '<p>Use o Link de Upload que você já recebeu por email para enviar os arquivos.</p>'
-  }`,
+    : '<p>Use o Link de Upload que você já recebeu por email para enviar os arquivos.</p>'
+}`,
 });
 
 /** Item rejeitado: o link vai rotacionado pela Fase 6, então este email é o único que
@@ -73,6 +95,38 @@ export const itemReopenedEmail = (event: ItemReopenedEvent) => ({
 enviado novamente.</p>
 ${event.rejectionReason ? `<p>Motivo: ${escape(event.rejectionReason ?? '')}</p>` : ''}
 <p>Use este link (o anterior deixou de valer): <a href="${event.uploadUrl}">${event.uploadUrl}</a></p>`,
+});
+
+/** Revisão em lote: UM email para a conferência inteira. O que foi aceito entra só como
+ *  tranquilidade ("não precisa mexer"); o que decide o assunto é a lista de reenvio, e o
+ *  link rotacionado é a única forma de reenviar — por isso, email, nunca WhatsApp. */
+export const reviewPublishedEmail = (event: ReviewPublishedEvent) => ({
+  subject:
+    event.rejected.length === 1
+      ? `Reenvio necessário: ${escape(event.rejected[0].itemName ?? event.rejected[0].fileName)} — ${escape(event.companyName)}`
+      : `${event.rejected.length} documentos precisam ser reenviados — ${escape(event.companyName)}`,
+  body: `<p>Olá, ${escape(event.contactName)}.</p>
+<p>Conferimos os documentos de <b>${escape(event.companyName)}</b>.</p>
+<p><b>Precisam ser enviados de novo:</b></p>
+<ul>${event.rejected
+    .map(
+      (row) =>
+        `<li><b>${escape(row.itemName ?? row.fileName)}</b> (${escape(row.fileName)}) — ${escape(row.rejectionReason)}</li>`,
+    )
+    .join('')}</ul>
+${
+  event.acceptedItemNames.length
+    ? `<p>Já estão aceitos, não precisa mexer: ${event.acceptedItemNames
+        .map((name) => escape(name))
+        .join(', ')}.</p>`
+    : ''
+}
+${
+  event.uploadUrl
+    ? `<p>Envie os corrigidos por este link (o anterior deixou de valer):
+<a href="${event.uploadUrl}">${event.uploadUrl}</a></p>`
+    : '<p>Use o Link de Upload que você já recebeu por email.</p>'
+}`,
 });
 
 export const requestCompletedEmail = (event: RequestCompletedEvent) => ({
@@ -90,7 +144,6 @@ foi recebido.</p>
 <p>Envie pelo link: <a href="${event.uploadUrl}">${event.uploadUrl}</a></p>`,
 });
 
-/** O Contador recebe o mesmo fato sem o link de envio: o link é do Responsável. */
 export const deadlineMissedAccountantEmail = (event: DeadlineMissedEvent) => ({
   subject: `Prazo vencido: ${escape(event.companyName)} — ${escape(event.itemName)}`,
   body: `<p>A empresa <b>${escape(event.companyName)}</b> não enviou <b>${escape(event.itemName)}</b>, com prazo
@@ -108,8 +161,6 @@ export const inviteEmail = (event: InviteCreatedEvent) => ({
 <p>O convite expira em ${asDate(event.expiresAt.toISOString().slice(0, 10))}.</p>`,
 });
 
-/** Magic link: entrada do Responsável no primeiro acesso e quando o aparelho não tem
- *  passkey. Link de uso único e curto — o Better Auth cuida da validade. */
 export const magicLinkEmail = ({ url }: { email: string; url: string }) => ({
   subject: 'Seu link de entrada',
   body: `<p>Olá.</p>
@@ -117,4 +168,3 @@ export const magicLinkEmail = ({ url }: { email: string; url: string }) => ({
 <p><a href="${url}">${url}</a></p>
 <p>Se não foi você que pediu, ignore este email.</p>`,
 });
-

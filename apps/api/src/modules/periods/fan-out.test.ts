@@ -15,6 +15,14 @@ const line = (over: Record<string, unknown> = {}) => ({
   ...over,
 });
 
+const contact = (over: Record<string, unknown> = {}) => ({
+  id: 'c1',
+  name: 'Responsável',
+  email: 'resp@empresa.com',
+  phone: null,
+  ...over,
+});
+
 const plan = (companies: any[], lines: any[], referenceMonth = '2026-08-01') =>
   planFanOut({
     companies,
@@ -24,10 +32,11 @@ const plan = (companies: any[], lines: any[], referenceMonth = '2026-08-01') =>
     createToken: () => ({ token: 'claro', tokenHash: 'hash' }),
   });
 
-test('Empresa ativa sem Responsável não gera Solicitação, vira aviso', () => {
+/** D14: conta do Responsável nunca é pré-requisito. O único bloqueio é não ter email. */
+test('cobra toda Empresa com email de Responsável; só falta de Responsável bloqueia', () => {
   const { plans, warnings } = plan(
     [
-      { id: 'a', name: 'Com Responsável', contact: { id: 'c1' } },
+      { id: 'a', name: 'Com email', contact: contact() },
       { id: 'b', name: 'Sem Responsável' },
     ],
     [line()],
@@ -37,8 +46,11 @@ test('Empresa ativa sem Responsável não gera Solicitação, vira aviso', () =>
     plans.map((p) => p.companyId),
     ['a'],
   );
-  assert.equal(warnings.length, 1);
-  assert.equal(warnings[0].companyId, 'b');
+
+  assert.deepEqual(
+    warnings.map((w) => [w.companyId, w.blockedBy]),
+    [['b', 'contact']],
+  );
 });
 
 test('on_demand nunca entra; annual só na competência do annual_month', () => {
@@ -47,7 +59,7 @@ test('on_demand nunca entra; annual só na competência do annual_month', () => 
     line({ documentTypeId: 'sob-demanda', periodicity: 'on_demand' }),
     line({ documentTypeId: 'anual', periodicity: 'annual', annualMonth: 12 }),
   ];
-  const companies = [{ id: 'a', name: 'A', contact: { id: 'c1' } }];
+  const companies = [{ id: 'a', name: 'A', contact: contact() }];
 
   assert.deepEqual(
     plan(companies, lines, '2026-08-01').plans[0].items.map((i) => i.documentTypeId),
@@ -61,7 +73,7 @@ test('on_demand nunca entra; annual só na competência do annual_month', () => 
 
 test('item que não se aplica à Empresa (condition_flag) fica fora do snapshot', () => {
   const { plans } = plan(
-    [{ id: 'a', name: 'A', contact: { id: 'c1' } }],
+    [{ id: 'a', name: 'A', contact: contact() }],
     [line({ documentTypeId: 'folha', applies: false }), line({ documentTypeId: 'extrato' })],
   );
 
@@ -73,7 +85,7 @@ test('item que não se aplica à Empresa (condition_flag) fica fora do snapshot'
 
 test('prazo congelado por item: offset 0 no mês de referência, 1 no seguinte', () => {
   const { plans } = plan(
-    [{ id: 'a', name: 'A', contact: { id: 'c1' } }],
+    [{ id: 'a', name: 'A', contact: contact() }],
     [
       line({ documentTypeId: 'folha', dueDay: 25, dueMonthOffset: 0 }),
       line({ documentTypeId: 'extrato', dueDay: 5, dueMonthOffset: 1 }),

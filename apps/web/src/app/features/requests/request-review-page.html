@@ -1,0 +1,554 @@
+@if (request.isLoading()) {
+  <app-loading-rows [count]="8" />
+} @else if (request.error()) {
+  <app-error-state
+    message="Não conseguimos carregar esta solicitação."
+    (retry)="request.reload()"
+  />
+} @else if (request.value(); as data) {
+  <app-page-header
+    [title]="data.companyName"
+    [description]="'Competência ' + monthLabel(data.referenceMonth)"
+  >
+    <app-status-pill [status]="data.status" />
+    @if (!closed() && acceptableItems().length) {
+      <button hlmBtn variant="outline" [disabled]="acting()" (click)="stageAllAccepts()">
+        <ng-icon name="lucideCheckCheck" aria-hidden="true" />
+        Marcar todos como aceitos ({{ acceptableItems().length }})
+      </button>
+    }
+    <a hlmBtn variant="ghost" size="sm" [routerLink]="['/competencias', data.periodId]">
+      <ng-icon name="lucideArrowLeft" aria-hidden="true" />
+      Voltar ao painel
+    </a>
+    <button hlmBtn variant="outline" (click)="downloadZip()">
+      <ng-icon name="lucideFileArchive" aria-hidden="true" />
+      Baixar zip desta empresa
+    </button>
+    @if (!closed()) {
+      <button hlmBtn variant="destructive" (click)="confirmClose.set(true)">
+        <ng-icon name="lucideLock" aria-hidden="true" />
+        Encerrar solicitação
+      </button>
+    }
+  </app-page-header>
+
+  @if (closed()) {
+    <p class="bg-muted border-border rounded-lg border p-3 text-sm" role="status">
+      Esta solicitação está encerrada — os itens não podem mais ser revisados.
+    </p>
+  }
+
+  <div class="grid gap-4 lg:grid-cols-[minmax(0,22rem)_minmax(0,1fr)]">
+    <section class="bg-card border-border h-fit rounded-xl border">
+      <h2 class="border-border border-b p-4 text-sm font-semibold">
+        Itens do checklist
+        <span class="text-muted-foreground font-normal">({{ data.items.length }})</span>
+      </h2>
+      <ul class="divide-border divide-y" role="list">
+        @for (item of data.items; track item.id) {
+          <li>
+            <button
+              type="button"
+              class="hover:bg-muted focus-visible:ring-ring flex w-full flex-col gap-1.5 p-4 text-left focus-visible:ring-2 focus-visible:outline-none"
+              [class]="item.id === selectedItemId() ? 'bg-muted' : ''"
+              [attr.aria-current]="item.id === selectedItemId() ? 'true' : null"
+              (click)="select(item.id)"
+            >
+              <span class="flex items-start justify-between gap-2">
+                <span class="text-sm font-medium">{{ item.name }}</span>
+                <app-status-pill [status]="displayItemStatus(item)" />
+              </span>
+              <span class="flex flex-wrap items-center gap-x-3 text-xs">
+                <app-due-date
+                  [dueDate]="item.dueDate"
+                  [done]="item.status === 'accepted'"
+                  emptyLabel="Sem prazo próprio"
+                />
+                <span class="text-muted-foreground">
+                  {{ item.documents.length }}
+                  {{ item.documents.length === 1 ? 'arquivo' : 'arquivos' }}
+                </span>
+              </span>
+            </button>
+          </li>
+        }
+      </ul>
+    </section>
+
+    <section class="bg-card border-border rounded-xl border">
+      @if (selectedItem(); as item) {
+        <div class="border-border border-b p-4">
+          <div class="flex flex-wrap items-start justify-between gap-3">
+            <div class="min-w-0">
+              <h2 class="text-base font-semibold">{{ item.name }}</h2>
+              @if (item.description) {
+                <p class="text-muted-foreground mt-1 text-sm">{{ item.description }}</p>
+              }
+            </div>
+            <app-status-pill [status]="displayItemStatus(item)" />
+          </div>
+
+          @if (needsResend(item)) {
+            <div class="mt-3 rounded-lg border border-red-200 bg-red-50 p-3">
+              <p class="text-sm font-semibold text-red-900">
+                Recusado — aguardando reenvio do Responsável
+              </p>
+              @for (rejection of itemRejections(item); track $index) {
+                <p class="mt-1 text-xs text-red-800">
+                  {{ rejection.fileName }}: {{ rejection.rejectionReason }}
+                </p>
+              }
+            </div>
+          }
+
+          @if (wasResent(item)) {
+            <p class="mt-3 rounded-lg border border-blue-200 bg-blue-50 p-3 text-sm text-blue-900">
+              O Responsável reenviou depois da recusa — aguardando sua conferência.
+            </p>
+          }
+
+          <dl class="mt-4 flex flex-wrap gap-x-8 gap-y-2 text-xs">
+            <div>
+              <dt class="text-muted-foreground">Formatos aceitos</dt>
+              <dd class="mt-1 flex flex-wrap gap-1">
+                @for (format of item.acceptedFormats; track format) {
+                  <span class="bg-muted rounded-full px-2 py-0.5 font-medium">{{ format }}</span>
+                }
+              </dd>
+            </div>
+            <div>
+              <dt class="text-muted-foreground">Prazo</dt>
+              <dd class="mt-1 tabular-nums">{{ dateBr(item.dueDate) }}</dd>
+            </div>
+          </dl>
+        </div>
+
+        <div class="p-4">
+          <h3 class="text-sm font-semibold">Documentos enviados</h3>
+
+          @if (!item.documents.length) {
+            <p class="text-muted-foreground mt-3 text-sm">
+              O Responsável ainda não enviou nada neste item.
+            </p>
+          } @else {
+            <ul class="mt-3 flex flex-col gap-2" role="list">
+              @for (document of item.documents; track document.id) {
+                <li
+                  class="group border-border hover:border-primary/50 hover:bg-muted/60 focus-within:ring-ring relative flex cursor-pointer flex-wrap items-center gap-3 rounded-lg border p-3 transition-colors focus-within:ring-2"
+                >
+                  <span
+                    class="bg-muted text-muted-foreground group-hover:bg-primary/10 group-hover:text-primary flex size-9 shrink-0 items-center justify-center rounded-lg transition-colors"
+                    aria-hidden="true"
+                  >
+                    <ng-icon name="lucideFile" class="text-base" />
+                  </span>
+                  <div class="min-w-0 flex-1">
+                    <button
+                      type="button"
+                      class="group-hover:text-primary block max-w-full truncate rounded text-sm font-medium underline-offset-2 group-hover:underline after:absolute after:inset-0 after:rounded-lg focus-visible:outline-none"
+                      [attr.aria-label]="'Conferir ' + document.fileName"
+                      [disabled]="openingPreview() === document.id"
+                      (click)="openPreview(document)"
+                    >
+                      {{ document.fileName }}
+                    </button>
+                    <p class="text-primary mt-0.5 flex items-center gap-1 text-xs font-medium">
+                      <ng-icon name="lucideEye" class="text-[13px]" aria-hidden="true" />
+                      @if (openingPreview() === document.id) {
+                        Abrindo…
+                      } @else {
+                        Clique para conferir o arquivo
+                      }
+                    </p>
+                    <p class="text-muted-foreground mt-0.5 text-xs tabular-nums">
+                      {{ fileSize(document.sizeBytes) }} ·
+                      {{ dateTimeBr(document.uploadedAt) }}
+                    </p>
+                    @if (document.rejectionReason) {
+                      <p class="mt-1 text-xs text-red-700">
+                        Motivo da rejeição: {{ document.rejectionReason }}
+                      </p>
+                    }
+                    @if (stagedRejectionReason(document.id); as reason) {
+                      <p class="mt-1 text-xs font-medium text-amber-800">
+                        Marcado para rejeitar: {{ reason }}
+                      </p>
+                    }
+                  </div>
+                  @if (stagedRejectionReason(document.id)) {
+                    <span
+                      class="relative rounded-full bg-amber-100 px-2 py-0.5 text-xs font-semibold text-amber-900"
+                    >
+                      Rejeição marcada
+                    </span>
+                    <button
+                      hlmBtn
+                      variant="ghost"
+                      size="sm"
+                      class="relative"
+                      (click)="unstageDocument(document.id)"
+                    >
+                      Desmarcar
+                    </button>
+                  } @else {
+                    <app-status-pill class="relative" [status]="document.reviewStatus" />
+                    @if (
+                      !closed() && document.reviewStatus === 'pending' && !isAcceptStaged(item.id)
+                    ) {
+                      <button
+                        hlmBtn
+                        variant="destructive"
+                        size="sm"
+                        class="relative"
+                        [disabled]="acting()"
+                        (click)="openRejection(document)"
+                      >
+                        <ng-icon name="lucideX" aria-hidden="true" />
+                        Rejeitar arquivo
+                      </button>
+                    }
+                  }
+                </li>
+              }
+            </ul>
+          }
+
+          @if (!closed()) {
+            <div class="border-border mt-5 flex flex-wrap items-center gap-3 border-t pt-4">
+              @if (item.status === 'accepted') {
+                <button
+                  hlmBtn
+                  variant="outline"
+                  [disabled]="acting()"
+                  (click)="undoAccept(item.id)"
+                >
+                  <ng-icon name="lucideRotateCcw" aria-hidden="true" />
+                  Desfazer aceite
+                </button>
+                <p class="text-muted-foreground text-xs">
+                  Item aceito. Desfazer devolve os arquivos para conferência.
+                </p>
+              } @else {
+                <button
+                  hlmBtn
+                  [variant]="isAcceptStaged(item.id) ? 'outline' : 'default'"
+                  [disabled]="acting() || item.status !== 'submitted'"
+                  (click)="toggleAccept(item.id)"
+                >
+                  <ng-icon name="lucideCheck" aria-hidden="true" />
+                  @if (isAcceptStaged(item.id)) {
+                    Aceite marcado — desmarcar
+                  } @else {
+                    Marcar item como aceito
+                  }
+                </button>
+                <p class="text-muted-foreground text-xs">
+                  @if (isAcceptStaged(item.id)) {
+                    Vale quando você publicar a revisão, aceitando todos os arquivos do item.
+                  } @else if (item.status === 'submitted') {
+                    Aceitar o item aceita todos os arquivos enviados nele.
+                  } @else {
+                    Só é possível aceitar depois que o Responsável enviar algum arquivo.
+                  }
+                </p>
+              }
+            </div>
+          }
+        </div>
+      } @else {
+        <p class="text-muted-foreground p-6 text-sm">
+          Esta solicitação não tem itens no checklist.
+        </p>
+      }
+    </section>
+  </div>
+
+  <section class="bg-card border-border rounded-xl border">
+    <div class="border-border border-b p-4">
+      <h2 class="text-sm font-semibold">Documentos extras</h2>
+      <p class="text-muted-foreground mt-1 text-xs">
+        Arquivos enviados fora do checklist. Não entram na conta de itens aceitos.
+      </p>
+    </div>
+
+    @if (!data.extraDocuments.length) {
+      <p class="text-muted-foreground p-4 text-sm">Nenhum documento extra enviado.</p>
+    } @else {
+      <ul class="divide-border divide-y" role="list">
+        @for (document of data.extraDocuments; track document.id) {
+          <li
+            class="group hover:bg-muted/60 focus-within:ring-ring relative flex cursor-pointer flex-wrap items-center gap-3 p-4 transition-colors focus-within:ring-2 focus-within:ring-inset"
+          >
+            <span
+              class="bg-muted text-muted-foreground group-hover:bg-primary/10 group-hover:text-primary flex size-9 shrink-0 items-center justify-center rounded-lg transition-colors"
+              aria-hidden="true"
+            >
+              <ng-icon name="lucideFile" class="text-base" />
+            </span>
+            <div class="min-w-0 flex-1">
+              <button
+                type="button"
+                class="group-hover:text-primary block max-w-full truncate rounded text-sm font-medium underline-offset-2 group-hover:underline after:absolute after:inset-0 focus-visible:outline-none"
+                [attr.aria-label]="'Conferir ' + document.fileName"
+                [disabled]="openingPreview() === document.id"
+                (click)="openPreview(document)"
+              >
+                {{ document.fileName }}
+              </button>
+              <p class="text-primary mt-0.5 flex items-center gap-1 text-xs font-medium">
+                <ng-icon name="lucideEye" class="text-[13px]" aria-hidden="true" />
+                @if (openingPreview() === document.id) {
+                  Abrindo…
+                } @else {
+                  Clique para conferir o arquivo
+                }
+              </p>
+              <p class="text-muted-foreground mt-0.5 text-xs tabular-nums">
+                {{ fileSize(document.sizeBytes) }} · {{ dateTimeBr(document.uploadedAt) }}
+              </p>
+              @if (document.rejectionReason) {
+                <p class="mt-1 text-xs text-red-700">
+                  Motivo da rejeição: {{ document.rejectionReason }}
+                </p>
+              }
+              @if (stagedRejectionReason(document.id); as reason) {
+                <p class="mt-1 text-xs font-medium text-amber-800">
+                  Marcado para rejeitar: {{ reason }}
+                </p>
+              }
+            </div>
+            @if (stagedExtraDecision(document.id); as decision) {
+              <span
+                class="relative rounded-full px-2 py-0.5 text-xs font-semibold"
+                [class]="
+                  decision === 'accepted'
+                    ? 'bg-emerald-100 text-emerald-900'
+                    : 'bg-amber-100 text-amber-900'
+                "
+              >
+                {{ decision === 'accepted' ? 'Aceite marcado' : 'Rejeição marcada' }}
+              </span>
+              <button
+                hlmBtn
+                variant="ghost"
+                size="sm"
+                class="relative"
+                (click)="unstageDocument(document.id)"
+              >
+                Desmarcar
+              </button>
+            } @else {
+              <app-status-pill class="relative" [status]="document.reviewStatus" />
+              @if (!closed() && document.reviewStatus === 'pending') {
+                <button
+                  hlmBtn
+                  size="sm"
+                  class="relative"
+                  [disabled]="acting()"
+                  (click)="stageExtraAccept(document.id)"
+                >
+                  <ng-icon name="lucideCheck" aria-hidden="true" />
+                  Marcar aceite
+                </button>
+                <button
+                  hlmBtn
+                  variant="destructive"
+                  size="sm"
+                  class="relative"
+                  [disabled]="acting()"
+                  (click)="openRejection(document)"
+                >
+                  <ng-icon name="lucideX" aria-hidden="true" />
+                  Rejeitar
+                </button>
+              }
+            }
+          </li>
+        }
+      </ul>
+    }
+  </section>
+
+  <!-- Barra fixa: o rascunho só existe nesta tela, então o que falta fazer com ele tem de
+       estar visível o tempo todo (e o pb-24 no host abre espaço para ela). -->
+  @if (stagedCount()) {
+    <div class="h-20" aria-hidden="true"></div>
+    <div
+      class="border-border bg-card fixed inset-x-0 bottom-0 z-40 border-t p-3 shadow-[0_-4px_12px_rgba(15,23,42,0.08)]"
+      role="region"
+      aria-label="Revisão marcada"
+    >
+      <div class="mx-auto flex max-w-5xl flex-wrap items-center justify-end gap-3">
+        <p class="mr-auto text-sm">
+          <b>{{ stagedCount() }}</b>
+          {{ stagedCount() === 1 ? 'decisão marcada' : 'decisões marcadas' }}
+          <span class="text-muted-foreground">
+            ·
+            @if (willSendEmail()) {
+              o Responsável recebe 1 email ao publicar
+            } @else {
+              nenhum email será enviado
+            }
+          </span>
+        </p>
+        <button hlmBtn variant="ghost" [disabled]="acting()" (click)="discardDraft()">
+          Descartar
+        </button>
+        <button hlmBtn [disabled]="acting()" (click)="publishReview()">
+          <ng-icon name="lucideSend" aria-hidden="true" />
+          {{ acting() ? 'Publicando…' : 'Publicar revisão' }}
+        </button>
+      </div>
+    </div>
+  }
+
+  <app-modal
+    [wide]="true"
+    [open]="preview() !== null"
+    (openChange)="$event ? null : closePreview()"
+    title="Conferir arquivo"
+    [description]="preview()?.document.fileName"
+  >
+    @if (preview(); as previewing) {
+      @switch (previewKind()) {
+        @case ('pdf') {
+          <iframe
+            [src]="previewing.frameUrl"
+            class="border-border h-[65vh] w-full rounded-lg border"
+            [title]="'Pré-visualização de ' + previewing.document.fileName"
+          ></iframe>
+        }
+        @case ('imagem') {
+          <img
+            [src]="previewing.imageUrl"
+            [alt]="'Pré-visualização de ' + previewing.document.fileName"
+            class="border-border mx-auto max-h-[65vh] rounded-lg border"
+          />
+        }
+        @default {
+          <p class="text-muted-foreground text-sm">
+            Este tipo de arquivo ({{ previewing.type || 'desconhecido' }}) não abre no navegador.
+            Baixe para conferir.
+          </p>
+        }
+      }
+
+      <div
+        class="border-border bg-muted/40 -mx-5 -mb-5 mt-5 flex flex-wrap justify-end gap-2 border-t p-4"
+      >
+        <button hlmBtn variant="outline" (click)="downloadDocument(previewing.document)">
+          <ng-icon name="lucideDownload" aria-hidden="true" />
+          Baixar
+        </button>
+        <button hlmBtn variant="ghost" (click)="closePreview()">Fechar</button>
+      </div>
+    }
+  </app-modal>
+
+  <app-modal
+    [open]="rejectingDocument() !== null"
+    (openChange)="$event ? null : rejectingDocument.set(null)"
+    title="Rejeitar arquivo"
+    [description]="rejectingDocument()?.fileName"
+  >
+    <form
+      id="rejection-form"
+      class="flex flex-col gap-3"
+      (submit)="$event.preventDefault(); reject()"
+    >
+      <div class="flex flex-col gap-1.5">
+        <label hlmLabel for="rejection-reason">Motivo da rejeição</label>
+        <textarea
+          hlmTextarea
+          id="rejection-reason"
+          rows="3"
+          placeholder="Ex.: extrato incompleto, faltam os últimos 10 dias do mês"
+          [formField]="rejectionForm.rejectionReason"
+          aria-describedby="rejection-help"
+        ></textarea>
+        @if (
+          rejectionForm.rejectionReason().invalid() && rejectionForm.rejectionReason().touched()
+        ) {
+          <p class="text-destructive text-xs">
+            {{ rejectionForm.rejectionReason().errors()[0]?.message }}
+          </p>
+        }
+      </div>
+
+      <p
+        id="rejection-help"
+        class="flex gap-2 rounded-lg border border-amber-200 bg-amber-50 p-3 text-xs text-amber-900"
+      >
+        <ng-icon name="lucideTriangleAlert" class="mt-0.5 shrink-0 text-sm" aria-hidden="true" />
+        @if (rejectingDocument()?.requestItemId) {
+          Nada sai agora. Ao publicar a revisão, o item volta para pendente e o Responsável recebe
+          UM email com tudo o que precisa reenviar, junto de um link novo.
+        } @else {
+          Documento extra não reabre item nem invalida o link. Entra no mesmo email da revisão.
+        }
+      </p>
+    </form>
+
+    <div
+      class="border-border bg-muted/40 -mx-5 -mb-5 mt-5 flex flex-wrap justify-end gap-2 border-t p-4"
+    >
+      <button hlmBtn variant="ghost" type="button" (click)="rejectingDocument.set(null)">
+        Cancelar
+      </button>
+      <button
+        hlmBtn
+        variant="destructive"
+        type="submit"
+        form="rejection-form"
+        [disabled]="rejectionForm().submitting()"
+      >
+        Marcar rejeição
+      </button>
+    </div>
+  </app-modal>
+
+  <app-modal
+    [open]="confirmingLeave()"
+    (openChange)="$event ? null : resolveLeave(false)"
+    title="Sair sem publicar a revisão?"
+    description="As decisões marcadas ainda não foram gravadas."
+  >
+    <p class="text-sm">
+      Você marcou {{ stagedCount() }} {{ stagedCount() === 1 ? 'decisão' : 'decisões' }} nesta tela.
+      Sair agora descarta tudo — nenhum item é aceito e nenhum e-mail é enviado.
+    </p>
+
+    <div
+      class="border-border bg-muted/40 -mx-5 -mb-5 mt-5 flex flex-wrap justify-end gap-2 border-t p-4"
+    >
+      <button hlmBtn variant="ghost" (click)="resolveLeave(false)">Continuar revisando</button>
+      <button hlmBtn variant="destructive" (click)="resolveLeave(true)">Descartar e sair</button>
+    </div>
+  </app-modal>
+
+  <app-modal
+    [open]="confirmClose()"
+    (openChange)="confirmClose.set($event)"
+    title="Encerrar a solicitação?"
+    description="Encerrar é a palavra final para esta empresa nesta competência."
+  >
+    <p class="text-sm">
+      @if (pendingCount()) {
+        {{ pendingCount() }} item(ns) ainda estão sem aceite. Depois de encerrar, o Responsável só
+        consegue enviar documentos extras.
+      } @else {
+        Todos os itens estão aceitos.
+      }
+    </p>
+
+    <div
+      class="border-border bg-muted/40 -mx-5 -mb-5 mt-5 flex flex-wrap justify-end gap-2 border-t p-4"
+    >
+      <button hlmBtn variant="ghost" (click)="confirmClose.set(false)">Cancelar</button>
+      <button hlmBtn variant="destructive" [disabled]="acting()" (click)="closeRequest()">
+        Encerrar solicitação
+      </button>
+    </div>
+  </app-modal>
+}

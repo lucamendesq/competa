@@ -85,7 +85,7 @@ export class AuthController {
     if (!me) throw new NotFound();
 
     return {
-      accountant: { id: me.accountantId, name: me.name, email: me.email },
+      accountant: { id: me.accountantId, name: me.name, email: me.email, owner: me.owner },
       accountingFirm: { id: me.firmId, name: me.firmName },
     };
   }

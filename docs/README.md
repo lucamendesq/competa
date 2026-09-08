@@ -7,16 +7,17 @@ Para o resumo operacional (como trabalhar aqui, o que nunca violar), comece pelo
 
 ## Índice
 
-| Documento | Conteúdo |
-|-----------|----------|
-| [`product.md`](./product.md) | Propósito, público, atores, marca, contexto de mercado (digest do discovery) |
-| [`architecture.md`](./architecture.md) | Monorepo pnpm workspaces, `apps/web` (Angular) + `apps/api` (NestJS), componentes, integrações, diagrama |
-| [`domain.md`](./domain.md) | Subdomínios, bounded contexts + invariantes, jornada principal, **glossário PT↔EN normativo**, eventos de domínio |
-| [`conventions.md`](./conventions.md) | Nomenclatura, padrões de código/API/testes, variáveis de ambiente, git e **anti-patterns** |
-| [`database-schema.md`](./database-schema.md) | **Fonte canônica** do banco — DDL completa (Postgres/Drizzle), algoritmos e transições de estado |
-| [`document-catalog.md`](./document-catalog.md) | Seed do produto: tipos de documento e 5 templates fixos de checklist |
-| [`decisions.md`](./decisions.md) | Registro de decisões arquiteturais (ADR-001…011) com racional e alternativas |
-| [`roadmap.md`](./roadmap.md) | Backlog v1 em fatias finas (TASK-001…037), fases e marcos de validação |
+| Documento                                      | Conteúdo                                                                                                          |
+| ---------------------------------------------- | ----------------------------------------------------------------------------------------------------------------- |
+| [`product.md`](./product.md)                   | Propósito, público, atores, marca, contexto de mercado (digest do discovery)                                      |
+| [`architecture.md`](./architecture.md)         | Monorepo pnpm workspaces, `apps/web` (Angular) + `apps/api` (NestJS), componentes, integrações, diagrama          |
+| [`domain.md`](./domain.md)                     | Subdomínios, bounded contexts + invariantes, jornada principal, **glossário PT↔EN normativo**, eventos de domínio |
+| [`conventions.md`](./conventions.md)           | Nomenclatura, padrões de código/API/testes, variáveis de ambiente, git e **anti-patterns**                        |
+| [`database-schema.md`](./database-schema.md)   | **Fonte canônica** do banco — DDL completa (Postgres/Drizzle), algoritmos e transições de estado                  |
+| [`document-catalog.md`](./document-catalog.md) | Seed do produto: tipos de documento e 5 templates fixos de checklist                                              |
+| [`decisions.md`](./decisions.md)               | Registro de decisões arquiteturais (ADR-001…011) com racional e alternativas                                      |
+| [`roadmap.md`](./roadmap.md)                   | Backlog v1 em fatias finas (TASK-001…037), fases e marcos de validação                                            |
+| [`frontend-status.md`](./frontend-status.md)   | Telas do `apps/web`: o que existe, o que ficou degradado por falta de rota e o que precisa de configuração        |
 
 ## Como manter
 

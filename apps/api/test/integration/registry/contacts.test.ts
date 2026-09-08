@@ -117,17 +117,17 @@ test('remover Responsável responde 204 e a segunda remoção responde 404', asy
 
 test('Responsável de outra Empresa da mesma Contabilidade não é editável pelo id da Empresa errada', async () => {
   const { session, company } = await setup();
-  const outra = await createCompany(app, session.cookie, { name: 'Outra Empresa' });
-  const alheio = await insertContact(outra.id);
+  const other = await createCompany(app, session.cookie, { name: 'Outra Empresa' });
+  const foreign = await insertContact(other.id);
 
   await http(app)
-    .patch(`/companies/${company.id}/contacts/${alheio.id}`)
+    .patch(`/companies/${company.id}/contacts/${foreign.id}`)
     .set('cookie', session.cookie)
     .send({ name: 'Invadido' })
     .expect(404);
 
   await http(app)
-    .delete(`/companies/${company.id}/contacts/${alheio.id}`)
+    .delete(`/companies/${company.id}/contacts/${foreign.id}`)
     .set('cookie', session.cookie)
     .expect(404);
 });

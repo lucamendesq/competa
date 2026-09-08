@@ -75,7 +75,9 @@ test('prazo da Solicitação é o mais próximo entre os itens pendentes', () =>
 
   assert.equal(nextDueDate(many), '2026-09-12');
   assert.deepEqual(
-    pickReminders([many, candidate({ requestId: 'r2', reminderCount: 2 })], now).map((c) => c.requestId),
+    pickReminders([many, candidate({ requestId: 'r2', reminderCount: 2 })], now).map(
+      (c) => c.requestId,
+    ),
     ['r1'],
   );
 });

@@ -5,13 +5,7 @@ import { document, request, requestItem } from '../../../src/infra/database/sche
 import { createTestApp, http } from '../../app.js';
 import { db, resetDatabase } from '../../db.js';
 import { createAccountantSession } from '../../factories.js';
-import {
-  drainDeliveries,
-  itemNamed,
-  resetRateLimit,
-  setupReview,
-  uploadOk,
-} from './helpers.js';
+import { drainDeliveries, itemNamed, resetRateLimit, setupReview, uploadOk } from './helpers.js';
 
 /** Escopo por Contabilidade: recurso de outra Contabilidade não existe — 404, nunca
  *  403 nem 200. Vale para leitura E escrita, e o estado da vítima não pode mudar. */
@@ -33,7 +27,7 @@ beforeEach(async () => {
 });
 
 /** Contabilidade A com uma Solicitação já em revisão + a sessão de uma Contabilidade B. */
-const doisTenants = async () => {
+const twoTenants = async () => {
   const a = await setupReview(app, {
     firmName: 'Contabilidade A',
     companyName: 'Empresa da A',
@@ -51,7 +45,7 @@ const doisTenants = async () => {
 };
 
 test('Contabilidade B recebe 404 na leitura dos recursos da A', async () => {
-  const { a, b } = await doisTenants();
+  const { a, b } = await twoTenants();
 
   for (const path of [
     `/requests/${a.requestId}`,
@@ -67,7 +61,7 @@ test('Contabilidade B recebe 404 na leitura dos recursos da A', async () => {
 });
 
 test('Contabilidade B recebe 404 na escrita sobre os recursos da A e nada muda', async () => {
-  const { a, b, item, documentId, extra } = await doisTenants();
+  const { a, b, item, documentId, extra } = await twoTenants();
 
   const escritas: [string, Record<string, unknown>][] = [
     [`/request-items/${item.id}/accept`, {}],
@@ -85,19 +79,19 @@ test('Contabilidade B recebe 404 na escrita sobre os recursos da A e nada muda',
     expect(response.body.error.code).toBe('NOT_FOUND');
   }
 
-  const [salvoItem] = await db.select().from(requestItem).where(eq(requestItem.id, item.id));
-  expect(salvoItem.status).toBe('submitted');
+  const [savedItem] = await db.select().from(requestItem).where(eq(requestItem.id, item.id));
+  expect(savedItem.status).toBe('submitted');
 
-  const documentos = await db.select().from(document).where(eq(document.requestId, a.requestId));
-  expect(documentos.every((row) => row.reviewStatus === 'pending')).toBe(true);
+  const documents = await db.select().from(document).where(eq(document.requestId, a.requestId));
+  expect(documents.every((row) => row.reviewStatus === 'pending')).toBe(true);
 
-  const [solicitacao] = await db.select().from(request).where(eq(request.id, a.requestId));
-  expect(solicitacao.status).toBe('open');
-  expect(solicitacao.closedAt).toBeNull();
+  const [requestRow] = await db.select().from(request).where(eq(request.id, a.requestId));
+  expect(requestRow.status).toBe('open');
+  expect(requestRow.closedAt).toBeNull();
 });
 
 test('rotas de revisão sem sessão respondem 401', async () => {
-  const { a, item, documentId } = await doisTenants();
+  const { a, item, documentId } = await twoTenants();
 
   await http(app).get(`/requests/${a.requestId}`).expect(401);
   await http(app).get(`/periods/${a.period.id}/pending-panel`).expect(401);

@@ -1,3 +1,110 @@
+@layer theme, base, components, utilities;
+@import 'tailwindcss/theme.css' layer(theme);
+@import 'tailwindcss/preflight.css' layer(base);
+@import 'tailwindcss/utilities.css';
+
+@import '@spartan-ng/brain/hlm-tailwind-preset.css';
 /* You can add global styles to this file, and also import other style files */
 
-@import 'tailwindcss';
+:root {
+  color-scheme: light;
+
+  --font-sans:
+    Inter, -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'Helvetica Neue', Arial,
+    'Noto Sans', sans-serif, 'Apple Color Emoji', 'Segoe UI Emoji', 'Segoe UI Symbol',
+    'Noto Color Emoji';
+
+  --radius: 0.75rem;
+
+  /* Auditor Precision — #1E3A8A / #2563EB / #059669 / #0F172A */
+  --background: oklch(1 0 0);
+  --foreground: oklch(0.208 0.04 265.75);
+  --card: oklch(1 0 0);
+  --card-foreground: oklch(0.208 0.04 265.75);
+  --popover: oklch(1 0 0);
+  --popover-foreground: oklch(0.208 0.04 265.75);
+  --primary: oklch(0.379 0.138 265.52);
+  --primary-foreground: oklch(0.984 0.003 247.86);
+  --secondary: oklch(0.546 0.215 262.88);
+  --secondary-foreground: oklch(0.984 0.003 247.86);
+  --muted: oklch(0.968 0.007 247.9);
+  --muted-foreground: oklch(0.554 0.046 257.42);
+  --accent: oklch(0.596 0.127 163.23);
+  --accent-foreground: oklch(0.984 0.003 247.86);
+  --destructive: oklch(0.577 0.245 27.325);
+  --border: oklch(0.929 0.013 255.51);
+  --input: oklch(0.929 0.013 255.51);
+  --ring: oklch(0.546 0.215 262.88);
+
+  --chart-1: oklch(0.379 0.138 265.52);
+  --chart-2: oklch(0.546 0.215 262.88);
+  --chart-3: oklch(0.596 0.127 163.23);
+  --chart-4: oklch(0.708 0.11 264);
+  --chart-5: oklch(0.554 0.046 257.42);
+
+  --sidebar: oklch(0.208 0.04 265.75);
+  --sidebar-foreground: oklch(0.984 0.003 247.86);
+  --sidebar-primary: oklch(0.546 0.215 262.88);
+  --sidebar-primary-foreground: oklch(0.984 0.003 247.86);
+  --sidebar-accent: oklch(0.279 0.041 260.03);
+  --sidebar-accent-foreground: oklch(0.984 0.003 247.86);
+  --sidebar-border: oklch(1 0 0 / 10%);
+  --sidebar-ring: oklch(0.546 0.215 262.88);
+}
+
+:root.dark {
+  color-scheme: dark;
+
+  --background: oklch(0.208 0.04 265.75);
+  --foreground: oklch(0.984 0.003 247.86);
+  --card: oklch(0.263 0.04 264);
+  --card-foreground: oklch(0.984 0.003 247.86);
+  --popover: oklch(0.263 0.04 264);
+  --popover-foreground: oklch(0.984 0.003 247.86);
+  --primary: oklch(0.623 0.19 263);
+  --primary-foreground: oklch(0.208 0.04 265.75);
+  --secondary: oklch(0.546 0.215 262.88);
+  --secondary-foreground: oklch(0.984 0.003 247.86);
+  --muted: oklch(0.279 0.041 260.03);
+  --muted-foreground: oklch(0.704 0.04 256.79);
+  --accent: oklch(0.696 0.13 163);
+  --accent-foreground: oklch(0.208 0.04 265.75);
+  --destructive: oklch(0.704 0.191 22.216);
+  --border: oklch(1 0 0 / 10%);
+  --input: oklch(1 0 0 / 15%);
+  --ring: oklch(0.623 0.19 263);
+
+  --chart-1: oklch(0.623 0.19 263);
+  --chart-2: oklch(0.546 0.215 262.88);
+  --chart-3: oklch(0.696 0.13 163);
+  --chart-4: oklch(0.769 0.09 264);
+  --chart-5: oklch(0.704 0.04 256.79);
+
+  --sidebar: oklch(0.263 0.04 264);
+  --sidebar-foreground: oklch(0.984 0.003 247.86);
+  --sidebar-primary: oklch(0.623 0.19 263);
+  --sidebar-primary-foreground: oklch(0.208 0.04 265.75);
+  --sidebar-accent: oklch(0.279 0.041 260.03);
+  --sidebar-accent-foreground: oklch(0.984 0.003 247.86);
+  --sidebar-border: oklch(1 0 0 / 10%);
+  --sidebar-ring: oklch(0.623 0.19 263);
+}
+
+@layer base {
+  * {
+    @apply border-border outline-ring/50;
+  }
+  body {
+    @apply bg-background text-foreground;
+  }
+}
+
+/* O componente roteado é UM filho flex do conteúdo do painel: sem isto, o `gap` do
+   layout não separa as seções internas de cada página. */
+@layer base {
+  .painel-conteudo > *:not(router-outlet) {
+    display: flex;
+    flex-direction: column;
+    gap: 1.5rem;
+  }
+}

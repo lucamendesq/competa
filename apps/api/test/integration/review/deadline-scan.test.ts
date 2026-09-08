@@ -52,24 +52,24 @@ const scan = async (cookie: string) => {
 test('a varredura avisa uma vez por Item e a segunda varredura não reemite', async () => {
   const { cookie, requestId } = await setupReview(app, { dueDate: '2026-08-10' });
 
-  const primeira = await scan(cookie);
-  expect(primeira.notified).toHaveLength(5);
-  expect(primeira.alreadyNotified).toBe(0);
+  const first = await scan(cookie);
+  expect(first.notified).toHaveLength(5);
+  expect(first.alreadyNotified).toBe(0);
 
-  const marcados = await db.select().from(requestItem).where(eq(requestItem.requestId, requestId));
-  expect(marcados.every((item) => item.deadlineNotifiedAt !== null)).toBe(true);
+  const flagged = await db.select().from(requestItem).where(eq(requestItem.requestId, requestId));
+  expect(flagged.every((item) => item.deadlineNotifiedAt !== null)).toBe(true);
 
-  const segunda = await scan(cookie);
-  expect(segunda.notified).toHaveLength(0);
-  expect(segunda.overdue).toBe(5);
-  expect(segunda.alreadyNotified).toBe(5);
+  const second = await scan(cookie);
+  expect(second.notified).toHaveLength(0);
+  expect(second.overdue).toBe(5);
+  expect(second.alreadyNotified).toBe(5);
 
   // 5 itens × (Responsável + Contador), só da primeira varredura
-  const avisos = await waitFor(
+  const warnings = await waitFor(
     () => messagesOf(requestId, 'deadline_missed'),
     (rows) => rows.length >= 10 && rows.every((row) => row.status !== 'queued'),
   );
-  expect(avisos).toHaveLength(10);
+  expect(warnings).toHaveLength(10);
 });
 
 test('reiniciar o processo não reavisa: a marca está no banco, não em memória', async () => {
@@ -82,9 +82,9 @@ test('reiniciar o processo não reavisa: a marca está no banco, não em memóri
   await app.close();
   app = await createTestApp();
 
-  const depoisDoRestart = await scan(cookie);
-  expect(depoisDoRestart.notified).toHaveLength(0);
-  expect(depoisDoRestart.alreadyNotified).toBe(5);
+  const afterRestart = await scan(cookie);
+  expect(afterRestart.notified).toHaveLength(0);
+  expect(afterRestart.alreadyNotified).toBe(5);
 });
 
 test('reabrir o Item limpa a marca e ele volta a ser elegível', async () => {
@@ -92,37 +92,37 @@ test('reabrir o Item limpa a marca e ele volta a ser elegível', async () => {
   const item = await itemNamed(app, cookie, requestId, 'Extrato bancário');
 
   // a varredura rotaciona o token: o link que vale agora é o que foi avisado
-  const avisados = captureEvent<DeadlineMissedEvent>(app, 'DeadlineMissed');
+  const notified = captureEvent<DeadlineMissedEvent>(app, 'DeadlineMissed');
   await scan(cookie);
-  avisados.stop();
+  notified.stop();
   await drainDeliveries();
 
-  const tokenAvisado = avisados.seen[0].uploadUrl.split('/').pop()!;
+  const tokenAvisado = notified.seen[0].uploadUrl.split('/').pop()!;
 
   // entrega + rejeição: o Item volta para pending e a marca do cron é apagada
   const documentId = await uploadOk(app, tokenAvisado, {
     fileName: 'e.pdf',
     requestItemId: item.id,
   });
-  const { response, token: novoToken } = await rejectDocument(app, cookie, documentId, 'Ilegível');
+  const { response, token: freshToken } = await rejectDocument(app, cookie, documentId, 'Ilegível');
   expect(response.status).toBe(201);
 
   const [reaberto] = await db.select().from(requestItem).where(eq(requestItem.id, item.id));
   expect(reaberto.status).toBe('pending');
   expect(reaberto.deadlineNotifiedAt).toBeNull();
 
-  const segunda = await scan(cookie);
-  expect(segunda.notified.map((row) => row.requestItemId)).toEqual([item.id]);
-  expect(novoToken).toBeTruthy();
+  const second = await scan(cookie);
+  expect(second.notified.map((row) => row.requestItemId)).toEqual([item.id]);
+  expect(freshToken).toBeTruthy();
 });
 
 test('Item sem prazo próprio e sem prazo da Competência nunca é elegível', async () => {
   const { cookie } = await setupReview(app);
 
-  const resultado = await scan(cookie);
+  const result = await scan(cookie);
 
-  expect(resultado.notified.map((row) => row.itemName)).not.toContain('Livro caixa');
-  expect(resultado.notified).toHaveLength(4);
+  expect(result.notified.map((row) => row.itemName)).not.toContain('Livro caixa');
+  expect(result.notified).toHaveLength(4);
 });
 
 test('Competência encerrada fica fora da varredura', async () => {
@@ -153,14 +153,17 @@ test('a varredura pela rota só vê a Contabilidade da sessão', async () => {
     dueDate: '2026-08-10',
   });
 
-  const daA = await scan(a.cookie);
-  expect(new Set(daA.notified.map((row) => row.companyName))).toEqual(new Set(['Empresa A']));
+  const ofA = await scan(a.cookie);
+  expect(new Set(ofA.notified.map((row) => row.companyName))).toEqual(new Set(['Empresa A']));
 
-  const daB = await scan(b.cookie);
-  expect(new Set(daB.notified.map((row) => row.companyName))).toEqual(new Set(['Empresa B']));
+  const ofB = await scan(b.cookie);
+  expect(new Set(ofB.notified.map((row) => row.companyName))).toEqual(new Set(['Empresa B']));
 
-  const itensDeB = await db.select().from(requestItem).where(eq(requestItem.requestId, b.requestId));
-  expect(itensDeB.every((item) => item.deadlineNotifiedAt !== null)).toBe(true);
+  const itemsOfB = await db
+    .select()
+    .from(requestItem)
+    .where(eq(requestItem.requestId, b.requestId));
+  expect(itemsOfB.every((item) => item.deadlineNotifiedAt !== null)).toBe(true);
 });
 
 test('o evento carrega os emails dos Contadores e um link de upload novo e válido', async () => {
@@ -184,8 +187,8 @@ test('o evento carrega os emails dos Contadores e um link de upload novo e váli
   const tokens = new Set(captured.seen.map((row) => row.uploadUrl.split('/').pop()));
   expect(tokens.size).toBe(1);
 
-  const novo = [...tokens][0]!;
-  expect(novo).not.toBe(token);
-  await http(app).get(`/upload/${novo}`).expect(200);
+  const fresh = [...tokens][0]!;
+  expect(fresh).not.toBe(token);
+  await http(app).get(`/upload/${fresh}`).expect(200);
   await http(app).get(`/upload/${token}`).expect(404);
 });

@@ -1,4 +1,14 @@
-# Produto — Coleta de Documentos Contábeis
+# Produto — Competa
+
+<!-- impeccable:product-schema 1 -->
+
+## Platform
+
+web
+
+O "App" do Responsável é a **PWA** entregue na Fase 10 (Angular + service worker, push FCM,
+passkey) — não há app nativo. A Fase 9 (decidir por app nativo) segue **em aberto**; enquanto
+estiver, a linguagem visual é uma só, web, sem divergir por sistema operacional.
 
 ## Em uma frase
 
@@ -12,15 +22,15 @@ SaaS que elimina o garimpo manual de documentos contábeis: a Contabilidade defi
 
 ## Atores
 
-| Ator | Quem é | O que faz |
-|------|--------|-----------|
-| **Contador** | Usuário da Contabilidade (N Contadores por Contabilidade, via convite) | Cadastra Empresas, escolhe/deriva templates, aplica overrides, abre/encerra competências, revisa documentos (em lote por item), baixa zips |
-| **Responsável** | Pessoa de contato da Empresa | Recebe o link por email/WhatsApp, envia documentos pelo navegador (sem senha) ou pelo App (com cadastro) |
-| WhatsApp Cloud API (Meta) | Sistema externo | Entrega links e lembretes |
-| Provedor de email (SES/Resend) | Sistema externo | Entrega links, lembretes e reenvios (canal que nunca bloqueia o fluxo) |
-| FCM | Sistema externo (push) | Notifica Responsáveis cadastrados no App |
-| Cloudflare R2 | Sistema externo | Armazena documentos e zips (upload direto por URL pré-assinada) |
-| Better Auth | Biblioteca (self-hosted na API) | Autenticação do Contador e do Responsável cadastrado |
+| Ator                           | Quem é                                                                 | O que faz                                                                                                                                  |
+| ------------------------------ | ---------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------ |
+| **Contador**                   | Usuário da Contabilidade (N Contadores por Contabilidade, via convite) | Cadastra Empresas, escolhe/deriva templates, aplica overrides, abre/encerra competências, revisa documentos (em lote por item), baixa zips |
+| **Responsável**                | Pessoa de contato da Empresa                                           | Recebe o link por email/WhatsApp, envia documentos pelo navegador (sem senha) ou pelo App (com cadastro)                                   |
+| WhatsApp Cloud API (Meta)      | Sistema externo                                                        | Entrega links e lembretes                                                                                                                  |
+| Provedor de email (SES/Resend) | Sistema externo                                                        | Entrega links, lembretes e reenvios (canal que nunca bloqueia o fluxo)                                                                     |
+| FCM                            | Sistema externo (push)                                                 | Notifica Responsáveis cadastrados no App                                                                                                   |
+| Cloudflare R2                  | Sistema externo                                                        | Armazena documentos e zips (upload direto por URL pré-assinada)                                                                            |
+| Better Auth                    | Biblioteca (self-hosted na API)                                        | Autenticação do Contador e do Responsável cadastrado                                                                                       |
 
 ## Jornada principal (Ciclo da Competência)
 
@@ -40,11 +50,12 @@ Detalhes: linha do tempo de eventos em [`domain.md`](./domain.md); algoritmo de 
 
 ## Nome e marca
 
-- **Nome:** provisório — "Coleta de Documentos Contábeis" (codinome do repo: `contabilidade`). Nome de produto {a definir}.
-- **Shortlist (domínios .com.br livres em 2026-08-26):**
-  - **Competa** (`competa.com.br`) — de "competência" (o conceito central *abrir a competência*); ecoa "completa".
-  - **Coletera** (`coletera.com.br`) — de "coleta"; brandável, estilo Nibo/Qive.
-- Pendente: verificação de marca no INPI antes da decisão final.
+- **Nome decidido:** **Competa** — de "competência", o conceito central do produto (_abrir a
+  competência_); ecoa "completa". Domínio `competa.com.br` livre em 2026-08-26.
+- Codinome do repositório: `contabilidade`.
+- Pendente: verificação de marca no INPI.
+- **Voz:** português do Brasil, direta e sem jargão de software. A interface fala a língua do
+  escritório: Competência, Solicitação, Item, Responsável, Contabilidade.
 
 ## Contexto de mercado (digest do discovery)
 
@@ -68,3 +79,36 @@ Veredito do discovery (2026-08-26): **✅ GO condicionado** ao recorte **web-fir
 ## Roadmap
 
 Backlog v1 em fatias verticais finas (esqueleto ambulante), fases 0–9 e marcos de validação: [`roadmap.md`](./roadmap.md).
+
+## Princípios de produto
+
+1. **O Responsável nunca precisa de conta.** Conta é oferta, nunca mecanismo — o Link de
+   Upload sozinho tem de bastar para enviar documento (D14).
+2. **Construir com a rota que existe.** Tela degradada e sinalizada vale mais que endpoint
+   inventado; cada lacuna é visível na própria interface (ver `frontend-status.md`).
+3. **Foco, não suíte.** O produto ganha por ser barato, previsível e estreito — cada
+   funcionalidade nova precisa caber no ciclo da Competência.
+4. **Agnóstico ao tipo de arquivo.** O valor durável está no documento não estruturado; sem
+   parsing fiscal na v1.
+5. **Estado nunca é só cor.** Painel denso, escritório apressado: status pede ícone + texto.
+
+## Acessibilidade e inclusão
+
+- Padrão exigido: **WCAG AA**. Contraste mínimo 4.5:1 para texto pequeno (as pílulas de
+  status têm 11px) e 3:1 para ícone decorativo maior.
+- Todo controle com nome acessível, todo campo com `label`, um `h1` por página, sem salto de
+  nível de heading, sem `id` duplicado.
+- Status nunca comunicado só por cor.
+- A página pública de envio (`/envio/:token`) é **mobile-first**: chega por WhatsApp/email e é
+  aberta no celular do Responsável, muitas vezes fora do escritório.
+
+## Evidências disponíveis
+
+- Discovery de mercado de 2026-08-26 com concorrentes, faixas de preço e alertas
+  (seção "Contexto de mercado" acima) — a única âncora de preço pública é G-Click R$100/mês.
+- Produto real rodando: API NestJS (`apps/api`) e web Angular (`apps/web`), fases 0–10,
+  estado tela a tela em [`frontend-status.md`](./frontend-status.md).
+- Decisões registradas em [`decisions.md`](./decisions.md); domínio em [`domain.md`](./domain.md).
+- **Não existe ainda** (não inventar): cliente pagante, depoimento, estudo de caso, logotipo,
+  identidade visual definida, número de uso, imprensa, preço validado. A faixa R$97–197/mês
+  segue sendo hipótese.

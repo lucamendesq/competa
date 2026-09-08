@@ -10,14 +10,11 @@ export const GAP_DAYS_WITHOUT_DUE_DATE = 7;
 export type ReminderCandidate = {
   requestId: string;
   pendingItems: { name: string; dueDate: string | null }[];
-  /** prazo geral da Competência — fallback dos itens sem prazo próprio */
   periodDueDate: string | null;
   reminderCount: number;
-  /** `created_at` da última `message` da Solicitação (qualquer purpose) */
   lastMessageAt: Date | null;
 };
 
-/** Prazo efetivo da Solicitação: o mais próximo entre os itens pendentes. */
 export const nextDueDate = (candidate: ReminderCandidate): string | null => {
   const dates = candidate.pendingItems
     .map((item) => item.dueDate ?? candidate.periodDueDate)

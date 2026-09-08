@@ -48,8 +48,13 @@ create table accountant (                 -- Contador (N por Contabilidade, via 
                                           -- por auth_user_id — não duplicar aqui
   id                  uuid primary key,
   accounting_firm_id  uuid not null references accounting_firm(id) on delete cascade,
-  auth_user_id        uuid not null unique references "user"(id) on delete cascade
-);
+  auth_user_id        uuid not null unique references "user"(id) on delete cascade,
+  owner               boolean not null default false  -- dono: o 1º Contador (quem provisiona
+);                                                    -- via create-firm). SÓ ele cria convite.
+
+-- Uma Contabilidade tem no máximo um dono. Quem arbitra é o banco: dois signups
+-- simultâneos passariam por uma checagem feita em JS.
+create unique index accountant_owner_uidx on accountant (accounting_firm_id) where owner;
 
 create table document_type (              -- Catálogo (dicionário) de documentos
   id                  uuid primary key,
@@ -301,12 +306,12 @@ valida `expires_at`/`revoked` e injeta `UploadScope`), `modules/requests/upload.
 
 ## Transições de estado
 
-| Entidade | Transições |
-|----------|-----------|
-| `request_item.status` | `pending → submitted` (upload) `→ accepted` \| `rejected` (Revisão); `rejected → pending` (reabertura: **rotaciona o token** do `upload_link` e dispara reenvio SÓ por email — o link anterior morre). Rejeição é por Documento; aceitar o Item aceita todos os Documentos `pending` dele (Documento já `rejected` fica como histórico). |
-| `request.status` | `open → complete` (todos os itens `accepted`, automático); `open\|complete → closed` (ato do Contador; pode fechar com pendências, com aviso) |
-| `period.status` | `open → closed` (ato do Contador) |
-| `document.upload_status` | `awaiting_upload → uploaded` (confirmação, que confere tamanho real). Nunca volta; envio não confirmado em 24h é apagado pela faxina |
+| Entidade                 | Transições                                                                                                                                                                                                                                                                                                                                                                                                                                 |
+| ------------------------ | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
+| `request_item.status`    | `pending → submitted` (upload) `→ accepted` \| `rejected` (Revisão); `rejected → pending` (reabertura: **rotaciona o token** do `upload_link` e dispara reenvio SÓ por email — o link anterior morre). Rejeição é por Documento; aceitar o Item aceita todos os Documentos `pending` dele (Documento já `rejected` fica como histórico).                                                                                                   |
+| `request.status`         | `open → complete` (todos os itens `accepted`, automático); `open\|complete → closed` (ato do Contador; pode fechar com pendências, com aviso)                                                                                                                                                                                                                                                                                              |
+| `period.status`          | `open → closed` (ato do Contador)                                                                                                                                                                                                                                                                                                                                                                                                          |
+| `document.upload_status` | `awaiting_upload → uploaded` (confirmação, que confere tamanho real). Nunca volta; envio não confirmado em 24h é apagado pela faxina                                                                                                                                                                                                                                                                                                       |
 | `document.review_status` | `pending → accepted` \| `rejected` — Revisão em lote opera no Item (aceita todos os `document` `uploaded` e `pending` do item de uma vez). **Documento Extra** é revisado individualmente (`POST /documents/:id/review-extra`) e não entra na conta de `complete`. **Aceite é desfazível** (`POST /request-items/:id/undo-accept`): Item volta a `submitted`/`pending` e os Documentos aceitos voltam a `pending` — desfazer não é recusar |
 
 ### Fase 10 — acesso do Responsável

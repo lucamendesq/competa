@@ -1,7 +1,6 @@
 import * as z from 'zod';
 import { PaginationQuery } from './pagination.js';
 
-/** Contratos de messaging (Fase 5). */
 export const MESSAGE_STATUS = ['queued', 'sent', 'delivered', 'failed'] as const;
 
 export const MessageListQuery = PaginationQuery.extend({

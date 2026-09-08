@@ -1,0 +1,60 @@
+<main class="bg-muted/40 flex min-h-dvh items-center justify-center p-4 sm:p-8">
+  <div class="bg-card border-border w-full max-w-md rounded-xl border p-6 shadow-sm sm:p-8">
+    @if (sent()) {
+      <div class="text-center" role="status">
+        <span
+          class="mx-auto flex size-12 items-center justify-center rounded-full bg-emerald-100 text-emerald-600"
+        >
+          <ng-icon name="lucideMailCheck" class="text-xl" aria-hidden="true" />
+        </span>
+        <h1 class="mt-4 text-lg font-semibold">Confira seu e-mail</h1>
+        <p class="text-muted-foreground mt-2 text-sm">
+          Se este e-mail estiver cadastrado, o link de envio chega em instantes. Ele substitui o
+          link anterior.
+        </p>
+      </div>
+    } @else {
+      <h1 class="text-xl font-semibold tracking-tight">Perdi meu link</h1>
+      <p class="text-muted-foreground mt-1 text-sm">
+        Informe o e-mail em que você recebe os pedidos da sua contabilidade e reenviamos o link de
+        envio. Não precisa de senha.
+      </p>
+
+      <form class="mt-6 flex flex-col gap-4" (ngSubmit)="send()">
+        <div class="flex flex-col gap-1.5">
+          <label hlmLabel for="email">E-mail</label>
+          <input
+            hlmInput
+            id="email"
+            type="email"
+            autocomplete="email"
+            class="w-full"
+            [formField]="f.email"
+            [attr.aria-describedby]="
+              f.email().invalid() && f.email().touched() ? 'erro-email' : null
+            "
+          />
+          @if (f.email().invalid() && f.email().touched()) {
+            <p id="email-error" class="text-destructive text-xs">
+              {{ f.email().errors()[0]?.message }}
+            </p>
+          }
+        </div>
+
+        @if (error()) {
+          <p class="text-destructive text-sm" role="alert">{{ error() }}</p>
+        }
+
+        <button hlmBtn size="lg" type="submit" class="mt-2 w-full" [disabled]="f().submitting()">
+          {{ f().submitting() ? 'Enviando…' : 'Reenviar meu link' }}
+          <ng-icon name="lucideArrowRight" aria-hidden="true" />
+        </button>
+      </form>
+    }
+
+    <p class="text-muted-foreground mt-6 text-center text-sm">
+      É contador?
+      <a routerLink="/entrar" class="text-primary font-medium hover:underline">Acessar o painel</a>
+    </p>
+  </div>
+</main>

@@ -6,4 +6,5 @@ interface GetDbUrlArgs {
   dbName: string;
 }
 
-export const getDbUrl = ({ user, password, host, port, dbName}: GetDbUrlArgs) => `postgresql://${user}:${password}@${host}:${port}/${dbName}`;
+export const getDbUrl = ({ user, password, host, port, dbName }: GetDbUrlArgs) =>
+  `postgresql://${user}:${password}@${host}:${port}/${dbName}`;

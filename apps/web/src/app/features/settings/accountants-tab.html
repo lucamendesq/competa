@@ -1,0 +1,96 @@
+<section class="bg-card border-border max-w-2xl rounded-xl border">
+  <div class="border-border flex flex-wrap items-center justify-between gap-3 border-b p-4">
+    <div>
+      <h2 class="text-sm font-semibold">Contadores</h2>
+      <p class="text-muted-foreground mt-1 text-xs">
+        Quem trabalha nesta contabilidade entra por convite.
+      </p>
+    </div>
+    @if (isOwner()) {
+      <button hlmBtn (click)="open()">
+        <ng-icon name="lucideUserPlus" aria-hidden="true" />
+        Convidar contador
+      </button>
+    }
+  </div>
+
+  <div class="p-4">
+    @if (isOwner()) {
+      <p class="text-muted-foreground text-xs">
+        A lista de contadores da equipe ainda não é exposta pela API — por enquanto o convite é o
+        caminho para dar acesso. Cada convite vale por alguns dias e só serve para o e-mail
+        informado.
+      </p>
+    } @else {
+      <p class="text-muted-foreground flex gap-2 text-xs" role="note">
+        <ng-icon name="lucideLock" class="mt-0.5 shrink-0 text-sm" aria-hidden="true" />
+        <span>
+          Só o dono da contabilidade convida novos contadores — quem acessa pelo e-mail do
+          escritório. Peça a ele o link de convite.
+        </span>
+      </p>
+    }
+  </div>
+</section>
+
+<app-modal
+  [open]="modalOpen()"
+  (openChange)="modalOpen.set($event)"
+  title="Convidar contador"
+  description="O convite é enviado por e-mail e você também pode copiar o link."
+>
+  @if (created()) {
+    <div class="flex flex-col gap-3">
+      <p class="text-sm">
+        Convite criado para <strong>{{ created()!.email }}</strong
+        >.
+      </p>
+      <div class="flex flex-wrap items-center gap-2">
+        <label class="sr-only" for="invite-link">Link do convite</label>
+        <input hlmInput id="invite-link" readonly class="flex-1" [value]="created()!.url" />
+        <button hlmBtn variant="outline" (click)="copy()">
+          <ng-icon name="lucideCopy" aria-hidden="true" />
+          Copiar link
+        </button>
+      </div>
+    </div>
+
+    <div
+      class="border-border bg-muted/40 -mx-5 -mb-5 mt-5 flex flex-wrap justify-end gap-2 border-t p-4"
+    >
+      <button hlmBtn (click)="modalOpen.set(false)">Concluir</button>
+    </div>
+  } @else {
+    <form id="invite-form" class="flex flex-col gap-4" (submit)="$event.preventDefault(); invite()">
+      @if (error()) {
+        <p class="rounded-lg border border-red-200 bg-red-50 p-3 text-sm text-red-900" role="alert">
+          {{ error() }}
+        </p>
+      }
+
+      <div class="flex flex-col gap-1.5">
+        <label hlmLabel for="invite-email-field">E-mail do contador</label>
+        <input
+          hlmInput
+          id="invite-email-field"
+          type="email"
+          inputmode="email"
+          placeholder="contador@escritorio.com.br"
+          [formField]="f.email"
+        />
+        @if (f.email().invalid() && f.email().touched()) {
+          <p class="text-destructive text-xs">Informe um e-mail válido.</p>
+        }
+      </div>
+    </form>
+
+    <div
+      class="border-border bg-muted/40 -mx-5 -mb-5 mt-5 flex flex-wrap justify-end gap-2 border-t p-4"
+    >
+      <button hlmBtn variant="ghost" type="button" (click)="modalOpen.set(false)">Cancelar</button>
+      <button hlmBtn type="submit" form="invite-form" [disabled]="f().submitting()">
+        {{ f().submitting() ? 'Criando…' : 'Criar convite' }}
+      </button>
+    </div>
+  }
+</app-modal>

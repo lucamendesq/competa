@@ -41,8 +41,6 @@ export const rejectDocumentRefusal = (input: {
   return null;
 };
 
-/** Aceitar um Documento Extra é revisão individual: não existe Item para aceitar em lote,
- *  e Extra nunca entra na conta de `complete` (não é exigência do checklist). */
 export const reviewExtraRefusal = (input: {
   requestStatus: RequestStatus;
   reviewStatus: ReviewStatus;
@@ -56,9 +54,6 @@ export const reviewExtraRefusal = (input: {
   return null;
 };
 
-/** Desfazer o aceite de um Item (correção do Contador). O Item volta para `submitted` se
- *  ainda tem documento enviado, senão para `pending`; os Documentos aceitos voltam a
- *  `pending` — não viram rejeitados, porque desfazer não é recusar. */
 export const undoAcceptRefusal = (input: {
   requestStatus: RequestStatus;
   itemStatus: ItemStatus;
@@ -71,8 +66,6 @@ export const undoAcceptRefusal = (input: {
   return null;
 };
 
-/** `open → complete` é automático (todos os itens aceitos) e reversível: rejeitar um
- *  Documento reabre o Item e a Solicitação volta para `open`. Encerrada é palavra final. */
 export const requestStatusAfterReview = (
   current: RequestStatus,
   itemStatuses: ItemStatus[],
@@ -85,11 +78,8 @@ export const requestStatusAfterReview = (
   return allAccepted ? 'complete' : 'open';
 };
 
-/** Prazo do Item, senão o prazo geral da Competência (fallback), senão sem prazo. */
-export const effectiveDueDate = (item: {
-  dueDate: string | null;
-  periodDueDate: string | null;
-}) => item.dueDate ?? item.periodDueDate;
+export const effectiveDueDate = (item: { dueDate: string | null; periodDueDate: string | null }) =>
+  item.dueDate ?? item.periodDueDate;
 
 /** Elegível a `DeadlineMissed`: o Responsável ainda não entregou (`pending`) ou o Item foi
  *  reaberto (`rejected`) e o prazo efetivo já passou. Datas em `YYYY-MM-DD` comparam
@@ -115,10 +105,19 @@ export type PanelRow = {
   itemStatus: ItemStatus | null;
   itemDueDate: string | null;
   periodDueDate: string | null;
+  /** Item com Documento rejeitado. O Item recusado volta para `pending` (é o que reabre o
+   *  envio), então sem esta marca o painel conta "pendente" e some com a recusa — e a
+   *  coluna `rejected` nunca sai de zero. */
+  hasRejection?: boolean;
 };
 
-/** Painel de Pendências ("quem faltou"): uma linha por Empresa com a contagem por estado
- *  e a lista do que ainda falta (todo Item não aceito), cada um com o prazo efetivo. */
+/** O que o painel mostra: `rejected` quando a recusa ainda não foi refeita, mesmo que a
+ *  reabertura já tenha devolvido o Item para `pending`. */
+export const panelItemStatus = (row: {
+  itemStatus: ItemStatus | null;
+  hasRejection?: boolean;
+}): ItemStatus => (row.hasRejection && row.itemStatus === 'pending' ? 'rejected' : row.itemStatus!);
+
 export const summarizePending = (rows: PanelRow[]) => {
   const byCompany = new Map<string, ReturnType<typeof emptyCompany>>();
 
@@ -128,13 +127,18 @@ export const summarizePending = (rows: PanelRow[]) => {
 
     if (!row.itemId || !row.itemStatus || !row.itemName) continue;
 
-    company.counts[row.itemStatus] += 1;
+    const status = panelItemStatus(row);
 
-    if (row.itemStatus !== 'accepted') {
+    company.counts[status] += 1;
+
+    if (status !== 'accepted') {
       company.missing.push({
         id: row.itemId,
         name: row.itemName,
-        status: row.itemStatus,
+        status,
+        // `submitted` com recusa no histórico = o Responsável já mandou o corrigido e o
+        // Item espera nova conferência. "Enviado" sozinho não diz isso ao Contador.
+        resent: row.itemStatus === 'submitted' && Boolean(row.hasRejection),
         dueDate: effectiveDueDate({ dueDate: row.itemDueDate, periodDueDate: row.periodDueDate }),
       });
     }
@@ -149,5 +153,11 @@ const emptyCompany = (row: PanelRow) => ({
   requestId: row.requestId,
   requestStatus: row.requestStatus,
   counts: { pending: 0, submitted: 0, accepted: 0, rejected: 0 },
-  missing: [] as { id: string; name: string; status: ItemStatus; dueDate: string | null }[],
+  missing: [] as {
+    id: string;
+    name: string;
+    status: ItemStatus;
+    resent: boolean;
+    dueDate: string | null;
+  }[],
 });

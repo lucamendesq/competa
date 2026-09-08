@@ -1,0 +1,179 @@
+<h1 class="text-xl font-semibold tracking-tight">O que falta enviar</h1>
+
+@if (passkey.available && !passkey.registered()) {
+  <div class="bg-card border-border mt-4 flex flex-wrap items-center gap-3 rounded-xl border p-4">
+    <ng-icon
+      name="lucideFingerprint"
+      class="text-muted-foreground shrink-0 text-base"
+      aria-hidden="true"
+    />
+    <p class="min-w-0 flex-1 text-sm">
+      Quer entrar por biometria na próxima vez, sem digitar a senha?
+    </p>
+    <button
+      hlmBtn
+      variant="outline"
+      size="sm"
+      [disabled]="passkey.registering()"
+      (click)="passkey.register()"
+    >
+      {{ passkey.registering() ? 'Aguardando o aparelho…' : 'Ativar biometria' }}
+    </button>
+  </div>
+}
+
+@if (push.available && !push.subscribed()) {
+  <div class="bg-card border-border mt-4 flex flex-wrap items-center gap-3 rounded-xl border p-4">
+    <ng-icon
+      name="lucideBell"
+      class="text-muted-foreground shrink-0 text-base"
+      aria-hidden="true"
+    />
+    <p class="min-w-0 flex-1 text-sm">
+      Quer ser avisado quando chegar um pedido novo ou um documento for recusado?
+    </p>
+    <button
+      hlmBtn
+      variant="outline"
+      size="sm"
+      [disabled]="push.subscribing()"
+      (click)="subscribeToPush()"
+    >
+      {{ push.subscribing() ? 'Ligando…' : 'Ligar avisos' }}
+    </button>
+  </div>
+}
+
+@if (pending.isLoading()) {
+  <app-loading-rows [count]="4" />
+} @else if (pending.error()) {
+  <app-error-state message="Não conseguimos carregar o que falta." (retry)="pending.reload()" />
+} @else if (!byPeriod().length) {
+  <div class="bg-card border-border mt-4 rounded-xl border">
+    <app-empty-state
+      title="Nada pendente 🎉"
+      description="Você está em dia com a sua contabilidade. Se chegar um pedido novo, ele aparece aqui."
+      icon="lucidePartyPopper"
+    >
+      <a hlmBtn variant="outline" routerLink="/minha-area/competencias">Ver histórico</a>
+    </app-empty-state>
+  </div>
+} @else {
+  @for (group of byPeriod(); track group.periodId) {
+    <section class="mt-6">
+      <div class="flex flex-wrap items-center justify-between gap-2">
+        <h2 class="text-base font-semibold">{{ monthLabel(group.referenceMonth) }}</h2>
+        <a
+          class="text-primary text-xs font-medium hover:underline"
+          [routerLink]="['/minha-area/competencias', group.periodId]"
+        >
+          Ver tudo desta competência
+        </a>
+      </div>
+
+      <ul class="mt-3 flex flex-col gap-3" role="list">
+        @for (row of group.items; track row.item.id) {
+          <li class="bg-card border-border rounded-xl border">
+            <button
+              type="button"
+              class="focus-visible:ring-ring flex min-h-16 w-full items-start gap-3 p-4 text-left focus-visible:ring-2 focus-visible:outline-none"
+              [attr.aria-expanded]="expanded() === row.item.id"
+              [attr.aria-controls]="'upload-' + row.item.id"
+              (click)="toggle(row.item.id)"
+            >
+              <span class="min-w-0 flex-1">
+                <span class="flex flex-wrap items-center gap-2">
+                  <span class="text-base font-semibold">{{ row.item.name }}</span>
+                  <app-status-pill [status]="displayItemStatus(row.item)" />
+                </span>
+
+                @if (row.item.description) {
+                  <span class="text-muted-foreground mt-1 block text-sm">
+                    {{ row.item.description }}
+                  </span>
+                }
+
+                @if (needsResend(row.item)) {
+                  <span class="mt-2 block rounded-lg border border-red-200 bg-red-50 p-3">
+                    <span class="block text-sm font-semibold text-red-900">Precisa reenviar</span>
+                    @for (rejection of itemRejections(row.item); track $index) {
+                      <span class="mt-1 block text-xs text-red-800">
+                        {{ rejection.fileName }}: {{ rejection.rejectionReason }}
+                      </span>
+                    }
+                  </span>
+                }
+
+                <span class="mt-2 flex flex-wrap items-center gap-x-3 gap-y-1 text-xs">
+                  <span class="text-muted-foreground">
+                    Aceita: {{ row.item.acceptedFormats.join(', ').toUpperCase() }}
+                  </span>
+                  <app-due-date [dueDate]="row.item.dueDate" />
+                </span>
+              </span>
+
+              <ng-icon
+                name="lucideUpload"
+                class="text-muted-foreground mt-1 shrink-0 text-base"
+                aria-hidden="true"
+              />
+            </button>
+
+            @if (expanded() === row.item.id) {
+              <div [id]="'upload-' + row.item.id" class="border-border border-t p-4">
+                <label
+                  appDropZone
+                  [dropDisabled]="sending()"
+                  (dropped)="send($event, row.requestId, row.item.id)"
+                  class="border-border hover:bg-muted focus-within:ring-ring flex min-h-28 cursor-pointer flex-col items-center justify-center gap-2 rounded-lg border-2 border-dashed p-4 text-center focus-within:ring-2"
+                >
+                  <ng-icon
+                    name="lucideUpload"
+                    class="text-muted-foreground text-xl"
+                    aria-hidden="true"
+                  />
+                  <span class="text-sm font-medium"
+                    >Arraste os arquivos aqui ou toque para escolher</span
+                  >
+                  <span class="text-muted-foreground text-xs">
+                    Pode enviar vários de uma vez, ou um .zip
+                  </span>
+                  <input
+                    type="file"
+                    multiple
+                    class="sr-only"
+                    [disabled]="sending()"
+                    (change)="pick($event, row.requestId, row.item.id)"
+                  />
+                </label>
+
+                <label
+                  class="border-border hover:bg-muted focus-within:ring-ring mt-2 flex min-h-12 cursor-pointer items-center justify-center gap-2 rounded-lg border p-3 text-sm font-medium focus-within:ring-2 sm:hidden"
+                >
+                  <ng-icon name="lucideCamera" class="text-base" aria-hidden="true" />
+                  Tirar foto do documento
+                  <input
+                    type="file"
+                    accept="image/*"
+                    capture="environment"
+                    class="sr-only"
+                    [disabled]="sending()"
+                    (change)="pick($event, row.requestId, row.item.id)"
+                  />
+                </label>
+              </div>
+            }
+          </li>
+        }
+      </ul>
+    </section>
+  }
+}
+
+<app-upload-feedback
+  [sending]="sending()"
+  [progress]="sendProgress()"
+  [results]="results()"
+  (dismiss)="results.set(null)"
+  (retry)="retrySend($event)"
+/>

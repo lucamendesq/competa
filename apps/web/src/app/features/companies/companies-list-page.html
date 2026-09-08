@@ -1,0 +1,216 @@
+<app-page-header title="Empresas" description="Quem envia os documentos, e com qual checklist.">
+  <a hlmBtn variant="outline" routerLink="/empresas/importar">
+    <ng-icon name="lucideUpload" aria-hidden="true" />
+    Importar planilha
+  </a>
+  <a hlmBtn routerLink="/empresas/nova">
+    <ng-icon name="lucidePlus" aria-hidden="true" />
+    Nova empresa
+  </a>
+</app-page-header>
+
+<section class="bg-card border-border rounded-xl border">
+  <div class="border-border flex flex-wrap items-center justify-between gap-3 border-b p-3">
+    <div class="relative w-full max-w-xs">
+      <label class="sr-only" for="search-companies">Buscar empresa por nome ou CNPJ</label>
+      <input
+        hlmInput
+        id="search-companies"
+        type="search"
+        class="pl-9"
+        placeholder="Buscar empresa ou CNPJ"
+        [value]="search()"
+        (input)="search.set($any($event.target).value)"
+      />
+      <ng-icon
+        name="lucideSearch"
+        class="text-muted-foreground pointer-events-none absolute top-2.5 left-3 text-base"
+        aria-hidden="true"
+      />
+    </div>
+
+    <div class="flex gap-1" role="group" aria-label="Filtrar por situação">
+      @for (option of statuses; track option.value) {
+        <button
+          type="button"
+          class="focus-visible:ring-ring h-8 rounded-lg border px-3 text-xs font-medium focus-visible:ring-2 focus-visible:outline-none"
+          [class]="
+            state() === option.value
+              ? 'bg-primary text-primary-foreground border-primary'
+              : 'border-border hover:bg-muted'
+          "
+          [attr.aria-pressed]="state() === option.value"
+          (click)="state.set(option.value); page.set(1)"
+        >
+          {{ option.label }}
+        </button>
+      }
+    </div>
+  </div>
+
+  @if (companies.isLoading()) {
+    <app-loading-rows />
+  } @else if (companies.error()) {
+    <app-error-state message="Não conseguimos carregar as empresas." (retry)="companies.reload()" />
+  } @else if (filteredEmpty()) {
+    <!-- Filtro que zera não é conta vazia: oferecer "cadastrar" aqui manda o escritório
+         criar uma empresa duplicada. E a busca só filtra a página carregada. -->
+    <app-empty-state
+      title="Nenhuma empresa nesta busca"
+      description="A busca vale só para as empresas desta página. Limpe os filtros para ver a carteira inteira."
+      icon="lucideBuilding2"
+    >
+      <button hlmBtn variant="outline" type="button" (click)="clearFilters()">
+        Limpar filtros
+      </button>
+    </app-empty-state>
+  } @else if (!visible().length) {
+    <app-empty-state
+      title="Nenhuma empresa cadastrada"
+      description="Cadastre a primeira empresa ou importe sua carteira inteira de uma planilha."
+      icon="lucideBuilding2"
+    >
+      <a hlmBtn routerLink="/empresas/nova">Cadastrar empresa</a>
+      <a hlmBtn variant="outline" routerLink="/empresas/importar">Importar planilha</a>
+    </app-empty-state>
+  } @else {
+    <div hlmTableContainer class="overflow-x-auto">
+      <table hlmTable class="w-full">
+        <caption class="sr-only">
+          Empresas cadastradas, com CNPJ, template de checklist e situação
+        </caption>
+        <thead hlmTHead>
+          <tr hlmTr>
+            <th hlmTh scope="col">Empresa</th>
+            <th hlmTh scope="col">CNPJ</th>
+            <th hlmTh scope="col">Responsável</th>
+            <th hlmTh scope="col">Template de checklist</th>
+            <th hlmTh scope="col">Situação</th>
+            <th hlmTh scope="col"><span class="sr-only">Ações</span></th>
+          </tr>
+        </thead>
+        <tbody hlmTBody>
+          @for (company of visible(); track company.id) {
+            <tr hlmTr>
+              <th hlmTd scope="row" class="font-medium">{{ company.name }}</th>
+              <td hlmTd class="tabular-nums">{{ maskedCnpj(company.cnpj) }}</td>
+              <td hlmTd>
+                @if (!company.contactCount) {
+                  <span
+                    class="inline-flex items-center gap-1 rounded-full border border-red-200 bg-red-50 px-2 py-0.5 text-[11px] font-semibold text-red-700"
+                  >
+                    <ng-icon name="lucideMailX" class="text-[12px]" aria-hidden="true" />
+                    Sem Responsável
+                  </span>
+                } @else if (!company.readyContactCount) {
+                  <!-- Neutro de propósito: conta é opcional e não bloqueia a competência -->
+                  <span
+                    class="text-muted-foreground border-border inline-flex items-center gap-1 rounded-full border px-2 py-0.5 text-[11px] font-semibold"
+                    title="O Responsável envia pelo link, sem conta. A conta é opcional."
+                  >
+                    <ng-icon name="lucideMail" class="text-[12px]" aria-hidden="true" />
+                    Envia por link
+                  </span>
+                } @else {
+                  <span
+                    class="inline-flex items-center gap-1 rounded-full border border-emerald-200 bg-emerald-50 px-2 py-0.5 text-[11px] font-semibold text-emerald-700"
+                  >
+                    <ng-icon name="lucideCircleCheck" class="text-[12px]" aria-hidden="true" />
+                    Usa o app
+                  </span>
+                }
+              </td>
+              <td hlmTd>{{ company.templateName }}</td>
+              <td hlmTd>
+                <app-status-pill [status]="company.active ? 'active' : 'inactive'" />
+              </td>
+              <td hlmTd>
+                <div class="flex flex-wrap items-center justify-end gap-1">
+                  <a
+                    hlmBtn
+                    variant="ghost"
+                    size="sm"
+                    [routerLink]="['/empresas', company.id, 'editar']"
+                  >
+                    <ng-icon name="lucidePencil" aria-hidden="true" />
+                    Editar
+                  </a>
+                  <a
+                    hlmBtn
+                    variant="ghost"
+                    size="sm"
+                    [routerLink]="['/empresas', company.id, 'checklist']"
+                  >
+                    <ng-icon name="lucideSquareCheckBig" aria-hidden="true" />
+                    Checklist
+                  </a>
+                  @if (company.contactCount && !company.readyContactCount) {
+                    <!-- Atalho para quem QUER empurrar a conta, nunca mecanismo do fluxo -->
+                    <button
+                      hlmBtn
+                      variant="ghost"
+                      size="sm"
+                      [disabled]="inviting() === company.id"
+                      (click)="inviteToApp(company)"
+                    >
+                      <ng-icon name="lucideSend" aria-hidden="true" />
+                      {{ inviting() === company.id ? 'Convidando…' : 'Convidar para o app' }}
+                    </button>
+                  }
+                  @if (company.active) {
+                    <button
+                      hlmBtn
+                      variant="ghost"
+                      size="sm"
+                      (click)="confirmDeactivate.set(company)"
+                    >
+                      Desativar
+                    </button>
+                  } @else {
+                    <button
+                      hlmBtn
+                      variant="ghost"
+                      size="sm"
+                      [disabled]="acting()"
+                      (click)="reactivate(company)"
+                    >
+                      Reativar
+                    </button>
+                  }
+                </div>
+              </td>
+            </tr>
+          }
+        </tbody>
+      </table>
+    </div>
+
+    <app-pagination [(page)]="page" [total]="companies.value().meta.total" [perPage]="perPage" />
+  }
+</section>
+
+<app-modal
+  [open]="confirmDeactivate() !== null"
+  (openChange)="$event ? null : confirmDeactivate.set(null)"
+  title="Desativar empresa?"
+  description="Empresa desativada não entra no fan-out das próximas competências."
+>
+  <p class="text-sm">
+    {{ confirmDeactivate()?.name }} deixa de ser cobrada. As solicitações já abertas continuam como
+    estão, e você pode reativá-la depois.
+  </p>
+
+  <div
+    class="border-border bg-muted/40 -mx-5 -mb-5 mt-5 flex flex-wrap justify-end gap-2 border-t p-4"
+  >
+    <button hlmBtn variant="ghost" (click)="confirmDeactivate.set(null)">Cancelar</button>
+    <button
+      hlmBtn
+      variant="destructive"
+      [disabled]="acting()"
+      (click)="deactivate(confirmDeactivate()!)"
+    >
+      Desativar
+    </button>
+  </div>
+</app-modal>

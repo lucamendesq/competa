@@ -165,24 +165,24 @@ test('PATCH altera nome e CNPJ sem tocar no resto', async () => {
 
 test('template de checklist de outra Contabilidade é recusado com 422 no cadastro e no PATCH', async () => {
   const session = await createAccountantSession(app);
-  const outra = await createFirm('Contabilidade Vizinha');
-  const [alheio] = await db
+  const other = await createFirm('Contabilidade Vizinha');
+  const [foreign] = await db
     .insert(checklistTemplate)
-    .values({ accountingFirmId: outra.id, name: 'Template da Vizinha' })
+    .values({ accountingFirmId: other.id, name: 'Template da Vizinha' })
     .returning();
   const created = await createCompany(app, session.cookie);
 
   const create = await http(app)
     .post('/companies')
     .set('cookie', session.cookie)
-    .send({ name: 'Roubada', checklistTemplateId: alheio.id })
+    .send({ name: 'Roubada', checklistTemplateId: foreign.id })
     .expect(422);
-  expect(create.body.error.message).toMatch(/outra Contabilidade/);
+  expect(create.body.error.message).toMatch(/other Contabilidade/);
 
   await http(app)
     .patch(`/companies/${created.id}`)
     .set('cookie', session.cookie)
-    .send({ checklistTemplateId: alheio.id })
+    .send({ checklistTemplateId: foreign.id })
     .expect(422);
 });
 
@@ -195,12 +195,12 @@ test('DELETE desativa a Empresa: ela continua existindo e sai só da listagem de
   const [row] = await db.select().from(company).where(eq(company.id, created.id));
   expect(row.active).toBe(false);
 
-  const ativas = await http(app)
+  const active = await http(app)
     .get('/companies?active=true')
     .set('cookie', session.cookie)
     .expect(200);
-  expect(ativas.body.data).toEqual([]);
-  expect(ativas.body.meta.total).toBe(0);
+  expect(active.body.data).toEqual([]);
+  expect(active.body.meta.total).toBe(0);
 
   const inativas = await http(app)
     .get('/companies?active=false')
@@ -224,15 +224,15 @@ test('Empresa desativada continua legível pelo id — desativar não é apagar'
 
 test('Empresa inexistente responde 404 em leitura, edição e desativação', async () => {
   const session = await createAccountantSession(app);
-  const fantasma = '01a06884-0000-7000-8000-000000000000';
+  const ghost = '01a06884-0000-7000-8000-000000000000';
 
-  await http(app).get(`/companies/${fantasma}`).set('cookie', session.cookie).expect(404);
+  await http(app).get(`/companies/${ghost}`).set('cookie', session.cookie).expect(404);
   await http(app)
-    .patch(`/companies/${fantasma}`)
+    .patch(`/companies/${ghost}`)
     .set('cookie', session.cookie)
     .send({ name: 'X' })
     .expect(404);
-  await http(app).delete(`/companies/${fantasma}`).set('cookie', session.cookie).expect(404);
+  await http(app).delete(`/companies/${ghost}`).set('cookie', session.cookie).expect(404);
 });
 
 test('paginação devolve a página pedida e o total de todas as Empresas do escopo', async () => {
@@ -241,19 +241,19 @@ test('paginação devolve a página pedida e o total de todas as Empresas do esc
     await insertCompany(session.firm.id, { name });
   }
 
-  const primeira = await http(app)
+  const first = await http(app)
     .get('/companies?page=1&perPage=2')
     .set('cookie', session.cookie)
     .expect(200);
-  expect(primeira.body.data.map((r: { name: string }) => r.name)).toEqual(['Alfa', 'Beta']);
-  expect(primeira.body.meta).toEqual({ page: 1, perPage: 2, total: 3 });
+  expect(first.body.data.map((r: { name: string }) => r.name)).toEqual(['Alfa', 'Beta']);
+  expect(first.body.meta).toEqual({ page: 1, perPage: 2, total: 3 });
 
-  const segunda = await http(app)
+  const second = await http(app)
     .get('/companies?page=2&perPage=2')
     .set('cookie', session.cookie)
     .expect(200);
-  expect(segunda.body.data.map((r: { name: string }) => r.name)).toEqual(['Gama']);
-  expect(segunda.body.meta.total).toBe(3);
+  expect(second.body.data.map((r: { name: string }) => r.name)).toEqual(['Gama']);
+  expect(second.body.meta.total).toBe(3);
 });
 
 test('listagem traz o nome do template e a contagem de Responsáveis de cada Empresa', async () => {

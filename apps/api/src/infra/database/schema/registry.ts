@@ -7,6 +7,7 @@ import {
   text,
   timestamp,
   unique,
+  uniqueIndex,
   uuid,
   type AnyPgColumn,
 } from 'drizzle-orm/pg-core';
@@ -32,17 +33,28 @@ export const accountingFirm = pgTable('accounting_firm', {
   ...timestamps,
 });
 
-export const accountant = pgTable('accountant', {
-  id: id(),
-  accountingFirmId: uuid('accounting_firm_id')
-    .notNull()
-    .references(() => accountingFirm.id, { onDelete: 'cascade' }),
-  authUserId: uuid('auth_user_id')
-    .notNull()
-    .unique()
-    .references(() => user.id, { onDelete: 'cascade' }),
-  ...timestamps,
-});
+export const accountant = pgTable(
+  'accountant',
+  {
+    id: id(),
+    accountingFirmId: uuid('accounting_firm_id')
+      .notNull()
+      .references(() => accountingFirm.id, { onDelete: 'cascade' }),
+    authUserId: uuid('auth_user_id')
+      .notNull()
+      .unique()
+      .references(() => user.id, { onDelete: 'cascade' }),
+    owner: boolean().notNull().default(false),
+    ...timestamps,
+  },
+  (t) => [
+    // uma Contabilidade tem no máximo um dono: quem arbitra é o banco, não a aplicação —
+    // dois signups simultâneos no mesmo convite inicial passariam por uma checagem em JS
+    uniqueIndex('accountant_owner_uidx')
+      .on(t.accountingFirmId)
+      .where(sql`${t.owner}`),
+  ],
+);
 
 export const documentType = pgTable(
   'document_type',

@@ -95,13 +95,13 @@ test('revisar o mesmo Extra duas vezes responde 409', async () => {
     .send({ decision: 'accepted' })
     .expect(201);
 
-  const segunda = await http(app)
+  const second = await http(app)
     .post(`/documents/${extra}/review-extra`)
     .set('cookie', cookie)
     .send({ decision: 'rejected', rejectionReason: 'Mudei de ideia' })
     .expect(409);
 
-  expect(segunda.body.error.message).toMatch(/já está aceito/i);
+  expect(second.body.error.message).toMatch(/já está accepted/i);
 });
 
 test('Documento de Item pela rota de Extra responde 409', async () => {
@@ -123,15 +123,15 @@ test('Documento de Item pela rota de Extra responde 409', async () => {
 
 test('Extra em awaiting_upload não é revisável: 409', async () => {
   const { cookie, token } = await setupReview(app);
-  const fantasma = await presignOnly(app, token, { fileName: 'nunca-subiu.pdf' });
+  const ghost = await presignOnly(app, token, { fileName: 'nunca-subiu.pdf' });
 
   const response = await http(app)
-    .post(`/documents/${fantasma}/review-extra`)
+    .post(`/documents/${ghost}/review-extra`)
     .set('cookie', cookie)
     .send({ decision: 'accepted' })
     .expect(409);
 
-  expect(response.body.error.message).toMatch(/ainda não foi enviado/i);
+  expect(response.body.error.message).toMatch(/ainda não foi sent/i);
 });
 
 test('Extra revisado não muda nenhum Item nem entra na conta de complete', async () => {
@@ -141,7 +141,7 @@ test('Extra revisado não muda nenhum Item nem entra na conta de complete', asyn
   const { last } = await acceptEveryItem(app, cookie, requestId, token);
   expect(last.requestStatus).toBe('complete');
 
-  const antes = await itemsOf(app, cookie, requestId);
+  const before = await itemsOf(app, cookie, requestId);
 
   await http(app)
     .post(`/documents/${extra}/review-extra`)
@@ -152,9 +152,9 @@ test('Extra revisado não muda nenhum Item nem entra na conta de complete', asyn
   const [row] = await db.select().from(request).where(eq(request.id, requestId));
   expect(row.status).toBe('complete');
 
-  const depois = await itemsOf(app, cookie, requestId);
-  expect(depois.map((item) => item.status)).toEqual(antes.map((item) => item.status));
+  const after = await itemsOf(app, cookie, requestId);
+  expect(after.map((item) => item.status)).toEqual(before.map((item) => item.status));
 
-  const itens = await db.select().from(requestItem).where(eq(requestItem.requestId, requestId));
-  expect(itens.every((item) => item.status === 'accepted')).toBe(true);
+  const items = await db.select().from(requestItem).where(eq(requestItem.requestId, requestId));
+  expect(items.every((item) => item.status === 'accepted')).toBe(true);
 });

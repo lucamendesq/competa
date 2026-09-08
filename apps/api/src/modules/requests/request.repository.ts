@@ -16,6 +16,7 @@ import {
 } from '../../infra/database/schema/index.js';
 import { createToken } from '../../lib/token.js';
 import type { FirmScope } from '../auth/scope.js';
+import { NotFound } from '../../lib/app-error.js';
 import { InvalidTransition } from './errors.js';
 import {
   acceptItemRefusal,
@@ -29,7 +30,6 @@ import {
   type ReviewStatus,
 } from './review-rules.js';
 
-/** A transação do Drizzle, do jeito que `db.transaction()` a entrega. */
 type Tx = Parameters<Parameters<Database['transaction']>[0]>[0];
 
 @Injectable()
@@ -71,8 +71,6 @@ export class RequestRepository {
       .where(eq(requestItem.requestId, requestId))
       .orderBy(requestItem.name);
 
-    /** Painel do Contador (autenticado): aqui os Documentos aparecem. A proibição de
-     *  listar documentos vale para as rotas do `UploadTokenGuard`, outro fluxo. */
     const documents = await this.db
       .select({
         id: document.id,
@@ -100,9 +98,6 @@ export class RequestRepository {
     };
   }
 
-  /** Revisão em lote: aceitar o Item aceita todos os seus Documentos numa tacada
-   *  (invariante do domínio). Documento já rejeitado permanece rejeitado — é histórico da
-   *  revisão anterior, e `rejected → accepted` não é transição prevista. */
   async acceptItem(scope: FirmScope, requestItemId: string) {
     const context = await this.itemContext(scope, requestItemId);
     if (!context) return undefined;
@@ -237,8 +232,224 @@ export class RequestRepository {
     };
   }
 
-  /** Encerrar é ato exclusivo do Contador e vale mesmo com pendências — o controller
-   *  devolve quantos itens ficaram para trás como aviso. */
+  /** Revisão em lote: aceites e rejeições de uma tela inteira em UMA transação, com UM
+   *  Link rotacionado no fim. O Contador que rejeita cinco documentos mandava cinco
+   *  emails; agora sai um evento só (`ReviewPublished`).
+   *
+   *  Tudo ou nada de propósito: o Contador marcou as decisões antes de publicar, então
+   *  uma decisão inválida no meio (item já aceito por outra aba, solicitação encerrada
+   *  enquanto ele revisava) recusa o lote inteiro em vez de aplicar metade e deixá-lo
+   *  adivinhando o que passou. As regras são as mesmas das rotas unitárias — este método
+   *  não reimplementa transição nenhuma, só as aplica em bloco. */
+  async applyReview(
+    scope: FirmScope,
+    requestId: string,
+    input: {
+      acceptItemIds: string[];
+      rejectDocuments: { documentId: string; rejectionReason: string }[];
+      reviewExtras: { documentId: string; decision: ReviewStatus; rejectionReason?: string }[];
+    },
+  ) {
+    const [head] = await this.db
+      .select({
+        requestId: request.id,
+        requestStatus: request.status,
+        companyName: company.name,
+        uploadLinkId: uploadLink.id,
+        contactName: contact.name,
+        contactEmail: contact.email,
+      })
+      .from(request)
+      .innerJoin(period, eq(period.id, request.periodId))
+      .innerJoin(company, eq(company.id, request.companyId))
+      .leftJoin(uploadLink, eq(uploadLink.requestId, request.id))
+      .leftJoin(contact, eq(contact.id, uploadLink.contactId))
+      .where(and(eq(request.id, requestId), eq(period.accountingFirmId, scope)))
+      .limit(1);
+
+    if (!head) return undefined;
+
+    const requestStatus = head.requestStatus as RequestStatus;
+    const documentIds = [
+      ...input.rejectDocuments.map((row) => row.documentId),
+      ...input.reviewExtras.map((row) => row.documentId),
+    ];
+
+    const items = input.acceptItemIds.length
+      ? await this.db
+          .select({ id: requestItem.id, name: requestItem.name, status: requestItem.status })
+          .from(requestItem)
+          .where(
+            and(eq(requestItem.requestId, requestId), inArray(requestItem.id, input.acceptItemIds)),
+          )
+      : [];
+
+    const documents = documentIds.length
+      ? await this.db
+          .select({
+            id: document.id,
+            requestItemId: document.requestItemId,
+            fileName: document.fileName,
+            reviewStatus: document.reviewStatus,
+            uploadStatus: document.uploadStatus,
+            itemName: requestItem.name,
+          })
+          .from(document)
+          .leftJoin(requestItem, eq(requestItem.id, document.requestItemId))
+          .where(and(eq(document.requestId, requestId), inArray(document.id, documentIds)))
+      : [];
+
+    const itemById = new Map(items.map((row) => [row.id, row]));
+    const documentById = new Map(documents.map((row) => [row.id, row]));
+
+    // Id que não pertence a esta Solicitação é 404, não conflito: pode ser documento de
+    // outra empresa, e o painel não deveria ter oferecido a decisão.
+    for (const itemId of input.acceptItemIds) {
+      if (!itemById.has(itemId)) throw new NotFound('Item não encontrado nesta solicitação.');
+    }
+    for (const documentId of documentIds) {
+      if (!documentById.has(documentId)) {
+        throw new NotFound('Documento não encontrado nesta solicitação.');
+      }
+    }
+
+    const refuse = (reason: string | null) => {
+      if (reason) throw new InvalidTransition(reason);
+    };
+
+    for (const item of items) {
+      refuse(acceptItemRefusal({ requestStatus, itemStatus: item.status as ItemStatus }));
+    }
+
+    for (const row of input.rejectDocuments) {
+      const found = documentById.get(row.documentId)!;
+
+      refuse(
+        rejectDocumentRefusal({
+          requestStatus,
+          reviewStatus: found.reviewStatus as ReviewStatus,
+          requestItemId: found.requestItemId,
+        }),
+      );
+
+      // mesma guarda das rotas unitárias: linha de presign sem arquivo no storage não é
+      // documento para revisar — rejeitá-la mandaria recusa de um envio que nunca chegou.
+      if (found.uploadStatus !== 'uploaded') {
+        throw new InvalidTransition('Este documento ainda não foi enviado ao storage.');
+      }
+    }
+
+    for (const row of input.reviewExtras) {
+      const found = documentById.get(row.documentId)!;
+
+      if (found.requestItemId) {
+        throw new InvalidTransition('Este documento pertence a um Item: revise-o pelo Item.');
+      }
+
+      refuse(
+        reviewExtraRefusal({
+          requestStatus,
+          reviewStatus: found.reviewStatus as ReviewStatus,
+        }),
+      );
+
+      if (found.uploadStatus !== 'uploaded') {
+        throw new InvalidTransition('Este documento ainda não foi enviado ao storage.');
+      }
+    }
+
+    // Só rejeição de Item reabre e invalida o Link. Rejeitar Extra não reabre nada, e o
+    // link que o Responsável tem continua servindo — rotacionar ali seria puni-lo.
+    const reopens = input.rejectDocuments.length > 0;
+
+    if (reopens && !head.uploadLinkId) {
+      throw new InvalidTransition(
+        'Esta solicitação não tem Link de Upload: não é possível reabrir o item.',
+      );
+    }
+
+    const rotated = reopens ? createToken() : undefined;
+
+    const applied = await this.db.transaction(async (tx) => {
+      for (const itemId of input.acceptItemIds) {
+        await tx
+          .update(document)
+          .set({ reviewStatus: 'accepted' })
+          .where(
+            and(
+              eq(document.requestItemId, itemId),
+              eq(document.reviewStatus, 'pending'),
+              eq(document.uploadStatus, 'uploaded'),
+            ),
+          );
+
+        await tx.update(requestItem).set({ status: 'accepted' }).where(eq(requestItem.id, itemId));
+      }
+
+      for (const row of input.rejectDocuments) {
+        const found = documentById.get(row.documentId)!;
+
+        await tx
+          .update(document)
+          .set({ reviewStatus: 'rejected', rejectionReason: row.rejectionReason })
+          .where(eq(document.id, row.documentId));
+
+        // limpa a marca do cron: prazo que estourar de novo neste Item volta a avisar
+        await tx
+          .update(requestItem)
+          .set({ status: 'pending', deadlineNotifiedAt: null })
+          .where(eq(requestItem.id, found.requestItemId!));
+      }
+
+      for (const row of input.reviewExtras) {
+        await tx
+          .update(document)
+          .set({
+            reviewStatus: row.decision,
+            rejectionReason: row.decision === 'rejected' ? (row.rejectionReason ?? null) : null,
+          })
+          .where(eq(document.id, row.documentId));
+      }
+
+      if (rotated) {
+        await tx
+          .update(uploadLink)
+          .set({
+            tokenHash: rotated.tokenHash,
+            expiresAt: addDays(new Date(), env.UPLOAD_LINK_TTL_DAYS),
+          })
+          .where(eq(uploadLink.id, head.uploadLinkId!));
+      }
+
+      return this.syncRequestStatus(tx, requestId);
+    });
+
+    return {
+      requestId,
+      requestStatus: applied,
+      completed: applied === 'complete' && requestStatus !== 'complete',
+      companyName: head.companyName,
+      contactName: head.contactName ?? '',
+      contactEmail: head.contactEmail ?? '',
+      acceptedItemNames: input.acceptItemIds.map((itemId) => itemById.get(itemId)!.name),
+      rejected: [
+        ...input.rejectDocuments.map((row) => ({
+          itemName: documentById.get(row.documentId)!.itemName,
+          fileName: documentById.get(row.documentId)!.fileName,
+          rejectionReason: row.rejectionReason,
+        })),
+        ...input.reviewExtras
+          .filter((row) => row.decision === 'rejected')
+          .map((row) => ({
+            itemName: null,
+            fileName: documentById.get(row.documentId)!.fileName,
+            rejectionReason: row.rejectionReason!,
+          })),
+      ],
+      token: rotated?.token,
+    };
+  }
+
   async closeRequest(scope: FirmScope, requestId: string) {
     const [row] = await this.db
       .select({ id: request.id, status: request.status })
@@ -301,14 +512,16 @@ export class RequestRepository {
 
     return rows.filter((row) =>
       missedDeadline(
-        { status: row.status as ItemStatus, dueDate: row.dueDate, periodDueDate: row.periodDueDate },
+        {
+          status: row.status as ItemStatus,
+          dueDate: row.dueDate,
+          periodDueDate: row.periodDueDate,
+        },
         today,
       ),
     );
   }
 
-  /** Emails dos Contadores das Contabilidades donas (join `accountant` → `user`), para o
-   *  `DeadlineMissed` avisar os dois lados. */
   async accountantEmails(accountingFirmIds: string[]) {
     if (!accountingFirmIds.length) return new Map<string, string[]>();
 
@@ -339,12 +552,20 @@ export class RequestRepository {
     return Boolean(row);
   }
 
-  async rotateUploadToken(requestId: string) {
+  /** `contactId` reaponta o Link para quem pediu. Sem isso, o segundo Responsável de uma
+   *  Empresa que usa o "perdi meu link" recebe um Link que continua sendo do primeiro, e
+   *  tudo que ele enviar entra no histórico com a autoria do outro
+   *  (`document.uploaded_by_contact_id` vem do `upload_link`). */
+  async rotateUploadToken(requestId: string, contactId?: string) {
     const { token, tokenHash } = createToken();
 
     const [row] = await this.db
       .update(uploadLink)
-      .set({ tokenHash, expiresAt: addDays(new Date(), env.UPLOAD_LINK_TTL_DAYS) })
+      .set({
+        tokenHash,
+        expiresAt: addDays(new Date(), env.UPLOAD_LINK_TTL_DAYS),
+        ...(contactId ? { contactId } : {}),
+      })
       .where(eq(uploadLink.requestId, requestId))
       .returning({ id: uploadLink.id });
 
@@ -408,7 +629,6 @@ export class RequestRepository {
     return next;
   }
 
-  /** Marca os Itens já avisados: idempotência do cron de prazo sobrevive a restart. */
   async markDeadlineNotified(requestItemIds: string[]) {
     if (requestItemIds.length === 0) return;
 
@@ -418,8 +638,6 @@ export class RequestRepository {
       .where(inArray(requestItem.id, requestItemIds));
   }
 
-  /** Documentos de UMA Solicitação para o zip (TASK-033). Escopo por join até `period` da
-   *  Contabilidade — Solicitação de outro tenant não existe para esta consulta. */
   async documentsForRequestZip(scope: FirmScope, requestId: string) {
     const [head] = await this.db
       .select({
@@ -452,7 +670,31 @@ export class RequestRepository {
     return { ...head, documents };
   }
 
-  /** Documentos de TODA a Competência (TASK-034), separados por Empresa no zip. */
+  /** Um documento para leitura no painel (preview/baixar avulso). Mesmo join de escopo do
+   *  zip: documento de outra Contabilidade não é alcançado e a rota responde 404.
+   *  `awaiting_upload` fica de fora — a linha existe, o objeto no storage não. */
+  async documentForRead(scope: FirmScope, documentId: string) {
+    const [row] = await this.db
+      .select({
+        storageKey: document.storageKey,
+        fileName: document.fileName,
+        contentType: document.contentType,
+      })
+      .from(document)
+      .innerJoin(request, eq(request.id, document.requestId))
+      .innerJoin(period, eq(period.id, request.periodId))
+      .where(
+        and(
+          eq(document.id, documentId),
+          eq(period.accountingFirmId, scope),
+          eq(document.uploadStatus, 'uploaded'),
+        ),
+      )
+      .limit(1);
+
+    return row;
+  }
+
   async documentsForPeriodZip(scope: FirmScope, periodId: string) {
     const [head] = await this.db
       .select({ referenceMonth: period.referenceMonth })
@@ -543,10 +785,6 @@ export class RequestRepository {
     return updated;
   }
 
-  /** #9 — desfazer o aceite de um Item (correção do Contador). Volta para `submitted` se
-   *  ainda há documento enviado, senão `pending`; os Documentos aceitos voltam a `pending`
-   *  (desfazer não é recusar) e a Solicitação deixa de estar `complete`. Não dispara email:
-   *  é correção interna, e o lembrete/varredura de prazo cobrem o resto. */
   async undoAcceptItem(scope: FirmScope, requestItemId: string) {
     const context = await this.itemContext(scope, requestItemId);
     if (!context) return undefined;

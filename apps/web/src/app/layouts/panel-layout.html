@@ -1,0 +1,119 @@
+<div class="bg-background min-h-dvh lg:flex">
+  <a
+    href="#conteudo"
+    class="bg-primary text-primary-foreground sr-only focus:not-sr-only focus:fixed focus:top-2 focus:left-2 focus:z-100 focus:rounded-lg focus:px-3 focus:py-2 focus:text-sm"
+  >
+    Pular para o conteúdo
+  </a>
+
+  <div
+    class="bg-sidebar text-sidebar-foreground sticky top-0 z-40 flex h-14 items-center gap-3 px-4 lg:hidden"
+  >
+    <button
+      type="button"
+      class="focus-visible:ring-sidebar-ring inline-flex size-9 items-center justify-center rounded-lg focus-visible:ring-2 focus-visible:outline-none"
+      [attr.aria-expanded]="menuOpen()"
+      aria-controls="menu-lateral"
+      (click)="menuOpen.set(!menuOpen())"
+    >
+      <span class="sr-only">{{ menuOpen() ? 'Fechar menu' : 'Abrir menu' }}</span>
+      <ng-icon [name]="menuOpen() ? 'lucideX' : 'lucideMenu'" class="text-lg" aria-hidden="true" />
+    </button>
+    <p class="truncate text-sm font-semibold">{{ firmName() }}</p>
+  </div>
+
+  @if (menuOpen()) {
+    <button
+      type="button"
+      class="fixed inset-0 z-40 bg-slate-900/40 lg:hidden"
+      aria-label="Fechar menu"
+      (click)="menuOpen.set(false)"
+    ></button>
+  }
+
+  <nav
+    id="menu-lateral"
+    class="bg-sidebar text-sidebar-foreground fixed inset-y-0 left-0 z-50 flex w-65 flex-col transition-transform lg:sticky lg:top-0 lg:h-dvh lg:translate-x-0"
+    [class.-translate-x-full]="!menuOpen()"
+    aria-label="Navegação principal"
+  >
+    <div class="border-sidebar-border flex h-14 items-center gap-2 border-b px-4 lg:h-16">
+      <img
+        ngSrc="icons/competa-mark-32.png"
+        width="32"
+        height="32"
+        alt="Competa"
+        class="size-8 shrink-0 rounded-lg bg-white p-0.5"
+        priority
+      />
+      <p class="truncate text-sm font-semibold">{{ firmName() || 'Contabilidade' }}</p>
+    </div>
+
+    <ul class="flex flex-1 flex-col gap-1 overflow-y-auto p-3">
+      @for (item of nav; track item.path) {
+        <li>
+          <a
+            [routerLink]="item.path"
+            routerLinkActive="bg-sidebar-accent text-sidebar-accent-foreground font-semibold"
+            class="hover:bg-sidebar-accent/70 focus-visible:ring-sidebar-ring flex h-10 items-center gap-3 rounded-lg px-3 text-sm focus-visible:ring-2 focus-visible:outline-none"
+            (click)="menuOpen.set(false)"
+          >
+            <ng-icon [name]="item.icon" class="text-base" aria-hidden="true" />
+            {{ item.label }}
+          </a>
+        </li>
+      }
+    </ul>
+
+    <div class="border-sidebar-border relative border-t p-3">
+      <button
+        type="button"
+        class="hover:bg-sidebar-accent/70 focus-visible:ring-sidebar-ring flex w-full items-center gap-3 rounded-lg p-2 text-left focus-visible:ring-2 focus-visible:outline-none"
+        [attr.aria-expanded]="profileOpen()"
+        (click)="profileOpen.set(!profileOpen())"
+      >
+        <span
+          class="bg-sidebar-accent flex size-8 shrink-0 items-center justify-center rounded-full text-xs font-semibold"
+          aria-hidden="true"
+        >
+          {{ initials() }}
+        </span>
+        <span class="min-w-0 flex-1">
+          <span class="block truncate text-sm font-medium">{{ accountantName() }}</span>
+          <span class="block truncate text-xs opacity-70">{{ accountantEmail() }}</span>
+        </span>
+        <ng-icon name="lucideChevronDown" class="text-sm" aria-hidden="true" />
+      </button>
+
+      @if (profileOpen()) {
+        <div
+          class="bg-popover text-popover-foreground border-border absolute bottom-16 left-3 right-3 rounded-xl border p-1 shadow-lg"
+        >
+          @if (isOwner()) {
+            <a
+              routerLink="/configuracoes/contadores"
+              class="hover:bg-muted flex h-9 items-center rounded-lg px-3 text-sm"
+              (click)="profileOpen.set(false); menuOpen.set(false)"
+            >
+              Convidar contador
+            </a>
+          }
+          <button
+            type="button"
+            class="hover:bg-muted flex h-9 w-full items-center gap-2 rounded-lg px-3 text-left text-sm"
+            (click)="sair()"
+          >
+            <ng-icon name="lucideLogOut" class="text-sm" aria-hidden="true" />
+            Sair
+          </button>
+        </div>
+      }
+    </div>
+  </nav>
+
+  <main id="conteudo" class="min-w-0 flex-1">
+    <div class="painel-conteudo mx-auto flex max-w-[1600px] flex-col gap-6 p-4 sm:p-6">
+      <router-outlet />
+    </div>
+  </main>
+</div>

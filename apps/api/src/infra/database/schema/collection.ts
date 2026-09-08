@@ -14,7 +14,6 @@ import { sql, type SQL } from 'drizzle-orm';
 import { id, timestamps } from './columns.js';
 import { accountingFirm, company, contact, documentType } from './registry.js';
 
-/** Estados como `text` + check (nunca enum nativo). */
 const oneOf = (column: SQL, values: readonly string[]) =>
   sql`${column} in (${sql.join(
     values.map((value) => sql`${value}`),
@@ -29,7 +28,6 @@ export const DOCUMENT_REVIEW_STATUS = ['pending', 'accepted', 'rejected'] as con
  *  Sem isso, presign sem PUT deixa documento fantasma contando como enviado. */
 export const DOCUMENT_UPLOAD_STATUS = ['awaiting_upload', 'uploaded'] as const;
 
-/** Competência — abre uma vez por Contabilidade. */
 export const period = pgTable(
   'period',
   {
@@ -37,10 +35,8 @@ export const period = pgTable(
     accountingFirmId: uuid('accounting_firm_id')
       .notNull()
       .references(() => accountingFirm.id),
-    /** sempre dia 1: 2026-07-01 = competência 2026-07 */
     referenceMonth: date('reference_month').notNull(),
     status: text().notNull().default('open'),
-    /** prazo geral opcional (fallback dos itens) */
     dueDate: date('due_date'),
     ...timestamps,
   },
@@ -50,7 +46,6 @@ export const period = pgTable(
   ],
 );
 
-/** Solicitação — UMA Empresa em UMA Competência. */
 export const request = pgTable(
   'request',
   {
@@ -71,7 +66,6 @@ export const request = pgTable(
   ],
 );
 
-/** Item — SNAPSHOT congelado na abertura: mudança no template depois não afeta. */
 export const requestItem = pgTable(
   'request_item',
   {
@@ -79,7 +73,6 @@ export const requestItem = pgTable(
     requestId: uuid('request_id')
       .notNull()
       .references(() => request.id, { onDelete: 'cascade' }),
-    /** só p/ relatórios; os campos abaixo são cópia */
     documentTypeId: uuid('document_type_id').references(() => documentType.id),
     name: text().notNull(),
     description: text(),
@@ -95,12 +88,10 @@ export const requestItem = pgTable(
   },
   (t) => [
     check('request_item_status_chk', oneOf(sql`${t.status}`, REQUEST_ITEM_STATUS)),
-    // Painel de Pendências
     index('request_item_pending_idx').on(t.requestId, t.status),
   ],
 );
 
-/** Arquivo enviado (1 Item : N Documentos). `request_item_id` NULL = Documento Extra. */
 export const document = pgTable(
   'document',
   {
@@ -109,7 +100,6 @@ export const document = pgTable(
       .notNull()
       .references(() => request.id),
     requestItemId: uuid('request_item_id').references(() => requestItem.id),
-    /** caminho no R2 */
     storageKey: text('storage_key').notNull(),
     fileName: text('file_name').notNull(),
     contentType: text('content_type').notNull(),
@@ -117,7 +107,6 @@ export const document = pgTable(
     /** só é preenchido na confirmação: antes disso o arquivo não existe no storage */
     uploadedAt: timestamp('uploaded_at', { withTimezone: true }),
     uploadStatus: text('upload_status').notNull().default('awaiting_upload'),
-    /** quem enviou — via Link vem do `upload_link`, logado vem da sessão (Fase 10) */
     uploadedByContactId: uuid('uploaded_by_contact_id').references(() => contact.id, {
       onDelete: 'set null',
     }),

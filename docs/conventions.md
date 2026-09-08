@@ -10,7 +10,8 @@ TypeScript · **pnpm workspaces** · **Angular (SPA, CSR — sem SSR)** · **Tai
 
 - **Identificadores em inglês** (código, banco, eventos); **PT-BR em docs, UI e dados exibidos**. O glossário PT↔EN em [`domain.md`](./domain.md#glossário-linguagem-ubíqua-pten) é **normativo** — só se usa o termo EN registrado (Solicitação → `request`, nunca `solicitation`).
 - Proibidos em código: `client`, `user`, `month` soltos → `company`/`accounting_firm`, `accountant`/`contact`, `period`/`reference_month`. (Exceção: tabela `user` do Better Auth.)
-- camelCase para variáveis/funções; PascalCase para tipos/componentes; kebab-case para arquivos, rotas e selectors Angular (`app-pending-panel`).
+- camelCase para variáveis/funções; PascalCase para tipos/componentes; kebab-case para arquivos e selectors Angular (`app-pending-panel`).
+- **A regra vale para pasta e nome de arquivo do `apps/web` também**: `features/companies/companies-list-page.ts`, nunca `features/empresas/`. O que fica em PT-BR é o **path da URL** (`/empresas`, `/competencias`, `/envio/:token`) e todo o texto de tela — é o que o usuário lê.
 - Tabelas snake_case **singular** (`request_item`); estados como `text` + `check` constraint; eventos PascalCase verbo no passado (`DocumentRejected`).
 
 ## Frontend (Angular)
@@ -47,7 +48,7 @@ Diretivas (`eslint-disable-next-line`, `@ts-expect-error`) não são comentário
 ## Banco de dados
 
 - **[`database-schema.md`](./database-schema.md) é canônico** — o schema Drizzle (`apps/api/src/infra/database/schema/`) deve espelhá-lo; divergência exige atualizar o doc na mesma PR.
-- **Todo repositório exige `FirmScope`, `UploadScope` ou `ContactScope` como parâmetro** — tipos branded criados SÓ pelo `TenantGuard`/`UploadTokenGuard` em `modules/auth/`. Uma regra de lint (`no-restricted-imports`/`no-restricted-syntax` em `eslint.config.mjs`) audita que `Database` só é importado por repositório/guard/script e que os construtores de escopo só são importados dentro de `modules/auth/`; contornar o tipo é **bug de segurança**, não de estilo.
+- **Todo repositório exige `FirmScope`, `UploadScope` ou `ContactScope` como parâmetro** — tipos branded criados SÓ pelo `TenantGuard`/`UploadTokenGuard` em `modules/auth/`. Uma regra de lint (`no-restricted-imports`/`no-restricted-syntax` em `eslint.config.mjs`) audita que `Database` só é importado por repositório/guard/script, que os três construtores (`toFirmScope`/`toUploadScope`/`toContactScope`) só são importados dentro de `modules/auth/` e que nenhum dos três tipos é forjado com `as`; contornar o tipo é **bug de segurança**, não de estilo.
 - PK `uuid` gerado na aplicação (uuidv7, não `gen_random_uuid()` do Postgres); FKs com sufixo `_id`; estados como `text` + `check` (nunca enum nativo do Postgres); timestamps `timestamptz`, `created_at` default `now()` em toda tabela.
 
 ## API

@@ -1,5 +1,5 @@
 import { Injectable } from '@nestjs/common';
-import { and, count, eq, isNull, or, sql } from 'drizzle-orm';
+import { and, count, eq, inArray, isNotNull, isNull, or, sql } from 'drizzle-orm';
 import {
   COMPANY_FLAGS,
   type CompanyFlags,
@@ -82,6 +82,12 @@ export class CompanyRepository {
           checklistTemplateId: company.checklistTemplateId,
           templateName: checklistTemplate.name,
           contactCount: this.db.$count(contact, eq(contact.companyId, company.id)),
+          /** Responsáveis que ativaram a conta. Não é pré-requisito de nada (D14) — é o
+           *  que a lista usa para oferecer "Convidar para o app" a quem ainda não usa. */
+          readyContactCount: this.db.$count(
+            contact,
+            and(eq(contact.companyId, company.id), isNotNull(contact.authUserId)),
+          ),
         })
         .from(company)
         .innerJoin(checklistTemplate, eq(checklistTemplate.id, company.checklistTemplateId))
@@ -92,7 +98,32 @@ export class CompanyRepository {
       this.db.select({ value: count() }).from(company).where(where),
     ]);
 
-    return { rows, total: total.value };
+    /** Quem recebe o email da abertura. Vai junto da lista (uma consulta a mais, não uma
+     *  por empresa) porque o passo de confirmação da abertura precisa mostrar nome e
+     *  email de cada Responsável antes de disparar N emails. */
+    const companyIds = rows.map((row) => row.id);
+    const contacts = companyIds.length
+      ? await this.db
+          .select({
+            companyId: contact.companyId,
+            id: contact.id,
+            name: contact.name,
+            email: contact.email,
+          })
+          .from(contact)
+          .where(inArray(contact.companyId, companyIds))
+          .orderBy(contact.name)
+      : [];
+
+    return {
+      rows: rows.map((row) => ({
+        ...row,
+        contacts: contacts
+          .filter((row_) => row_.companyId === row.id)
+          .map(({ id, name, email }) => ({ id, name, email })),
+      })),
+      total: total.value,
+    };
   }
 
   async findById(scope: FirmScope, companyId: string) {
@@ -142,6 +173,8 @@ export class CompanyRepository {
         name: contact.name,
         email: contact.email,
         phone: contact.phone,
+        /** `true` = ativou a conta. Conta é opcional: envia pelo Link com ou sem ela. */
+        hasAccess: isNotNull(contact.authUserId),
       })
       .from(contact)
       .innerJoin(company, eq(company.id, contact.companyId))

@@ -1,0 +1,198 @@
+<app-page-header
+  title="Importar planilha de empresas"
+  description="Cadastre a carteira inteira de uma vez, com relatório linha por linha."
+/>
+
+@if (result()) {
+  <section class="bg-card border-border rounded-xl border">
+    <div class="border-border flex flex-wrap items-center justify-between gap-3 border-b p-4">
+      <div>
+        <h2 class="text-sm font-semibold">Resultado da importação</h2>
+        <p class="text-muted-foreground mt-1 text-xs tabular-nums">
+          {{ summary().created }} importadas · {{ summary().errors }} com erro ·
+          {{ summary().total }} linhas lidas
+        </p>
+      </div>
+      <div class="flex gap-2">
+        <button hlmBtn variant="outline" (click)="restart()">Importar outra planilha</button>
+        <a hlmBtn routerLink="/empresas">Concluir</a>
+      </div>
+    </div>
+
+    @if (importedIds().length) {
+      <div class="border-border bg-muted/40 flex flex-wrap items-center gap-3 border-b p-4">
+        @if (invitesSent() === null) {
+          <p class="text-muted-foreground min-w-0 flex-1 text-xs">
+            A importação não avisa ninguém por e-mail — confira o relatório antes. Quando estiver
+            certo, envie o convite de acesso para os Responsáveis cadastrados.
+          </p>
+          <button hlmBtn [disabled]="inviting()" (click)="sendInvites()">
+            <ng-icon name="lucideMail" aria-hidden="true" />
+            {{
+              inviting() ? 'Enviando…' : 'Enviar convites de acesso (' + importedIds().length + ')'
+            }}
+          </button>
+        } @else {
+          <p class="flex min-w-0 flex-1 items-center gap-2 text-xs text-emerald-700">
+            <ng-icon name="lucideCircleCheck" class="shrink-0 text-base" aria-hidden="true" />
+            {{ invitesSent() }}
+            {{ invitesSent() === 1 ? 'convite enviado' : 'convites enviados' }}. Quem já tinha
+            convite em aberto não recebeu outro.
+          </p>
+        }
+      </div>
+    }
+
+    <div hlmTableContainer class="overflow-x-auto">
+      <table hlmTable class="w-full">
+        <caption class="sr-only">
+          Resultado por linha da planilha importada
+        </caption>
+        <thead hlmTHead>
+          <tr hlmTr>
+            <th hlmTh scope="col">Linha</th>
+            <th hlmTh scope="col">Empresa</th>
+            <th hlmTh scope="col">Resultado</th>
+            <th hlmTh scope="col">Detalhe</th>
+          </tr>
+        </thead>
+        <tbody hlmTBody>
+          @for (line of result()!.lines; track line.line) {
+            <tr hlmTr>
+              <th hlmTd scope="row" class="tabular-nums">{{ line.line }}</th>
+              <td hlmTd>{{ line.name || '—' }}</td>
+              <td hlmTd>
+                @if (line.status === 'created') {
+                  <span
+                    class="inline-flex items-center gap-1 rounded-full border border-emerald-200 bg-emerald-50 px-2 py-0.5 text-[11px] font-semibold text-emerald-700"
+                  >
+                    <ng-icon name="lucideCircleCheck" class="text-[12px]" aria-hidden="true" />
+                    Importada
+                  </span>
+                } @else {
+                  <span
+                    class="inline-flex items-center gap-1 rounded-full border border-red-200 bg-red-50 px-2 py-0.5 text-[11px] font-semibold text-red-700"
+                  >
+                    <ng-icon name="lucideCircleAlert" class="text-[12px]" aria-hidden="true" />
+                    Erro
+                  </span>
+                }
+              </td>
+              <td hlmTd class="text-muted-foreground text-xs">
+                {{ line.status === 'error' ? line.error : 'Empresa criada.' }}
+              </td>
+            </tr>
+          }
+        </tbody>
+      </table>
+    </div>
+  </section>
+} @else {
+  <div class="grid gap-6 lg:grid-cols-[minmax(0,1fr)_minmax(0,24rem)]">
+    <section class="flex flex-col gap-4">
+      @if (error()) {
+        <div
+          class="flex gap-3 rounded-lg border border-red-200 bg-red-50 p-3 text-sm text-red-900"
+          role="alert"
+        >
+          <ng-icon name="lucideCircleAlert" class="mt-0.5 shrink-0 text-base" aria-hidden="true" />
+          <p>{{ error() }}</p>
+        </div>
+      }
+
+      <div
+        class="bg-card rounded-xl border-2 border-dashed p-8 text-center"
+        [class]="dragging() ? 'border-primary bg-primary/5' : 'border-border'"
+        (dragover)="$event.preventDefault(); dragging.set(true)"
+        (dragleave)="dragging.set(false)"
+        (drop)="drop($event)"
+      >
+        <span
+          class="bg-muted text-muted-foreground mx-auto flex size-12 items-center justify-center rounded-full"
+        >
+          <ng-icon name="lucideUpload" class="text-xl" aria-hidden="true" />
+        </span>
+
+        <p class="mt-4 text-sm font-medium">Arraste sua planilha CSV aqui ou escolha o arquivo</p>
+        <p class="text-muted-foreground mt-1 text-xs">
+          Somente CSV nesta versão — exporte a planilha do Excel como CSV.
+        </p>
+
+        <label
+          class="bg-primary text-primary-foreground hover:bg-primary/80 focus-within:ring-ring mt-5 inline-flex h-9 cursor-pointer items-center rounded-md px-3 text-sm font-medium focus-within:ring-2"
+        >
+          Escolher arquivo
+          <input type="file" accept=".csv,text/csv" class="sr-only" (change)="choose($event)" />
+        </label>
+
+        @if (file()) {
+          <p class="mt-4 text-sm">
+            Arquivo selecionado: <strong>{{ file()!.name }}</strong>
+          </p>
+        }
+      </div>
+
+      <div class="flex flex-wrap items-center justify-between gap-2">
+        <button hlmBtn variant="outline" (click)="downloadTemplate()">
+          <ng-icon name="lucideDownload" aria-hidden="true" />
+          Baixar planilha modelo
+        </button>
+        <div class="flex flex-col items-end gap-1">
+          <button
+            hlmBtn
+            [disabled]="!file() || sending()"
+            aria-describedby="import-help"
+            (click)="importCsv()"
+          >
+            {{ sending() ? 'Importando…' : 'Importar empresas' }}
+          </button>
+          <!-- Botão desabilitado sem dizer por quê é adivinhação: o motivo fica ao lado. -->
+          <p id="import-help" class="text-muted-foreground text-xs">
+            @if (!file()) {
+              Escolha a planilha acima para liberar a importação.
+            } @else {
+              {{ file()!.name }} pronto para importar.
+            }
+          </p>
+        </div>
+      </div>
+    </section>
+
+    <aside class="bg-card border-border h-fit rounded-xl border">
+      <div class="border-border border-b p-4">
+        <h2 class="text-sm font-semibold">Colunas esperadas</h2>
+        <p class="text-muted-foreground mt-1 text-xs">
+          A primeira linha da planilha precisa ter estes nomes de coluna.
+        </p>
+      </div>
+
+      <ul class="divide-border divide-y">
+        @for (column of columns; track column.key) {
+          <li class="p-3">
+            <p class="font-mono text-xs font-semibold">{{ column.key }}</p>
+            <p class="text-muted-foreground mt-0.5 text-xs">
+              {{ column.label }}
+              @if (column.required) {
+                · <span class="text-foreground font-medium">obrigatória</span>
+              }
+            </p>
+          </li>
+        }
+      </ul>
+
+      <div class="border-border border-t p-4">
+        <p class="text-muted-foreground text-xs">
+          O valor de <span class="font-mono">template</span> precisa bater com o nome de um template
+          existente:
+        </p>
+        <ul class="mt-2 flex flex-wrap gap-1">
+          @for (template of templates.value() ?? []; track template.id) {
+            <li class="bg-muted rounded-full px-2 py-0.5 text-[11px] font-medium">
+              {{ template.name }}
+            </li>
+          }
+        </ul>
+      </div>
+    </aside>
+  </div>
+}

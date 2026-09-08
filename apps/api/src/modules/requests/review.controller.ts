@@ -1,12 +1,18 @@
 import { Body, Controller, Param, Post } from '@nestjs/common';
 import { EventEmitter2 } from '@nestjs/event-emitter';
-import { IdParam, RejectDocumentBody, ReviewExtraBody } from '@contabilidade/contracts';
+import {
+  IdParam,
+  RejectDocumentBody,
+  ReviewBatchBody,
+  ReviewExtraBody,
+} from '@contabilidade/contracts';
 import env from '../../config/env.js';
 import { NotFound } from '../../lib/app-error.js';
 import {
   EVENTS,
   type ItemReopenedEvent,
   type RequestCompletedEvent,
+  type ReviewPublishedEvent,
 } from '../../lib/events.js';
 import { zodPipe } from '../../lib/zod-pipe.js';
 import { CurrentScope } from '../auth/current-scope.decorator.js';
@@ -41,6 +47,55 @@ export class ReviewController {
     }
 
     return result;
+  }
+
+  /** A revisão da tela inteira publicada de uma vez. Um email só sai daqui:
+   *  `ReviewPublished` quando houve rejeição, `RequestCompleted` quando o lote fechou a
+   *  Solicitação — nunca os dois (completar exige todo item aceito). Só aceite que não
+   *  completa não manda email, igual à rota unitária. */
+  @Post('requests/:id/review')
+  async publishReview(
+    @CurrentScope() scope: FirmScope,
+    @Param(zodPipe(IdParam)) params: IdParam,
+    @Body(zodPipe(ReviewBatchBody)) body: ReviewBatchBody,
+  ) {
+    const result = await this.requests.applyReview(scope, params.id, body);
+    if (!result) throw new NotFound('Solicitação não encontrada.');
+
+    // Depois da transação: um email de recusa não pode sair por uma revisão que deu
+    // rollback (mesma ordem da rota unitária).
+    if (result.rejected.length) {
+      const published: ReviewPublishedEvent = {
+        requestId: result.requestId,
+        companyName: result.companyName,
+        contactName: result.contactName,
+        contactEmail: result.contactEmail,
+        acceptedItemNames: result.acceptedItemNames,
+        rejected: result.rejected,
+        uploadUrl: result.token ? `${env.WEB_URL}/envio/${result.token}` : null,
+      };
+
+      this.events.emit(EVENTS.ReviewPublished, published);
+    } else if (result.completed) {
+      const completed: RequestCompletedEvent = {
+        requestId: result.requestId,
+        companyName: result.companyName,
+        contactName: result.contactName,
+        contactEmail: result.contactEmail,
+      };
+
+      this.events.emit(EVENTS.RequestCompleted, completed);
+    }
+
+    return {
+      requestId: result.requestId,
+      requestStatus: result.requestStatus,
+      completed: result.completed,
+      acceptedItems: result.acceptedItemNames.length,
+      rejectedDocuments: result.rejected.length,
+      linkRotated: Boolean(result.token),
+      emailSent: result.rejected.length > 0 || result.completed,
+    };
   }
 
   @Post('documents/:id/reject')
@@ -80,8 +135,6 @@ export class ReviewController {
     };
   }
 
-  /** #8 — Documento Extra é revisado individualmente. Não mexe em Item nem em `complete`,
-   *  e rejeitar Extra não reenvia link (não há item reaberto). */
   @Post('documents/:id/review-extra')
   async reviewExtra(
     @CurrentScope() scope: FirmScope,
@@ -97,7 +150,6 @@ export class ReviewController {
     return result;
   }
 
-  /** #9 — desfazer aceite: correção do Contador, sem email (é interna). */
   @Post('request-items/:id/undo-accept')
   async undoAccept(@CurrentScope() scope: FirmScope, @Param(zodPipe(IdParam)) params: IdParam) {
     const result = await this.requests.undoAcceptItem(scope, params.id);
@@ -106,8 +158,6 @@ export class ReviewController {
     return result;
   }
 
-  /** Disparo manual da varredura de prazo (operação/verificação enquanto não há UI e o
-   *  cron diário é a única entrada). Escopado à Contabilidade da sessão. */
   @Post('deadlines/scan')
   async scanDeadlines(@CurrentScope() scope: FirmScope) {
     return this.deadlines.scan(scope);

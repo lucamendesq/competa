@@ -28,12 +28,7 @@ export const fileExtension = ({ fileName, contentType }: Omit<UploadedFile, 'siz
 
 const megabytes = (bytes: number) => Math.round(bytes / (1024 * 1024));
 
-/** Motivo da recusa em PT-BR, ou `null` quando o arquivo é aceito.
- *  `acceptedFormats` nulo = Documento Extra (não há Item com formatos congelados). */
-export const rejectionReason = (
-  file: UploadedFile,
-  acceptedFormats: readonly string[] | null,
-) => {
+export const rejectionReason = (file: UploadedFile, acceptedFormats: readonly string[] | null) => {
   if (file.sizeBytes > MAX_FILE_BYTES) {
     return `Arquivo de ${megabytes(file.sizeBytes)} MB acima do limite de ${megabytes(MAX_FILE_BYTES)} MB por arquivo.`;
   }
@@ -64,8 +59,6 @@ export const buildStorageKey = (input: {
   return `firm/${input.accountingFirmId}/period/${input.referenceMonth}/request/${input.requestId}/${input.documentId}${suffix}`;
 };
 
-/** Conferência na confirmação: o tamanho que vale é o do storage, não o declarado.
- *  `undefined` = objeto não existe (pediu URL e nunca subiu). */
 export const confirmationRefusal = (input: {
   fileName: string;
   declaredBytes: number;
@@ -81,4 +74,3 @@ export const confirmationRefusal = (input: {
 
   return null;
 };
-

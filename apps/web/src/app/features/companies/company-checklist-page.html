@@ -1,0 +1,171 @@
+<app-page-header
+  [title]="'Checklist de ' + (company.value()?.name ?? '')"
+  [description]="
+    checklist.value()
+      ? 'Baseado no template ' + checklist.value()!.template.name
+      : 'Ajuste fino do que é cobrado desta empresa.'
+  "
+>
+  @if (custom()) {
+    <button hlmBtn variant="ghost" (click)="confirmRestore.set(true)">
+      <ng-icon name="lucideRotateCcw" aria-hidden="true" />
+      Restaurar padrão do template
+    </button>
+  }
+  <button hlmBtn (click)="catalogOpen.set(true)">
+    <ng-icon name="lucidePlus" aria-hidden="true" />
+    Adicionar documento do catálogo
+  </button>
+  <a hlmBtn variant="outline" [routerLink]="['/empresas', companyId(), 'editar']">
+    Voltar para a empresa
+  </a>
+</app-page-header>
+
+@if (created()) {
+  <section
+    class="flex flex-wrap items-center gap-3 rounded-xl border border-blue-200 bg-blue-50 p-4"
+    role="status"
+  >
+    <div class="min-w-0 flex-1">
+      <h2 class="text-sm font-semibold text-blue-900">Empresa cadastrada. Falta um ajuste?</h2>
+      <p class="mt-0.5 text-xs text-blue-800">
+        Este é o checklist que vai ser cobrado todo mês. Remova o que esta empresa não tem e
+        adicione o que faltar — sem precisar criar um template novo.
+      </p>
+    </div>
+    <a hlmBtn variant="outline" size="sm" routerLink="/empresas">Está bom assim</a>
+  </section>
+}
+
+@if (checklist.isLoading()) {
+  <app-loading-rows [count]="8" />
+} @else if (checklist.error()) {
+  <app-error-state message="Não conseguimos carregar o checklist." (retry)="checklist.reload()" />
+} @else {
+  <div class="flex flex-col gap-4">
+    @for (group of groups(); track group[0]) {
+      <section class="bg-card border-border rounded-xl border">
+        <h2 class="border-border border-b p-4 text-sm font-semibold">
+          {{ CATEGORY_LABEL[group[0]] ?? group[0] }}
+          <span class="text-muted-foreground font-normal">({{ group[1].length }})</span>
+        </h2>
+
+        <ul class="divide-border divide-y" role="list">
+          @for (line of group[1]; track line.documentTypeId) {
+            <li class="flex flex-wrap items-start gap-3 p-4">
+              <button
+                type="button"
+                role="switch"
+                [attr.aria-checked]="line.included"
+                class="focus-visible:ring-ring relative mt-0.5 inline-flex h-6 w-11 shrink-0 items-center rounded-full transition-colors focus-visible:ring-2 focus-visible:ring-offset-2 focus-visible:outline-none"
+                [class]="line.included ? 'bg-primary' : 'bg-muted border-border border'"
+                [disabled]="acting()"
+                (click)="toggle(line)"
+              >
+                <span class="sr-only">
+                  {{ line.included ? 'Remover' : 'Incluir' }} {{ line.name }}
+                </span>
+                <span
+                  class="bg-card size-4 rounded-full shadow transition-transform"
+                  [class]="line.included ? 'translate-x-6' : 'translate-x-1'"
+                ></span>
+              </button>
+
+              <div class="min-w-0 flex-1">
+                <div class="flex flex-wrap items-center gap-2">
+                  <p
+                    class="text-sm font-medium"
+                    [class.line-through]="line.source === 'removido'"
+                    [class.text-muted-foreground]="line.source === 'removido'"
+                  >
+                    {{ line.name }}
+                  </p>
+
+                  @if (line.source === 'removido') {
+                    <app-status-pill status="removed" />
+                  } @else if (line.source === 'adicionado') {
+                    <app-status-pill status="added" />
+                  }
+
+                  @if (!line.applicable) {
+                    <app-status-pill
+                      status="not_applicable"
+                      [title]="
+                        'Só entra se a característica ' + line.conditionFlag + ' estiver ligada'
+                      "
+                    />
+                  }
+                </div>
+
+                @if (line.description) {
+                  <p class="text-muted-foreground mt-1 text-xs">{{ line.description }}</p>
+                }
+
+                <div class="mt-2 flex flex-wrap items-center gap-x-4 gap-y-1 text-xs">
+                  <span class="flex flex-wrap gap-1">
+                    @for (format of line.acceptedFormats; track format) {
+                      <span class="bg-muted rounded-full px-2 py-0.5 font-medium">
+                        {{ format }}
+                      </span>
+                    }
+                  </span>
+                  <span class="text-muted-foreground">
+                    {{ PERIODICITY_LABEL[line.periodicity] ?? line.periodicity }}
+                  </span>
+                  @if (line.dueDay) {
+                    <span class="text-muted-foreground tabular-nums">
+                      Vence no dia {{ line.dueDay }}
+                    </span>
+                  }
+                </div>
+              </div>
+            </li>
+          }
+        </ul>
+      </section>
+    }
+  </div>
+}
+
+<app-modal
+  [open]="catalogOpen()"
+  (openChange)="catalogOpen.set($event)"
+  title="Adicionar documento do catálogo"
+  description="Documentos fora do template base desta empresa."
+>
+  <app-catalog-picker
+    [documents]="available()"
+    [(search)]="catalogSearch"
+    [acting]="acting()"
+    emptyLabel="Nenhum documento do catálogo fora deste checklist."
+    (add)="add($event.id, $event.name)"
+  />
+
+  <div
+    class="border-border bg-muted/40 -mx-5 -mb-5 mt-5 flex flex-wrap justify-end gap-2 border-t p-4"
+  >
+    <button hlmBtn variant="ghost" (click)="catalogOpen.set(false)">Fechar</button>
+  </div>
+</app-modal>
+
+<app-modal
+  [open]="confirmRestore()"
+  (openChange)="confirmRestore.set($event)"
+  title="Restaurar padrão do template?"
+  description="Todos os ajustes desta empresa serão descartados."
+>
+  <p class="text-sm">
+    O checklist volta a ser exatamente o do template
+    <strong>{{ checklist.value()?.template.name }}</strong
+    >. Competências já abertas não mudam.
+  </p>
+
+  <div
+    class="border-border bg-muted/40 -mx-5 -mb-5 mt-5 flex flex-wrap justify-end gap-2 border-t p-4"
+  >
+    <button hlmBtn variant="ghost" (click)="confirmRestore.set(false)">Cancelar</button>
+    <button hlmBtn variant="destructive" [disabled]="acting()" (click)="restoreDefault()">
+      Restaurar padrão
+    </button>
+  </div>
+</app-modal>

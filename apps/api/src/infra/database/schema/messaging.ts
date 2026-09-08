@@ -21,8 +21,6 @@ export const MESSAGE_PURPOSES = [
 ] as const;
 export const MESSAGE_STATUS = ['queued', 'sent', 'delivered', 'failed'] as const;
 
-/** Log/outbox de tudo que sai. A cadência "máx. 2 lembretes" é
- *  `count(*) where purpose='reminder'` por request — sem tabela extra. */
 export const message = pgTable(
   'message',
   {
@@ -35,7 +33,6 @@ export const message = pgTable(
     recipient: text().notNull(),
     status: text().notNull().default('queued'),
     sentAt: timestamp('sent_at', { withTimezone: true }),
-    /** motivo da falha do provedor — o que o painel de pendências mostra */
     error: text(),
     ...timestamps,
   },
@@ -49,8 +46,6 @@ export const message = pgTable(
 
 export const PUSH_PROVIDERS = ['web', 'fcm'] as const;
 
-/** Inscrição de push de um Responsável. `endpoint` é a chave natural: o navegador troca a
- *  inscrição quando o service worker é reinstalado, e o registro antigo não serve mais. */
 export const pushSubscription = pgTable(
   'push_subscription',
   {
@@ -60,7 +55,6 @@ export const pushSubscription = pgTable(
       .references(() => contact.id, { onDelete: 'cascade' }),
     provider: text().notNull().default('web'),
     endpoint: text().notNull(),
-    /** Web Push: `{ p256dh, auth }`. FCM (futuro): o token do dispositivo */
     keys: jsonb().notNull(),
     ...timestamps,
   },

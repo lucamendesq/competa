@@ -41,7 +41,7 @@ const setup = async () => {
   return {
     session,
     token,
-    extratoId: items.find((row) => row.name === CATALOG.extrato_bancario.name)!.id,
+    statementId: items.find((row) => row.name === CATALOG.extrato_bancario.name)!.id,
   };
 };
 
@@ -54,7 +54,9 @@ const presign = async (
     .post(`/upload/${token}/documents`)
     .send({
       ...(requestItemId ? { requestItemId } : {}),
-      files: [{ fileName: file.fileName, contentType: 'application/pdf', sizeBytes: file.sizeBytes }],
+      files: [
+        { fileName: file.fileName, contentType: 'application/pdf', sizeBytes: file.sizeBytes },
+      ],
     })
     .expect(201);
 
@@ -82,8 +84,8 @@ const exists = async (storageKey: string) =>
     .catch(() => false);
 
 test('arquivo MENOR que o declarado é recusado na confirmação, com motivo e sem sobra', async () => {
-  const { token, extratoId } = await setup();
-  const entry = await presign(token, { fileName: 'extrato.pdf', sizeBytes: 1000 }, extratoId);
+  const { token, statementId } = await setup();
+  const entry = await presign(token, { fileName: 'extrato.pdf', sizeBytes: 1000 }, statementId);
   expect(entry.accepted).toBe(true);
 
   await put(entry.uploadUrl!, '%PDF curto');
@@ -98,13 +100,13 @@ test('arquivo MENOR que o declarado é recusado na confirmação, com motivo e s
   // linha e objeto descartados: nem documento fantasma no banco nem lixo no storage
   expect(await db.select().from(document)).toHaveLength(0);
   expect(await exists(entry.storageKey!)).toBe(false);
-  const [item] = await db.select().from(requestItem).where(eq(requestItem.id, extratoId));
+  const [item] = await db.select().from(requestItem).where(eq(requestItem.id, statementId));
   expect(item.status).toBe('pending');
 });
 
 test('arquivo MAIOR que o declarado é cortado no PUT com 413 e não deixa parcial no disco', async () => {
-  const { token, extratoId } = await setup();
-  const entry = await presign(token, { fileName: 'extrato.pdf', sizeBytes: 10 }, extratoId);
+  const { token, statementId } = await setup();
+  const entry = await presign(token, { fileName: 'extrato.pdf', sizeBytes: 10 }, statementId);
 
   const response = await put(entry.uploadUrl!, 'x'.repeat(5000));
 
@@ -114,12 +116,12 @@ test('arquivo MAIOR que o declarado é cortado no PUT com 413 e não deixa parci
 });
 
 test('arquivo acima de 100 MB é recusado já no presign, sem criar linha', async () => {
-  const { token, extratoId } = await setup();
+  const { token, statementId } = await setup();
 
   const entry = await presign(
     token,
     { fileName: 'gigante.pdf', sizeBytes: 100 * 1024 * 1024 + 1 },
-    extratoId,
+    statementId,
   );
 
   expect(entry.accepted).toBe(false);
@@ -129,12 +131,12 @@ test('arquivo acima de 100 MB é recusado já no presign, sem criar linha', asyn
 });
 
 test('a confirmação grava o tamanho REAL do storage, não o declarado', async () => {
-  const { token, extratoId } = await setup();
+  const { token, statementId } = await setup();
   const content = '%PDF extrato de julho';
   const entry = await presign(
     token,
     { fileName: 'extrato.pdf', sizeBytes: Buffer.byteLength(content) },
-    extratoId,
+    statementId,
   );
 
   await put(entry.uploadUrl!, content);
@@ -150,12 +152,12 @@ test('a confirmação grava o tamanho REAL do storage, não o declarado', async 
 });
 
 test('confirmar duas vezes o mesmo documento não duplica nem re-submete o Item', async () => {
-  const { token, extratoId } = await setup();
+  const { token, statementId } = await setup();
   const content = '%PDF extrato de julho';
   const entry = await presign(
     token,
     { fileName: 'extrato.pdf', sizeBytes: Buffer.byteLength(content) },
-    extratoId,
+    statementId,
   );
   await put(entry.uploadUrl!, content);
   await http(app)
@@ -174,6 +176,6 @@ test('confirmar duas vezes o mesmo documento não duplica nem re-submete o Item'
   const rows = await db.select().from(document);
   expect(rows).toHaveLength(1);
   expect(rows[0].uploadedAt).toEqual(first.uploadedAt);
-  const [item] = await db.select().from(requestItem).where(eq(requestItem.id, extratoId));
+  const [item] = await db.select().from(requestItem).where(eq(requestItem.id, statementId));
   expect(item.status).toBe('submitted');
 });

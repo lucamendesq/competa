@@ -2,17 +2,23 @@ import { Injectable } from '@nestjs/common';
 import { OnEvent } from '@nestjs/event-emitter';
 import {
   EVENTS,
+  type ContactInvitedEvent,
   type DeadlineMissedEvent,
   type InviteCreatedEvent,
   type ItemReopenedEvent,
   type RequestCompletedEvent,
+  type ReviewPublishedEvent,
+  type UploadLinkResentEvent,
 } from '../../lib/events.js';
 import {
+  accessInviteEmail,
   deadlineMissedAccountantEmail,
   deadlineMissedContactEmail,
   inviteEmail,
   itemReopenedEmail,
+  linkResentEmail,
   requestCompletedEmail,
+  reviewPublishedEmail,
 } from './email-body.js';
 import { ContactRepository } from '../contacts/contact.repository.js';
 import { MessageRepository } from './message.repository.js';
@@ -42,16 +48,20 @@ export class CollectionEventsListener {
     const subscriptions = await this.contacts.subscriptionsForRequest(requestId);
     if (subscriptions.length === 0) return;
 
-    const result = await this.messages.deliverPush(requestId, purpose, subscriptions[0].endpoint, () =>
-      this.push.send({
-        title,
-        body,
-        url,
-        subscriptions: subscriptions.map((row) => ({
-          endpoint: row.endpoint,
-          keys: row.keys as Record<string, string>,
-        })),
-      }),
+    const result = await this.messages.deliverPush(
+      requestId,
+      purpose,
+      subscriptions[0].endpoint,
+      () =>
+        this.push.send({
+          title,
+          body,
+          url,
+          subscriptions: subscriptions.map((row) => ({
+            endpoint: row.endpoint,
+            keys: row.keys as Record<string, string>,
+          })),
+        }),
     );
 
     // inscrição que o navegador descartou não serve mais: sai para não acumular lixo
@@ -60,8 +70,6 @@ export class CollectionEventsListener {
     }
   }
 
-  /** Convite de Contador. Não vai para `message` (a tabela exige `request_id`), então
-   *  falha aqui só aparece no log — o Contador ainda pode reenviar o convite. */
   @OnEvent(EVENTS.InviteCreated)
   async onInviteCreated(event: InviteCreatedEvent) {
     await this.messages.sendWithoutLog({
@@ -70,7 +78,25 @@ export class CollectionEventsListener {
     });
   }
 
-  /** Reabertura do Item: reenvio do Link SÓ por email (invariante do domínio). */
+  @OnEvent(EVENTS.ContactInvited)
+  async onContactInvited(event: ContactInvitedEvent) {
+    await this.messages.sendWithoutLog({
+      recipient: event.contactEmail,
+      senderName: event.firmName,
+      ...accessInviteEmail(event),
+    });
+  }
+
+  @OnEvent(EVENTS.UploadLinkResent)
+  async onUploadLinkResent(event: UploadLinkResentEvent) {
+    await this.messages.deliver({
+      requestId: event.requestId,
+      purpose: 'link_delivery',
+      recipient: event.contactEmail,
+      ...linkResentEmail(event),
+    });
+  }
+
   @OnEvent(EVENTS.ItemReopened)
   async onItemReopened(event: ItemReopenedEvent) {
     await this.messages.deliver({
@@ -86,6 +112,31 @@ export class CollectionEventsListener {
       `Reenvio necessário: ${event.itemName}`,
       `${event.companyName}: o documento foi recusado e precisa ser enviado de novo.`,
       event.uploadUrl,
+    );
+  }
+
+  /** Uma entrega para a revisão inteira. `purpose: 'rejection'` é o mesmo do
+   *  `ItemReopened`: para o Painel de Pendências e para o histórico de mensagens isto é
+   *  uma recusa — só deixou de ser uma por documento. */
+  @OnEvent(EVENTS.ReviewPublished)
+  async onReviewPublished(event: ReviewPublishedEvent) {
+    await this.messages.deliver({
+      requestId: event.requestId,
+      purpose: 'rejection',
+      recipient: event.contactEmail,
+      ...reviewPublishedEmail(event),
+    });
+
+    const first = event.rejected[0];
+
+    await this.notify(
+      event.requestId,
+      'rejection',
+      event.rejected.length === 1
+        ? `Reenvio necessário: ${first.itemName ?? first.fileName}`
+        : `${event.rejected.length} documentos precisam ser reenviados`,
+      `${event.companyName}: a contabilidade conferiu e alguns arquivos precisam voltar.`,
+      event.uploadUrl ?? undefined,
     );
   }
 
@@ -106,7 +157,6 @@ export class CollectionEventsListener {
     );
   }
 
-  /** Prazo estourado avisa os DOIS lados: Responsável (com link) e Contador (sem link). */
   @OnEvent(EVENTS.DeadlineMissed)
   async onDeadlineMissed(event: DeadlineMissedEvent) {
     await this.messages.deliver({

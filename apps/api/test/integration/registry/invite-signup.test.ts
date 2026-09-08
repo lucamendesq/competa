@@ -48,19 +48,21 @@ const insertInvite = async (values: Partial<typeof invite.$inferInsert> = {}) =>
 test('convite criado pelo Contador devolve o link e o preview mostra para quem ele vale', async () => {
   const session = await createAccountantSession(app, { firmName: 'Contabilidade Alfa' });
 
-  const criado = await http(app)
+  const created = await http(app)
     .post('/invites')
     .set('cookie', session.cookie)
     .send({ email: 'novo@contador.com' })
     .expect(201);
 
-  expect(criado.body.data.email).toBe('novo@contador.com');
-  const token = (criado.body.data.url as string).split('/').pop()!;
+  expect(created.body.data.email).toBe('novo@contador.com');
+  const token = (created.body.data.url as string).split('/').pop()!;
 
   const preview = await http(app).get(`/invites/${token}`).expect(200);
   expect(preview.body.data).toEqual({
     email: 'novo@contador.com',
     invitedBy: 'Contabilidade Alfa',
+    // convite de Contador não é de Empresa nenhuma
+    companyName: null,
     target: 'accounting_firm',
   });
 });
@@ -74,11 +76,11 @@ test('sign-up pelo convite cria o Contador da Contabilidade convidante e queima 
     .send({ name: 'Novato', email: 'novato@teste.com', password: 'senha-forte-123' })
     .expect(201);
 
-  const [criado] = await db
+  const [created] = await db
     .select()
     .from(accountant)
     .where(eq(accountant.authUserId, response.body.data.userId));
-  expect(criado.accountingFirmId).toBe(row.accountingFirmId);
+  expect(created.accountingFirmId).toBe(row.accountingFirmId);
 
   const [usado] = await db.select().from(invite).where(eq(invite.id, row.id));
   expect(usado.acceptedAt).not.toBeNull();
@@ -151,26 +153,29 @@ test('senha curta é recusada com 422 antes de qualquer escrita', async () => {
   expect(intacto.acceptedAt).toBeNull();
 });
 
-test('convite de Empresa responde 501 no sign-up, mas o preview já diz que é de Empresa', async () => {
+test('convite de Empresa é recusado no sign-up, mas o preview já diz que é de Empresa', async () => {
   const firm = await createFirm();
-  const empresa = await insertCompany(firm.id, { name: 'Padaria Convidante' });
+  const company = await insertCompany(firm.id, { name: 'Padaria Convidante' });
   const { token } = await insertInvite({
-    companyId: empresa.id,
+    companyId: company.id,
     accountingFirmId: null,
     email: 'responsavel@padaria.com',
   });
 
+  /* `invitedBy` é sempre a Contabilidade — é ela quem cobra, e é o nome que o Responsável
+   * reconhece. A Empresa vem em `companyName`, que a tela do convite mostra à parte. */
   const preview = await http(app).get(`/invites/${token}`).expect(200);
   expect(preview.body.data).toMatchObject({
     target: 'company',
-    invitedBy: 'Padaria Convidante',
+    invitedBy: firm.name,
+    companyName: 'Padaria Convidante',
   });
 
   const response = await http(app)
     .post('/auth/sign-up')
     .query({ token })
     .send({ name: 'Responsável', email: 'responsavel@padaria.com', password: 'senha-forte-123' })
-    .expect(501);
+    .expect(422);
 
   expect(response.body.error.code).toBe('INVITE_TARGET_UNSUPPORTED');
   expect(await db.select().from(user)).toHaveLength(0);
@@ -189,8 +194,8 @@ test('email já cadastrado responde 409 sem deixar Contador nem user órfão', a
   expect(response.body.error.code).toBe('EMAIL_ALREADY_REGISTERED');
   expect(await db.select().from(user)).toHaveLength(1);
   expect(await db.select().from(accountant)).toHaveLength(1);
-  const [naoAceito] = await db.select().from(invite).where(eq(invite.id, row.id));
-  expect(naoAceito.acceptedAt).toBeNull();
+  const [notAccepted] = await db.select().from(invite).where(eq(invite.id, row.id));
+  expect(notAccepted.acceptedAt).toBeNull();
 });
 
 test('token de convite inexistente responde 404 sem dizer o que faltou', async () => {

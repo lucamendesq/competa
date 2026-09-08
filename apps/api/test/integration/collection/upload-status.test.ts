@@ -45,7 +45,7 @@ const setup = async () => {
     token,
     requestId: opened.requests[0].id,
     periodId: opened.id,
-    extratoId: items.find((row) => row.name === CATALOG.extrato_bancario.name)!.id,
+    statementId: items.find((row) => row.name === CATALOG.extrato_bancario.name)!.id,
   };
 };
 
@@ -86,42 +86,42 @@ const exists = async (storageKey: string) =>
     .catch(() => false);
 
 test('a linha nasce awaiting_upload, com uploaded_at nulo e invisível nas leituras', async () => {
-  const { token, session, requestId, periodId, extratoId } = await setup();
-  await uploadWithoutConfirming(token, extratoId);
+  const { token, session, requestId, periodId, statementId } = await setup();
+  await uploadWithoutConfirming(token, statementId);
 
   const [row] = await db.select().from(document);
   expect(row.uploadStatus).toBe('awaiting_upload');
   expect(row.uploadedAt).toBeNull();
 
-  const painel = await http(app)
+  const panel = await http(app)
     .get(`/requests/${requestId}`)
     .set('cookie', session.cookie)
     .expect(200);
-  expect(painel.body.data.items.flatMap((item: { documents: [] }) => item.documents)).toEqual([]);
-  expect(
-    painel.body.data.items.find((item: { id: string }) => item.id === extratoId).status,
-  ).toBe('pending');
+  expect(panel.body.data.items.flatMap((item: { documents: [] }) => item.documents)).toEqual([]);
+  expect(panel.body.data.items.find((item: { id: string }) => item.id === statementId).status).toBe(
+    'pending',
+  );
 
-  const pendencias = await http(app)
+  const pending = await http(app)
     .get(`/periods/${periodId}/pending-panel`)
     .set('cookie', session.cookie)
     .expect(200);
-  expect(JSON.stringify(pendencias.body.data)).not.toContain('extrato.pdf');
+  expect(JSON.stringify(pending.body.data)).not.toContain('extrato.pdf');
 
   const publico = await http(app).get(`/upload/${token}`).expect(200);
   expect(
     (publico.body.data.items as { id: string; status: string }[]).find(
-      (item) => item.id === extratoId,
+      (item) => item.id === statementId,
     )!.status,
   ).toBe('pending');
 });
 
 test('a confirmação marca uploaded e preenche uploaded_at', async () => {
-  const { token, extratoId } = await setup();
+  const { token, statementId } = await setup();
 
   const result = await uploadFile(app, token, {
     fileName: 'extrato.pdf',
-    requestItemId: extratoId,
+    requestItemId: statementId,
   });
   expect(result.accepted).toBe(true);
   if (!result.accepted) return;
@@ -132,8 +132,8 @@ test('a confirmação marca uploaded e preenche uploaded_at', async () => {
 });
 
 test('a faxina apaga linha e objeto do envio não confirmado com mais de 24h', async () => {
-  const { token, extratoId } = await setup();
-  const stale = await uploadWithoutConfirming(token, extratoId);
+  const { token, statementId } = await setup();
+  const stale = await uploadWithoutConfirming(token, statementId);
   await db
     .update(document)
     .set({ createdAt: subHours(new Date(), 30) })
@@ -147,11 +147,11 @@ test('a faxina apaga linha e objeto do envio não confirmado com mais de 24h', a
 });
 
 test('a faxina não toca no que foi confirmado nem no envio recém-criado', async () => {
-  const { token, extratoId } = await setup();
+  const { token, statementId } = await setup();
 
   const confirmado = await uploadFile(app, token, {
     fileName: 'confirmado.pdf',
-    requestItemId: extratoId,
+    requestItemId: statementId,
   });
   expect(confirmado.accepted).toBe(true);
   if (!confirmado.accepted) return;
@@ -161,7 +161,7 @@ test('a faxina não toca no que foi confirmado nem no envio recém-criado', asyn
     .set({ createdAt: subHours(new Date(), 30) })
     .where(eq(document.id, confirmado.documentId));
 
-  const recente = await uploadWithoutConfirming(token, extratoId);
+  const recente = await uploadWithoutConfirming(token, statementId);
 
   const discarded = await app.get(DeadlineCron).discardStaleUploads();
 

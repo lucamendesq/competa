@@ -63,8 +63,8 @@ test('campo entre aspas com vírgula e aspas escapadas sobrevive ao CRLF do Exce
   );
 
   expect(body.data).toMatchObject({ total: 2, created: 2, failed: 0 });
-  const nomes = (await db.select().from(company)).map((row) => row.name).sort();
-  expect(nomes).toEqual(['Outra, Ltda', 'Padaria, do "João"']);
+  const names = (await db.select().from(company)).map((row) => row.name).sort();
+  expect(names).toEqual(['Outra, Ltda', 'Padaria, do "João"']);
 });
 
 test('linha em branco no meio não desalinha o número de linha do relatório', async () => {
@@ -95,8 +95,8 @@ test('linha com template inexistente, email inválido ou nome vazio falha sozinh
   expect(emailTorto.error).toMatch(/contact.email/);
   expect(semNome.error).toMatch(/name/);
 
-  const gravadas = await db.select().from(company);
-  expect(gravadas.map((row) => row.name)).toEqual(['Boa']);
+  const stored = await db.select().from(company);
+  expect(stored.map((row) => row.name)).toEqual(['Boa']);
 });
 
 test('flags vêm por nome separadas por | e as desconhecidas são ignoradas', async () => {

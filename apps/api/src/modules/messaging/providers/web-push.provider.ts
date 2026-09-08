@@ -9,13 +9,11 @@ export type PushMessage = {
   subscriptions: { endpoint: string; keys: Record<string, string> }[];
 };
 
-/** Web Push (PWA). Sem chaves VAPID configuradas, loga em vez de enviar — mesmo padrão do
- *  storage (D12) e do email: a fatia é demonstrável em dev sem credencial.
- *  Push nunca bloqueia o fluxo: falha por inscrição é registrada e o resto segue. */
 @Injectable()
 export class WebPush {
   private readonly logger = new Logger(WebPush.name);
-  private readonly enabled = Boolean(env.VAPID_PUBLIC_KEY && env.VAPID_PRIVATE_KEY);
+  private readonly enabled =
+    env.NODE_ENV === 'production' && Boolean(env.VAPID_PUBLIC_KEY && env.VAPID_PRIVATE_KEY);
 
   constructor() {
     if (this.enabled) {
@@ -28,7 +26,7 @@ export class WebPush {
 
     if (!this.enabled) {
       this.logger.log(
-        `[sem VAPID] push "${message.title}" para ${message.subscriptions.length} inscrição(ões)`,
+        `push "${message.title}" → ${message.body} (${message.url ?? 'sem url'}) para ${message.subscriptions.length} inscrição(ões)`,
       );
 
       return { sent: message.subscriptions.length, failed: 0, gone: [] as string[] };
@@ -42,7 +40,6 @@ export class WebPush {
 
     let sent = 0;
     let failed = 0;
-    /** Inscrições que o navegador descartou (404/410): não servem mais e devem sair. */
     const gone: string[] = [];
 
     for (const subscription of message.subscriptions) {

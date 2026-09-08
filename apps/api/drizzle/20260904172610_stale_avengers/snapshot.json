@@ -2,9 +2,7 @@
   "version": "8",
   "dialect": "postgres",
   "id": "7a2b3096-5f85-4da7-ab6a-cae120469850",
-  "prevIds": [
-    "6f64b582-01da-49c2-b6d9-b92ad742c6fb"
-  ],
+  "prevIds": ["6f64b582-01da-49c2-b6d9-b92ad742c6fb"],
   "ddl": [
     {
       "isRlsEnabled": false,
@@ -2442,14 +2440,10 @@
     },
     {
       "nameExplicit": false,
-      "columns": [
-        "user_id"
-      ],
+      "columns": ["user_id"],
       "schemaTo": "public",
       "tableTo": "user",
-      "columnsTo": [
-        "id"
-      ],
+      "columnsTo": ["id"],
       "onUpdate": "NO ACTION",
       "onDelete": "CASCADE",
       "name": "account_user_id_user_id_fkey",
@@ -2459,14 +2453,10 @@
     },
     {
       "nameExplicit": false,
-      "columns": [
-        "user_id"
-      ],
+      "columns": ["user_id"],
       "schemaTo": "public",
       "tableTo": "user",
-      "columnsTo": [
-        "id"
-      ],
+      "columnsTo": ["id"],
       "onUpdate": "NO ACTION",
       "onDelete": "CASCADE",
       "name": "session_user_id_user_id_fkey",
@@ -2476,14 +2466,10 @@
     },
     {
       "nameExplicit": false,
-      "columns": [
-        "accounting_firm_id"
-      ],
+      "columns": ["accounting_firm_id"],
       "schemaTo": "public",
       "tableTo": "accounting_firm",
-      "columnsTo": [
-        "id"
-      ],
+      "columnsTo": ["id"],
       "onUpdate": "NO ACTION",
       "onDelete": "CASCADE",
       "name": "accountant_accounting_firm_id_accounting_firm_id_fkey",
@@ -2493,14 +2479,10 @@
     },
     {
       "nameExplicit": false,
-      "columns": [
-        "auth_user_id"
-      ],
+      "columns": ["auth_user_id"],
       "schemaTo": "public",
       "tableTo": "user",
-      "columnsTo": [
-        "id"
-      ],
+      "columnsTo": ["id"],
       "onUpdate": "NO ACTION",
       "onDelete": "CASCADE",
       "name": "accountant_auth_user_id_user_id_fkey",
@@ -2510,14 +2492,10 @@
     },
     {
       "nameExplicit": false,
-      "columns": [
-        "accounting_firm_id"
-      ],
+      "columns": ["accounting_firm_id"],
       "schemaTo": "public",
       "tableTo": "accounting_firm",
-      "columnsTo": [
-        "id"
-      ],
+      "columnsTo": ["id"],
       "onUpdate": "NO ACTION",
       "onDelete": "NO ACTION",
       "name": "checklist_template_accounting_firm_id_accounting_firm_id_fkey",
@@ -2527,14 +2505,10 @@
     },
     {
       "nameExplicit": false,
-      "columns": [
-        "derived_from"
-      ],
+      "columns": ["derived_from"],
       "schemaTo": "public",
       "tableTo": "checklist_template",
-      "columnsTo": [
-        "id"
-      ],
+      "columnsTo": ["id"],
       "onUpdate": "NO ACTION",
       "onDelete": "NO ACTION",
       "name": "checklist_template_derived_from_checklist_template_id_fkey",
@@ -2544,14 +2518,10 @@
     },
     {
       "nameExplicit": false,
-      "columns": [
-        "checklist_template_id"
-      ],
+      "columns": ["checklist_template_id"],
       "schemaTo": "public",
       "tableTo": "checklist_template",
-      "columnsTo": [
-        "id"
-      ],
+      "columnsTo": ["id"],
       "onUpdate": "NO ACTION",
       "onDelete": "CASCADE",
       "name": "checklist_template_item_JAJU1ueEVhqZ_fkey",
@@ -2561,14 +2531,10 @@
     },
     {
       "nameExplicit": false,
-      "columns": [
-        "document_type_id"
-      ],
+      "columns": ["document_type_id"],
       "schemaTo": "public",
       "tableTo": "document_type",
-      "columnsTo": [
-        "id"
-      ],
+      "columnsTo": ["id"],
       "onUpdate": "NO ACTION",
       "onDelete": "NO ACTION",
       "name": "checklist_template_item_document_type_id_document_type_id_fkey",
@@ -2578,14 +2544,10 @@
     },
     {
       "nameExplicit": false,
-      "columns": [
-        "accounting_firm_id"
-      ],
+      "columns": ["accounting_firm_id"],
       "schemaTo": "public",
       "tableTo": "accounting_firm",
-      "columnsTo": [
-        "id"
-      ],
+      "columnsTo": ["id"],
       "onUpdate": "NO ACTION",
       "onDelete": "NO ACTION",
       "name": "company_accounting_firm_id_accounting_firm_id_fkey",
@@ -2595,14 +2557,10 @@
     },
     {
       "nameExplicit": false,
-      "columns": [
-        "checklist_template_id"
-      ],
+      "columns": ["checklist_template_id"],
       "schemaTo": "public",
       "tableTo": "checklist_template",
-      "columnsTo": [
-        "id"
-      ],
+      "columnsTo": ["id"],
       "onUpdate": "NO ACTION",
       "onDelete": "NO ACTION",
       "name": "company_checklist_template_id_checklist_template_id_fkey",
@@ -2612,14 +2570,10 @@
     },
     {
       "nameExplicit": false,
-      "columns": [
-        "company_id"
-      ],
+      "columns": ["company_id"],
       "schemaTo": "public",
       "tableTo": "company",
-      "columnsTo": [
-        "id"
-      ],
+      "columnsTo": ["id"],
       "onUpdate": "NO ACTION",
       "onDelete": "CASCADE",
       "name": "company_checklist_override_company_id_company_id_fkey",
@@ -2629,14 +2583,10 @@
     },
     {
       "nameExplicit": false,
-      "columns": [
-        "document_type_id"
-      ],
+      "columns": ["document_type_id"],
       "schemaTo": "public",
       "tableTo": "document_type",
-      "columnsTo": [
-        "id"
-      ],
+      "columnsTo": ["id"],
       "onUpdate": "NO ACTION",
       "onDelete": "NO ACTION",
       "name": "company_checklist_override_YKVf5jOKobjp_fkey",
@@ -2646,14 +2596,10 @@
     },
     {
       "nameExplicit": false,
-      "columns": [
-        "company_id"
-      ],
+      "columns": ["company_id"],
       "schemaTo": "public",
       "tableTo": "company",
-      "columnsTo": [
-        "id"
-      ],
+      "columnsTo": ["id"],
       "onUpdate": "NO ACTION",
       "onDelete": "CASCADE",
       "name": "contact_company_id_company_id_fkey",
@@ -2663,14 +2609,10 @@
     },
     {
       "nameExplicit": false,
-      "columns": [
-        "auth_user_id"
-      ],
+      "columns": ["auth_user_id"],
       "schemaTo": "public",
       "tableTo": "user",
-      "columnsTo": [
-        "id"
-      ],
+      "columnsTo": ["id"],
       "onUpdate": "NO ACTION",
       "onDelete": "SET NULL",
       "name": "contact_auth_user_id_user_id_fkey",
@@ -2680,14 +2622,10 @@
     },
     {
       "nameExplicit": false,
-      "columns": [
-        "accounting_firm_id"
-      ],
+      "columns": ["accounting_firm_id"],
       "schemaTo": "public",
       "tableTo": "accounting_firm",
-      "columnsTo": [
-        "id"
-      ],
+      "columnsTo": ["id"],
       "onUpdate": "NO ACTION",
       "onDelete": "NO ACTION",
       "name": "document_type_accounting_firm_id_accounting_firm_id_fkey",
@@ -2697,14 +2635,10 @@
     },
     {
       "nameExplicit": false,
-      "columns": [
-        "accounting_firm_id"
-      ],
+      "columns": ["accounting_firm_id"],
       "schemaTo": "public",
       "tableTo": "accounting_firm",
-      "columnsTo": [
-        "id"
-      ],
+      "columnsTo": ["id"],
       "onUpdate": "NO ACTION",
       "onDelete": "CASCADE",
       "name": "invite_accounting_firm_id_accounting_firm_id_fkey",
@@ -2714,14 +2648,10 @@
     },
     {
       "nameExplicit": false,
-      "columns": [
-        "company_id"
-      ],
+      "columns": ["company_id"],
       "schemaTo": "public",
       "tableTo": "company",
-      "columnsTo": [
-        "id"
-      ],
+      "columnsTo": ["id"],
       "onUpdate": "NO ACTION",
       "onDelete": "CASCADE",
       "name": "invite_company_id_company_id_fkey",
@@ -2731,14 +2661,10 @@
     },
     {
       "nameExplicit": false,
-      "columns": [
-        "request_id"
-      ],
+      "columns": ["request_id"],
       "schemaTo": "public",
       "tableTo": "request",
-      "columnsTo": [
-        "id"
-      ],
+      "columnsTo": ["id"],
       "onUpdate": "NO ACTION",
       "onDelete": "NO ACTION",
       "name": "document_request_id_request_id_fkey",
@@ -2748,14 +2674,10 @@
     },
     {
       "nameExplicit": false,
-      "columns": [
-        "request_item_id"
-      ],
+      "columns": ["request_item_id"],
       "schemaTo": "public",
       "tableTo": "request_item",
-      "columnsTo": [
-        "id"
-      ],
+      "columnsTo": ["id"],
       "onUpdate": "NO ACTION",
       "onDelete": "NO ACTION",
       "name": "document_request_item_id_request_item_id_fkey",
@@ -2765,14 +2687,10 @@
     },
     {
       "nameExplicit": false,
-      "columns": [
-        "uploaded_by_contact_id"
-      ],
+      "columns": ["uploaded_by_contact_id"],
       "schemaTo": "public",
       "tableTo": "contact",
-      "columnsTo": [
-        "id"
-      ],
+      "columnsTo": ["id"],
       "onUpdate": "NO ACTION",
       "onDelete": "SET NULL",
       "name": "document_uploaded_by_contact_id_contact_id_fkey",
@@ -2782,14 +2700,10 @@
     },
     {
       "nameExplicit": false,
-      "columns": [
-        "accounting_firm_id"
-      ],
+      "columns": ["accounting_firm_id"],
       "schemaTo": "public",
       "tableTo": "accounting_firm",
-      "columnsTo": [
-        "id"
-      ],
+      "columnsTo": ["id"],
       "onUpdate": "NO ACTION",
       "onDelete": "NO ACTION",
       "name": "period_accounting_firm_id_accounting_firm_id_fkey",
@@ -2799,14 +2713,10 @@
     },
     {
       "nameExplicit": false,
-      "columns": [
-        "period_id"
-      ],
+      "columns": ["period_id"],
       "schemaTo": "public",
       "tableTo": "period",
-      "columnsTo": [
-        "id"
-      ],
+      "columnsTo": ["id"],
       "onUpdate": "NO ACTION",
       "onDelete": "NO ACTION",
       "name": "request_period_id_period_id_fkey",
@@ -2816,14 +2726,10 @@
     },
     {
       "nameExplicit": false,
-      "columns": [
-        "company_id"
-      ],
+      "columns": ["company_id"],
       "schemaTo": "public",
       "tableTo": "company",
-      "columnsTo": [
-        "id"
-      ],
+      "columnsTo": ["id"],
       "onUpdate": "NO ACTION",
       "onDelete": "NO ACTION",
       "name": "request_company_id_company_id_fkey",
@@ -2833,14 +2739,10 @@
     },
     {
       "nameExplicit": false,
-      "columns": [
-        "request_id"
-      ],
+      "columns": ["request_id"],
       "schemaTo": "public",
       "tableTo": "request",
-      "columnsTo": [
-        "id"
-      ],
+      "columnsTo": ["id"],
       "onUpdate": "NO ACTION",
       "onDelete": "CASCADE",
       "name": "request_item_request_id_request_id_fkey",
@@ -2850,14 +2752,10 @@
     },
     {
       "nameExplicit": false,
-      "columns": [
-        "document_type_id"
-      ],
+      "columns": ["document_type_id"],
       "schemaTo": "public",
       "tableTo": "document_type",
-      "columnsTo": [
-        "id"
-      ],
+      "columnsTo": ["id"],
       "onUpdate": "NO ACTION",
       "onDelete": "NO ACTION",
       "name": "request_item_document_type_id_document_type_id_fkey",
@@ -2867,14 +2765,10 @@
     },
     {
       "nameExplicit": false,
-      "columns": [
-        "request_id"
-      ],
+      "columns": ["request_id"],
       "schemaTo": "public",
       "tableTo": "request",
-      "columnsTo": [
-        "id"
-      ],
+      "columnsTo": ["id"],
       "onUpdate": "NO ACTION",
       "onDelete": "CASCADE",
       "name": "upload_link_request_id_request_id_fkey",
@@ -2884,14 +2778,10 @@
     },
     {
       "nameExplicit": false,
-      "columns": [
-        "contact_id"
-      ],
+      "columns": ["contact_id"],
       "schemaTo": "public",
       "tableTo": "contact",
-      "columnsTo": [
-        "id"
-      ],
+      "columnsTo": ["id"],
       "onUpdate": "NO ACTION",
       "onDelete": "NO ACTION",
       "name": "upload_link_contact_id_contact_id_fkey",
@@ -2901,14 +2791,10 @@
     },
     {
       "nameExplicit": false,
-      "columns": [
-        "request_id"
-      ],
+      "columns": ["request_id"],
       "schemaTo": "public",
       "tableTo": "request",
-      "columnsTo": [
-        "id"
-      ],
+      "columnsTo": ["id"],
       "onUpdate": "NO ACTION",
       "onDelete": "CASCADE",
       "name": "message_request_id_request_id_fkey",
@@ -2917,9 +2803,7 @@
       "table": "message"
     },
     {
-      "columns": [
-        "id"
-      ],
+      "columns": ["id"],
       "nameExplicit": false,
       "name": "account_pkey",
       "schema": "public",
@@ -2927,9 +2811,7 @@
       "entityType": "pks"
     },
     {
-      "columns": [
-        "id"
-      ],
+      "columns": ["id"],
       "nameExplicit": false,
       "name": "session_pkey",
       "schema": "public",
@@ -2937,9 +2819,7 @@
       "entityType": "pks"
     },
     {
-      "columns": [
-        "id"
-      ],
+      "columns": ["id"],
       "nameExplicit": false,
       "name": "user_pkey",
       "schema": "public",
@@ -2947,9 +2827,7 @@
       "entityType": "pks"
     },
     {
-      "columns": [
-        "id"
-      ],
+      "columns": ["id"],
       "nameExplicit": false,
       "name": "verification_pkey",
       "schema": "public",
@@ -2957,9 +2835,7 @@
       "entityType": "pks"
     },
     {
-      "columns": [
-        "id"
-      ],
+      "columns": ["id"],
       "nameExplicit": false,
       "name": "accountant_pkey",
       "schema": "public",
@@ -2967,9 +2843,7 @@
       "entityType": "pks"
     },
     {
-      "columns": [
-        "id"
-      ],
+      "columns": ["id"],
       "nameExplicit": false,
       "name": "accounting_firm_pkey",
       "schema": "public",
@@ -2977,9 +2851,7 @@
       "entityType": "pks"
     },
     {
-      "columns": [
-        "id"
-      ],
+      "columns": ["id"],
       "nameExplicit": false,
       "name": "checklist_template_pkey",
       "schema": "public",
@@ -2987,9 +2859,7 @@
       "entityType": "pks"
     },
     {
-      "columns": [
-        "id"
-      ],
+      "columns": ["id"],
       "nameExplicit": false,
       "name": "checklist_template_item_pkey",
       "schema": "public",
@@ -2997,9 +2867,7 @@
       "entityType": "pks"
     },
     {
-      "columns": [
-        "id"
-      ],
+      "columns": ["id"],
       "nameExplicit": false,
       "name": "company_pkey",
       "schema": "public",
@@ -3007,9 +2875,7 @@
       "entityType": "pks"
     },
     {
-      "columns": [
-        "id"
-      ],
+      "columns": ["id"],
       "nameExplicit": false,
       "name": "company_checklist_override_pkey",
       "schema": "public",
@@ -3017,9 +2883,7 @@
       "entityType": "pks"
     },
     {
-      "columns": [
-        "id"
-      ],
+      "columns": ["id"],
       "nameExplicit": false,
       "name": "contact_pkey",
       "schema": "public",
@@ -3027,9 +2891,7 @@
       "entityType": "pks"
     },
     {
-      "columns": [
-        "id"
-      ],
+      "columns": ["id"],
       "nameExplicit": false,
       "name": "document_type_pkey",
       "schema": "public",
@@ -3037,9 +2899,7 @@
       "entityType": "pks"
     },
     {
-      "columns": [
-        "id"
-      ],
+      "columns": ["id"],
       "nameExplicit": false,
       "name": "invite_pkey",
       "schema": "public",
@@ -3047,9 +2907,7 @@
       "entityType": "pks"
     },
     {
-      "columns": [
-        "id"
-      ],
+      "columns": ["id"],
       "nameExplicit": false,
       "name": "document_pkey",
       "schema": "public",
@@ -3057,9 +2915,7 @@
       "entityType": "pks"
     },
     {
-      "columns": [
-        "id"
-      ],
+      "columns": ["id"],
       "nameExplicit": false,
       "name": "period_pkey",
       "schema": "public",
@@ -3067,9 +2923,7 @@
       "entityType": "pks"
     },
     {
-      "columns": [
-        "id"
-      ],
+      "columns": ["id"],
       "nameExplicit": false,
       "name": "request_pkey",
       "schema": "public",
@@ -3077,9 +2931,7 @@
       "entityType": "pks"
     },
     {
-      "columns": [
-        "id"
-      ],
+      "columns": ["id"],
       "nameExplicit": false,
       "name": "request_item_pkey",
       "schema": "public",
@@ -3087,9 +2939,7 @@
       "entityType": "pks"
     },
     {
-      "columns": [
-        "id"
-      ],
+      "columns": ["id"],
       "nameExplicit": false,
       "name": "upload_link_pkey",
       "schema": "public",
@@ -3097,9 +2947,7 @@
       "entityType": "pks"
     },
     {
-      "columns": [
-        "id"
-      ],
+      "columns": ["id"],
       "nameExplicit": false,
       "name": "message_pkey",
       "schema": "public",
@@ -3108,10 +2956,7 @@
     },
     {
       "nameExplicit": true,
-      "columns": [
-        "checklist_template_id",
-        "document_type_id"
-      ],
+      "columns": ["checklist_template_id", "document_type_id"],
       "nullsNotDistinct": false,
       "name": "checklist_template_item_uidx",
       "entityType": "uniques",
@@ -3120,10 +2965,7 @@
     },
     {
       "nameExplicit": true,
-      "columns": [
-        "company_id",
-        "document_type_id"
-      ],
+      "columns": ["company_id", "document_type_id"],
       "nullsNotDistinct": false,
       "name": "company_checklist_override_uidx",
       "entityType": "uniques",
@@ -3132,10 +2974,7 @@
     },
     {
       "nameExplicit": true,
-      "columns": [
-        "accounting_firm_id",
-        "reference_month"
-      ],
+      "columns": ["accounting_firm_id", "reference_month"],
       "nullsNotDistinct": false,
       "name": "period_firm_month_uidx",
       "entityType": "uniques",
@@ -3144,10 +2983,7 @@
     },
     {
       "nameExplicit": true,
-      "columns": [
-        "period_id",
-        "company_id"
-      ],
+      "columns": ["period_id", "company_id"],
       "nullsNotDistinct": false,
       "name": "request_period_company_uidx",
       "entityType": "uniques",
@@ -3156,9 +2992,7 @@
     },
     {
       "nameExplicit": false,
-      "columns": [
-        "token"
-      ],
+      "columns": ["token"],
       "nullsNotDistinct": false,
       "name": "session_token_key",
       "schema": "public",
@@ -3167,9 +3001,7 @@
     },
     {
       "nameExplicit": false,
-      "columns": [
-        "email"
-      ],
+      "columns": ["email"],
       "nullsNotDistinct": false,
       "name": "user_email_key",
       "schema": "public",
@@ -3178,9 +3010,7 @@
     },
     {
       "nameExplicit": false,
-      "columns": [
-        "auth_user_id"
-      ],
+      "columns": ["auth_user_id"],
       "nullsNotDistinct": false,
       "name": "accountant_auth_user_id_key",
       "schema": "public",
@@ -3189,9 +3019,7 @@
     },
     {
       "nameExplicit": false,
-      "columns": [
-        "auth_user_id"
-      ],
+      "columns": ["auth_user_id"],
       "nullsNotDistinct": false,
       "name": "contact_auth_user_id_key",
       "schema": "public",
@@ -3200,9 +3028,7 @@
     },
     {
       "nameExplicit": false,
-      "columns": [
-        "token_hash"
-      ],
+      "columns": ["token_hash"],
       "nullsNotDistinct": false,
       "name": "invite_token_hash_key",
       "schema": "public",
@@ -3211,9 +3037,7 @@
     },
     {
       "nameExplicit": false,
-      "columns": [
-        "token_hash"
-      ],
+      "columns": ["token_hash"],
       "nullsNotDistinct": false,
       "name": "upload_link_token_hash_key",
       "schema": "public",

@@ -37,7 +37,10 @@ const sign = (storageKey: string, expiresAt: number, sizeBytes: number) =>
     .update(`${storageKey}:${expiresAt}:${sizeBytes}`)
     .digest('hex');
 
-const url = (storageKey: string, over: Partial<{ expiresAt: number; sizeBytes: number; signature: string }> = {}) => {
+const url = (
+  storageKey: string,
+  over: Partial<{ expiresAt: number; sizeBytes: number; signature: string }> = {},
+) => {
   const expiresAt = over.expiresAt ?? Math.floor(Date.now() / 1000) + 900;
   const sizeBytes = over.sizeBytes ?? 100;
   const signature = over.signature ?? sign(storageKey, expiresAt, sizeBytes);
@@ -71,11 +74,9 @@ test('assinatura HMAC inválida é 403 e não grava nada', async () => {
 
 test('assinatura de outro objeto não serve para este (a chave entra no HMAC)', async () => {
   const expiresAt = Math.floor(Date.now() / 1000) + 900;
-  const outra = sign('firm/teste/outro.bin', expiresAt, 100);
+  const other = sign('firm/teste/outro.bin', expiresAt, 100);
 
-  const response = await putBinary(
-    url('firm/teste/alvo.bin', { expiresAt, signature: outra }),
-  );
+  const response = await putBinary(url('firm/teste/alvo.bin', { expiresAt, signature: other }));
 
   expect(response.status).toBe(403);
 });
@@ -93,7 +94,7 @@ test('chave assinada que escapa do diretório de storage é 403', async () => {
   const response = await putBinary(url('../fuga-do-storage.bin'));
 
   expect(response.status).toBe(403);
-  expect(response.body.error.message).toMatch(/Caminho de arquivo inválido/);
+  expect(response.body.error.message).toMatch(/Caminho de file inválido/);
   await expect(stat(resolve(env.STORAGE_LOCAL_DIR, '../fuga-do-storage.bin'))).rejects.toThrow();
 });
 

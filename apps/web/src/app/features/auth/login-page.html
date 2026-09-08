@@ -1,0 +1,112 @@
+<div class="bg-muted/40 min-h-dvh lg:grid lg:grid-cols-2">
+  <section class="bg-sidebar text-sidebar-foreground hidden flex-col justify-center p-12 lg:flex">
+    <img ngSrc="competa-logo.png" alt="Competa" class="h-14 w-auto brightness-0 invert" priority />
+    <p class="mt-6 max-w-md text-3xl font-semibold tracking-tight">
+      Pare de garimpar documento no WhatsApp.
+    </p>
+    <p class="mt-3 max-w-md text-sm opacity-80">
+      Defina o checklist mensal de cada empresa, abra a competência e receba tudo organizado — sem
+      cobrar documento um por um.
+    </p>
+
+    <ul class="mt-10 flex max-w-md flex-col gap-6">
+      @for (item of benefits; track item.title) {
+        <li class="flex gap-4">
+          <span
+            class="bg-sidebar-accent flex size-9 shrink-0 items-center justify-center rounded-lg"
+            aria-hidden="true"
+          >
+            <ng-icon [name]="item.icon" class="text-base" />
+          </span>
+          <span>
+            <span class="block text-sm font-semibold">{{ item.title }}</span>
+            <span class="mt-0.5 block text-sm opacity-75">{{ item.text }}</span>
+          </span>
+        </li>
+      }
+    </ul>
+  </section>
+
+  <main class="flex min-h-dvh items-center justify-center p-4 sm:p-8">
+    <div class="bg-card border-border w-full max-w-md rounded-xl border p-6 shadow-sm sm:p-8">
+      <h1 class="text-xl font-semibold tracking-tight">Acessar painel do Contador</h1>
+      <p class="text-muted-foreground mt-1 text-sm">
+        Informe suas credenciais para gerenciar suas competências.
+      </p>
+
+      @if (error()) {
+        <div
+          class="mt-6 flex gap-3 rounded-lg border border-red-200 bg-red-50 p-3 text-sm text-red-900"
+          role="alert"
+        >
+          <ng-icon name="lucideCircleAlert" class="mt-0.5 shrink-0 text-base" aria-hidden="true" />
+          <p>{{ error() }}</p>
+        </div>
+      }
+
+      <form class="mt-6 flex flex-col gap-4" (submit)="$event.preventDefault(); signIn()">
+        <div class="flex flex-col gap-1.5">
+          <label hlmLabel for="email"
+            >E-mail <span class="text-destructive" aria-hidden="true">*</span
+            ><span class="sr-only">(obrigatório)</span></label
+          >
+          <input
+            hlmInput
+            id="email"
+            type="email"
+            autocomplete="email"
+            inputmode="email"
+            placeholder="contador@escritorio.com.br"
+            [formField]="f.email"
+            [attr.aria-describedby]="
+              f.email().invalid() && f.email().touched() ? 'erro-email' : null
+            "
+          />
+          @if (f.email().invalid() && f.email().touched()) {
+            <p id="email-error" class="text-destructive text-xs">
+              {{ f.email().errors()[0]?.message }}
+            </p>
+          }
+        </div>
+
+        <div class="flex flex-col gap-1.5">
+          <label hlmLabel for="password"
+            >Senha <span class="text-destructive" aria-hidden="true">*</span
+            ><span class="sr-only">(obrigatório)</span></label
+          >
+          <input
+            hlmInput
+            id="password"
+            type="password"
+            autocomplete="current-password"
+            [formField]="f.password"
+            [attr.aria-describedby]="
+              f.password().invalid() && f.password().touched() ? 'erro-senha' : null
+            "
+          />
+          @if (f.password().invalid() && f.password().touched()) {
+            <p id="password-error" class="text-destructive text-xs">
+              {{ f.password().errors()[0]?.message }}
+            </p>
+          }
+        </div>
+
+        <button hlmBtn size="lg" type="submit" class="mt-2 w-full" [disabled]="f().submitting()">
+          {{ f().submitting() ? 'Entrando…' : 'Entrar' }}
+          <ng-icon name="lucideArrowRight" aria-hidden="true" />
+        </button>
+      </form>
+
+      <p class="text-muted-foreground mt-6 text-center text-sm">
+        Recebeu convite de outro contador? Use o link do convite que chegou no seu e-mail.
+      </p>
+
+      <p class="text-muted-foreground mt-3 border-t pt-4 text-center text-sm">
+        Você envia documentos para uma contabilidade?
+        <a routerLink="/perdi-meu-link" class="text-primary font-medium hover:underline">
+          Perdi meu link
+        </a>
+      </p>
+    </div>
+  </main>
+</div>

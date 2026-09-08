@@ -61,7 +61,7 @@ const put = async (uploadUrl: string, content: string, contentType = 'applicatio
 
 test('um pedido com N arquivos gera N Documentos e confirma os N', async () => {
   const { token, item } = await setup();
-  const extrato = item(CATALOG.extrato_bancario.name);
+  const statement = item(CATALOG.extrato_bancario.name);
   const files = ['jan.pdf', 'fev.pdf', 'mar.pdf'].map((fileName) => ({
     fileName,
     contentType: 'application/pdf',
@@ -70,7 +70,7 @@ test('um pedido com N arquivos gera N Documentos e confirma os N', async () => {
 
   const presign = await http(app)
     .post(`/upload/${token}/documents`)
-    .send({ requestItemId: extrato.id, files })
+    .send({ requestItemId: statement.id, files })
     .expect(201);
 
   const entries = presign.body.data.files as {
@@ -95,7 +95,7 @@ test('um pedido com N arquivos gera N Documentos e confirma os N', async () => {
 
 test('mais de 500 arquivos num pedido é recusado com 422 e não cria Documento', async () => {
   const { token, item } = await setup();
-  const extrato = item(CATALOG.extrato_bancario.name);
+  const statement = item(CATALOG.extrato_bancario.name);
   const files = Array.from({ length: 501 }, (_, index) => ({
     fileName: `nota-${index}.pdf`,
     contentType: 'application/pdf',
@@ -104,16 +104,16 @@ test('mais de 500 arquivos num pedido é recusado com 422 e não cria Documento'
 
   const response = await http(app)
     .post(`/upload/${token}/documents`)
-    .send({ requestItemId: extrato.id, files })
+    .send({ requestItemId: statement.id, files })
     .expect(422);
 
-  expect(response.body.error.message).toMatch(/no máximo 500 arquivos/);
+  expect(response.body.error.message).toMatch(/no máximo 500 files/);
   expect(await db.select().from(document)).toHaveLength(0);
 });
 
 test('exatamente 500 arquivos é aceito (o limite não é excludente)', async () => {
   const { token, item } = await setup();
-  const extrato = item(CATALOG.extrato_bancario.name);
+  const statement = item(CATALOG.extrato_bancario.name);
   const files = Array.from({ length: 500 }, (_, index) => ({
     fileName: `nota-${index}.pdf`,
     contentType: 'application/pdf',
@@ -122,7 +122,7 @@ test('exatamente 500 arquivos é aceito (o limite não é excludente)', async ()
 
   const response = await http(app)
     .post(`/upload/${token}/documents`)
-    .send({ requestItemId: extrato.id, files })
+    .send({ requestItemId: statement.id, files })
     .expect(201);
 
   expect(response.body.data.files).toHaveLength(500);
@@ -131,13 +131,13 @@ test('exatamente 500 arquivos é aceito (o limite não é excludente)', async ()
 
 test('formato fora do checklist é recusado por arquivo, sem derrubar o lote', async () => {
   const { token, item } = await setup();
-  const extrato = item(CATALOG.extrato_bancario.name);
-  expect(extrato.acceptedFormats).toEqual(['pdf', 'ofx']);
+  const statement = item(CATALOG.extrato_bancario.name);
+  expect(statement.acceptedFormats).toEqual(['pdf', 'ofx']);
 
   const response = await http(app)
     .post(`/upload/${token}/documents`)
     .send({
-      requestItemId: extrato.id,
+      requestItemId: statement.id,
       files: [
         { fileName: 'extrato.pdf', contentType: 'application/pdf', sizeBytes: 10 },
         { fileName: 'planilha.xlsx', contentType: 'application/vnd.ms-excel', sizeBytes: 10 },
@@ -149,7 +149,7 @@ test('formato fora do checklist é recusado por arquivo, sem derrubar o lote', a
   const [ok, formato, semFormato] = response.body.data.files;
   expect(ok.accepted).toBe(true);
   expect(formato.accepted).toBe(false);
-  expect(formato.reason).toMatch(/Formato \.xlsx não aceito/);
+  expect(formato.reason).toMatch(/Formato \.xlsx não accepted/);
   expect(semFormato.accepted).toBe(false);
   expect(semFormato.reason).toMatch(/Não foi possível identificar o formato/);
   // só o arquivo aceito virou linha
@@ -208,24 +208,24 @@ test('Documento Extra continua aceito com a Solicitação ENCERRADA', async () =
 
 test('Item de Solicitação ENCERRADA não aceita envio: 422 apontando o Documento Extra', async () => {
   const { token, session, requestId, item } = await setup();
-  const extrato = item(CATALOG.extrato_bancario.name);
+  const statement = item(CATALOG.extrato_bancario.name);
   await http(app).post(`/requests/${requestId}/close`).set('cookie', session.cookie).expect(201);
 
   const response = await http(app)
     .post(`/upload/${token}/documents`)
     .send({
-      requestItemId: extrato.id,
+      requestItemId: statement.id,
       files: [{ fileName: 'extrato.pdf', contentType: 'application/pdf', sizeBytes: 10 }],
     })
     .expect(422);
 
-  expect(response.body.error.message).toMatch(/Documento Extra/);
+  expect(response.body.error.message).toMatch(/DocumentRow Extra/);
   expect(await db.select().from(document)).toHaveLength(0);
 });
 
 test('chave desconhecida dentro do arquivo é 422 — nunca um Documento Extra silencioso', async () => {
   const { token, item } = await setup();
-  const extrato = item(CATALOG.extrato_bancario.name);
+  const statement = item(CATALOG.extrato_bancario.name);
 
   const response = await http(app)
     .post(`/upload/${token}/documents`)
@@ -235,7 +235,7 @@ test('chave desconhecida dentro do arquivo é 422 — nunca um Documento Extra s
           fileName: 'extrato.pdf',
           contentType: 'application/pdf',
           sizeBytes: 10,
-          requestItemId: extrato.id,
+          requestItemId: statement.id,
         },
       ],
     })
@@ -247,12 +247,12 @@ test('chave desconhecida dentro do arquivo é 422 — nunca um Documento Extra s
 
 test('storage_key não usa o nome do arquivo do Responsável nem escapa do prefixo', async () => {
   const { token, session, requestId, item } = await setup();
-  const extrato = item(CATALOG.extrato_bancario.name);
+  const statement = item(CATALOG.extrato_bancario.name);
 
   const presign = await http(app)
     .post(`/upload/${token}/documents`)
     .send({
-      requestItemId: extrato.id,
+      requestItemId: statement.id,
       files: [
         {
           fileName: '../../../../etc/passwd.pdf',

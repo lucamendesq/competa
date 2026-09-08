@@ -48,7 +48,7 @@ test('encerrar Solicitação com pendências devolve a contagem e o aviso', asyn
 
   expect(response.body.data.status).toBe('closed');
   expect(response.body.data.pendingItemCount).toBe(4);
-  expect(response.body.data.warning).toMatch(/4 item\(ns\) sem aceite/);
+  expect(response.body.data.warning).toMatch(/4 item\(ns\) sem acceptance/);
   expect(response.body.data.closedAt).not.toBeNull();
 });
 
@@ -72,22 +72,22 @@ test('encerrar a mesma Solicitação duas vezes responde 409', async () => {
 
   await http(app).post(`/requests/${requestId}/close`).set('cookie', cookie).expect(201);
 
-  const segunda = await http(app)
+  const second = await http(app)
     .post(`/requests/${requestId}/close`)
     .set('cookie', cookie)
     .expect(409);
 
-  expect(segunda.body.error.message).toMatch(/já foi encerrada/i);
+  expect(second.body.error.message).toMatch(/já foi closed/i);
 });
 
 test('encerrar a Competência encerra as Solicitações dela e devolve o total pendente', async () => {
   const session = await createAccountantSession(app);
   await createCompany(app, session.cookie, { name: 'Padaria Central' });
   await createCompany(app, session.cookie, { name: 'Mercado Central' });
-  const aberta = await openPeriod(app, session.cookie, { referenceMonth: '2026-07' });
+  const opened = await openPeriod(app, session.cookie, { referenceMonth: '2026-07' });
 
   const response = await http(app)
-    .post(`/periods/${aberta.id}/close`)
+    .post(`/periods/${opened.id}/close`)
     .set('cookie', session.cookie)
     .expect(201);
 
@@ -95,36 +95,36 @@ test('encerrar a Competência encerra as Solicitações dela e devolve o total p
   expect(response.body.data.closedRequestCount).toBe(2);
   // 5 itens por Empresa, nenhum aceito
   expect(response.body.data.pendingItemCount).toBe(10);
-  expect(response.body.data.warning).toMatch(/10 item\(ns\) sem aceite/);
+  expect(response.body.data.warning).toMatch(/10 item\(ns\) sem acceptance/);
 
-  const [row] = await db.select().from(period).where(eq(period.id, aberta.id));
+  const [row] = await db.select().from(period).where(eq(period.id, opened.id));
   expect(row.status).toBe('closed');
 
-  const requests = await db.select().from(request).where(eq(request.periodId, aberta.id));
+  const requests = await db.select().from(request).where(eq(request.periodId, opened.id));
   expect(requests.map((r) => r.status)).toEqual(['closed', 'closed']);
   expect(requests.every((r) => r.closedAt !== null)).toBe(true);
 });
 
 test('encerrar a mesma Competência duas vezes responde 409', async () => {
-  const { cookie, period: aberta } = await setupReview(app);
+  const { cookie, period: opened } = await setupReview(app);
 
-  await http(app).post(`/periods/${aberta.id}/close`).set('cookie', cookie).expect(201);
+  await http(app).post(`/periods/${opened.id}/close`).set('cookie', cookie).expect(201);
 
-  const segunda = await http(app)
-    .post(`/periods/${aberta.id}/close`)
+  const second = await http(app)
+    .post(`/periods/${opened.id}/close`)
     .set('cookie', cookie)
     .expect(409);
 
-  expect(segunda.body.error.code).toBe('PERIOD_ALREADY_CLOSED');
+  expect(second.body.error.code).toBe('PERIOD_ALREADY_CLOSED');
 });
 
 test('depois de encerrada, o Item não recebe mais envio (422) mas o Documento Extra é aceito', async () => {
-  const { cookie, requestId, period: aberta, token } = await setupReview(app);
+  const { cookie, requestId, period: opened, token } = await setupReview(app);
   const item = await itemNamed(app, cookie, requestId, 'DAS pago');
 
-  await http(app).post(`/periods/${aberta.id}/close`).set('cookie', cookie).expect(201);
+  await http(app).post(`/periods/${opened.id}/close`).set('cookie', cookie).expect(201);
 
-  const recusa = await http(app)
+  const rejection = await http(app)
     .post(`/upload/${token}/documents`)
     .send({
       requestItemId: item.id,
@@ -132,7 +132,7 @@ test('depois de encerrada, o Item não recebe mais envio (422) mas o Documento E
     })
     .expect(422);
 
-  expect(recusa.body.error.message).toMatch(/Documento Extra/);
+  expect(rejection.body.error.message).toMatch(/DocumentRow Extra/);
 
   const extra = await uploadOk(app, token, { fileName: 'depois-do-fecho.pdf' });
   const panel = await requestPanel(app, cookie, requestId);
@@ -146,16 +146,16 @@ test('depois de encerrada, o Item não recebe mais envio (422) mas o Documento E
 });
 
 test('revisão em Solicitação encerrada pela Competência responde 409', async () => {
-  const { cookie, requestId, period: aberta, token } = await setupReview(app);
+  const { cookie, requestId, period: opened, token } = await setupReview(app);
   const item = await itemNamed(app, cookie, requestId, 'DAS pago');
   await uploadOk(app, token, { fileName: 'das.pdf', requestItemId: item.id });
 
-  await http(app).post(`/periods/${aberta.id}/close`).set('cookie', cookie).expect(201);
+  await http(app).post(`/periods/${opened.id}/close`).set('cookie', cookie).expect(201);
 
   const response = await http(app)
     .post(`/request-items/${item.id}/accept`)
     .set('cookie', cookie)
     .expect(409);
 
-  expect(response.body.error.message).toMatch(/encerrada/i);
+  expect(response.body.error.message).toMatch(/closed/i);
 });

@@ -1,10 +1,16 @@
 import type { INestApplication } from '@nestjs/common';
 import { eq } from 'drizzle-orm';
 import { afterAll, beforeAll, beforeEach, expect, test } from 'vitest';
-import { document, message, user } from '../../../src/infra/database/schema/index.js';
-import { cookieHeader, createTestApp, http, resetRateLimit } from '../../app.js';
+import { document, message } from '../../../src/infra/database/schema/index.js';
+import { createTestApp, http, resetRateLimit } from '../../app.js';
 import { db, resetDatabase } from '../../db.js';
-import { createAccountantSession, createCompany, openPeriod, uploadFile } from '../../factories.js';
+import {
+  createAccountantSession,
+  createCompany,
+  createContactAccess,
+  openPeriod,
+  uploadFile,
+} from '../../factories.js';
 
 /** Área logada do Responsável: o que falta, o histórico com autoria, envio sem link — e a
  *  barreira que não cai: conteúdo de documento nunca é servido. */
@@ -24,40 +30,35 @@ beforeEach(async () => {
   resetRateLimit(app);
 });
 
-const lastMagicLinkToken = async () => {
-  const result = (await db.execute(
-    `select identifier from verification order by created_at desc limit 1`,
-  )) as unknown as { rows: { identifier: string }[] };
-
-  return result.rows?.[0]?.identifier;
-};
-
 const setup = async () => {
   const session = await createAccountantSession(app);
   const company = await createCompany(app, session.cookie, {
     name: 'Padaria Central',
     contact: { name: 'Ana', email: 'ana@padaria.com' },
   });
-  const outra = await createCompany(app, session.cookie, {
+  const other = await createCompany(app, session.cookie, {
     name: 'Consultoria Alfa',
     contact: { name: 'Bruno', email: 'bruno@alfa.com' },
   });
+  /* Ordem nova (2026-09-07): o Responsável cria o acesso ANTES — a Competência só é
+   * aberta para Empresa com Responsável configurado. */
+  const access = await createContactAccess(app, {
+    companyId: company.id,
+    email: 'ana@padaria.com',
+    name: 'Ana',
+  });
+  await createContactAccess(app, { companyId: other.id, email: 'bruno@alfa.com' });
+
   const period = await openPeriod(app, session.cookie, {
     referenceMonth: '2026-07',
     dueDate: '2026-08-10',
   });
   const token = period.tokenFor('Padaria Central');
-
-  await http(app).post(`/upload/${token}/account`).send({}).expect(201);
-  await http(app).post('/api/auth/sign-in/magic-link').send({ email: 'ana@padaria.com' }).expect(200);
-  const verify = await http(app)
-    .get('/api/auth/magic-link/verify')
-    .query({ token: await lastMagicLinkToken() });
-  const cookie = cookieHeader(verify.headers['set-cookie']);
+  const cookie = access.cookie;
 
   const request = period.requests.find((row) => row.companyName === 'Padaria Central')!;
 
-  return { session, company, outra, period, token, cookie, request };
+  return { session, company, other, period, token, cookie, request };
 };
 
 test('profile diz quem ele é, a Empresa e quem o cobra', async () => {
@@ -105,10 +106,7 @@ test('histórico mostra QUEM enviou e o motivo da rejeição, sem servir o arqui
     .send({ rejectionReason: 'Extrato incompleto: falta a segunda conta.' })
     .expect(201);
 
-  const detail = await http(app)
-    .get(`/my/periods/${period.id}`)
-    .set('cookie', cookie)
-    .expect(200);
+  const detail = await http(app).get(`/my/periods/${period.id}`).set('cookie', cookie).expect(200);
 
   const withDocs = detail.body.data.items.find(
     (row: { documents: unknown[] }) => row.documents.length > 0,
@@ -167,13 +165,13 @@ test('envio logado dispensa o link e registra a autoria', async () => {
 
 test('Solicitação de outra Empresa é inalcançável no envio logado', async () => {
   const { cookie, period } = await setup();
-  const outra = period.requests.find((row) => row.companyName === 'Consultoria Alfa')!;
+  const other = period.requests.find((row) => row.companyName === 'Consultoria Alfa')!;
 
   await http(app)
     .post('/my/documents')
     .set('cookie', cookie)
     .send({
-      requestId: outra.id,
+      requestId: other.id,
       files: [{ fileName: 'x.pdf', contentType: 'application/pdf', sizeBytes: 5 }],
     })
     .expect(404);
@@ -181,17 +179,17 @@ test('Solicitação de outra Empresa é inalcançável no envio logado', async (
 
 test('Competência de outra Empresa não aparece nem por id', async () => {
   const { cookie, session } = await setup();
-  const outroPeriodo = await openPeriod(app, session.cookie, { referenceMonth: '2026-08' });
+  const otherPeriod = await openPeriod(app, session.cookie, { referenceMonth: '2026-08' });
 
   // a competência existe e tem Solicitação da Empresa dele, então aparece…
-  await http(app).get(`/my/periods/${outroPeriodo.id}`).set('cookie', cookie).expect(200);
+  await http(app).get(`/my/periods/${otherPeriod.id}`).set('cookie', cookie).expect(200);
 
   // …mas uma competência de outra Contabilidade não
   const rival = await createAccountantSession(app, { firmName: 'Rival' });
   await createCompany(app, rival.cookie, { name: 'Empresa do Rival' });
-  const doRival = await openPeriod(app, rival.cookie, { referenceMonth: '2026-09' });
+  const ofRival = await openPeriod(app, rival.cookie, { referenceMonth: '2026-09' });
 
-  await http(app).get(`/my/periods/${doRival.id}`).set('cookie', cookie).expect(404);
+  await http(app).get(`/my/periods/${ofRival.id}`).set('cookie', cookie).expect(404);
 });
 
 test('inscrição de push é upsert por endpoint e o push sai no evento de rejeição', async () => {
@@ -239,4 +237,47 @@ test('inscrição de push é upsert por endpoint e o push sai no evento de rejei
   }
 
   throw new Error('push não foi registrado em message');
+});
+
+/** O Item recusado volta para `pending`: sem as recusas na resposta, o Painel de
+ *  Pendências pede reenvio sem dizer o que corrigir. */
+test('pendências trazem o motivo da recusa do Item reaberto', async () => {
+  const { cookie, session, token } = await setup();
+  const checklist = await http(app).get(`/upload/${token}`).expect(200);
+  const item = checklist.body.data.items.find((row: { name: string }) =>
+    row.name.includes('Extrato bancário'),
+  );
+
+  const sent = await uploadFile(app, token, {
+    fileName: 'extrato.pdf',
+    requestItemId: item.id,
+    content: '%PDF extrato',
+  });
+  if (!sent.accepted) throw new Error('upload recusado no setup');
+
+  await http(app)
+    .post(`/documents/${sent.documentId}/reject`)
+    .set('cookie', session.cookie)
+    .send({ rejectionReason: 'Faltam os últimos 10 dias do mês' })
+    .expect(201);
+
+  const response = await http(app).get('/my/pending').set('cookie', cookie).expect(200);
+  const rows = response.body.data as {
+    item: {
+      id: string;
+      status: string;
+      rejections: { fileName: string; rejectionReason: string }[];
+    };
+  }[];
+
+  const reaberto = rows.find((row) => row.item.id === item.id)!;
+
+  expect(reaberto.item.status).toBe('pending');
+  expect(reaberto.item.rejections).toEqual([
+    { fileName: 'extrato.pdf', rejectionReason: 'Faltam os últimos 10 dias do mês' },
+  ]);
+
+  // Item que nunca recebeu arquivo não ganha recusa nenhuma
+  const nuncaEnviado = rows.find((row) => row.item.id !== item.id)!;
+  expect(nuncaEnviado.item.rejections).toEqual([]);
 });

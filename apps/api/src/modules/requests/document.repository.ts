@@ -13,7 +13,6 @@ type NewDocument = {
   sizeBytes: number;
 };
 
-/** Resultado da conferência de um documento na confirmação. */
 export type ConfirmedDocument = {
   id: string;
   storageKey: string;
@@ -26,7 +25,6 @@ export type ConfirmedDocument = {
 export class DocumentRepository {
   constructor(private readonly db: Database) {}
 
-  /** Solicitação do escopo + (opcionalmente) o Item onde o arquivo vai entrar. */
   async uploadContext(scope: UploadScope, requestItemId?: string | null) {
     const [context] = await this.db
       .select({
@@ -63,7 +61,6 @@ export class DocumentRepository {
     );
   }
 
-  /** Documentos que a confirmação vai conferir — só os que ainda estão pendentes de envio. */
   async pendingUpload(scope: UploadScope, documentIds: string[]): Promise<ConfirmedDocument[]> {
     return this.db
       .select({
@@ -83,16 +80,12 @@ export class DocumentRepository {
       );
   }
 
-  /** Recusa um documento que não passou na conferência: a linha some, o objeto é apagado
-   *  pelo controller. Manter linha órfã seria pior que apagar. */
   async discard(documentIds: string[]) {
     if (!documentIds.length) return;
 
     await this.db.delete(document).where(inArray(document.id, documentIds));
   }
 
-  /** Confirmação do envio: marca `uploaded` (com o tamanho REAL do storage) e os Itens
-   *  dos documentos confirmados viram `submitted`. */
   async confirm(scope: UploadScope, confirmed: { id: string; realBytes: number }[]) {
     if (!confirmed.length) return { confirmed: [], submittedItemIds: [] };
 

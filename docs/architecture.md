@@ -32,20 +32,30 @@ libs/
 
 ```
 src/app/
-  core/                # singletons: ApiClient (HttpClient base), auth interceptor
-                       #   (withCredentials), route guards (UX de redirect), error handler
-  shared/              # componentes/pipes/diretivas reutilizáveis (ui, layout, feedback)
+  core/                # singletons: Api (HttpClient base), interceptor withCredentials,
+                       #   AuthService, guards de rota (UX de redirect), Toaster
+  shared/              # reutilizáveis: format, upload, push.service, modal, status-pill…
+  ui/                  # Spartan UI (vendorizado — não é código nosso)
+  layouts/
+    panel-layout       # casca do painel do Contador
+    contact-layout     # casca da área do Responsável (PWA, mobile-first)
   features/
-    auth/              # login, signup
-    panel/             # tudo do Contador
-      companies/       # páginas + componentes/serviços específicos COLOCADOS na feature
-      checklists/      # templates, overrides
-      periods/         # abrir competência, painel de pendências
-      requests/        # revisão em lote
+    auth/              # login, convite, "perdi meu link"
+    companies/         # Empresas: lista, cadastro, importação, overrides
+    checklists/        # templates do produto e derivados
+    periods/           # abrir competência, Painel de Pendências
+    requests/          # revisão em lote
+    messages/          # log de entrega
+    settings/          # Contabilidade · Contadores · Lembretes · Canais
     upload/            # página pública por token (multi-arquivo/zip, progresso)
+    contact-area/      # área logada do Responsável
   app.routes.ts        # lazy loading por feature
   app.config.ts
 ```
+
+**Pastas e identificadores em inglês; as URLs e todo o texto de tela em PT-BR.** A rota
+pública continua sendo `/envio/:token` e o painel `/empresas`, `/competencias` — o usuário
+lê português, o código não.
 
 ### apps/api (NestJS — módulo por feature, camadas DENTRO)
 
@@ -72,18 +82,18 @@ src/
 
 ## Componentes Principais
 
-| Componente | Responsabilidade | Tecnologia |
-|-----------|-----------------|------------|
-| apps/web — features/panel | Painel do Contador: cadastro, templates/overrides, competências, revisão em lote, pendências | Angular (standalone components, signals, Typed Reactive Forms) + Tailwind/Spartan UI |
-| apps/web — features/upload | Página pública de upload (token, multi-arquivo/zip, direto ao R2) | Angular (rota pública, lazy) + Tailwind mobile-first |
-| apps/api — modules/* | Feature modules: controller → repository (FirmScope). Duas camadas, sem use case | NestJS + Drizzle |
-| apps/api — modules/auth | TenantGuard (guard global único) + UploadTokenGuard | Better Auth (adapter Drizzle) |
-| apps/api — eventos | `PeriodOpened`, `RequestCreated`, `ItemReopened`… entre módulos | `@nestjs/event-emitter` (síncrono) |
-| apps/api — messaging | Providers email/WhatsApp/push (1 interface) + `reminders.cron.ts` | `@nestjs/schedule`, ACL por provedor |
-| libs/contracts | Schemas zod por recurso, compartilhados web ↔ api (↔ mobile) | zod |
-| apps/mobile (futuro) | App do Responsável: push + upload pela mesma API | {a decidir: React Native vs Flutter} |
-| Banco | Persistência multi-tenant (FirmScope na aplicação) | Postgres + Drizzle (host {a definir}) |
-| Storage | Documentos e zips (egress grátis) | Cloudflare R2 (S3-compatible) |
+| Componente                 | Responsabilidade                                                                             | Tecnologia                                                                           |
+| -------------------------- | -------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------ |
+| apps/web — features/panel  | Painel do Contador: cadastro, templates/overrides, competências, revisão em lote, pendências | Angular (standalone components, signals, Typed Reactive Forms) + Tailwind/Spartan UI |
+| apps/web — features/upload | Página pública de upload (token, multi-arquivo/zip, direto ao R2)                            | Angular (rota pública, lazy) + Tailwind mobile-first                                 |
+| apps/api — modules/*       | Feature modules: controller → repository (FirmScope). Duas camadas, sem use case             | NestJS + Drizzle                                                                     |
+| apps/api — modules/auth    | TenantGuard (guard global único) + UploadTokenGuard                                          | Better Auth (adapter Drizzle)                                                        |
+| apps/api — eventos         | `PeriodOpened`, `RequestCreated`, `ItemReopened`… entre módulos                              | `@nestjs/event-emitter` (síncrono)                                                   |
+| apps/api — messaging       | Providers email/WhatsApp/push (1 interface) + `reminders.cron.ts`                            | `@nestjs/schedule`, ACL por provedor                                                 |
+| libs/contracts             | Schemas zod por recurso, compartilhados web ↔ api (↔ mobile)                                 | zod                                                                                  |
+| apps/mobile (futuro)       | App do Responsável: push + upload pela mesma API                                             | {a decidir: React Native vs Flutter}                                                 |
+| Banco                      | Persistência multi-tenant (FirmScope na aplicação)                                           | Postgres + Drizzle (host {a definir})                                                |
+| Storage                    | Documentos e zips (egress grátis)                                                            | Cloudflare R2 (S3-compatible)                                                        |
 
 ## Diagrama de Contexto
 
@@ -104,23 +114,23 @@ src/
 
 ## Bounded contexts → módulos Nest
 
-| Context (conceito) | Subdomínio | Módulos em `apps/api/src/modules/` |
-|---|---|---|
-| **registry** (Cadastro) | Supporting | `companies/` (empresa, responsável, importação) · `checklists/` (catálogo, templates, overrides) |
-| **collection** (Coleta — CORE) | Core | `periods/` (competência, fan-out) · `requests/` (solicitação, itens, documentos, revisão, zip, upload) |
-| **messaging** (Comunicação) | Supporting | `messaging/` (mensagens, lembretes/cron, providers) |
+| Context (conceito)             | Subdomínio | Módulos em `apps/api/src/modules/`                                                                     |
+| ------------------------------ | ---------- | ------------------------------------------------------------------------------------------------------ |
+| **registry** (Cadastro)        | Supporting | `companies/` (empresa, responsável, importação) · `checklists/` (catálogo, templates, overrides)       |
+| **collection** (Coleta — CORE) | Core       | `periods/` (competência, fan-out) · `requests/` (solicitação, itens, documentos, revisão, zip, upload) |
+| **messaging** (Comunicação)    | Supporting | `messaging/` (mensagens, lembretes/cron, providers)                                                    |
 
 Direção de dependência (convenção, não polícia): **registry → collection → messaging**, por eventos síncronos. Detalhe e invariantes em [`domain.md`](./domain.md).
 
 ## Integrações Externas
 
-| Sistema | Tipo | Protocolo | Descrição |
-|---------|------|-----------|-----------|
-| Postgres | Banco | Drizzle | Persistência de tudo (inclusive tabelas Better Auth); host {a definir} |
-| WhatsApp Cloud API | Saída (+ webhook de status) | HTTP REST | Link/lembretes com template utility aprovado; degrada para email |
-| SES ou Resend | Saída | SDK/HTTP | Email transacional; canal que nunca bloqueia o fluxo |
-| FCM | Saída | SDK | Push para Responsável com App (futuro) |
-| Cloudflare R2 | Saída | S3-compatible | URLs pré-assinadas para upload direto; leitura em streaming para zip |
+| Sistema            | Tipo                        | Protocolo     | Descrição                                                              |
+| ------------------ | --------------------------- | ------------- | ---------------------------------------------------------------------- |
+| Postgres           | Banco                       | Drizzle       | Persistência de tudo (inclusive tabelas Better Auth); host {a definir} |
+| WhatsApp Cloud API | Saída (+ webhook de status) | HTTP REST     | Link/lembretes com template utility aprovado; degrada para email       |
+| SES ou Resend      | Saída                       | SDK/HTTP      | Email transacional; canal que nunca bloqueia o fluxo                   |
+| FCM                | Saída                       | SDK           | Push para Responsável com App (futuro)                                 |
+| Cloudflare R2      | Saída                       | S3-compatible | URLs pré-assinadas para upload direto; leitura em streaming para zip   |
 
 > Better Auth não é interface externa — é biblioteca dentro de `apps/api`, com tabelas no nosso Postgres. R2 e Better Auth entram em modo **Conformist** (aceitar o modelo deles, wrapper mínimo); provedores de mensagem ficam atrás de **uma interface por canal** em `messaging/providers/` — payload da Meta/SES/FCM nunca vaza para os módulos de negócio.
 

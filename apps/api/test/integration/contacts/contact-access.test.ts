@@ -1,14 +1,17 @@
 import type { INestApplication } from '@nestjs/common';
 import { eq } from 'drizzle-orm';
 import { afterAll, beforeAll, beforeEach, expect, test } from 'vitest';
-import { contact, pushSubscription, user } from '../../../src/infra/database/schema/index.js';
+import { contact, pushSubscription } from '../../../src/infra/database/schema/index.js';
 import { cookieHeader, createTestApp, http, resetRateLimit } from '../../app.js';
 import { db, resetDatabase } from '../../db.js';
-import { createAccountantSession, createCompany, openPeriod } from '../../factories.js';
+import { addDays } from 'date-fns';
+import { invite } from '../../../src/infra/database/schema/index.js';
+import { createToken } from '../../../src/lib/token.js';
+import { createAccountantSession, createCompany } from '../../factories.js';
 
-/** Fase 10: acesso do Responsável. A conta nasce da credencial que já circula (o token do
- *  Link prova posse do email), a entrada é por magic link/passkey — sem senha — e o
- *  Contador pode revogar. */
+/** Conta do Responsável (D14): opcional e nunca pré-requisito. Pelo CONVITE ele define uma
+ *  senha — o convite é de uso único e não serve de entrada depois de aceito. Pelo Link de
+ *  Upload é um toque, sem senha (esse link é renovado todo mês). O Contador revoga. */
 
 let app: INestApplication;
 
@@ -31,73 +34,85 @@ const setup = async () => {
     name: 'Padaria Central',
     contact: { name: 'Ana', email: 'ana@padaria.com' },
   });
-  const period = await openPeriod(app, session.cookie, { referenceMonth: '2026-07' });
 
-  return { session, company, period, token: period.tokenFor('Padaria Central') };
+  const { token } = await inviteFor(company.id, 'ana@padaria.com');
+
+  return { session, company, token };
 };
 
-/** Entra como Responsável seguindo o magic link (o host do link é o BETTER_AUTH_URL, então
- *  o teste bate no servidor da suíte). */
-const signInAsContact = async (email: string) => {
-  await http(app).post('/api/auth/sign-in/magic-link').send({ email }).expect(200);
+const PASSWORD = 'senha-forte-123';
 
-  const [row] = await db
-    .select()
-    .from(user)
-    .where(eq(user.email, email))
-    .limit(1);
-  expect(row, 'o Responsável precisa ter conta antes de entrar').toBeDefined();
+/** Entrada normal de quem aceitou um convite: email e senha. */
+const signInAsContact = async (email = 'ana@padaria.com', password = PASSWORD) => {
+  const signIn = await http(app)
+    .post('/api/auth/sign-in/email')
+    .send({ email, password })
+    .expect(200);
 
-  // sem `callbackURL` o verify responde 200 com a sessão; com, responde 302 — o que
-  // interessa é o cookie que vem nos dois casos
-  const verification = await http(app)
-    .get('/api/auth/magic-link/verify')
-    .query({ token: await lastMagicLinkToken() });
-
-  expect([200, 302]).toContain(verification.status);
-
-  return cookieHeader(verification.headers['set-cookie']);
+  return cookieHeader(signIn.headers['set-cookie']);
 };
 
-/** O token em claro só existe no email; o teste lê o `verification` mais recente. */
-const lastMagicLinkToken = async () => {
-  const rows = await db.execute(
-    `select identifier from verification order by created_at desc limit 1`,
-  );
-  const identifier = (rows as unknown as { rows: { identifier: string }[] }).rows?.[0]?.identifier;
+/** Convite com token conhecido — o real vai no email, que o teste não abre. */
+const inviteFor = async (companyId: string, email: string) => {
+  const { token, tokenHash } = createToken();
 
-  return identifier;
+  await db
+    .insert(invite)
+    .values({ email, tokenHash, companyId, expiresAt: addDays(new Date(), 7) });
+
+  return { token };
 };
 
-test('acesso nasce do Link de Upload: sem senha, sem convite', async () => {
+test('o convite cria o acesso com senha, e a senha entra de primeira', async () => {
   const { token } = await setup();
 
-  const response = await http(app).post(`/upload/${token}/account`).send({}).expect(201);
+  const response = await http(app)
+    .post(`/invites/${token}/contact-account`)
+    .send({ password: PASSWORD })
+    .expect(201);
 
   expect(response.body.data.email).toBe('ana@padaria.com');
-  expect(response.body.data.nextStep).toBe('passkey_or_magic_link');
 
   const [row] = await db.select().from(contact).where(eq(contact.email, 'ana@padaria.com'));
   expect(row.authUserId).not.toBeNull();
 
-  // conta sem senha: nada em `account` (é lá que a credencial de senha viveria)
-  const [created] = await db.select().from(user).where(eq(user.email, 'ana@padaria.com'));
-  expect(created.emailVerified).toBe(false);
+  await http(app)
+    .get('/my/profile')
+    .set('cookie', await signInAsContact())
+    .expect(200);
 });
 
-test('criar acesso duas vezes pelo mesmo Link é recusado', async () => {
+test('senha curta é recusada e não deixa conta pela metade', async () => {
   const { token } = await setup();
 
-  await http(app).post(`/upload/${token}/account`).send({}).expect(201);
-  const again = await http(app).post(`/upload/${token}/account`).send({}).expect(409);
+  await http(app).post(`/invites/${token}/contact-account`).send({ password: 'curta' }).expect(422);
 
-  expect(again.body.error.code).toBe('CONTACT_ACCESS_ALREADY_EXISTS');
+  const [row] = await db.select().from(contact).where(eq(contact.email, 'ana@padaria.com'));
+  expect(row.authUserId).toBeNull();
+});
+
+/** O convite é de uso único. Quem reaproveitar o link recebe 409 — e a tela manda para a
+ *  entrada, porque ele JÁ tem senha e não fica sem porta. */
+test('aceitar o mesmo convite duas vezes é recusado', async () => {
+  const { token } = await setup();
+
+  await http(app)
+    .post(`/invites/${token}/contact-account`)
+    .send({ password: PASSWORD })
+    .expect(201);
+  await http(app)
+    .post(`/invites/${token}/contact-account`)
+    .send({ password: PASSWORD })
+    .expect(409);
 });
 
 test('token inválido não cria acesso nenhum', async () => {
   await setup();
 
-  await http(app).post('/upload/token-que-nao-existe/account').send({}).expect(404);
+  await http(app)
+    .post('/invites/token-que-nao-existe/contact-account')
+    .send({ password: PASSWORD })
+    .expect(404);
 
   const [row] = await db.select().from(contact).where(eq(contact.email, 'ana@padaria.com'));
   expect(row.authUserId).toBeNull();
@@ -113,7 +128,6 @@ test('sem sessão, a área do Responsável responde 401', async () => {
 test('sessão de Contador NÃO vira sessão de Responsável', async () => {
   const { session } = await setup();
 
-  // o Contador tem sessão válida, mas não é `contact` de Empresa nenhuma
   const response = await http(app).get('/my/profile').set('cookie', session.cookie).expect(403);
 
   expect(response.body.error.code).toBe('FORBIDDEN');
@@ -121,8 +135,11 @@ test('sessão de Contador NÃO vira sessão de Responsável', async () => {
 
 test('Contador vê quem tem acesso, revoga, e a sessão do Responsável morre', async () => {
   const { token, company, session } = await setup();
-  await http(app).post(`/upload/${token}/account`).send({}).expect(201);
-  const contactCookie = await signInAsContact('ana@padaria.com');
+  await http(app)
+    .post(`/invites/${token}/contact-account`)
+    .send({ password: PASSWORD })
+    .expect(201);
+  const contactCookie = await signInAsContact();
 
   await http(app).get('/my/profile').set('cookie', contactCookie).expect(200);
 

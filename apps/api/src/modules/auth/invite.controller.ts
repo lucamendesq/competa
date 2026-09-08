@@ -8,21 +8,32 @@ import { zodPipe } from '../../lib/zod-pipe.js';
 import { createToken } from '../../lib/token.js';
 import { CurrentScope } from './current-scope.decorator.js';
 import { EVENTS, type InviteCreatedEvent } from '../../lib/events.js';
+import { AccountantRepository } from './accountant.repository.js';
+import type { AuthSession } from './auth-provider.js';
+import { OnlyOwnerCanInvite } from './errors.js';
 import { InviteRepository } from './invite.repository.js';
 import type { FirmScope } from './scope.js';
+import { Session } from './session.decorator.js';
 
 @Controller('invites')
 export class InviteController {
   constructor(
     private readonly invites: InviteRepository,
+    private readonly accountants: AccountantRepository,
     private readonly events: EventEmitter2,
   ) {}
 
+  /** Convidar é ato do dono: um Contador convidado não amplia o acesso ao tenant por
+   *  conta própria. Sem isto, qualquer convidado convida — inclusive quem foi revogado
+   *  em outro canal e ainda tem sessão. */
   @Post()
   async create(
     @CurrentScope() scope: FirmScope,
+    @Session() session: AuthSession,
     @Body(zodPipe(CreateInviteBody)) body: CreateInviteBody,
   ) {
+    if (!(await this.accountants.isOwner(scope, session.user.id))) throw new OnlyOwnerCanInvite();
+
     const { token, tokenHash } = createToken();
     const expiresAt = addDays(new Date(), env.INVITE_TTL_DAYS);
     const row = await this.invites.createForFirm(scope, {
@@ -54,7 +65,8 @@ export class InviteController {
 
     return {
       email: row.email,
-      invitedBy: row.firmName ?? row.companyName,
+      invitedBy: row.firmName ?? row.companyFirmName,
+      companyName: row.companyName,
       target: row.accountingFirmId ? 'accounting_firm' : 'company',
     };
   }

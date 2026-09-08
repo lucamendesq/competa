@@ -32,7 +32,10 @@ const handle = (exception: unknown) => {
   const { captured, host } = fakeHost();
   filter.catch(exception, host);
 
-  return captured as { status: number; body: { error: { code: string; message: string; details?: unknown } } };
+  return captured as {
+    status: number;
+    body: { error: { code: string; message: string; details?: unknown } };
+  };
 };
 
 beforeEach(() => {
@@ -51,9 +54,11 @@ test('AppError vira { error: { code, message } } com o status da própria classe
 });
 
 test('details só aparece quando o erro trouxe details', () => {
-  const comDetalhe = handle(new ValidationError('Dados inválidos.', { fieldErrors: { name: ['curto'] } }));
-  expect(comDetalhe.status).toBe(422);
-  expect(comDetalhe.body.error.details).toEqual({ fieldErrors: { name: ['curto'] } });
+  const withDetail = handle(
+    new ValidationError('Dados inválidos.', { fieldErrors: { name: ['curto'] } }),
+  );
+  expect(withDetail.status).toBe(422);
+  expect(withDetail.body.error.details).toEqual({ fieldErrors: { name: ['curto'] } });
 
   expect(handle(new ValidationError('Dados inválidos.')).body.error).not.toHaveProperty('details');
 });
@@ -74,11 +79,16 @@ test('ThrottlerException é 429 TOO_MANY_REQUESTS, nunca 500', () => {
 });
 
 test('erro desconhecido é 500 INTERNAL_ERROR e não vaza mensagem nem stack interna', () => {
-  const interno = new Error('conexão falhou: postgres://usuario:senha-secreta@10.0.0.7/contabilidade');
+  const interno = new Error(
+    'conexão falhou: postgres://usuario:senha-secreta@10.0.0.7/contabilidade',
+  );
   const response = handle(interno);
 
   expect(response.status).toBe(500);
-  expect(response.body.error).toEqual({ code: 'INTERNAL_ERROR', message: 'Erro interno. Tente novamente.' });
+  expect(response.body.error).toEqual({
+    code: 'INTERNAL_ERROR',
+    message: 'Erro interno. Tente novamente.',
+  });
 
   const serialized = JSON.stringify(response.body);
   expect(serialized).not.toContain('senha-secreta');

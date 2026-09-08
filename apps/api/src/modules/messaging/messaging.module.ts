@@ -14,11 +14,10 @@ import { RemindersCron } from './reminders.cron.js';
 import { RequestCreatedListener } from './request-created.listener.js';
 import { CollectionEventsListener } from './collection-events.listener.js';
 
-const useResend = Boolean(env.RESEND_API_KEY);
+const useResend = env.NODE_ENV === 'production';
 
-new Logger('MessagingModule').log(useResend ? 'ResendEmail' : 'LogEmail (fallback de dev)');
+new Logger('MessagingModule').log(useResend ? 'ResendEmail' : 'LogEmail (console)');
 
-/** Fase 5 — envio de mensagens (email/WhatsApp/push) e cron de lembretes. */
 @Module({
   // para rotacionar o Link no lembrete (o token em claro só existe na rotação).
   // Sem ciclo: RequestsModule importa apenas StorageModule.
@@ -37,8 +36,6 @@ new Logger('MessagingModule').log(useResend ? 'ResendEmail' : 'LogEmail (fallbac
 export class MessagingModule implements OnModuleInit {
   constructor(private readonly messages: MessageRepository) {}
 
-  /** Liga o magic link do Better Auth (que é montado fora da DI) ao provedor de email
-   *  deste módulo — é ele quem trata falha de canal. Ver `infra/auth/magic-link-sender.ts`. */
   onModuleInit() {
     setMagicLinkSender(async ({ email, url }) => {
       await this.messages.sendWithoutLog({ recipient: email, ...magicLinkEmail({ email, url }) });

@@ -11,8 +11,6 @@ import type { FirmScope } from '../auth/scope.js';
 import { RequestRepository } from './request.repository.js';
 import { zipEntries, zipFileName, type ZipEntry } from './zip.js';
 
-/** Entrega em zip. Streaming de ponta a ponta: o arquivo nunca existe inteiro em memória
- *  nem em disco — o R2 é lido por stream e o zip sai pela resposta enquanto é montado. */
 @Controller()
 export class ZipController {
   constructor(
@@ -20,7 +18,6 @@ export class ZipController {
     private readonly storage: StorageProvider,
   ) {}
 
-  /** TASK-033 — tudo de UMA Empresa numa Competência. */
   @Get('requests/:id/zip')
   async requestZip(@CurrentScope() scope: FirmScope, @Param(zodPipe(IdParam)) params: IdParam) {
     const found = await this.requests.documentsForRequestZip(scope, params.id);
@@ -32,7 +29,6 @@ export class ZipController {
     );
   }
 
-  /** TASK-034 — a Competência inteira, uma pasta por Empresa. */
   @Get('periods/:id/zip')
   async periodZip(@CurrentScope() scope: FirmScope, @Param(zodPipe(IdParam)) params: IdParam) {
     const found = await this.requests.documentsForPeriodZip(scope, params.id);
@@ -42,6 +38,24 @@ export class ZipController {
       zipEntries(found.documents, true),
       zipFileName(`competencia ${found.referenceMonth.slice(0, 7)}`, found.referenceMonth),
     );
+  }
+
+  /** Preview/baixar avulso no painel do Contador: `inline` para o navegador abrir PDF e
+   *  imagem na própria tela — hoje o único caminho até o conteúdo é o zip da empresa
+   *  inteira, e o aceite acontece sem ninguém ver o arquivo. */
+  @Get('documents/:id/content')
+  async documentContent(
+    @CurrentScope() scope: FirmScope,
+    @Param(zodPipe(IdParam)) params: IdParam,
+  ) {
+    const found = await this.requests.documentForRead(scope, params.id);
+    if (!found) throw new NotFound('Documento não encontrado.');
+
+    return new StreamableFile(await this.storage.openRead(found.storageKey), {
+      type: found.contentType,
+      // encodeURIComponent: nome com acento/aspas quebraria o header (RFC 6266)
+      disposition: `inline; filename*=UTF-8''${encodeURIComponent(found.fileName)}`,
+    });
   }
 
   private stream(entries: ZipEntry[], fileName: string) {
@@ -69,8 +83,6 @@ export class ZipController {
     });
   }
 
-  /** Stream que só abre a conexão com o storage quando o archiver chega naquela entrada —
-   *  abrir os 500 de uma vez estouraria o pool de sockets numa competência grande. */
   private lazyRead(storageKey: string) {
     const storage = this.storage;
 
