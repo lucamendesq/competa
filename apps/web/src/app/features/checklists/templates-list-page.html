@@ -1,0 +1,95 @@
+<app-page-header
+  title="Templates de checklist"
+  description="O conjunto de documentos exigidos por tipo de empresa."
+/>
+
+@if (templates.isLoading()) {
+  <app-loading-rows [count]="4" />
+} @else if (templates.error()) {
+  <app-error-state message="Não conseguimos carregar os templates." (retry)="templates.reload()" />
+} @else {
+  <section class="flex flex-col gap-3">
+    <div>
+      <h2 class="text-sm font-semibold">Modelos do produto</h2>
+      <p class="text-muted-foreground mt-1 text-xs">
+        São fixos. Duplique um deles para poder editar os itens.
+      </p>
+    </div>
+
+    <ul class="grid gap-3 sm:grid-cols-2 xl:grid-cols-3" role="list">
+      @for (template of fromProduct(); track template.id) {
+        <li class="bg-card border-border flex flex-col rounded-xl border p-4">
+          <div class="flex items-start justify-between gap-2">
+            <h3 class="text-sm font-semibold">{{ template.name }}</h3>
+            <span
+              class="bg-muted text-muted-foreground inline-flex items-center gap-1 rounded-full px-2 py-0.5 text-[11px] font-semibold"
+            >
+              <ng-icon name="lucideLock" class="text-[12px]" aria-hidden="true" />
+              Modelo do produto
+            </span>
+          </div>
+
+          <p class="text-muted-foreground mt-2 text-xs tabular-nums">
+            {{ template.itemCount }} documentos
+          </p>
+
+          <div class="mt-4 flex flex-wrap gap-2">
+            <a hlmBtn variant="outline" size="sm" [routerLink]="['/checklists', template.id]">
+              <ng-icon name="lucideEye" aria-hidden="true" />
+              Ver
+            </a>
+            <button
+              hlmBtn
+              size="sm"
+              [disabled]="duplicating() !== null"
+              (click)="duplicate(template.id, template.name)"
+            >
+              <ng-icon name="lucideCopy" aria-hidden="true" />
+              {{ duplicating() === template.id ? 'Duplicando…' : 'Duplicar para editar' }}
+            </button>
+          </div>
+        </li>
+      }
+    </ul>
+  </section>
+
+  <section class="flex flex-col gap-3">
+    <div>
+      <h2 class="text-sm font-semibold">Meus modelos</h2>
+      <p class="text-muted-foreground mt-1 text-xs">
+        Derivados de um modelo do produto e editáveis item por item.
+      </p>
+    </div>
+
+    @if (!mine().length) {
+      <div class="bg-card border-border rounded-xl border">
+        <app-empty-state
+          title="Você ainda não tem modelo próprio"
+          description="Duplique um modelo do produto para ajustar documentos, prazos e periodicidade."
+          icon="lucideSquareCheckBig"
+        />
+      </div>
+    } @else {
+      <ul class="grid gap-3 sm:grid-cols-2 xl:grid-cols-3" role="list">
+        @for (template of mine(); track template.id) {
+          <li class="bg-card border-border flex flex-col rounded-xl border p-4">
+            <div class="flex items-start justify-between gap-2">
+              <h3 class="text-sm font-semibold">{{ template.name }}</h3>
+              <app-status-pill status="own_template" />
+            </div>
+
+            <p class="text-muted-foreground mt-2 text-xs tabular-nums">
+              {{ template.itemCount }} documentos
+            </p>
+
+            <div class="mt-4">
+              <a hlmBtn variant="outline" size="sm" [routerLink]="['/checklists', template.id]">
+                Editar itens
+              </a>
+            </div>
+          </li>
+        }
+      </ul>
+    }
+  </section>
+}

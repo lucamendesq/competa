@@ -7,7 +7,9 @@
     "build": "pnpm -r build",
     "lint": "pnpm -r lint",
     "format": "prettier --write .",
-    "format:check": "prettier --check ."
+    "format:check": "prettier --check .",
+    "predev": "pnpm --filter contracts build",
+    "dev": "pnpm -r --parallel run dev"
   },
   "devDependencies": {
     "angular-eslint": "^20.0.0",

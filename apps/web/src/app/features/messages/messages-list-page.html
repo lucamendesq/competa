@@ -1,0 +1,223 @@
+<app-page-header
+  title="Mensagens"
+  description="Log de entrega dos links, lembretes e avisos de prazo."
+>
+  <button hlmBtn variant="outline" (click)="resendReminders()">
+    <ng-icon name="lucideBellRing" aria-hidden="true" />
+    Rodar varredura de lembretes (todas as empresas)
+  </button>
+</app-page-header>
+
+@if (failures()) {
+  <div
+    class="flex flex-wrap items-center gap-3 rounded-lg border border-danger-border bg-danger-surface p-3 text-sm text-danger-foreground"
+    role="alert"
+  >
+    <ng-icon name="lucideTriangleAlert" class="shrink-0 text-base" aria-hidden="true" />
+    <p class="flex-1">
+      {{ failures() }} mensagem(ns) falharam nesta página. O fluxo de upload continua — o link segue
+      válido.
+    </p>
+  </div>
+}
+
+<div class="grid gap-4 xl:grid-cols-[minmax(0,1fr)_minmax(0,22rem)]">
+  <section class="bg-card border-border rounded-xl border">
+    <div class="border-border flex flex-wrap gap-3 border-b p-3">
+      <div class="flex flex-col gap-1">
+        <label class="text-muted-foreground text-xs font-medium" for="period-filter">
+          Competência
+        </label>
+        <select
+          hlmInput
+          id="period-filter"
+          class="h-8 w-44"
+          (change)="periodId.set($any($event.target).value); page.set(1)"
+        >
+          <option value="" [selected]="periodId() === ''">Todas</option>
+          @for (period of periodOptions.value().data; track period.id) {
+            <option [value]="period.id" [selected]="period.id === periodId()">
+              {{ monthLabel(period.referenceMonth) }}
+            </option>
+          }
+        </select>
+      </div>
+
+      <div class="flex flex-col gap-1">
+        <label class="text-muted-foreground text-xs font-medium" for="status-filter">
+          Status
+        </label>
+        <select
+          hlmInput
+          id="status-filter"
+          class="h-8 w-36"
+          (change)="status.set($any($event.target).value); page.set(1)"
+        >
+          <option value="" [selected]="status() === ''">Todos</option>
+          @for (option of availableStatuses; track option) {
+            <option [value]="option" [selected]="option === status()">
+              {{ STATUS_LABEL[option] }}
+            </option>
+          }
+        </select>
+      </div>
+
+      <div class="flex flex-col gap-1">
+        <label class="text-muted-foreground text-xs font-medium" for="channel-filter">Canal</label>
+        <select
+          hlmInput
+          id="channel-filter"
+          class="h-8 w-32"
+          (change)="channel.set($any($event.target).value)"
+        >
+          <option value="" [selected]="channel() === ''">Todos</option>
+          <option value="email" [selected]="channel() === 'email'">E-mail</option>
+          <option value="push" [selected]="channel() === 'push'">Push</option>
+          <option value="whatsapp" [selected]="channel() === 'whatsapp'">WhatsApp</option>
+        </select>
+      </div>
+    </div>
+
+    @if (messages.isLoading()) {
+      <app-loading-rows />
+    } @else if (messages.error()) {
+      <app-error-state
+        message="Não conseguimos carregar as mensagens."
+        (retry)="messages.reload()"
+      />
+    } @else if (!visible().length) {
+      <app-empty-state
+        title="Nenhuma mensagem neste filtro"
+        description="Os envios aparecem aqui quando você abre uma competência ou roda os lembretes."
+        icon="lucideMail"
+      />
+    } @else {
+      <div hlmTableContainer class="overflow-x-auto">
+        <table hlmTable class="w-full">
+          <caption class="sr-only">
+            Mensagens enviadas aos Responsáveis
+          </caption>
+          <thead hlmTHead>
+            <tr hlmTr>
+              <th hlmTh scope="col">Data/hora</th>
+              <th hlmTh scope="col">Empresa</th>
+              <th hlmTh scope="col">Destinatário</th>
+              <th hlmTh scope="col">Canal</th>
+              <th hlmTh scope="col">Tipo</th>
+              <th hlmTh scope="col">Status</th>
+            </tr>
+          </thead>
+          <tbody hlmTBody>
+            @for (message of visible(); track message.id) {
+              <!-- O botão da primeira célula cobre a linha (`after:inset-0`): a linha era
+                   clicável só com mouse, e o painel de detalhe é o único lugar onde o erro
+                   do provedor é legível. -->
+              <tr
+                hlmTr
+                class="relative cursor-pointer"
+                [class]="selected()?.id === message.id ? 'bg-muted' : ''"
+                [attr.aria-selected]="selected()?.id === message.id"
+              >
+                <td hlmTd class="text-xs tabular-nums">
+                  <button
+                    type="button"
+                    class="focus-visible:ring-ring rounded text-left after:absolute after:inset-0 focus-visible:ring-2 focus-visible:outline-none"
+                    [attr.aria-label]="
+                      'Ver detalhe da mensagem para ' +
+                      message.companyName +
+                      ' em ' +
+                      dateTimeBr(message.createdAt)
+                    "
+                    (click)="selected.set(message)"
+                  >
+                    {{ dateTimeBr(message.createdAt) }}
+                  </button>
+                </td>
+                <th hlmTd scope="row" class="font-medium">{{ message.companyName }}</th>
+                <td hlmTd class="text-xs">{{ message.recipient }}</td>
+                <td hlmTd>
+                  <span class="flex items-center gap-1.5 text-xs">
+                    <ng-icon [name]="channelIcon(message.channel)" aria-hidden="true" />
+                    {{ CHANNEL_LABEL[message.channel] ?? message.channel }}
+                  </span>
+                </td>
+                <td hlmTd class="text-xs">
+                  {{ PURPOSE_LABEL[message.purpose] }}
+                </td>
+                <td hlmTd>
+                  <app-status-pill [status]="message.status" />
+                </td>
+              </tr>
+            }
+          </tbody>
+        </table>
+      </div>
+
+      <app-pagination [(page)]="page" [total]="messages.value().meta.total" [perPage]="perPage" />
+    }
+  </section>
+
+  <aside class="bg-card border-border h-fit rounded-xl border">
+    <h2 class="border-border border-b p-4 text-sm font-semibold">Detalhe do envio</h2>
+
+    @if (!selected()) {
+      <p class="text-muted-foreground p-4 text-sm">
+        Selecione uma linha para ver o destinatário, o tipo e o erro em caso de falha.
+      </p>
+    } @else {
+      <dl class="flex flex-col gap-3 p-4 text-sm">
+        <div>
+          <dt class="text-muted-foreground text-xs">Empresa</dt>
+          <dd class="mt-0.5 font-medium">{{ selected()!.companyName }}</dd>
+        </div>
+        <div>
+          <dt class="text-muted-foreground text-xs">Destinatário</dt>
+          <dd class="mt-0.5 break-all">{{ selected()!.recipient }}</dd>
+        </div>
+        <div>
+          <dt class="text-muted-foreground text-xs">Tipo</dt>
+          <dd class="mt-0.5">
+            {{ PURPOSE_LABEL[selected()!.purpose] }}
+          </dd>
+        </div>
+        <div>
+          <dt class="text-muted-foreground text-xs">Status</dt>
+          <dd class="mt-0.5">
+            <app-status-pill [status]="selected()!.status" />
+          </dd>
+        </div>
+        <div>
+          <dt class="text-muted-foreground text-xs">Criada em</dt>
+          <dd class="mt-0.5 tabular-nums">{{ dateTimeBr(selected()!.createdAt) }}</dd>
+        </div>
+        @if (selected()!.sentAt) {
+          <div>
+            <dt class="text-muted-foreground text-xs">Enviada em</dt>
+            <dd class="mt-0.5 tabular-nums">{{ dateTimeBr(selected()!.sentAt) }}</dd>
+          </div>
+        }
+        @if (selected()!.error) {
+          <div>
+            <dt class="text-muted-foreground text-xs">Erro do provedor</dt>
+            <dd
+              class="mt-0.5 rounded-lg border border-danger-border bg-danger-surface p-2 text-xs text-danger-foreground"
+            >
+              {{ selected()!.error }}
+            </dd>
+          </div>
+        }
+      </dl>
+
+      <div class="border-border border-t p-4">
+        <a
+          hlmBtn
+          variant="outline"
+          size="sm"
+          [routerLink]="['/solicitacoes', selected()!.requestId]"
+        >
+          Ver solicitação
+        </a>
+      </div>
+    }
+  </aside>
+</div>

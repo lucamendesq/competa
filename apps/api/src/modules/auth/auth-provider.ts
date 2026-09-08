@@ -17,10 +17,14 @@ export type SignUpEmailResponse = {
   userId: string;
 };
 
+export type PasswordlessSignInInput = { name: string; email: string };
+export type PasswordlessSignInResponse = { userId: string; setCookie: string[] };
+
 export abstract class AuthProvider {
-  abstract signUpEmail(
-    input: SignUpEmailInput,
-  ): Promise<Result<SignUpEmailResponse, unknown>>;
-  /** `null` quando não há sessão válida — nunca lança para esse caso. */
+  abstract signUpEmail(input: SignUpEmailInput): Promise<Result<SignUpEmailResponse, unknown>>;
   abstract getSession(headers: IncomingHttpHeaders): Promise<AuthSession | null>;
+
+  abstract signInPasswordless(input: PasswordlessSignInInput): Promise<PasswordlessSignInResponse>;
+
+  abstract sendSignInLink(email: string): Promise<void>;
 }

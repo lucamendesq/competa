@@ -1,0 +1,300 @@
+<app-page-header
+  [title]="'Competência ' + monthLabel(period.value()?.referenceMonth)"
+  description="Quem faltou entregar, item por item."
+>
+  @if (period.value()) {
+    <app-status-pill [status]="period.value()!.status" />
+  }
+  <button hlmBtn variant="outline" (click)="downloadPeriodZip()">
+    <ng-icon name="lucideFileArchive" aria-hidden="true" />
+    Baixar zip da competência
+  </button>
+  <button hlmBtn variant="outline" (click)="resendReminders()">
+    <ng-icon name="lucideBellRing" aria-hidden="true" />
+    Rodar varredura de lembretes (todas as empresas)
+  </button>
+  @if (period.value()?.status === 'open') {
+    <button hlmBtn variant="destructive" (click)="confirmClose.set(true)">
+      <ng-icon name="lucideLock" aria-hidden="true" />
+      Encerrar competência
+    </button>
+  }
+</app-page-header>
+
+<section class="bg-card border-border rounded-xl border p-4">
+  <div class="flex flex-wrap items-end justify-between gap-2">
+    <p class="text-sm font-medium">
+      {{ sendProgress().percent }}% dos itens aceitos
+      <span class="text-muted-foreground font-normal">
+        ({{ sendProgress().accepted }} de {{ sendProgress().total }})
+      </span>
+    </p>
+    <p class="text-muted-foreground text-xs">Prazo geral {{ dateBr(period.value()?.dueDate) }}</p>
+  </div>
+  <div
+    class="bg-muted mt-3 h-2 overflow-hidden rounded-full"
+    role="progressbar"
+    [attr.aria-valuenow]="sendProgress().percent"
+    aria-valuemin="0"
+    aria-valuemax="100"
+    [attr.aria-label]="'Itens aceitos na competência'"
+  >
+    <div class="h-full rounded-full bg-success" [style.width.%]="sendProgress().percent"></div>
+  </div>
+</section>
+
+<section class="flex flex-col gap-3">
+  <div class="flex flex-wrap gap-1" role="group" aria-label="Filtrar empresas">
+    @for (chip of chips; track chip.value) {
+      <button
+        type="button"
+        class="focus-visible:ring-ring h-8 rounded-lg border px-3 text-xs font-medium focus-visible:ring-2 focus-visible:outline-none"
+        [class]="
+          filter() === chip.value
+            ? 'bg-primary text-primary-foreground border-primary'
+            : 'border-border bg-card hover:bg-muted'
+        "
+        [attr.aria-pressed]="filter() === chip.value"
+        (click)="filter.set(chip.value)"
+      >
+        {{ chip.label }} ({{ counts()[chip.value] }})
+      </button>
+    }
+  </div>
+
+  <div class="relative max-w-sm">
+    <label class="sr-only" for="search-company">Buscar empresa</label>
+    <input
+      hlmInput
+      id="search-company"
+      type="search"
+      class="pl-9"
+      placeholder="Buscar empresa"
+      [value]="search()"
+      (input)="search.set($any($event.target).value)"
+    />
+    <ng-icon
+      name="lucideSearch"
+      class="text-muted-foreground pointer-events-none absolute top-2.5 left-3 text-base"
+      aria-hidden="true"
+    />
+  </div>
+</section>
+
+@if (panel.isLoading()) {
+  <app-loading-rows [count]="6" />
+} @else if (panel.error()) {
+  <app-error-state message="Não conseguimos carregar o painel." (retry)="panel.reload()" />
+} @else {
+  <!-- Entregou tudo é BANNER, não tela vazia: a lista das empresas continua na tela (o
+       Contador ainda quer abrir, conferir e baixar o que já chegou). -->
+  @if (allDelivered()) {
+    <section
+      class="flex flex-wrap items-center gap-3 rounded-xl border border-success-border bg-success-surface p-4"
+      role="status"
+    >
+      <span
+        class="flex size-10 shrink-0 items-center justify-center rounded-full bg-success-surface text-success"
+        aria-hidden="true"
+      >
+        <ng-icon name="lucidePartyPopper" class="text-lg" />
+      </span>
+      <div class="min-w-0 flex-1">
+        <h2 class="text-sm font-semibold text-success-foreground">
+          Todas as empresas entregaram tudo 🎉
+        </h2>
+        <p class="mt-0.5 text-xs text-success-foreground">
+          Nada pendente nesta competência. Você já pode baixar o zip e encerrar.
+        </p>
+      </div>
+      <button hlmBtn size="sm" (click)="downloadPeriodZip()">
+        <ng-icon name="lucideFileArchive" aria-hidden="true" />
+        Baixar zip da competência
+      </button>
+      @if (period.value()?.status === 'open') {
+        <button hlmBtn variant="outline" size="sm" (click)="confirmClose.set(true)">
+          Encerrar competência
+        </button>
+      }
+    </section>
+  }
+
+  @if (!visible().length) {
+    <section class="bg-card border-border rounded-xl border">
+      <app-empty-state
+        title="Nenhuma empresa neste filtro"
+        description="Ajuste os filtros ou a busca para ver outras empresas."
+      />
+    </section>
+  } @else {
+    <ul class="flex flex-col gap-3">
+      @for (line of visible(); track line.companyId) {
+        <li class="bg-card border-border rounded-xl border">
+          <div class="flex flex-col gap-3 p-4">
+            <div class="flex flex-wrap items-start justify-between gap-3">
+              <div class="min-w-0">
+                <div class="flex flex-wrap items-center gap-2">
+                  <h2 class="truncate text-sm font-semibold">{{ line.companyName }}</h2>
+                  <app-status-pill [status]="line.requestStatus" />
+                  @if (line.overdue) {
+                    <app-status-pill
+                      status="overdue"
+                      [text]="
+                        line.overdue === 1 ? '1 item em atraso' : line.overdue + ' itens em atraso'
+                      "
+                    />
+                  }
+                </div>
+                <p class="text-muted-foreground mt-1 text-xs tabular-nums">
+                  CNPJ {{ maskedCnpj(line.cnpj) }}
+                </p>
+              </div>
+
+              <div class="flex shrink-0 items-center gap-1">
+                <button
+                  hlmBtn
+                  variant="ghost"
+                  size="sm"
+                  (click)="downloadCompanyZip(line.requestId, line.companyName)"
+                >
+                  <ng-icon name="lucideFileArchive" aria-hidden="true" />
+                  Zip
+                </button>
+                <a
+                  hlmBtn
+                  variant="outline"
+                  size="sm"
+                  [routerLink]="['/solicitacoes', line.requestId]"
+                >
+                  Revisar
+                </a>
+                <button
+                  hlmBtn
+                  variant="ghost"
+                  size="icon-sm"
+                  [attr.aria-expanded]="isExpanded(line.companyId)"
+                  [attr.aria-controls]="'items-' + line.companyId"
+                  (click)="toggle(line.companyId)"
+                >
+                  <span class="sr-only">
+                    {{ isExpanded(line.companyId) ? 'Recolher' : 'Expandir' }} itens de
+                    {{ line.companyName }}
+                  </span>
+                  <ng-icon
+                    name="lucideChevronDown"
+                    class="transition-transform"
+                    [class.rotate-180]="isExpanded(line.companyId)"
+                    aria-hidden="true"
+                  />
+                </button>
+              </div>
+            </div>
+
+            <div class="flex flex-wrap items-center gap-x-4 gap-y-1 text-xs">
+              <span class="text-muted-foreground">
+                Pendente
+                <strong class="text-foreground tabular-nums">{{ line.counts.pending }}</strong>
+              </span>
+              <span class="text-muted-foreground">
+                Enviado
+                <strong class="text-foreground tabular-nums">{{ line.counts.submitted }}</strong>
+              </span>
+              <span class="text-muted-foreground">
+                Aceito
+                <strong class="text-foreground tabular-nums">{{ line.counts.accepted }}</strong>
+              </span>
+              <span class="text-muted-foreground">
+                Rejeitado
+                <strong class="text-foreground tabular-nums">{{ line.counts.rejected }}</strong>
+              </span>
+            </div>
+
+            <div class="flex items-center gap-3">
+              <div
+                class="bg-muted h-1.5 flex-1 overflow-hidden rounded-full"
+                role="progressbar"
+                [attr.aria-valuenow]="line.percent"
+                aria-valuemin="0"
+                aria-valuemax="100"
+                [attr.aria-label]="'Itens aceitos de ' + line.companyName"
+              >
+                <div class="h-full rounded-full bg-success" [style.width.%]="line.percent"></div>
+              </div>
+              <span class="text-muted-foreground shrink-0 text-xs tabular-nums">
+                {{ line.counts.accepted }} de {{ line.total }}
+              </span>
+            </div>
+
+            @if (line.channelFailures.length) {
+              <div
+                class="flex flex-wrap items-center gap-2 rounded-lg border border-danger-border bg-danger-surface p-3 text-xs text-danger-foreground"
+                role="alert"
+              >
+                <ng-icon name="lucideMailWarning" class="shrink-0 text-base" aria-hidden="true" />
+                <p class="flex-1">
+                  Falha no envio por {{ uniqueFailures(line).join(', ') }} — o fluxo continua e o
+                  link segue válido.
+                </p>
+                <!-- Havia um "Reenviar" aqui, mas ele disparava a varredura do tenant
+                   inteiro: reenvio por empresa não existe ainda, e o botão prometia. -->
+              </div>
+            }
+          </div>
+
+          @if (isExpanded(line.companyId)) {
+            <div [id]="'items-' + line.companyId" class="border-border border-t">
+              @if (!line.missing.length) {
+                <p class="text-muted-foreground p-4 text-sm">Todos os itens foram aceitos.</p>
+              } @else {
+                <ul class="divide-border divide-y">
+                  @for (item of line.missing; track item.id) {
+                    <li class="flex flex-wrap items-center justify-between gap-3 p-4">
+                      <div class="min-w-0">
+                        <p class="truncate text-sm font-medium">{{ item.name }}</p>
+                        <p class="mt-0.5 text-xs">
+                          <app-due-date [dueDate]="item.dueDate" emptyLabel="Sem prazo próprio" />
+                        </p>
+                      </div>
+                      <div class="flex shrink-0 items-center gap-2">
+                        <app-status-pill [status]="item.resent ? 'resent' : item.status" />
+                        <a
+                          hlmBtn
+                          variant="ghost"
+                          size="sm"
+                          [routerLink]="['/solicitacoes', line.requestId]"
+                        >
+                          Revisar
+                        </a>
+                      </div>
+                    </li>
+                  }
+                </ul>
+              }
+            </div>
+          }
+        </li>
+      }
+    </ul>
+  }
+}
+
+<app-modal
+  [open]="confirmClose()"
+  (openChange)="confirmClose.set($event)"
+  title="Encerrar competência?"
+  description="Encerrar é a palavra final e vale mesmo com pendências."
+>
+  <p class="text-sm">
+    {{ period.value()?.pendingItemCount ?? 0 }} item(ns) ainda estão sem aceite. Depois de encerrar,
+    os Responsáveis só conseguem enviar documentos extras.
+  </p>
+
+  <div
+    class="border-border bg-muted/40 -mx-5 -mb-5 mt-5 flex flex-wrap justify-end gap-2 border-t p-4"
+  >
+    <button hlmBtn variant="ghost" (click)="confirmClose.set(false)">Cancelar</button>
+    <button hlmBtn variant="destructive" [disabled]="closing()" (click)="closePeriod()">
+      {{ closing() ? 'Encerrando…' : 'Encerrar competência' }}
+    </button>
+  </div>
+</app-modal>

@@ -47,9 +47,27 @@ export class InviteEmailMismatch extends AppError {
 
 export class InviteTargetUnsupported extends AppError {
   readonly code = 'INVITE_TARGET_UNSUPPORTED';
-  readonly status = 501;
+  readonly status = 422;
 
   constructor() {
-    super('Convite de Empresa ainda não está disponível.');
+    super('Este convite é de Responsável: aceite em POST /invites/:token/contact-account.');
+  }
+}
+
+export class MagicLinkUnavailable extends AppError {
+  readonly code = 'MAGIC_LINK_UNAVAILABLE';
+  readonly status = 503;
+
+  constructor() {
+    super('Não foi possível criar seu acesso agora. Tente de novo em alguns minutos.');
+  }
+}
+
+export class OnlyOwnerCanInvite extends AppError {
+  readonly code = 'ONLY_OWNER_CAN_INVITE';
+  readonly status = 403;
+
+  constructor() {
+    super('Só o dono da contabilidade pode convidar contadores.');
   }
 }

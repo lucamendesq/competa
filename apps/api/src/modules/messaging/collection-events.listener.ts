@@ -1,0 +1,186 @@
+import { Injectable } from '@nestjs/common';
+import { OnEvent } from '@nestjs/event-emitter';
+import {
+  EVENTS,
+  type ContactInvitedEvent,
+  type DeadlineMissedEvent,
+  type InviteCreatedEvent,
+  type ItemReopenedEvent,
+  type RequestCompletedEvent,
+  type ReviewPublishedEvent,
+  type UploadLinkResentEvent,
+} from '../../lib/events.js';
+import {
+  accessInviteEmail,
+  deadlineMissedAccountantEmail,
+  deadlineMissedContactEmail,
+  inviteEmail,
+  itemReopenedEmail,
+  linkResentEmail,
+  requestCompletedEmail,
+  reviewPublishedEmail,
+} from './email-body.js';
+import { ContactRepository } from '../contacts/contact.repository.js';
+import { MessageRepository } from './message.repository.js';
+import { WebPush } from './providers/web-push.provider.js';
+
+/** O que a revisão e o cron de prazo (collection) disparam. `deliver()` nunca lança:
+ *  canal quebrado vira `status='failed'` + `error` e não volta para quem emitiu — falha de
+ *  envio não pode desfazer uma rejeição já gravada. */
+@Injectable()
+export class CollectionEventsListener {
+  constructor(
+    private readonly messages: MessageRepository,
+    private readonly contacts: ContactRepository,
+    private readonly push: WebPush,
+  ) {}
+
+  /** Push é ADICIONAL ao email, nunca substituto: o Responsável pode não ter instalado a
+   *  PWA (no iOS o Web Push exige "Adicionar à Tela de Início"). Falha aqui não propaga —
+   *  a regra de canal que não bloqueia o fluxo vale igual. */
+  private async notify(
+    requestId: string,
+    purpose: 'rejection' | 'completion' | 'deadline_missed',
+    title: string,
+    body: string,
+    url?: string,
+  ) {
+    const subscriptions = await this.contacts.subscriptionsForRequest(requestId);
+    if (subscriptions.length === 0) return;
+
+    const result = await this.messages.deliverPush(
+      requestId,
+      purpose,
+      subscriptions[0].endpoint,
+      () =>
+        this.push.send({
+          title,
+          body,
+          url,
+          subscriptions: subscriptions.map((row) => ({
+            endpoint: row.endpoint,
+            keys: row.keys as Record<string, string>,
+          })),
+        }),
+    );
+
+    // inscrição que o navegador descartou não serve mais: sai para não acumular lixo
+    for (const endpoint of result?.gone ?? []) {
+      await this.contacts.deletePushSubscriptionByEndpoint(endpoint);
+    }
+  }
+
+  @OnEvent(EVENTS.InviteCreated)
+  async onInviteCreated(event: InviteCreatedEvent) {
+    await this.messages.sendWithoutLog({
+      recipient: event.email,
+      ...inviteEmail(event),
+    });
+  }
+
+  @OnEvent(EVENTS.ContactInvited)
+  async onContactInvited(event: ContactInvitedEvent) {
+    await this.messages.sendWithoutLog({
+      recipient: event.contactEmail,
+      senderName: event.firmName,
+      ...accessInviteEmail(event),
+    });
+  }
+
+  @OnEvent(EVENTS.UploadLinkResent)
+  async onUploadLinkResent(event: UploadLinkResentEvent) {
+    await this.messages.deliver({
+      requestId: event.requestId,
+      purpose: 'link_delivery',
+      recipient: event.contactEmail,
+      ...linkResentEmail(event),
+    });
+  }
+
+  @OnEvent(EVENTS.ItemReopened)
+  async onItemReopened(event: ItemReopenedEvent) {
+    await this.messages.deliver({
+      requestId: event.requestId,
+      purpose: 'rejection',
+      recipient: event.contactEmail,
+      ...itemReopenedEmail(event),
+    });
+
+    await this.notify(
+      event.requestId,
+      'rejection',
+      `Reenvio necessário: ${event.itemName}`,
+      `${event.companyName}: o documento foi recusado e precisa ser enviado de novo.`,
+      event.uploadUrl,
+    );
+  }
+
+  /** Uma entrega para a revisão inteira. `purpose: 'rejection'` é o mesmo do
+   *  `ItemReopened`: para o Painel de Pendências e para o histórico de mensagens isto é
+   *  uma recusa — só deixou de ser uma por documento. */
+  @OnEvent(EVENTS.ReviewPublished)
+  async onReviewPublished(event: ReviewPublishedEvent) {
+    await this.messages.deliver({
+      requestId: event.requestId,
+      purpose: 'rejection',
+      recipient: event.contactEmail,
+      ...reviewPublishedEmail(event),
+    });
+
+    const first = event.rejected[0];
+
+    await this.notify(
+      event.requestId,
+      'rejection',
+      event.rejected.length === 1
+        ? `Reenvio necessário: ${first.itemName ?? first.fileName}`
+        : `${event.rejected.length} documentos precisam ser reenviados`,
+      `${event.companyName}: a contabilidade conferiu e alguns arquivos precisam voltar.`,
+      event.uploadUrl ?? undefined,
+    );
+  }
+
+  @OnEvent(EVENTS.RequestCompleted)
+  async onRequestCompleted(event: RequestCompletedEvent) {
+    await this.messages.deliver({
+      requestId: event.requestId,
+      purpose: 'completion',
+      recipient: event.contactEmail,
+      ...requestCompletedEmail(event),
+    });
+
+    await this.notify(
+      event.requestId,
+      'completion',
+      'Documentos recebidos',
+      `${event.companyName}: recebemos e conferimos tudo. Nada mais é necessário por agora.`,
+    );
+  }
+
+  @OnEvent(EVENTS.DeadlineMissed)
+  async onDeadlineMissed(event: DeadlineMissedEvent) {
+    await this.messages.deliver({
+      requestId: event.requestId,
+      purpose: 'deadline_missed',
+      recipient: event.contactEmail,
+      ...deadlineMissedContactEmail(event),
+    });
+
+    await this.notify(
+      event.requestId,
+      'deadline_missed',
+      `Prazo vencido: ${event.itemName}`,
+      `${event.companyName}: o prazo era ${event.dueDate} e o documento ainda não chegou.`,
+      event.uploadUrl,
+    );
+
+    for (const accountantEmail of event.accountantEmails) {
+      await this.messages.deliver({
+        requestId: event.requestId,
+        purpose: 'deadline_missed',
+        recipient: accountantEmail,
+        ...deadlineMissedAccountantEmail(event),
+      });
+    }
+  }
+}

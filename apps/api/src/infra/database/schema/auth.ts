@@ -1,4 +1,14 @@
-import { boolean, index, pgTable, text, timestamp, uniqueIndex, uuid } from 'drizzle-orm/pg-core';
+import {
+  boolean,
+  index,
+  integer,
+  pgTable,
+  text,
+  timestamp,
+  uniqueIndex,
+  uuid,
+} from 'drizzle-orm/pg-core';
+import { v7 as uuidv7 } from 'uuid';
 import { id, timestamps } from './columns.js';
 
 export const user = pgTable('user', {
@@ -51,14 +61,39 @@ export const account = pgTable(
   ],
 );
 
+/** `id` é `text`, não `uuid`: o Better Auth grava aqui ids próprios que não são uuid
+ *  (`reserveVerificationValue` do fluxo de magic link usa chave determinística). A tabela é
+ *  gerenciada pela biblioteca — quem manda na forma é ela, não a nossa convenção de PK. */
 export const verification = pgTable(
   'verification',
   {
-    id: id(),
+    id: text('id')
+      .primaryKey()
+      .$defaultFn(() => uuidv7()),
     identifier: text('identifier').notNull(),
     value: text('value').notNull(),
     expiresAt: timestamp('expires_at', { withTimezone: true }).notNull(),
     ...timestamps,
   },
   (table) => [index('verification_identifier_idx').on(table.identifier)],
+);
+
+export const passkey = pgTable(
+  'passkey',
+  {
+    id: id(),
+    name: text('name'),
+    publicKey: text('public_key').notNull(),
+    userId: uuid('user_id')
+      .notNull()
+      .references(() => user.id, { onDelete: 'cascade' }),
+    credentialID: text('credential_i_d').notNull(),
+    counter: integer('counter').notNull(),
+    deviceType: text('device_type').notNull(),
+    backedUp: boolean('backed_up').notNull(),
+    transports: text('transports'),
+    aaguid: text('aaguid'),
+    createdAt: timestamp('created_at', { withTimezone: true }).defaultNow().notNull(),
+  },
+  (t) => [index('passkey_user_id_idx').on(t.userId)],
 );

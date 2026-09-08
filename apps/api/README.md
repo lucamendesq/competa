@@ -50,10 +50,10 @@ curl -b cookies.txt http://localhost:3000/me
 
 ## Comandos úteis
 
-| Comando | Para |
-|---|---|
-| `pnpm --filter api start:dev` | subir em modo watch |
-| `pnpm --filter api lint` | lint (inclui as regras de invariante de tenant) |
-| `pnpm --filter api build` | build de produção |
-| `pnpm --filter api drizzle-push` | aplicar `src/infra/database/schema/` no Postgres |
-| `pnpm --filter api create-firm --name "..." --email "..."` | provisionar Contabilidade + convite |
+| Comando                                                    | Para                                             |
+| ---------------------------------------------------------- | ------------------------------------------------ |
+| `pnpm --filter api start:dev`                              | subir em modo watch                              |
+| `pnpm --filter api lint`                                   | lint (inclui as regras de invariante de tenant)  |
+| `pnpm --filter api build`                                  | build de produção                                |
+| `pnpm --filter api drizzle-push`                           | aplicar `src/infra/database/schema/` no Postgres |
+| `pnpm --filter api create-firm --name "..." --email "..."` | provisionar Contabilidade + convite              |

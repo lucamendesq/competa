@@ -1,12 +1,18 @@
 import { APIError, createAuthMiddleware } from 'better-auth/api';
 import { betterAuth } from 'better-auth';
 import { drizzleAdapter } from 'better-auth/adapters/drizzle';
+import { magicLink } from 'better-auth/plugins';
+import { passkey } from '@better-auth/passkey';
+/* O plugin de passkey traz tipos do @simplewebauthn para dentro do tipo inferido daqui, e
+ * o TS recusa exportar algo que cite dependência transitiva (TS2883). Importar o módulo
+ * (mesmo sem usar nome nenhum) torna esses tipos nomeáveis. */
 import { v7 as uuidv7 } from 'uuid';
 import env from '../../config/env.js';
 import { db } from '../database/index.js';
 import * as schema from '../database/schema/auth.js';
+import { sendMagicLink } from './magic-link-sender.js';
 
-export default betterAuth({
+const auth = betterAuth({
   database: drizzleAdapter(db, {
     provider: 'pg',
     schema,
@@ -15,18 +21,24 @@ export default betterAuth({
   emailAndPassword: {
     enabled: true,
   },
+  plugins: [
+    magicLink({
+      sendMagicLink: async ({ email, url, token }) => {
+        await sendMagicLink({ email, url, token });
+      },
+    }),
+    passkey({
+      rpID: new URL(env.WEB_URL).hostname,
+      rpName: 'Coleta de Documentos Contábeis',
+      origin: env.WEB_URL,
+    }),
+  ],
   advanced: {
     database: {
-      // user.id is a uuid column, better-auth's default id is not a uuid
       generateId: () => uuidv7(),
     },
   },
   hooks: {
-    // Não existe cadastro público: a Contabilidade nasce por script, o Contador
-    // nasce por convite (SignUpUseCase). `ctx.request` só existe quando a chamada
-    // veio pelo router HTTP (better-call/dist/router.mjs passa `request` no
-    // contexto); a chamada server-side `auth.api.signUpEmail({ body })` não
-    // define `request`, então atravessa este hook sem ser barrada.
     before: createAuthMiddleware(async (ctx) => {
       if (ctx.path !== '/sign-up/email') return;
       if (!ctx.request) return;
@@ -37,3 +49,5 @@ export default betterAuth({
     }),
   },
 });
+
+export default auth;

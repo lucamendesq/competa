@@ -1,0 +1,228 @@
+@if (template.isLoading()) {
+  <app-loading-rows [count]="8" />
+} @else if (template.error()) {
+  <app-error-state message="Não conseguimos carregar o template." (retry)="template.reload()" />
+} @else if (template.value(); as data) {
+  <app-page-header
+    [title]="data.name"
+    [description]="
+      editable()
+        ? 'Modelo próprio: você pode ajustar periodicidade, prazos e condições.'
+        : 'Modelo do produto: somente leitura. Duplique para editar.'
+    "
+  >
+    @if (!editable()) {
+      <span
+        class="bg-muted text-muted-foreground inline-flex h-8 items-center gap-1 rounded-full px-3 text-[11px] font-semibold"
+      >
+        <ng-icon name="lucideLock" class="text-[12px]" aria-hidden="true" />
+        Modelo do produto
+      </span>
+    } @else {
+      <button hlmBtn (click)="catalogOpen.set(true)">
+        <ng-icon name="lucidePlus" aria-hidden="true" />
+        Adicionar item
+      </button>
+    }
+    <a hlmBtn variant="outline" routerLink="/checklists">Voltar</a>
+  </app-page-header>
+
+  <section class="bg-card border-border rounded-xl border">
+    @if (!data.items.length) {
+      <p class="text-muted-foreground p-6 text-sm">Este template ainda não tem itens.</p>
+    } @else {
+      <div hlmTableContainer class="overflow-x-auto">
+        <table hlmTable class="w-full">
+          <caption class="sr-only">
+            Itens do template
+            {{
+              data.name
+            }}
+          </caption>
+          <thead hlmTHead>
+            <tr hlmTr>
+              <th hlmTh scope="col">Documento</th>
+              <th hlmTh scope="col">Periodicidade</th>
+              <th hlmTh scope="col">Vencimento (dia)</th>
+              <th hlmTh scope="col">Mês de entrega</th>
+              <th hlmTh scope="col">Obrigatório</th>
+              <th hlmTh scope="col">Condição</th>
+              @if (editable()) {
+                <th hlmTh scope="col"><span class="sr-only">Ações</span></th>
+              }
+            </tr>
+          </thead>
+          <tbody hlmTBody>
+            @for (item of data.items; track item.id) {
+              <tr hlmTr>
+                <th hlmTd scope="row">
+                  <span class="block text-sm font-medium">{{ item.name }}</span>
+                  <span class="text-muted-foreground mt-0.5 block text-xs">
+                    {{ CATEGORY_LABEL[item.category] ?? item.category }} ·
+                    {{ item.acceptedFormats.join(', ') }}
+                  </span>
+                </th>
+
+                <td hlmTd>
+                  @if (editable()) {
+                    <label class="sr-only" [attr.for]="'periodicidade-' + item.id">
+                      Periodicidade de {{ item.name }}
+                    </label>
+                    <!-- `selected` na option, não `[value]` no select: o valor é aplicado
+                         antes das options existirem e o navegador o descartaria. -->
+                    <select
+                      hlmInput
+                      [id]="'periodicity-' + item.id"
+                      class="h-8 w-36"
+                      [disabled]="acting()"
+                      (change)="changePeriodicity(item, $any($event.target).value)"
+                    >
+                      @for (option of periodicities; track option) {
+                        <option [value]="option" [selected]="option === item.periodicity">
+                          {{ PERIODICITY_LABEL[option] }}
+                        </option>
+                      }
+                    </select>
+                  } @else {
+                    {{ PERIODICITY_LABEL[item.periodicity] }}
+                  }
+                </td>
+
+                <td hlmTd>
+                  @if (editable()) {
+                    <label class="sr-only" [attr.for]="'dia-' + item.id">
+                      Dia de vencimento de {{ item.name }}
+                    </label>
+                    <input
+                      hlmInput
+                      [id]="'day-' + item.id"
+                      type="number"
+                      min="1"
+                      max="31"
+                      class="h-8 w-20 tabular-nums"
+                      [value]="item.dueDay ?? ''"
+                      [disabled]="acting()"
+                      (change)="changeDay(item, $any($event.target).value)"
+                    />
+                  } @else {
+                    <span class="tabular-nums">{{ item.dueDay ?? '—' }}</span>
+                  }
+                </td>
+
+                <td hlmTd class="text-xs">{{ deliveryMonth(item) }}</td>
+
+                <td hlmTd>
+                  <button
+                    type="button"
+                    role="switch"
+                    [attr.aria-checked]="item.required"
+                    class="focus-visible:ring-ring relative inline-flex h-6 w-11 shrink-0 items-center rounded-full transition-colors focus-visible:ring-2 focus-visible:ring-offset-2 focus-visible:outline-none disabled:opacity-50"
+                    [class]="item.required ? 'bg-primary' : 'bg-muted border-border border'"
+                    [disabled]="acting() || !editable()"
+                    (click)="update(item, { required: !item.required })"
+                  >
+                    <span class="sr-only">
+                      {{ item.name }} {{ item.required ? 'é obrigatório' : 'é opcional' }}
+                    </span>
+                    <span
+                      class="bg-card size-4 rounded-full shadow transition-transform"
+                      [class]="item.required ? 'translate-x-6' : 'translate-x-1'"
+                    ></span>
+                  </button>
+                </td>
+
+                <td hlmTd>
+                  @if (editable()) {
+                    <label class="sr-only" [attr.for]="'condicao-' + item.id">
+                      Condição de {{ item.name }}
+                    </label>
+                    <select
+                      hlmInput
+                      [id]="'condition-' + item.id"
+                      class="h-8 w-52"
+                      [disabled]="acting()"
+                      (change)="changeCondition(item, $any($event.target).value)"
+                    >
+                      <option value="" [selected]="item.conditionFlag === null">Sempre</option>
+                      @for (flag of flags; track flag.key) {
+                        <option [value]="flag.key" [selected]="flag.key === item.conditionFlag">
+                          {{ flag.label }}
+                        </option>
+                      }
+                    </select>
+                  } @else {
+                    <span class="text-xs">
+                      {{ item.conditionFlag ? item.conditionFlag : 'Sempre' }}
+                    </span>
+                  }
+                </td>
+
+                @if (editable()) {
+                  <td hlmTd class="text-right">
+                    <button
+                      hlmBtn
+                      variant="ghost"
+                      size="icon-sm"
+                      [disabled]="acting()"
+                      (click)="confirmRemoval.set(item)"
+                    >
+                      <span class="sr-only">Remover {{ item.name }}</span>
+                      <ng-icon name="lucideTrash2" aria-hidden="true" />
+                    </button>
+                  </td>
+                }
+              </tr>
+            }
+          </tbody>
+        </table>
+      </div>
+    }
+  </section>
+
+  <app-modal
+    [open]="catalogOpen()"
+    (openChange)="catalogOpen.set($event)"
+    title="Adicionar item ao template"
+    description="Escolha um documento do catálogo."
+  >
+    <app-catalog-picker
+      [documents]="available()"
+      [(search)]="catalogSearch"
+      [acting]="acting()"
+      searchId="search-template-catalog"
+      emptyLabel="Todos os documentos do catálogo já estão neste template."
+      (add)="add($event.id, $event.name)"
+    />
+
+    <div
+      class="border-border bg-muted/40 -mx-5 -mb-5 mt-5 flex flex-wrap justify-end gap-2 border-t p-4"
+    >
+      <button hlmBtn variant="ghost" (click)="catalogOpen.set(false)">Fechar</button>
+    </div>
+  </app-modal>
+
+  <app-modal
+    [open]="confirmRemoval() !== null"
+    (openChange)="$event ? null : confirmRemoval.set(null)"
+    title="Remover item do template?"
+  >
+    <p class="text-sm">
+      {{ confirmRemoval()?.name }} deixa de ser exigido pelas empresas que usam este template.
+      Competências já abertas não mudam.
+    </p>
+
+    <div
+      class="border-border bg-muted/40 -mx-5 -mb-5 mt-5 flex flex-wrap justify-end gap-2 border-t p-4"
+    >
+      <button hlmBtn variant="ghost" (click)="confirmRemoval.set(null)">Cancelar</button>
+      <button
+        hlmBtn
+        variant="destructive"
+        [disabled]="acting()"
+        (click)="remover(confirmRemoval()!)"
+      >
+        Remover item
+      </button>
+    </div>
+  </app-modal>
+}

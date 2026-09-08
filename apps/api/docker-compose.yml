@@ -1,7 +1,7 @@
 services:
   db:
     image: postgres:17
-    command: ["postgres", "-c", "timezone=UTC"]
+    command: ['postgres', '-c', 'timezone=UTC']
     ports:
       - ${DB_PORT}:5432
     environment:

@@ -1,5 +1,6 @@
 import { ArgumentsHost, Catch, ExceptionFilter, HttpException, Logger } from '@nestjs/common';
 import type { Response } from 'express';
+import { ThrottlerException } from '@nestjs/throttler';
 import { AppError } from './app-error.js';
 
 @Catch()
@@ -25,7 +26,17 @@ export class AppErrorFilter implements ExceptionFilter {
         .json({ error: { code: 'NOT_FOUND', message: 'Recurso não encontrado.' } });
     }
 
-    // HttpException (exceto 404) e erro desconhecido: nunca vaza detalhe para o cliente
+    // Rate limit (ThrottlerGuard): tratado à parte porque "devagar aí" não é erro de
+    // servidor — devolver 500 aqui faria o cliente achar que o sistema quebrou e repetir.
+    if (exception instanceof ThrottlerException) {
+      return response.status(429).json({
+        error: {
+          code: 'TOO_MANY_REQUESTS',
+          message: 'Muitas requisições em pouco tempo. Aguarde alguns segundos e tente de novo.',
+        },
+      });
+    }
+
     this.logger.error(exception);
     return response
       .status(500)

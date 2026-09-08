@@ -1,0 +1,35 @@
+<section class="bg-card border-border max-w-2xl rounded-xl border">
+  <div class="border-border border-b p-4">
+    <h2 class="text-sm font-semibold">Lembretes</h2>
+    <p class="text-muted-foreground mt-1 text-xs">Como o sistema cobra quem ainda não entregou.</p>
+  </div>
+
+  <ul class="divide-border divide-y text-sm">
+    <li class="flex flex-wrap items-center justify-between gap-2 p-4">
+      <span>Lembretes automáticos</span>
+      <span class="text-muted-foreground text-xs">Ativos (cron diário)</span>
+    </li>
+    <li class="flex flex-wrap items-center justify-between gap-2 p-4">
+      <span>Máximo por solicitação</span>
+      <span class="text-muted-foreground text-xs tabular-nums">2 lembretes</span>
+    </li>
+    <li class="flex flex-wrap items-center justify-between gap-2 p-4">
+      <span>Canal</span>
+      <span class="text-muted-foreground text-xs">E-mail</span>
+    </li>
+    <li class="flex flex-wrap items-center justify-between gap-2 p-4">
+      <span>Prazo estourado</span>
+      <span class="text-muted-foreground text-xs">Avisa Responsável e Contador</span>
+    </li>
+  </ul>
+
+  <div class="border-border flex flex-wrap items-center justify-between gap-3 border-t p-4">
+    <p class="text-muted-foreground max-w-md text-xs">
+      Esses valores são fixos nesta versão — a API ainda não guarda preferência de lembrete por
+      contabilidade. Você pode disparar a varredura manualmente quando quiser.
+    </p>
+    <button hlmBtn variant="outline" [disabled]="running()" (click)="runNow()">
+      {{ running() ? 'Disparando…' : 'Rodar lembretes agora' }}
+    </button>
+  </div>
+</section>

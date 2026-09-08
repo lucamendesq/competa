@@ -1,0 +1,429 @@
+<app-page-header
+  title="Competências"
+  description="Meses de referência e o disparo das cobranças mensais."
+>
+  <button hlmBtn (click)="openModal()">
+    <ng-icon name="lucideCalendarPlus" aria-hidden="true" />
+    Abrir competência
+  </button>
+</app-page-header>
+
+<dl class="grid gap-4 sm:grid-cols-2 xl:grid-cols-4">
+  <div class="bg-card border-border rounded-xl border p-4">
+    <dt class="text-muted-foreground text-xs font-medium">Competência atual</dt>
+    <dd class="mt-1 flex items-center gap-2">
+      <span class="text-2xl font-semibold tracking-tight tabular-nums">
+        {{ current() ? monthLabel(current()!.referenceMonth) : '—' }}
+      </span>
+      @if (current()) {
+        <app-status-pill [status]="current()!.status" />
+      }
+    </dd>
+    <p class="text-muted-foreground mt-2 text-xs">
+      @if (current()?.dueDate) {
+        Prazo geral {{ dateBr(current()!.dueDate) }}
+      } @else {
+        Sem prazo geral definido
+      }
+    </p>
+  </div>
+
+  <div class="bg-card border-border rounded-xl border p-4">
+    <dt class="text-muted-foreground text-xs font-medium">Empresas cobradas</dt>
+    <dd class="mt-1 text-2xl font-semibold tracking-tight tabular-nums">
+      {{ currentDetail.value()?.requestCount ?? '—' }}
+    </dd>
+    <p class="text-muted-foreground mt-2 text-xs">
+      {{ preview().withoutContact.length }} sem Responsável cadastrado
+    </p>
+  </div>
+
+  <div class="bg-card border-border rounded-xl border p-4">
+    <dt class="text-muted-foreground text-xs font-medium">Itens pendentes</dt>
+    <dd class="mt-1 text-2xl font-semibold tracking-tight tabular-nums">
+      {{ currentDetail.value()?.pendingItemCount ?? '—' }}
+    </dd>
+    <p class="text-muted-foreground mt-2 text-xs">Itens ainda sem aceite na competência atual</p>
+  </div>
+
+  <div class="bg-card border-border rounded-xl border p-4">
+    <dt class="text-muted-foreground text-xs font-medium">Solicitações completas</dt>
+    <dd class="mt-1 text-2xl font-semibold tracking-tight tabular-nums">
+      {{ currentDetail.value()?.completeRequestCount ?? '—' }}
+      <span class="text-muted-foreground text-sm font-normal">
+        de {{ currentDetail.value()?.requestCount ?? 0 }}
+      </span>
+    </dd>
+    <p class="text-muted-foreground mt-2 text-xs">Empresas que entregaram tudo</p>
+  </div>
+</dl>
+
+<section class="bg-card border-border rounded-xl border">
+  <div class="border-border flex flex-wrap items-center gap-2 border-b p-3">
+    <div class="flex flex-wrap gap-1" role="group" aria-label="Filtrar competências">
+      @for (chip of chips; track chip.value) {
+        <button
+          type="button"
+          class="focus-visible:ring-ring h-8 rounded-lg border px-3 text-xs font-medium focus-visible:ring-2 focus-visible:outline-none"
+          [class]="
+            filter() === chip.value
+              ? 'bg-primary text-primary-foreground border-primary'
+              : 'border-border hover:bg-muted'
+          "
+          [attr.aria-pressed]="filter() === chip.value"
+          (click)="filter.set(chip.value)"
+        >
+          {{ chip.label }} ({{ counts()[chip.value] }})
+        </button>
+      }
+    </div>
+  </div>
+
+  @if (periods.isLoading()) {
+    <app-loading-rows />
+  } @else if (periods.error()) {
+    <app-error-state
+      message="Não conseguimos carregar as competências."
+      (retry)="periods.reload()"
+    />
+  } @else if (!visible().length) {
+    <app-empty-state
+      title="Nenhuma competência aberta ainda"
+      description="Abra o primeiro mês de referência para disparar os links de envio para todas as suas empresas."
+      icon="lucideCalendarPlus"
+    >
+      <button hlmBtn (click)="openModal()">Abrir a primeira competência</button>
+    </app-empty-state>
+  } @else {
+    <div hlmTableContainer class="overflow-x-auto">
+      <table hlmTable class="w-full">
+        <caption class="sr-only">
+          Competências da contabilidade, com status, empresas cobradas e prazo
+        </caption>
+        <thead hlmTHead>
+          <tr hlmTr>
+            <th hlmTh scope="col">Competência</th>
+            <th hlmTh scope="col">Status</th>
+            <th hlmTh scope="col" class="text-right">Empresas</th>
+            <th hlmTh scope="col">Prazo geral</th>
+            <th hlmTh scope="col"><span class="sr-only">Ações</span></th>
+          </tr>
+        </thead>
+        <tbody hlmTBody>
+          @for (row of visible(); track row.id) {
+            <tr hlmTr>
+              <th hlmTd scope="row" class="font-medium">
+                {{ monthLabel(row.referenceMonth) }}
+              </th>
+              <td hlmTd><app-status-pill [status]="row.status" /></td>
+              <td hlmTd class="text-right tabular-nums">{{ row.requestCount }}</td>
+              <td hlmTd class="tabular-nums">{{ dateBr(row.dueDate) }}</td>
+              <td hlmTd>
+                <div class="flex flex-wrap items-center justify-end gap-1">
+                  <a hlmBtn variant="ghost" size="sm" [routerLink]="['/competencias', row.id]">
+                    Ver painel
+                    <ng-icon name="lucideArrowRight" aria-hidden="true" />
+                  </a>
+                  <button
+                    hlmBtn
+                    variant="ghost"
+                    size="icon-sm"
+                    (click)="downloadZip(row.id, row.referenceMonth)"
+                  >
+                    <span class="sr-only">
+                      Baixar zip de {{ monthLabel(row.referenceMonth) }}
+                    </span>
+                    <ng-icon name="lucideFileArchive" aria-hidden="true" />
+                  </button>
+                  @if (row.status === 'open') {
+                    <button
+                      hlmBtn
+                      variant="destructive"
+                      size="sm"
+                      (click)="confirmClose.set(row.id)"
+                    >
+                      <ng-icon name="lucideLock" aria-hidden="true" />
+                      Encerrar
+                    </button>
+                  }
+                </div>
+              </td>
+            </tr>
+          }
+        </tbody>
+      </table>
+    </div>
+
+    <app-pagination [(page)]="page" [total]="periods.value().meta.total" [perPage]="perPage" />
+  }
+</section>
+
+<app-modal
+  [(open)]="modalOpen"
+  title="Abrir competência"
+  description="Gera uma solicitação por empresa ativa com Responsável e envia o link de upload."
+>
+  @if (result()) {
+    <div class="flex flex-col gap-4">
+      <app-callout tone="success" icon="lucideCircleCheck">
+        <p>
+          Competência {{ monthLabel(result()!.referenceMonth) }} aberta.
+          {{ result()!.requests.length }}
+          {{ result()!.requests.length === 1 ? 'link enviado' : 'links enviados' }} por e-mail.
+        </p>
+      </app-callout>
+
+      @if (result()!.warnings.length) {
+        <div
+          class="rounded-lg border border-warning-border bg-warning-surface p-3 text-sm text-warning-foreground"
+          role="note"
+        >
+          <p class="font-medium">
+            {{ result()!.warnings.length }} empresa(s) ficaram de fora por não terem Responsável:
+          </p>
+          <ul class="mt-2 flex flex-col gap-1">
+            @for (warning of result()!.warnings; track warning.companyId) {
+              <li class="flex flex-wrap items-center justify-between gap-2">
+                <span>{{ warning.companyName }}</span>
+                <a
+                  class="font-medium underline"
+                  [routerLink]="['/empresas', warning.companyId, 'editar']"
+                  (click)="closeResult()"
+                >
+                  Cadastrar Responsável
+                </a>
+              </li>
+            }
+          </ul>
+        </div>
+      }
+
+      <div class="border-border overflow-hidden rounded-lg border">
+        <table hlmTable class="w-full">
+          <caption class="sr-only">
+            Solicitações criadas nesta abertura
+          </caption>
+          <thead hlmTHead>
+            <tr hlmTr>
+              <th hlmTh scope="col">Empresa</th>
+              <th hlmTh scope="col" class="text-right">Itens</th>
+              <th hlmTh scope="col"><span class="sr-only">Link</span></th>
+            </tr>
+          </thead>
+          <tbody hlmTBody>
+            @for (request of result()!.requests; track request.id) {
+              <tr hlmTr>
+                <th hlmTd scope="row" class="font-medium">{{ request.companyName }}</th>
+                <td hlmTd class="text-right tabular-nums">{{ request.itemCount }}</td>
+                <td hlmTd class="text-right">
+                  <button hlmBtn variant="ghost" size="sm" (click)="copyLink(request)">
+                    <ng-icon name="lucideCopy" aria-hidden="true" />
+                    Copiar link
+                  </button>
+                </td>
+              </tr>
+            }
+          </tbody>
+        </table>
+      </div>
+    </div>
+
+    <div
+      class="border-border bg-muted/40 -mx-5 -mb-5 mt-5 flex flex-wrap justify-end gap-2 border-t p-4"
+    >
+      <button hlmBtn (click)="closeResult()">Concluir</button>
+    </div>
+  } @else {
+    @if (step() === 'form') {
+      <form
+        id="open-period-form"
+        class="flex flex-col gap-5"
+        (submit)="$event.preventDefault(); review()"
+      >
+        @if (openError()) {
+          <app-callout tone="danger" icon="lucideTriangleAlert">
+            <p>{{ openError() }}</p>
+          </app-callout>
+        }
+
+        <fieldset class="flex flex-col gap-1.5">
+          <legend hlmLabel class="mb-1.5">
+            Mês de referência <span class="text-destructive" aria-hidden="true">*</span
+            ><span class="sr-only">(obrigatório)</span>
+          </legend>
+          <div class="flex gap-2">
+            <select
+              hlmInput
+              id="reference-month"
+              class="flex-1"
+              aria-label="Mês"
+              aria-describedby="month-help"
+              (change)="setMonth($any($event.target).value)"
+            >
+              @for (month of months; track month.value) {
+                <option [value]="month.value" [selected]="month.value === monthPart()">
+                  {{ month.label }}
+                </option>
+              }
+            </select>
+            <select
+              hlmInput
+              class="w-28"
+              aria-label="Ano"
+              aria-describedby="month-help"
+              (change)="setYear($any($event.target).value)"
+            >
+              @for (year of years; track year) {
+                <option [value]="year" [selected]="year === yearPart()">{{ year }}</option>
+              }
+            </select>
+          </div>
+          <p id="month-help" class="text-muted-foreground text-xs">
+            O mês a que os documentos se referem — normalmente o mês passado.
+          </p>
+        </fieldset>
+
+        <div class="flex flex-col gap-1.5">
+          <label hlmLabel for="general-due-date">Prazo geral da competência (opcional)</label>
+          <input
+            hlmInput
+            id="general-due-date"
+            type="date"
+            [formField]="f.dueDate"
+            aria-describedby="due-date-help"
+          />
+          <p id="due-date-help" class="text-muted-foreground text-xs">
+            Usado quando o item não tem prazo próprio.
+          </p>
+        </div>
+
+        <div class="bg-muted/50 border-border rounded-lg border p-3 text-sm">
+          <p>
+            @if (preview().created === 1) {
+              Será criada <strong class="tabular-nums">1</strong> solicitação para a empresa ativa
+              com Responsável cadastrado.
+            } @else {
+              Serão criadas <strong class="tabular-nums">{{ preview().created }}</strong>
+              solicitações para as empresas ativas com Responsável cadastrado.
+            }
+          </p>
+        </div>
+
+        @if (preview().withoutContact.length) {
+          <div
+            class="rounded-lg border border-warning-border bg-warning-surface p-3 text-sm text-warning-foreground"
+            role="note"
+          >
+            <p class="font-medium">
+              {{ preview().withoutContact.length }} empresa(s) ficarão de fora por não terem
+              Responsável:
+            </p>
+            <ul class="mt-2 flex flex-col gap-1">
+              @for (company of preview().withoutContact; track company.id) {
+                <li class="flex flex-wrap items-center justify-between gap-2">
+                  <span>{{ company.name }}</span>
+                  <a
+                    class="font-medium underline"
+                    [routerLink]="['/empresas', company.id, 'editar']"
+                    (click)="modalOpen.set(false)"
+                  >
+                    Cadastrar Responsável
+                  </a>
+                </li>
+              }
+            </ul>
+          </div>
+        }
+      </form>
+    }
+
+    @if (step() === 'confirm') {
+      <!-- Passo de confirmação: o disparo é irreversível e sai para fora (email do
+           cliente), então a lista de destinatários aparece ANTES, com nome e endereço. -->
+      <div class="mt-5 flex flex-col gap-3">
+        <div class="border-border rounded-lg border p-3 text-sm">
+          <p class="font-medium">
+            Vamos enviar
+            <strong class="tabular-nums">{{ preview().emailCount }}</strong>
+            {{ preview().emailCount === 1 ? 'e-mail' : 'e-mails' }} agora, de
+            {{ monthLabel(f.referenceMonth().value()) }}, para
+            <strong class="tabular-nums">{{ preview().created }}</strong>
+            {{ preview().created === 1 ? 'empresa' : 'empresas' }}.
+          </p>
+          <p class="text-muted-foreground mt-1 text-xs">
+            Cada Responsável recebe o link de envio dele. Isso não se desfaz.
+          </p>
+        </div>
+
+        <ul class="border-border max-h-64 divide-y overflow-y-auto rounded-lg border" role="list">
+          @for (company of preview().recipients; track company.id) {
+            <li class="p-3">
+              <p class="text-sm font-medium">{{ company.name }}</p>
+              <ul class="mt-1 flex flex-col gap-0.5" role="list">
+                @for (contact of company.contacts; track contact.id) {
+                  <li class="text-muted-foreground text-xs">
+                    {{ contact.name }} — {{ contact.email }}
+                  </li>
+                }
+              </ul>
+            </li>
+          }
+        </ul>
+      </div>
+    }
+
+    <div
+      class="border-border bg-muted/40 -mx-5 -mb-5 mt-5 flex flex-wrap justify-end gap-2 border-t p-4"
+    >
+      @if (step() === 'confirm') {
+        <button hlmBtn variant="ghost" type="button" (click)="step.set('form')">Voltar</button>
+        <button hlmBtn type="button" [disabled]="f().submitting()" (click)="openPeriod()">
+          {{
+            f().submitting()
+              ? 'Enviando…'
+              : 'Confirmar e enviar ' +
+                preview().emailCount +
+                (preview().emailCount === 1 ? ' e-mail' : ' e-mails')
+          }}
+        </button>
+      } @else {
+        <button hlmBtn variant="ghost" type="button" (click)="modalOpen.set(false)">
+          Cancelar
+        </button>
+        <button
+          hlmBtn
+          type="submit"
+          form="open-period-form"
+          [disabled]="f().submitting() || preview().created === 0"
+        >
+          Revisar envios
+        </button>
+      }
+    </div>
+  }
+</app-modal>
+
+<app-modal
+  [open]="confirmClose() !== null"
+  (openChange)="$event ? null : confirmClose.set(null)"
+  title="Encerrar competência?"
+  description="Encerrar é a palavra final: as solicitações desta competência também são encerradas, mesmo com pendências."
+>
+  <p class="text-sm">
+    Os Responsáveis não poderão mais enviar documentos nos itens — apenas documentos extras.
+  </p>
+
+  <div
+    class="border-border bg-muted/40 -mx-5 -mb-5 mt-5 flex flex-wrap justify-end gap-2 border-t p-4"
+  >
+    <button hlmBtn variant="ghost" (click)="confirmClose.set(null)">Cancelar</button>
+    <button
+      hlmBtn
+      variant="destructive"
+      [disabled]="closing() !== null"
+      (click)="closePeriod(confirmClose()!)"
+    >
+      {{ closing() ? 'Encerrando…' : 'Encerrar competência' }}
+    </button>
+  </div>
+</app-modal>

@@ -48,8 +48,13 @@ create table accountant (                 -- Contador (N por Contabilidade, via 
                                           -- por auth_user_id — não duplicar aqui
   id                  uuid primary key,
   accounting_firm_id  uuid not null references accounting_firm(id) on delete cascade,
-  auth_user_id        uuid not null unique references "user"(id) on delete cascade
-);
+  auth_user_id        uuid not null unique references "user"(id) on delete cascade,
+  owner               boolean not null default false  -- dono: o 1º Contador (quem provisiona
+);                                                    -- via create-firm). SÓ ele cria convite.
+
+-- Uma Contabilidade tem no máximo um dono. Quem arbitra é o banco: dois signups
+-- simultâneos passariam por uma checagem feita em JS.
+create unique index accountant_owner_uidx on accountant (accounting_firm_id) where owner;
 
 create table document_type (              -- Catálogo (dicionário) de documentos
   id                  uuid primary key,
@@ -70,7 +75,7 @@ create table checklist_template (         -- Template de Checklist ("Template ME
 
 create table checklist_template_item (    -- composição N:N template ↔ documento
   id                     uuid primary key,
-  checklist_template_id  uuid not null references checklist_template(id),
+  checklist_template_id  uuid not null references checklist_template(id) on delete cascade,
   document_type_id       uuid not null references document_type(id),
   periodicity            text not null default 'monthly'
                            check (periodicity in ('monthly','annual','on_demand')),
@@ -90,9 +95,13 @@ create table company (                    -- Empresa (cliente da Contabilidade)
                                           -- falha por FK — proteção intencional
   checklist_template_id  uuid not null references checklist_template(id), -- escolhido no cadastro
   name                   text not null,
-  cnpj                   text,
+  cnpj                   text,                 -- só dígitos; validado com DV (módulo 11)
   flags                  jsonb not null default '{}',
                            -- {"has_employees": bool, "accepts_card_payments": bool, "has_inventory": bool}
+                           -- PATCH /companies/:id MESCLA (jsonb ||): mandar uma flag não
+                           -- apaga as outras. Trocar uma flag para false exige mandá-la
+                           -- explicitamente — apagar por omissão faria o fan-out perder
+                           -- itens de folha sem ninguém pedir
   active                 boolean not null default true
 );
 
@@ -123,7 +132,7 @@ create table invite (                     -- Convite (D-03): serve os dois casos
 
 create table company_checklist_override ( -- edição leve por Empresa
   id                uuid primary key,
-  company_id        uuid not null references company(id),
+  company_id        uuid not null references company(id) on delete cascade,
   document_type_id  uuid not null references document_type(id),
   action            text not null check (action in ('add','remove')),
   -- campos abaixo exigidos quando action = 'add' (espelham checklist_template_item):
@@ -131,6 +140,8 @@ create table company_checklist_override ( -- edição leve por Empresa
   annual_month      smallint,
   due_day           smallint,
   due_month_offset  smallint,
+  condition_flag    text,
+  required          boolean,
   unique (company_id, document_type_id)
 );
 ```
@@ -158,7 +169,7 @@ create table request (                    -- Solicitação (UMA Empresa em UMA C
 
 create table request_item (               -- Item — SNAPSHOT congelado na abertura
   id                uuid primary key,
-  request_id        uuid not null references request(id),
+  request_id        uuid not null references request(id) on delete cascade,
   document_type_id  uuid references document_type(id),  -- só p/ relatórios; campos abaixo são cópia
   name              text not null,        -- copiado do document_type na abertura
   description       text,                 -- copiado
@@ -166,7 +177,11 @@ create table request_item (               -- Item — SNAPSHOT congelado na aber
   due_date          date,                 -- congelado: reference_month + due_month_offset + due_day;
                                           -- NULL → herda period.due_date → sem prazo
   status            text not null default 'pending'
-                      check (status in ('pending','submitted','accepted','rejected'))
+                      check (status in ('pending','submitted','accepted','rejected')),
+  deadline_notified_at timestamptz     -- idempotência do cron de DeadlineMissed: já avisei
+                                       -- este Item. Estado em memória reavisaria o cliente
+                                       -- a cada restart da API. A reabertura do Item limpa
+                                       -- a marca, então prazo que estoura de novo avisa.
 );
 create index request_item_pending_idx on request_item (request_id, status); -- Painel de Pendências
 
@@ -177,8 +192,18 @@ create table document (                   -- arquivo enviado (1 Item : N Documen
   storage_key       text not null,        -- caminho no R2
   file_name         text not null,
   content_type      text not null,
-  size_bytes        bigint not null,
-  uploaded_at       timestamptz not null default now(),
+  size_bytes        bigint not null,      -- na confirmação passa a ser o tamanho REAL do
+                                          -- storage, não o declarado pelo cliente
+  upload_status     text not null default 'awaiting_upload'
+                      check (upload_status in ('awaiting_upload','uploaded')),
+                                          -- linha nasce no presign; só a confirmação
+                                          -- (que confere o objeto) marca 'uploaded'.
+                                          -- Leituras (revisão, zip, painel) exigem
+                                          -- 'uploaded'; faxina diária apaga o resto
+  uploaded_by_contact_id uuid references contact(id) on delete set null,
+                                          -- quem enviou: via Link vem do upload_link,
+                                          -- logado vem da sessão (Fase 10)
+  uploaded_at       timestamptz,          -- preenchido na confirmação
   review_status     text not null default 'pending'
                       check (review_status in ('pending','accepted','rejected')),
   rejection_reason  text
@@ -186,7 +211,7 @@ create table document (                   -- arquivo enviado (1 Item : N Documen
 
 create table upload_link (                -- Link de Upload (token próprio; NÃO é sessão/auth)
   id          uuid primary key,
-  request_id  uuid not null references request(id),
+  request_id  uuid not null references request(id) on delete cascade,
   contact_id  uuid not null references contact(id),
   token_hash  text not null unique,       -- nunca o token em claro
   expires_at  timestamptz not null,
@@ -199,22 +224,34 @@ create table upload_link (                -- Link de Upload (token próprio; NÃ
 ```sql
 create table message (                    -- log/outbox de tudo que sai
   id          uuid primary key,
-  request_id  uuid not null references request(id),
+  request_id  uuid not null references request(id) on delete cascade,
   channel     text not null check (channel in ('email','whatsapp','push')),
   purpose     text not null check (purpose in
                 ('link_delivery','reminder','rejection','deadline_missed','completion')),
   recipient   text not null,
   status      text not null default 'queued'
                 check (status in ('queued','sent','delivered','failed')),
-  sent_at     timestamptz
+  sent_at     timestamptz,
+  error       text                          -- motivo da falha do provedor; é o que o
+                                            -- Painel de Pendências mostra (MessageFailed)
 );
 create index message_reminder_idx on message (request_id, purpose);
 -- cadência máx. 2 lembretes = count(*) where purpose='reminder' por request (sem tabela extra)
+-- Janela escolhida na Fase 5 (constantes em modules/messaging/reminder-rules.ts, puro e testado):
+-- com prazo, lembra a partir de D-3 com gap mínimo de 3 dias; sem prazo, cadência semanal.
+-- Falha de canal nunca bloqueia o fluxo: vira status='failed' + error e segue.
 ```
 
 ## Consultas/algoritmos canônicos
 
 ### Checklist efetivo de uma Empresa (template − removidos + adicionados)
+
+Ponto único de verdade no código: `ChecklistRepository.effectiveChecklist()`
+(`apps/api/src/modules/checklists/`), com o merge puro em `effective-checklist.ts`.
+Regras que o SQL abaixo não expressa e o merge implementa: um override `add` do
+MESMO `document_type` **substitui** a linha do template (edição, não duplicata), e
+cada linha volta com `source` (`template` | `override`) e `applies` (resultado de
+`condition_flag` contra `company.flags` — a mesma regra do fan-out).
 
 ```sql
 select dt.id, dt.name, dt.accepted_formats, dt.description,
@@ -242,21 +279,71 @@ where o.company_id = :company_id and o.action = 'add';
 4. Criar `request_item` com snapshot (name, description, accepted_formats) e `due_date` calculado: `reference_month + (due_month_offset || interval month) + due_day`, senão `NULL` (herda `period.due_date`).
 5. Gerar `upload_link` (token aleatório ≥ 32 bytes; armazenar só o hash) e emitir evento `RequestCreated` → `messaging`.
 
+### Entrega em zip (rotas do painel — `FirmScope`)
+
+`GET /requests/:id/zip` (uma Empresa numa Competência) e `GET /periods/:id/zip` (a
+Competência inteira, uma pasta por Empresa). Streaming: `StorageProvider.openRead` alimenta
+o archiver, que escreve direto na resposta — o zip nunca existe inteiro em memória nem em
+disco, e cada objeto do storage só é aberto quando chega a vez dele. Sem recompressão
+(`store`). Documento com `review_status='rejected'` **fica fora** da entrega (foi recusado
+na revisão); Documento Extra vai em `Documentos Extra/`. Montagem dos nomes (sanitização e
+colisão) em `modules/requests/zip.ts`.
+
 ### Regras de upload (rotas públicas do Link de Upload — `UploadTokenGuard`)
+
+Implementação: `modules/auth/upload-token.guard.ts` (resolve o `upload_link` pelo hash,
+valida `expires_at`/`revoked` e injeta `UploadScope`), `modules/requests/upload.controller.ts`
+(3 rotas: ver checklist, pedir URLs, confirmar), regras puras em
+`modules/requests/file-rules.ts` e storage em `infra/storage/` (ver D12).
 
 - Valida `token_hash` + `expires_at` + `revoked` e injeta `UploadScope` limitado àquela `request`; escopo **só-upload** (a página exibe nomes/status dos itens; NUNCA lista/baixa conteúdo de documentos).
 - Upload direto ao R2 via URL pré-assinada (4–6 concorrentes); backend só emite URLs e insere `document`.
 - Limites: 100 MB/arquivo; 500 arquivos/envio. Zip aceito como formato, **sem extração**.
+  O limite é **imposto**, não pedido: o presign assina o tamanho (`ContentLength` no R2,
+  HMAC + corte de stream no storage local) e a confirmação confere o objeto real — arquivo
+  ausente, maior que o limite ou diferente do declarado é descartado (linha e objeto).
 - `request.status = 'closed'` → só aceita Documento Extra (`request_item_id IS NULL`).
 
 ## Transições de estado
 
-| Entidade | Transições |
-|----------|-----------|
-| `request_item.status` | `pending → submitted` (upload) `→ accepted` \| `rejected` (Revisão); `rejected → pending` (reabertura, dispara reenvio de link SÓ por email) |
-| `request.status` | `open → complete` (todos os itens `accepted`, automático); `open\|complete → closed` (ato do Contador; pode fechar com pendências, com aviso) |
-| `period.status` | `open → closed` (ato do Contador) |
-| `document.review_status` | `pending → accepted` \| `rejected` — Revisão em lote opera no Item (aceita todos os `document` do item de uma vez) |
+| Entidade                 | Transições                                                                                                                                                                                                                                                                                                                                                                                                                                 |
+| ------------------------ | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
+| `request_item.status`    | `pending → submitted` (upload) `→ accepted` \| `rejected` (Revisão); `rejected → pending` (reabertura: **rotaciona o token** do `upload_link` e dispara reenvio SÓ por email — o link anterior morre). Rejeição é por Documento; aceitar o Item aceita todos os Documentos `pending` dele (Documento já `rejected` fica como histórico).                                                                                                   |
+| `request.status`         | `open → complete` (todos os itens `accepted`, automático); `open\|complete → closed` (ato do Contador; pode fechar com pendências, com aviso)                                                                                                                                                                                                                                                                                              |
+| `period.status`          | `open → closed` (ato do Contador)                                                                                                                                                                                                                                                                                                                                                                                                          |
+| `document.upload_status` | `awaiting_upload → uploaded` (confirmação, que confere tamanho real). Nunca volta; envio não confirmado em 24h é apagado pela faxina                                                                                                                                                                                                                                                                                                       |
+| `document.review_status` | `pending → accepted` \| `rejected` — Revisão em lote opera no Item (aceita todos os `document` `uploaded` e `pending` do item de uma vez). **Documento Extra** é revisado individualmente (`POST /documents/:id/review-extra`) e não entra na conta de `complete`. **Aceite é desfazível** (`POST /request-items/:id/undo-accept`): Item volta a `submitted`/`pending` e os Documentos aceitos voltam a `pending` — desfazer não é recusar |
+
+### Fase 10 — acesso do Responsável
+
+```sql
+-- tabela do plugin @better-auth/passkey (WebAuthn): a credencial que sobrevive à
+-- reinstalação do app, porque vive no keychain sincronizado do aparelho
+create table passkey (
+  id           uuid primary key,
+  name         text,
+  public_key   text not null,
+  user_id      uuid not null references "user"(id) on delete cascade,
+  credential_i_d text not null,
+  counter      integer not null,
+  device_type  text not null,
+  backed_up    boolean not null,
+  transports   text,
+  aaguid       text
+);
+
+create table push_subscription (          -- Web Push da PWA do Responsável
+  id          uuid primary key,
+  contact_id  uuid not null references contact(id) on delete cascade,
+  provider    text not null default 'web' check (provider in ('web','fcm')),
+  endpoint    text not null unique,       -- chave natural: o navegador troca a inscrição
+  keys        jsonb not null              -- web: {p256dh, auth}; fcm (futuro): token
+);
+```
+
+> **`verification.id` é `text`, não `uuid`.** A tabela é do Better Auth e a biblioteca grava
+> ali ids próprios que não são uuid (`reserveVerificationValue`, no fluxo de magic link).
+> Quem manda na forma das tabelas de auth é a biblioteca, não a nossa convenção de PK.
 
 ## Seed
 

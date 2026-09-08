@@ -1,0 +1,24 @@
+<section class="max-w-2xl">
+  <ul class="flex flex-col gap-3" role="list">
+    @for (channel of channels; track channel.name) {
+      <li class="bg-card border-border flex flex-wrap items-start gap-4 rounded-xl border p-4">
+        <span
+          class="bg-muted text-muted-foreground flex size-9 shrink-0 items-center justify-center rounded-lg"
+          aria-hidden="true"
+        >
+          <ng-icon [name]="channel.icon" class="text-base" />
+        </span>
+        <div class="min-w-0 flex-1">
+          <div class="flex flex-wrap items-center gap-2">
+            <h2 class="text-sm font-semibold">{{ channel.name }}</h2>
+            <app-status-pill
+              [status]="channel.active ? 'connected' : 'disconnected'"
+              [text]="channel.state"
+            />
+          </div>
+          <p class="text-muted-foreground mt-1 text-xs">{{ channel.detail }}</p>
+        </div>
+      </li>
+    }
+  </ul>
+</section>

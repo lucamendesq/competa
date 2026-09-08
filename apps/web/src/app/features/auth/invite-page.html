@@ -1,0 +1,266 @@
+<div class="bg-muted/40 flex min-h-dvh items-center justify-center p-4 sm:p-8">
+  <div class="w-full max-w-md">
+    @if (invite.isLoading()) {
+      <div class="bg-card border-border rounded-xl border p-8" role="status" aria-live="polite">
+        <span class="sr-only">Carregando convite…</span>
+        <div class="bg-muted h-5 w-2/3 animate-pulse rounded"></div>
+        <div class="bg-muted mt-4 h-10 animate-pulse rounded-lg"></div>
+        <div class="bg-muted mt-3 h-10 animate-pulse rounded-lg"></div>
+      </div>
+    } @else if (inviteInvalid()) {
+      <div class="bg-card border-border rounded-xl border p-6 text-center sm:p-8">
+        <span
+          class="mx-auto flex size-12 items-center justify-center rounded-full bg-warning-surface text-warning"
+        >
+          <ng-icon name="lucideClock" class="text-xl" aria-hidden="true" />
+        </span>
+        <h1 class="mt-4 text-lg font-semibold tracking-tight">
+          Este convite expirou ou já foi utilizado
+        </h1>
+        <p class="text-muted-foreground mt-2 text-sm">
+          Se você já criou seu acesso, entre por aqui. Senão, peça à sua contabilidade o reenvio do
+          convite.
+        </p>
+        <a hlmBtn routerLink="/minha-area/acesso" class="mt-6 w-full">Entrar na minha área</a>
+        <a hlmBtn variant="ghost" routerLink="/entrar" class="mt-2 w-full">Sou contador</a>
+      </div>
+    } @else if (isContactInvite()) {
+      <div class="bg-card border-border rounded-xl border p-6 sm:p-8">
+        <p class="text-muted-foreground text-xs font-semibold tracking-widest uppercase">
+          Convite de acesso
+        </p>
+        <h1 class="mt-2 text-xl font-semibold tracking-tight">
+          <span class="text-primary">{{ invite.value()?.invitedBy }}</span>
+          vai receber por aqui os documentos de {{ invite.value()?.companyName }}
+        </h1>
+        <p class="text-muted-foreground mt-2 text-sm">
+          Você já pode enviar documentos pelo link que chega por e-mail — isto aqui é só para
+          acompanhar o histórico e receber aviso no celular. Crie uma senha e já entra.
+        </p>
+
+        @if (error()) {
+          <div
+            class="mt-6 flex gap-3 rounded-lg border border-danger-border bg-danger-surface p-3 text-sm text-danger-foreground"
+            role="alert"
+          >
+            <ng-icon
+              name="lucideCircleAlert"
+              class="mt-0.5 shrink-0 text-base"
+              aria-hidden="true"
+            />
+            <p>{{ error() }}</p>
+          </div>
+        }
+
+        <form
+          class="mt-6 flex flex-col gap-4"
+          (submit)="$event.preventDefault(); activateContactAccess()"
+        >
+          <div class="flex flex-col gap-1.5">
+            <label hlmLabel for="access-email">Seu e-mail</label>
+            <input
+              hlmInput
+              id="access-email"
+              type="email"
+              readonly
+              class="bg-muted/60"
+              [value]="invite.value()?.email"
+              aria-describedby="access-email-help"
+            />
+            <p id="access-email-help" class="text-muted-foreground text-xs">
+              É o e-mail em que você recebeu este convite.
+            </p>
+          </div>
+
+          <div class="flex flex-col gap-1.5">
+            <label hlmLabel for="access-name"
+              >Seu nome <span class="text-destructive" aria-hidden="true">*</span
+              ><span class="sr-only">(obrigatório)</span></label
+            >
+            <input
+              hlmInput
+              id="access-name"
+              type="text"
+              autocomplete="name"
+              placeholder="Ex.: Marcos da Silva Oliveira"
+              [formField]="fAccess.name"
+              aria-describedby="access-name-error"
+            />
+            @if (fAccess.name().invalid() && fAccess.name().touched()) {
+              <p id="access-name-error" class="text-destructive text-xs">
+                Informe seu nome completo.
+              </p>
+            }
+          </div>
+
+          <div class="flex flex-col gap-1.5">
+            <label hlmLabel for="access-password"
+              >Crie uma senha <span class="text-destructive" aria-hidden="true">*</span
+              ><span class="sr-only">(obrigatório)</span></label
+            >
+            <input
+              hlmInput
+              id="access-password"
+              type="password"
+              autocomplete="new-password"
+              placeholder="Mínimo de 8 caracteres"
+              [formField]="fAccess.password"
+              aria-describedby="access-password-strength"
+            />
+            <ul id="access-password-strength" class="mt-1 flex flex-col gap-1">
+              @for (criteria of criteria; track criteria.label; let i = $index) {
+                <li
+                  class="flex items-center gap-1.5 text-xs"
+                  [class]="
+                    accessPasswordStrength().criteria[i] ? 'text-success' : 'text-muted-foreground'
+                  "
+                >
+                  <ng-icon
+                    [name]="accessPasswordStrength().criteria[i] ? 'lucideCheck' : 'lucideCircle'"
+                    class="text-[12px]"
+                    aria-hidden="true"
+                  />
+                  {{ criteria.label }}
+                  <span class="sr-only">
+                    {{ accessPasswordStrength().criteria[i] ? 'atendido' : 'não atendido' }}
+                  </span>
+                </li>
+              }
+            </ul>
+          </div>
+
+          <button
+            hlmBtn
+            size="lg"
+            type="submit"
+            class="mt-2 w-full"
+            [disabled]="fAccess().submitting()"
+          >
+            {{ fAccess().submitting() ? 'Criando acesso…' : 'Criar acesso e entrar' }}
+            <ng-icon name="lucideArrowRight" aria-hidden="true" />
+          </button>
+        </form>
+
+        <p class="text-muted-foreground mt-6 text-xs">
+          Já criou seu acesso?
+          <a routerLink="/minha-area/acesso" class="text-primary font-medium hover:underline">
+            Entrar na minha área
+          </a>
+        </p>
+      </div>
+    } @else {
+      <div class="bg-card border-border rounded-xl border p-6 sm:p-8">
+        <p class="text-muted-foreground text-xs font-semibold tracking-widest uppercase">Convite</p>
+        <h1 class="mt-2 text-xl font-semibold tracking-tight">
+          Você foi convidado por
+          <span class="text-primary">{{ invite.value()?.invitedBy }}</span>
+        </h1>
+        <p class="text-muted-foreground mt-1 text-sm">
+          Defina seus dados de acesso para começar a cobrar e conferir os documentos das empresas.
+        </p>
+
+        @if (error()) {
+          <div
+            class="mt-6 flex gap-3 rounded-lg border border-danger-border bg-danger-surface p-3 text-sm text-danger-foreground"
+            role="alert"
+          >
+            <ng-icon
+              name="lucideCircleAlert"
+              class="mt-0.5 shrink-0 text-base"
+              aria-hidden="true"
+            />
+            <p>{{ error() }}</p>
+          </div>
+        }
+
+        <form class="mt-6 flex flex-col gap-4" (submit)="$event.preventDefault(); createAccount()">
+          <div class="flex flex-col gap-1.5">
+            <label hlmLabel for="invite-email"
+              >E-mail do convite <span class="text-destructive" aria-hidden="true">*</span
+              ><span class="sr-only">(obrigatório)</span></label
+            >
+            <input
+              hlmInput
+              id="invite-email"
+              type="email"
+              readonly
+              class="bg-muted/60"
+              [value]="invite.value()?.email"
+              aria-describedby="email-help"
+            />
+            <p id="email-help" class="text-muted-foreground text-xs">
+              Este e-mail foi vinculado ao convite e não pode ser alterado.
+            </p>
+          </div>
+
+          <div class="flex flex-col gap-1.5">
+            <label hlmLabel for="invite-name"
+              >Nome completo <span class="text-destructive" aria-hidden="true">*</span
+              ><span class="sr-only">(obrigatório)</span></label
+            >
+            <input
+              hlmInput
+              id="invite-name"
+              type="text"
+              autocomplete="name"
+              placeholder="Ex.: Marcos da Silva Oliveira"
+              [formField]="f.name"
+              [attr.aria-describedby]="
+                f.name().invalid() && f.name().touched() ? 'erro-nome' : null
+              "
+            />
+            @if (f.name().invalid() && f.name().touched()) {
+              <p id="name-error" class="text-destructive text-xs">Informe seu nome completo.</p>
+            }
+          </div>
+
+          <div class="flex flex-col gap-1.5">
+            <label hlmLabel for="invite-password"
+              >Senha de acesso <span class="text-destructive" aria-hidden="true">*</span
+              ><span class="sr-only">(obrigatório)</span></label
+            >
+            <input
+              hlmInput
+              id="invite-password"
+              type="password"
+              autocomplete="new-password"
+              placeholder="Mínimo de 8 caracteres"
+              [formField]="f.password"
+              aria-describedby="password-strength"
+            />
+            <ul id="password-strength" class="mt-1 flex flex-col gap-1">
+              @for (criteria of criteria; track criteria.label; let i = $index) {
+                <li
+                  class="flex items-center gap-1.5 text-xs"
+                  [class]="
+                    passwordStrength().criteria[i] ? 'text-success' : 'text-muted-foreground'
+                  "
+                >
+                  <ng-icon
+                    [name]="passwordStrength().criteria[i] ? 'lucideCheck' : 'lucideCircle'"
+                    class="text-[12px]"
+                    aria-hidden="true"
+                  />
+                  {{ criteria.label }}
+                  <span class="sr-only">
+                    {{ passwordStrength().criteria[i] ? 'atendido' : 'não atendido' }}
+                  </span>
+                </li>
+              }
+            </ul>
+          </div>
+
+          <button hlmBtn size="lg" type="submit" class="mt-2 w-full" [disabled]="f().submitting()">
+            {{ f().submitting() ? 'Criando conta…' : 'Criar minha conta' }}
+            <ng-icon name="lucideArrowRight" aria-hidden="true" />
+          </button>
+        </form>
+
+        <p class="text-muted-foreground mt-6 text-center text-sm">
+          Já tem conta?
+          <a routerLink="/entrar" class="text-primary font-medium hover:underline">Entrar</a>
+        </p>
+      </div>
+    }
+  </div>
+</div>

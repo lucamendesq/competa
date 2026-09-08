@@ -1,0 +1,46 @@
+<h1 class="text-xl font-semibold tracking-tight">Histórico</h1>
+<p class="text-muted-foreground mt-1 text-sm">Tudo o que a sua contabilidade já pediu.</p>
+
+@if (periods.isLoading()) {
+  <app-loading-rows [count]="5" />
+} @else if (periods.error()) {
+  <app-error-state message="Não conseguimos carregar o histórico." (retry)="periods.reload()" />
+} @else if (!periods.value().data.length) {
+  <div class="bg-card border-border mt-4 rounded-xl border">
+    <app-empty-state
+      title="Nenhuma competência ainda"
+      description="Quando a sua contabilidade abrir um mês, ele aparece aqui."
+    />
+  </div>
+} @else {
+  <ul class="mt-4 flex flex-col gap-3" role="list">
+    @for (item of periods.value().data; track item.periodId) {
+      <li class="bg-card border-border rounded-xl border">
+        <a
+          class="focus-visible:ring-ring flex min-h-16 items-center gap-3 p-4 focus-visible:ring-2 focus-visible:outline-none"
+          [routerLink]="['/minha-area/competencias', item.periodId]"
+        >
+          <span class="min-w-0 flex-1">
+            <span class="flex flex-wrap items-center gap-2">
+              <span class="text-base font-semibold">{{ monthLabel(item.referenceMonth) }}</span>
+              <app-status-pill [status]="item.requestStatus" />
+            </span>
+            <span class="text-muted-foreground mt-1 block text-xs tabular-nums">
+              @if (item.pendingCount) {
+                Faltam {{ item.pendingCount }} de {{ item.itemCount }} documentos
+              } @else {
+                {{ item.itemCount }} documentos entregues
+              }
+              @if (item.dueDate) {
+                · Prazo {{ dateBr(item.dueDate) }}
+              }
+            </span>
+          </span>
+          <span class="text-muted-foreground shrink-0 text-sm" aria-hidden="true">›</span>
+        </a>
+      </li>
+    }
+  </ul>
+
+  <app-pagination [(page)]="page" [total]="periods.value().meta.total" [perPage]="perPage" />
+}

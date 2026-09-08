@@ -1,0 +1,123 @@
+<div class="bg-muted/40 flex min-h-dvh items-center justify-center p-4">
+  <div class="bg-card border-border w-full max-w-md rounded-xl border p-6">
+    <h1 class="text-xl font-semibold tracking-tight">Entrar na minha área</h1>
+    <p class="text-muted-foreground mt-1 text-sm">
+      Aqui você vê o que falta enviar, o que já mandou e o que a contabilidade recusou.
+    </p>
+
+    @if (error()) {
+      <p
+        class="mt-5 rounded-lg border border-danger-border bg-danger-surface p-3 text-sm text-danger-foreground"
+        role="alert"
+      >
+        {{ error() }}
+      </p>
+    }
+
+    <form class="mt-6 flex flex-col gap-4" (submit)="$event.preventDefault(); signIn()">
+      <div class="flex flex-col gap-1.5">
+        <label hlmLabel for="email-password"
+          >Seu e-mail <span class="text-destructive" aria-hidden="true">*</span
+          ><span class="sr-only">(obrigatório)</span></label
+        >
+        <input
+          hlmInput
+          id="email-password"
+          type="email"
+          inputmode="email"
+          autocomplete="email"
+          placeholder="voce@suaempresa.com.br"
+          [formField]="f.email"
+        />
+        @if (f.email().invalid() && f.email().touched()) {
+          <p class="text-destructive text-xs">{{ f.email().errors()[0]?.message }}</p>
+        }
+      </div>
+
+      <div class="flex flex-col gap-1.5">
+        <label hlmLabel for="access-password-field">Sua senha</label>
+        <input
+          hlmInput
+          id="access-password-field"
+          type="password"
+          autocomplete="current-password"
+          [formField]="f.password"
+        />
+        @if (f.password().invalid() && f.password().touched()) {
+          <p class="text-destructive text-xs">{{ f.password().errors()[0]?.message }}</p>
+        }
+      </div>
+
+      <button hlmBtn size="lg" type="submit" [disabled]="f().submitting()">
+        {{ f().submitting() ? 'Entrando…' : 'Entrar' }}
+      </button>
+    </form>
+
+    <p class="text-muted-foreground mt-4 text-xs">
+      Sem senha? Se você criou seu acesso pela página de envio, entre por biometria ou receba um
+      link por e-mail.
+    </p>
+
+    <button
+      hlmBtn
+      variant="outline"
+      size="lg"
+      class="mt-4 w-full"
+      [disabled]="signingInWithPasskey()"
+      (click)="signInWithPasskey()"
+    >
+      <ng-icon name="lucideFingerprint" aria-hidden="true" />
+      {{ signingInWithPasskey() ? 'Aguardando o aparelho…' : 'Entrar com biometria' }}
+    </button>
+
+    <div class="my-6 flex items-center gap-3">
+      <span class="bg-border h-px flex-1"></span>
+      <span class="text-muted-foreground text-xs">ou</span>
+      <span class="bg-border h-px flex-1"></span>
+    </div>
+
+    @if (linkSent()) {
+      <p
+        class="rounded-lg border border-success-border bg-success-surface p-3 text-sm text-success-foreground"
+        role="status"
+      >
+        Enviamos um link de acesso para <strong>{{ linkRequest().email }}</strong
+        >. Abra o e-mail neste aparelho para entrar.
+      </p>
+    } @else {
+      <form class="flex flex-col gap-3" (submit)="$event.preventDefault(); requestLink()">
+        <div class="flex flex-col gap-1.5">
+          <label hlmLabel for="link-email"
+            >Seu e-mail <span class="text-destructive" aria-hidden="true">*</span
+            ><span class="sr-only">(obrigatório)</span></label
+          >
+          <input
+            hlmInput
+            id="link-email"
+            type="email"
+            inputmode="email"
+            autocomplete="email"
+            placeholder="voce@suaempresa.com.br"
+            [formField]="fLink.email"
+          />
+          @if (fLink.email().invalid() && fLink.email().touched()) {
+            <p class="text-destructive text-xs">{{ fLink.email().errors()[0]?.message }}</p>
+          }
+        </div>
+
+        <button hlmBtn size="lg" type="submit" [disabled]="fLink().submitting()">
+          <ng-icon name="lucideMail" aria-hidden="true" />
+          {{ fLink().submitting() ? 'Enviando…' : 'Receber link por e-mail' }}
+        </button>
+      </form>
+    }
+
+    <p class="text-muted-foreground mt-6 text-xs">
+      Ainda não tem acesso? Você não precisa dele para enviar documentos — use o link que a sua
+      contabilidade manda por e-mail.
+      <a routerLink="/perdi-meu-link" class="text-primary font-medium hover:underline">
+        Perdi meu link
+      </a>
+    </p>
+  </div>
+</div>

@@ -4,7 +4,7 @@
 
 **Goal:** Provisionar uma Contabilidade por script, convidar Contadores por link, cadastrá-los, logá-los, e garantir por tipo que nenhuma query rode sem escopo de tenant.
 
-**Architecture:** NestJS com módulos por feature. Portas de domínio são `abstract class` (DI do Nest), implementações vivem em `src/infra/`. Erros de negócio viajam como valor (`Result`) e só viram HTTP na borda, via `AppErrorFilter`. Escopo multi-tenant é um tipo *branded* (`FirmScope`) que só os guards de `modules/auth/` conseguem construir — repositório sem escopo não compila.
+**Architecture:** NestJS com módulos por feature. Portas de domínio são `abstract class` (DI do Nest), implementações vivem em `src/infra/`. Erros de negócio viajam como valor (`Result`) e só viram HTTP na borda, via `AppErrorFilter`. Escopo multi-tenant é um tipo _branded_ (`FirmScope`) que só os guards de `modules/auth/` conseguem construir — repositório sem escopo não compila.
 
 **Tech Stack:** TypeScript · pnpm workspace (sem Nx) · NestJS 12 · Drizzle ORM 1.0-rc · Postgres · Better Auth (`@thallesp/nestjs-better-auth`) · zod 4 (`@contabilidade/contracts`) · tsx
 
@@ -29,6 +29,7 @@
 ### Task 1: Workspace — `libs/contracts` e remoção do Nx
 
 **Files:**
+
 - Create: `libs/contracts/package.json`
 - Create: `libs/contracts/tsconfig.json`
 - Create: `libs/contracts/src/index.ts`
@@ -37,12 +38,14 @@
 - Modify: `apps/api/package.json` (dependência workspace)
 
 **Interfaces:**
+
 - Consumes: nada (primeira task)
 - Produces: pacote `@contabilidade/contracts` exportando `PaginationQuery` (schema zod + tipo). Todas as tasks seguintes importam schemas daqui.
 
 - [ ] **Step 1: Criar o package**
 
 `libs/contracts/package.json`:
+
 ```json
 {
   "name": "@contabilidade/contracts",
@@ -65,6 +68,7 @@
 ```
 
 `libs/contracts/tsconfig.json`:
+
 ```json
 {
   "extends": "../../tsconfig.base.json",
@@ -83,6 +87,7 @@
 - [ ] **Step 2: Primeiro schema compartilhado**
 
 `libs/contracts/src/pagination.ts`:
+
 ```ts
 import * as z from 'zod';
 
@@ -95,6 +100,7 @@ export type PaginationQuery = z.infer<typeof PaginationQuery>;
 ```
 
 `libs/contracts/src/index.ts`:
+
 ```ts
 export * from './pagination.js';
 ```
@@ -102,6 +108,7 @@ export * from './pagination.js';
 - [ ] **Step 3: Tirar o Nx dos scripts da raiz**
 
 Em `package.json` (raiz), substituir o bloco `scripts` por:
+
 ```json
   "scripts": {
     "build": "pnpm -r build",
@@ -111,11 +118,13 @@ Em `package.json` (raiz), substituir o bloco `scripts` por:
     "format:check": "prettier --check ."
   },
 ```
+
 No mesmo arquivo, remover `"nx": "23.1.2"` de `devDependencies` e remover a chave `"workspaces"` inteira (quem define os pacotes é `pnpm-workspace.yaml`, que já contém `libs/*`).
 
 - [ ] **Step 4: Ligar a API ao pacote**
 
 Em `apps/api/package.json`, adicionar em `dependencies`:
+
 ```json
     "@contabilidade/contracts": "workspace:*",
 ```
@@ -126,6 +135,7 @@ Em `apps/api/package.json`, adicionar em `dependencies`:
 pnpm install
 pnpm -r build
 ```
+
 Esperado: `libs/contracts/dist/index.js` e `index.d.ts` existem; build da API passa.
 
 > Em desenvolvimento, rode `pnpm --filter @contabilidade/contracts dev` num terminal à parte — a API consome `dist/`, não o fonte.
@@ -135,6 +145,7 @@ Esperado: `libs/contracts/dist/index.js` e `index.d.ts` existem; build da API pa
 ```bash
 cd apps/api && npx tsx -e "import {PaginationQuery} from '@contabilidade/contracts'; console.log(PaginationQuery.parse({}))"
 ```
+
 Esperado: `{ page: 1, perPage: 20 }`
 
 - [ ] **Step 7: Commit**
@@ -149,6 +160,7 @@ git commit -m "chore: libs/contracts como pacote pnpm e remocao do nx"
 ### Task 2: Erro e resposta padronizados
 
 **Files:**
+
 - Create: `apps/api/src/lib/app-error.ts`
 - Create: `apps/api/src/lib/app-error.filter.ts`
 - Create: `apps/api/src/lib/response.interceptor.ts`
@@ -156,6 +168,7 @@ git commit -m "chore: libs/contracts como pacote pnpm e remocao do nx"
 - Modify: `apps/api/src/main.ts`
 
 **Interfaces:**
+
 - Consumes: `Result`/`isFailure` de `src/lib/either.ts`
 - Produces:
   - `abstract class AppError extends Error` com `code: string`, `status: number`, `details?: unknown`
@@ -166,6 +179,7 @@ git commit -m "chore: libs/contracts como pacote pnpm e remocao do nx"
 - [ ] **Step 1: A classe base e os erros genéricos**
 
 `apps/api/src/lib/app-error.ts`:
+
 ```ts
 /** Erro de negócio. Viaja como valor dentro de Result e só vira HTTP no
  *  AppErrorFilter. `message` é PT-BR e exibível ao usuário final. */
@@ -218,6 +232,7 @@ export class Forbidden extends AppError {
 - [ ] **Step 2: O filter global**
 
 `apps/api/src/lib/app-error.filter.ts`:
+
 ```ts
 import { ArgumentsHost, Catch, ExceptionFilter, HttpException, Logger } from '@nestjs/common';
 import type { Response } from 'express';
@@ -258,6 +273,7 @@ export class AppErrorFilter implements ExceptionFilter {
 - [ ] **Step 3: O interceptor de envelope**
 
 `apps/api/src/lib/response.interceptor.ts`:
+
 ```ts
 import {
   CallHandler,
@@ -307,6 +323,7 @@ export class ResponseInterceptor implements NestInterceptor {
 - [ ] **Step 4: `zodPipe` passa a falar a língua do padrão**
 
 Substituir o corpo de `apps/api/src/lib/zod-pipe.ts` por:
+
 ```ts
 import { PipeTransform } from '@nestjs/common';
 import * as z from 'zod';
@@ -330,6 +347,7 @@ export const zodPipe = (schema: z.ZodType): PipeTransform => ({
 - [ ] **Step 5: Registrar globalmente**
 
 Substituir `apps/api/src/main.ts` por:
+
 ```ts
 import { NestFactory } from '@nestjs/core';
 import { AppModule } from './app.module.js';
@@ -354,13 +372,17 @@ await bootstrap();
 - [ ] **Step 6: Adicionar `WEB_URL` ao env**
 
 Em `apps/api/src/config/env.ts`, dentro de `envSchema`:
+
 ```ts
   WEB_URL: z.url({ error: 'WEB_URL is required' }),
 ```
+
 Em `apps/api/.env.template`, acrescentar ao final:
+
 ```
 WEB_URL=http://localhost:4200
 ```
+
 E no seu `.env` local, a mesma linha.
 
 - [ ] **Step 7: Verificar**
@@ -368,10 +390,13 @@ E no seu `.env` local, a mesma linha.
 ```bash
 cd apps/api && pnpm build && pnpm start:dev
 ```
+
 Noutro terminal:
+
 ```bash
 curl -s -i localhost:3000/auth/sign-up -X POST -H 'content-type: application/json' -d '{}'
 ```
+
 Esperado: `HTTP/1.1 422` e corpo `{"error":{"code":"VALIDATION_ERROR","message":"Dados inválidos.","details":{...}}}`
 
 - [ ] **Step 8: Commit**
@@ -386,6 +411,7 @@ git commit -m "feat(api): envelope de resposta e formato de erro padronizados"
 ### Task 3: Schema — split por contexto, renomes e `invite`
 
 **Files:**
+
 - Create: `apps/api/src/infra/database/schema/columns.ts`
 - Create: `apps/api/src/infra/database/schema/registry.ts`
 - Create: `apps/api/src/infra/database/schema/relations.ts`
@@ -396,12 +422,14 @@ git commit -m "feat(api): envelope de resposta e formato de erro padronizados"
 - Modify: `docs/database-schema.md` (registrar D-01, D-03, D-04, D-07, §8.7)
 
 **Interfaces:**
+
 - Consumes: nada de tasks anteriores
 - Produces: tabelas `accounting_firm`, `accountant`, `company`, `contact`, `invite` exportadas de `src/infra/database/schema/index.ts` (junto do re-export de `auth.ts`), mais `relations` para o `drizzle()`. Todas as tasks seguintes importam de `../../infra/database/schema/index.js`.
 
 - [ ] **Step 1: Colunas compartilhadas**
 
 `apps/api/src/infra/database/schema/columns.ts`:
+
 ```ts
 import { timestamp, uuid } from 'drizzle-orm/pg-core';
 import { v7 as uuidv7 } from 'uuid';
@@ -428,11 +456,13 @@ export const timestamps = {
 ```bash
 cd apps/api && git mv src/infra/database/auth-schema.ts src/infra/database/schema/auth.ts
 ```
+
 Em `src/infra/auth/better-auth.ts`, trocar o import para `'../database/schema/auth.js'`.
 
 - [ ] **Step 3: O contexto registry**
 
 `apps/api/src/infra/database/schema/registry.ts`:
+
 ```ts
 import { boolean, check, jsonb, pgTable, text, timestamp, uuid } from 'drizzle-orm/pg-core';
 import { sql } from 'drizzle-orm';
@@ -502,10 +532,7 @@ export const invite = pgTable(
   },
   (t) => [
     // um convite pertence a exatamente uma origem: firm OU empresa
-    check(
-      'invite_has_one_origin',
-      sql`num_nonnulls(${t.accountingFirmId}, ${t.companyId}) = 1`,
-    ),
+    check('invite_has_one_origin', sql`num_nonnulls(${t.accountingFirmId}, ${t.companyId}) = 1`),
   ],
 );
 ```
@@ -515,6 +542,7 @@ export const invite = pgTable(
 - [ ] **Step 4: Relations e barrel**
 
 `apps/api/src/infra/database/schema/relations.ts`:
+
 ```ts
 import { defineRelations } from 'drizzle-orm';
 import { user } from './auth.js';
@@ -559,6 +587,7 @@ export const relations = defineRelations(
 ```
 
 `apps/api/src/infra/database/schema/index.ts`:
+
 ```ts
 export * from './auth.js';
 export * from './registry.js';
@@ -570,6 +599,7 @@ export * from './relations.js';
 ```bash
 cd apps/api && rm src/infra/database/schema.ts src/infra/database/shared-schemas.ts
 ```
+
 - `drizzle.config.ts`: `schema: './src/infra/database/schema/index.ts'`
 - `src/infra/database/index.ts`: `import { relations } from './schema/index.js';`
 - `src/modules/auth/usecases/SignUpUseCase.ts` e `src/test/auth.ts`: trocar `'../../../infra/database/schema.js'` (e equivalente) por `'.../schema/index.js'`; trocar `representative as representativeSchema` por `contact as contactSchema` e `accounting` por `accountingFirm`; o insert de `contact` passa a exigir `name` e `email` — use os do input do signup. O campo `invite.token` vira `invite.tokenHash` (a Task 7 reescreve esse use case; aqui basta compilar).
@@ -579,11 +609,13 @@ cd apps/api && rm src/infra/database/schema.ts src/infra/database/shared-schemas
 ```bash
 cd apps/api && docker compose up -d && pnpm drizzle-push
 ```
+
 Esperado: `drizzle-kit` cria `accounting_firm`, `accountant`, `company`, `contact`, `invite` sem erro.
 
 ```bash
-cd apps/api && docker compose exec -T db sh -c 'psql -U "$POSTGRES_USER" -d "$POSTGRES_DB" -c "\\d invite"' 
+cd apps/api && docker compose exec -T db sh -c 'psql -U "$POSTGRES_USER" -d "$POSTGRES_DB" -c "\\d invite"'
 ```
+
 Esperado: coluna `token_hash` única, `expires_at timestamptz`, check `invite_has_one_origin`.
 
 - [ ] **Step 7: Atualizar o doc canônico**
@@ -602,12 +634,14 @@ git commit -m "refactor(db): schema por contexto, renomes do glossario e tabela 
 ### Task 4: Token opaco + script `create-firm`
 
 **Files:**
+
 - Create: `apps/api/src/lib/token.ts`
 - Create: `apps/api/src/scripts/create-firm.ts`
 - Modify: `apps/api/package.json` (script)
 - Modify: `apps/api/src/config/env.ts`, `apps/api/.env.template` (`INVITE_TTL_DAYS`)
 
 **Interfaces:**
+
 - Consumes: `accountingFirm`, `invite` do schema (Task 3)
 - Produces:
   - `createToken(): { token: string; tokenHash: string }`
@@ -617,6 +651,7 @@ git commit -m "refactor(db): schema por contexto, renomes do glossario e tabela 
 - [ ] **Step 1: Helper de token**
 
 `apps/api/src/lib/token.ts`:
+
 ```ts
 import { createHash, randomBytes } from 'node:crypto';
 
@@ -633,10 +668,13 @@ export const hashToken = (token: string) => createHash('sha256').update(token).d
 - [ ] **Step 2: TTL do convite no env**
 
 Em `apps/api/src/config/env.ts`, dentro de `envSchema`:
+
 ```ts
   INVITE_TTL_DAYS: z.string().optional().transform(Number).default(7),
 ```
+
 Em `.env.template` e no `.env` local:
+
 ```
 INVITE_TTL_DAYS=7
 ```
@@ -644,6 +682,7 @@ INVITE_TTL_DAYS=7
 - [ ] **Step 3: O script de provisionamento**
 
 `apps/api/src/scripts/create-firm.ts`:
+
 ```ts
 import { parseArgs } from 'node:util';
 import { addDays } from 'date-fns';
@@ -667,10 +706,7 @@ if (!values.name || !values.email) {
 const { token, tokenHash } = createToken();
 
 await db.transaction(async (tx) => {
-  const [firm] = await tx
-    .insert(accountingFirm)
-    .values({ name: values.name! })
-    .returning();
+  const [firm] = await tx.insert(accountingFirm).values({ name: values.name! }).returning();
 
   await tx.insert(invite).values({
     tokenHash,
@@ -690,6 +726,7 @@ process.exit(0);
 - [ ] **Step 4: Registrar o comando**
 
 Em `apps/api/package.json`, dentro de `scripts`:
+
 ```json
     "create-firm": "tsx src/scripts/create-firm.ts",
 ```
@@ -699,11 +736,13 @@ Em `apps/api/package.json`, dentro de `scripts`:
 ```bash
 pnpm --filter api create-firm --name "Contabilidade Teste" --email luca@meetsummer.com
 ```
+
 Esperado: id da firm e um link `http://localhost:4200/convite/<token>`.
 
 ```bash
-cd apps/api && docker compose exec -T db sh -c 'psql -U "$POSTGRES_USER" -d "$POSTGRES_DB" -c "select email, length(token_hash), accounting_firm_id is not null as from_firm from invite;"' 
+cd apps/api && docker compose exec -T db sh -c 'psql -U "$POSTGRES_USER" -d "$POSTGRES_DB" -c "select email, length(token_hash), accounting_firm_id is not null as from_firm from invite;"'
 ```
+
 Esperado: 1 linha, `length = 64` (hex do SHA-256), `from_firm = t`.
 
 - [ ] **Step 6: Commit**
@@ -718,6 +757,7 @@ git commit -m "feat(api): provisionamento de contabilidade por script com convit
 ### Task 5: `FirmScope` e os guards de tenant
 
 **Files:**
+
 - Create: `apps/api/src/modules/auth/scope.ts`
 - Create: `apps/api/src/modules/auth/tenant.guard.ts`
 - Create: `apps/api/src/modules/auth/current-scope.decorator.ts`
@@ -725,6 +765,7 @@ git commit -m "feat(api): provisionamento de contabilidade por script com convit
 - Modify: `apps/api/src/modules/auth/auth.module.ts`
 
 **Interfaces:**
+
 - Consumes: `accountant` do schema (Task 3); `Forbidden` de `lib/app-error.ts` (Task 2); `AuthGuard`, `AllowAnonymous` de `@thallesp/nestjs-better-auth`
 - Produces:
   - `type FirmScope` (branded), `type UploadScope` (branded)
@@ -735,6 +776,7 @@ git commit -m "feat(api): provisionamento de contabilidade por script com convit
 - [ ] **Step 1: Os tipos branded**
 
 `apps/api/src/modules/auth/scope.ts`:
+
 ```ts
 declare const brand: unique symbol;
 
@@ -756,6 +798,7 @@ export const toUploadScope = (requestId: string, contactId: string) =>
 - [ ] **Step 2: O guard de tenant**
 
 `apps/api/src/modules/auth/tenant.guard.ts`:
+
 ```ts
 import { CanActivate, ExecutionContext, Injectable } from '@nestjs/common';
 import { Reflector } from '@nestjs/core';
@@ -807,6 +850,7 @@ export class TenantGuard implements CanActivate {
 - [ ] **Step 3: O decorator de injeção**
 
 `apps/api/src/modules/auth/current-scope.decorator.ts`:
+
 ```ts
 import { createParamDecorator, ExecutionContext } from '@nestjs/common';
 import type { FirmScope } from './scope.js';
@@ -821,12 +865,14 @@ export const CurrentScope = createParamDecorator(
 - [ ] **Step 4: Ligar os guards globalmente (seguro por padrão)**
 
 Em `apps/api/src/app.module.ts`, no `BetterAuthModule.forRoot`, trocar `disableGlobalAuthGuard: true` por `disableGlobalAuthGuard: false` (ou remover a linha) e adicionar o `TenantGuard` aos providers:
+
 ```ts
 import { APP_GUARD } from '@nestjs/core';
 import { TenantGuard } from './modules/auth/tenant.guard.js';
 // …
   providers: [{ provide: APP_GUARD, useClass: TenantGuard }],
 ```
+
 A partir daqui **toda rota exige sessão**; rota pública precisa de `@AllowAnonymous()` explícito.
 
 - [ ] **Step 5: Marcar as rotas públicas existentes**
@@ -840,6 +886,7 @@ cd apps/api && pnpm start:dev
 curl -s -o /dev/null -w '%{http_code}\n' -X POST localhost:3000/api/auth/sign-in/email \
   -H 'content-type: application/json' -d '{"email":"nao@existe.com","password":"errada12345"}'
 ```
+
 Esperado: **401** (credencial inválida) — significa que a rota existe.
 Se vier **404**, `disableControllers: true` está impedindo a montagem: mude para `disableControllers: false` em `app.module.ts` e repita. A Task 8 depende disso para logar.
 
@@ -851,6 +898,7 @@ Guard global só roda em rota que existe — testar numa rota inexistente dá 40
 curl -s -o /dev/null -w '%{http_code}\n' -X POST localhost:3000/auth/sign-up \
   -H 'content-type: application/json' -d '{}'
 ```
+
 Esperado: **422** — a rota marcada com `@AllowAnonymous()` continua acessível sem sessão. (O 401 em rota protegida é verificado na Task 6, quando `POST /invites` existir.)
 
 - [ ] **Step 8: Commit**
@@ -865,6 +913,7 @@ git commit -m "feat(api): FirmScope branded e TenantGuard global"
 ### Task 6: Convites — criar e consultar
 
 **Files:**
+
 - Create: `libs/contracts/src/invite.ts`
 - Modify: `libs/contracts/src/index.ts`
 - Create: `apps/api/src/modules/auth/invite.repository.ts`
@@ -873,6 +922,7 @@ git commit -m "feat(api): FirmScope branded e TenantGuard global"
 - Modify: `apps/api/src/modules/auth/auth.module.ts`
 
 **Interfaces:**
+
 - Consumes: `createToken`/`hashToken` (Task 4); `FirmScope`/`@CurrentScope` (Task 5); `AppError` (Task 2); tabela `invite` (Task 3)
 - Produces:
   - `CreateInviteBody` (zod: `{ email }`) em `@contabilidade/contracts`
@@ -883,6 +933,7 @@ git commit -m "feat(api): FirmScope branded e TenantGuard global"
 - [ ] **Step 1: Contrato**
 
 `libs/contracts/src/invite.ts`:
+
 ```ts
 import * as z from 'zod';
 
@@ -899,15 +950,19 @@ export type SignUpBody = z.infer<typeof SignUpBody>;
 export const InviteTokenParam = z.object({ token: z.string().min(1) });
 export type InviteTokenParam = z.infer<typeof InviteTokenParam>;
 ```
+
 Acrescentar em `libs/contracts/src/index.ts`:
+
 ```ts
 export * from './invite.js';
 ```
+
 E rebuildar: `pnpm --filter @contabilidade/contracts build`
 
 - [ ] **Step 2: Erros do módulo**
 
 `apps/api/src/modules/auth/errors.ts`:
+
 ```ts
 import { AppError } from '../../lib/app-error.js';
 
@@ -962,6 +1017,7 @@ export class InviteEmailMismatch extends AppError {
 - [ ] **Step 3: Repositório**
 
 `apps/api/src/modules/auth/invite.repository.ts`:
+
 ```ts
 import { Injectable } from '@nestjs/common';
 import { and, eq, isNull } from 'drizzle-orm';
@@ -974,7 +1030,10 @@ import type { FirmScope } from './scope.js';
 export class InviteRepository {
   constructor(private readonly db: Database) {}
 
-  async createForFirm(scope: FirmScope, input: { email: string; tokenHash: string; expiresAt: Date }) {
+  async createForFirm(
+    scope: FirmScope,
+    input: { email: string; tokenHash: string; expiresAt: Date },
+  ) {
     const [row] = await this.db
       .insert(invite)
       .values({ ...input, accountingFirmId: scope })
@@ -1016,6 +1075,7 @@ export class InviteRepository {
 - [ ] **Step 4: Controller**
 
 `apps/api/src/modules/auth/invite.controller.ts`:
+
 ```ts
 import { Body, Controller, Get, Param, Post } from '@nestjs/common';
 import { AllowAnonymous } from '@thallesp/nestjs-better-auth';
@@ -1078,17 +1138,21 @@ Em `apps/api/src/modules/auth/auth.module.ts`, adicionar `InviteRepository` a `p
 cd apps/api && pnpm start:dev
 curl -s localhost:3000/invites/token-que-nao-existe | jq
 ```
+
 Esperado: `{"error":{"code":"INVITE_NOT_FOUND","message":"Convite não encontrado."}}`
 
 Pegue o token impresso pelo `create-firm` da Task 4 e:
+
 ```bash
 curl -s localhost:3000/invites/<TOKEN> | jq
 ```
+
 Esperado: `{"data":{"email":"…","invitedBy":"Contabilidade Teste","target":"accounting_firm"}}`
 
 ```bash
 curl -s -i -X POST localhost:3000/invites -H 'content-type: application/json' -d '{"email":"novo@x.com"}'
 ```
+
 Esperado: `401` (sem sessão) — a rota autenticada está protegida.
 
 - [ ] **Step 7: Commit**
@@ -1103,18 +1167,21 @@ git commit -m "feat(api): criacao e consulta de convites"
 ### Task 7: Signup por convite
 
 **Files:**
+
 - Delete: `apps/api/src/modules/auth/usecases/SignUpUseCase.ts`
 - Create: `apps/api/src/modules/auth/usecases/sign-up.usecase.ts`
 - Modify: `apps/api/src/modules/auth/auth.controller.ts`
 - Modify: `apps/api/src/modules/auth/auth.module.ts`
 
 **Interfaces:**
+
 - Consumes: `InviteRepository` (Task 6); erros do módulo (Task 6); `AuthProvider` (já existe); `Result`/`PromiseResult` (já existe)
 - Produces: `SignUpUseCase.execute({ token, name, email, password }): PromiseResult<{ userId: string }, AppError>`, e `POST /auth/sign-up?token=…` pública
 
 - [ ] **Step 1: Erro de convite ainda não suportado**
 
 Acrescentar em `apps/api/src/modules/auth/errors.ts`:
+
 ```ts
 export class InviteTargetUnsupported extends AppError {
   readonly code = 'INVITE_TARGET_UNSUPPORTED';
@@ -1135,6 +1202,7 @@ cd apps/api && rm src/modules/auth/usecases/SignUpUseCase.ts
 ```
 
 `apps/api/src/modules/auth/usecases/sign-up.usecase.ts`:
+
 ```ts
 import { Injectable } from '@nestjs/common';
 import { eq } from 'drizzle-orm';
@@ -1213,6 +1281,7 @@ export class SignUpUseCase {
 - [ ] **Step 3: Controller**
 
 Substituir `apps/api/src/modules/auth/auth.controller.ts` por:
+
 ```ts
 import { Body, Controller, Post, Query } from '@nestjs/common';
 import { AllowAnonymous } from '@thallesp/nestjs-better-auth';
@@ -1253,11 +1322,13 @@ curl -s -X POST "localhost:3000/auth/sign-up?token=<TOKEN>" \
   -H 'content-type: application/json' \
   -d '{"name":"Contador","email":"contador@verifica.com","password":"senha-forte-123"}' | jq
 ```
+
 Esperado: `{"data":{"userId":"…"}}`
 
 ```bash
-cd apps/api && docker compose exec -T db sh -c 'psql -U "$POSTGRES_USER" -d "$POSTGRES_DB" -c "select a.id, f.name from accountant a join accounting_firm f on f.id = a.accounting_firm_id;"' 
+cd apps/api && docker compose exec -T db sh -c 'psql -U "$POSTGRES_USER" -d "$POSTGRES_DB" -c "select a.id, f.name from accountant a join accounting_firm f on f.id = a.accounting_firm_id;"'
 ```
+
 Esperado: 1 linha ligando o Contador à "Contabilidade Verifica".
 
 - [ ] **Step 6: Verificar os caminhos de falha**
@@ -1267,6 +1338,7 @@ Esperado: 1 linha ligando o Contador à "Contabilidade Verifica".
 curl -s -X POST "localhost:3000/auth/sign-up?token=<TOKEN>" -H 'content-type: application/json' \
   -d '{"name":"X","email":"contador@verifica.com","password":"senha-forte-123"}' | jq
 ```
+
 Esperado: `INVITE_ALREADY_ACCEPTED` (409).
 
 ```bash
@@ -1274,6 +1346,7 @@ Esperado: `INVITE_ALREADY_ACCEPTED` (409).
 curl -s -X POST "localhost:3000/auth/sign-up?token=<NOVO_TOKEN>" -H 'content-type: application/json' \
   -d '{"name":"X","email":"outro@x.com","password":"senha-forte-123"}' | jq
 ```
+
 Esperado: `INVITE_EMAIL_MISMATCH` (422), e **nenhum** `user` novo no banco.
 
 - [ ] **Step 7: Commit**
@@ -1288,27 +1361,26 @@ git commit -m "feat(api): signup exclusivamente por convite"
 ### Task 8: `GET /me` e fechamento do fluxo
 
 **Files:**
+
 - Create: `apps/api/src/modules/auth/me.controller.ts`
 - Modify: `apps/api/src/modules/auth/auth.module.ts`
 - Modify: `docs/roadmap.md`
 
 **Interfaces:**
+
 - Consumes: `@CurrentScope()`/`FirmScope` (Task 5); tabelas `accountant`, `accountingFirm`, `user` (Task 3)
 - Produces: `GET /me` → `{ accountant: { id, name, email }, accountingFirm: { id, name } }`
 
 - [ ] **Step 1: Controller**
 
 `apps/api/src/modules/auth/me.controller.ts`:
+
 ```ts
 import { Controller, Get } from '@nestjs/common';
 import { Session, type UserSession } from '@thallesp/nestjs-better-auth';
 import { and, eq } from 'drizzle-orm';
 import { Database } from '../../infra/database/database.js';
-import {
-  accountant,
-  accountingFirm,
-  user,
-} from '../../infra/database/schema/index.js';
+import { accountant, accountingFirm, user } from '../../infra/database/schema/index.js';
 import { NotFound } from '../../lib/app-error.js';
 import { CurrentScope } from './current-scope.decorator.js';
 import type { FirmScope } from './scope.js';
@@ -1334,10 +1406,7 @@ export class MeController {
       // vários Contadores (convite da Task 6), então só o escopo devolveria
       // um Contador arbitrário da firm em vez de quem está logado.
       .where(
-        and(
-          eq(accountant.authUserId, session.user.id),
-          eq(accountant.accountingFirmId, scope),
-        ),
+        and(eq(accountant.authUserId, session.user.id), eq(accountant.accountingFirmId, scope)),
       )
       .limit(1);
 
@@ -1368,6 +1437,7 @@ curl -s -c /tmp/cookies.txt -X POST localhost:3000/api/auth/sign-in/email \
 # rota escopada
 curl -s -b /tmp/cookies.txt localhost:3000/me | jq
 ```
+
 Esperado: `{"data":{"accountant":{…},"accountingFirm":{"name":"Contabilidade Verifica"}}}`
 
 ```bash
@@ -1375,12 +1445,14 @@ Esperado: `{"data":{"accountant":{…},"accountingFirm":{"name":"Contabilidade V
 curl -s -b /tmp/cookies.txt -X POST localhost:3000/invites \
   -H 'content-type: application/json' -d '{"email":"socio@verifica.com"}' | jq
 ```
+
 Esperado: `{"data":{"id":"…","email":"socio@verifica.com","url":"http://localhost:4200/convite/…"}}`
 
 ```bash
 # sem cookie
 curl -s -i localhost:3000/me | head -1
 ```
+
 Esperado: `HTTP/1.1 401`
 
 - [ ] **Step 4: Marcar o roadmap**
@@ -1402,11 +1474,11 @@ Funcionando de ponta a ponta: `create-firm` → link de convite → `POST /auth/
 
 ## Próximos planos
 
-| Plano | Conteúdo | Depende |
-|---|---|---|
-| 02 — Registry | `document_type` + catálogo, `checklist_template(_item)` + 5 templates fixos, `company`, `contact`, import CSV/XLSX, overrides, `getEffectiveChecklist` | 01 |
-| 03 — Coleta | `period`, abrir Competência (fan-out + snapshot + `due_date`), `upload_link` | 02 |
-| 04 — Upload público | `UploadTokenGuard`, `StorageProvider`/R2, `document`, multi-arquivo, limites, Extra | 03 |
-| 05 — Messaging | `EmailProvider`/Resend, `message`, envio na abertura, cron de lembretes, `DeadlineMissed` | 04 |
-| 06 — Revisão | revisão em lote, reabertura + reenvio, auto-`complete`, Painel de Pendências, encerramento | 05 |
-| 07 — Entrega | zip por Empresa/Competência e por Competência inteira | 04 |
+| Plano               | Conteúdo                                                                                                                                               | Depende |
+| ------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------ | ------- |
+| 02 — Registry       | `document_type` + catálogo, `checklist_template(_item)` + 5 templates fixos, `company`, `contact`, import CSV/XLSX, overrides, `getEffectiveChecklist` | 01      |
+| 03 — Coleta         | `period`, abrir Competência (fan-out + snapshot + `due_date`), `upload_link`                                                                           | 02      |
+| 04 — Upload público | `UploadTokenGuard`, `StorageProvider`/R2, `document`, multi-arquivo, limites, Extra                                                                    | 03      |
+| 05 — Messaging      | `EmailProvider`/Resend, `message`, envio na abertura, cron de lembretes, `DeadlineMissed`                                                              | 04      |
+| 06 — Revisão        | revisão em lote, reabertura + reenvio, auto-`complete`, Painel de Pendências, encerramento                                                             | 05      |
+| 07 — Entrega        | zip por Empresa/Competência e por Competência inteira                                                                                                  | 04      |
