@@ -101,7 +101,7 @@ test('revisar o mesmo Extra duas vezes responde 409', async () => {
     .send({ decision: 'rejected', rejectionReason: 'Mudei de ideia' })
     .expect(409);
 
-  expect(second.body.error.message).toMatch(/já está accepted/i);
+  expect(second.body.error.message).toMatch(/já está aceito/i);
 });
 
 test('Documento de Item pela rota de Extra responde 409', async () => {
@@ -131,7 +131,7 @@ test('Extra em awaiting_upload não é revisável: 409', async () => {
     .send({ decision: 'accepted' })
     .expect(409);
 
-  expect(response.body.error.message).toMatch(/ainda não foi sent/i);
+  expect(response.body.error.message).toMatch(/ainda não foi enviado/i);
 });
 
 test('Extra revisado não muda nenhum Item nem entra na conta de complete', async () => {

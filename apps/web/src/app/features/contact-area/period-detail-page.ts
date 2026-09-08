@@ -16,6 +16,7 @@ import { LoadingRows } from '../../shared/loading-rows';
 import { DropZone } from '../../shared/drop-zone';
 import { UploadFeedback } from '../../shared/upload-feedback';
 import { StatusPill } from '../../shared/status-pill';
+import { ResendNotice } from '../../shared/resend-notice';
 import { DueDate } from '../../shared/due-date';
 import { displayItemStatus, itemRejections, needsResend } from '../../shared/item-status';
 import { isOverdue, monthLabel, dateBr, dateTimeBr, fileSize } from '../../shared/format';
@@ -34,6 +35,7 @@ import { ContactAreaService } from './contact-area.service';
     LoadingRows,
     StatusPill,
     DueDate,
+    ResendNotice,
   ],
   providers: [
     provideIcons({ lucideArrowLeft, lucideCircleCheck, lucideFile, lucideUpload, lucideX }),

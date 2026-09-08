@@ -7,7 +7,7 @@
 
     @if (error()) {
       <p
-        class="mt-5 rounded-lg border border-red-200 bg-red-50 p-3 text-sm text-red-900"
+        class="mt-5 rounded-lg border border-danger-border bg-danger-surface p-3 text-sm text-danger-foreground"
         role="alert"
       >
         {{ error() }}
@@ -16,7 +16,10 @@
 
     <form class="mt-6 flex flex-col gap-4" (submit)="$event.preventDefault(); signIn()">
       <div class="flex flex-col gap-1.5">
-        <label hlmLabel for="email-password">Seu e-mail</label>
+        <label hlmLabel for="email-password"
+          >Seu e-mail <span class="text-destructive" aria-hidden="true">*</span
+          ><span class="sr-only">(obrigatório)</span></label
+        >
         <input
           hlmInput
           id="email-password"
@@ -75,7 +78,7 @@
 
     @if (linkSent()) {
       <p
-        class="rounded-lg border border-emerald-200 bg-emerald-50 p-3 text-sm text-emerald-900"
+        class="rounded-lg border border-success-border bg-success-surface p-3 text-sm text-success-foreground"
         role="status"
       >
         Enviamos um link de acesso para <strong>{{ linkRequest().email }}</strong
@@ -84,7 +87,10 @@
     } @else {
       <form class="flex flex-col gap-3" (submit)="$event.preventDefault(); requestLink()">
         <div class="flex flex-col gap-1.5">
-          <label hlmLabel for="link-email">Seu e-mail</label>
+          <label hlmLabel for="link-email"
+            >Seu e-mail <span class="text-destructive" aria-hidden="true">*</span
+            ><span class="sr-only">(obrigatório)</span></label
+          >
           <input
             hlmInput
             id="link-email"

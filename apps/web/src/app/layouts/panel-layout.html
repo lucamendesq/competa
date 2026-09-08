@@ -101,6 +101,18 @@
           <button
             type="button"
             class="hover:bg-muted flex h-9 w-full items-center gap-2 rounded-lg px-3 text-left text-sm"
+            (click)="theme.toggle()"
+          >
+            <ng-icon
+              [name]="theme.dark() ? 'lucideSun' : 'lucideMoon'"
+              class="text-sm"
+              aria-hidden="true"
+            />
+            {{ theme.dark() ? 'Tema claro' : 'Tema escuro' }}
+          </button>
+          <button
+            type="button"
+            class="hover:bg-muted flex h-9 w-full items-center gap-2 rounded-lg px-3 text-left text-sm"
             (click)="sair()"
           >
             <ng-icon name="lucideLogOut" class="text-sm" aria-hidden="true" />

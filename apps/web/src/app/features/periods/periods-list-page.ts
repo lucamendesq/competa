@@ -22,6 +22,7 @@ import { Api } from '../../core/http/api';
 import { apiErrorMessage } from '../../core/http/api-error';
 import { Toaster } from '../../core/ui/toast';
 import { EmptyState } from '../../shared/empty-state';
+import { Callout } from '../../shared/callout';
 import { ErrorState } from '../../shared/error-state';
 import { LoadingRows } from '../../shared/loading-rows';
 import { Modal } from '../../shared/modal';
@@ -49,6 +50,7 @@ import { PeriodOpening, PeriodsService, CreatedRequest } from './periods.service
     Modal,
     Pagination,
     StatusPill,
+    Callout,
   ],
   providers: [
     provideIcons({

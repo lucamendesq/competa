@@ -200,7 +200,7 @@ test('zip sem nenhum documento responde 404 com o motivo', async () => {
     .get(`/requests/${requestId}/zip`)
     .set('cookie', cookie)
     .expect(404);
-  expect(ofRequest.body.error.message).toMatch(/Nenhum document para baixar/i);
+  expect(ofRequest.body.error.message).toMatch(/Nenhum documento para baixar/i);
   // erro é erro: não pode sair rotulado como zip, senão o cliente baixa lixo
   expect(ofRequest.headers['content-type']).toMatch(/application\/json/);
 
@@ -208,7 +208,7 @@ test('zip sem nenhum documento responde 404 com o motivo', async () => {
     .get(`/periods/${period.id}/zip`)
     .set('cookie', cookie)
     .expect(404);
-  expect(ofPeriod.body.error.message).toMatch(/Nenhum document para baixar/i);
+  expect(ofPeriod.body.error.message).toMatch(/Nenhum documento para baixar/i);
 });
 
 test('zip sem sessão responde 401', async () => {

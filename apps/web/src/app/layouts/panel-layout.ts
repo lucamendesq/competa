@@ -9,11 +9,14 @@ import {
   lucideLogOut,
   lucideMail,
   lucideMenu,
+  lucideMoon,
   lucideSettings,
+  lucideSun,
   lucideSquareCheckBig,
   lucideX,
 } from '@ng-icons/lucide';
 import { AuthService } from '../core/auth/auth.service';
+import { ThemeService } from '../core/ui/theme.service';
 
 @Component({
   selector: 'app-panel-layout',
@@ -26,7 +29,9 @@ import { AuthService } from '../core/auth/auth.service';
       lucideLogOut,
       lucideMail,
       lucideMenu,
+      lucideMoon,
       lucideSettings,
+      lucideSun,
       lucideSquareCheckBig,
       lucideX,
     }),
@@ -34,6 +39,7 @@ import { AuthService } from '../core/auth/auth.service';
   templateUrl: './panel-layout.html',
 })
 export class PanelLayout {
+  protected readonly theme = inject(ThemeService);
   private readonly auth = inject(AuthService);
   private readonly router = inject(Router);
 

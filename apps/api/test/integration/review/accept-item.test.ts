@@ -96,7 +96,7 @@ test('aceitar Item pending (sem nenhum documento) responde 409 com o motivo', as
     .expect(409);
 
   expect(response.body.error.code).toBe('INVALID_TRANSITION');
-  expect(response.body.error.message).toMatch(/ainda não tem documents sent/i);
+  expect(response.body.error.message).toMatch(/ainda não tem documentos enviados/i);
 
   const [saved] = await db.select().from(requestItem).where(eq(requestItem.id, item.id));
   expect(saved.status).toBe('pending');
@@ -114,7 +114,7 @@ test('aceitar Item já aceito responde 409', async () => {
     .set('cookie', cookie)
     .expect(409);
 
-  expect(response.body.error.message).toMatch(/já está accepted/i);
+  expect(response.body.error.message).toMatch(/já está aceito/i);
 });
 
 test('aceitar Item de Solicitação encerrada responde 409', async () => {
@@ -129,7 +129,7 @@ test('aceitar Item de Solicitação encerrada responde 409', async () => {
     .set('cookie', cookie)
     .expect(409);
 
-  expect(response.body.error.message).toMatch(/closed/i);
+  expect(response.body.error.message).toMatch(/encerrada/i);
 
   const [saved] = await db.select().from(requestItem).where(eq(requestItem.id, item.id));
   expect(saved.status).toBe('submitted');
@@ -148,7 +148,7 @@ test('Documento awaiting_upload não é aceito nem faz o Item ser revisável', a
     .post(`/request-items/${item.id}/accept`)
     .set('cookie', cookie)
     .expect(409);
-  expect(rejection.body.error.message).toMatch(/ainda não tem documents sent/i);
+  expect(rejection.body.error.message).toMatch(/ainda não tem documentos enviados/i);
 
   // agora com um documento de verdade: o fantasma continua fora do lote
   await uploadOk(app, token, { fileName: 'caixa.pdf', requestItemId: item.id });

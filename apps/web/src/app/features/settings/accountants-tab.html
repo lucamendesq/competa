@@ -63,13 +63,19 @@
   } @else {
     <form id="invite-form" class="flex flex-col gap-4" (submit)="$event.preventDefault(); invite()">
       @if (error()) {
-        <p class="rounded-lg border border-red-200 bg-red-50 p-3 text-sm text-red-900" role="alert">
+        <p
+          class="rounded-lg border border-danger-border bg-danger-surface p-3 text-sm text-danger-foreground"
+          role="alert"
+        >
           {{ error() }}
         </p>
       }
 
       <div class="flex flex-col gap-1.5">
-        <label hlmLabel for="invite-email-field">E-mail do contador</label>
+        <label hlmLabel for="invite-email-field"
+          >E-mail do contador <span class="text-destructive" aria-hidden="true">*</span
+          ><span class="sr-only">(obrigatório)</span></label
+        >
         <input
           hlmInput
           id="invite-email-field"

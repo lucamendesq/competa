@@ -119,7 +119,7 @@ test('rejeitar Documento já aceito responde 409 — aceito não volta para reje
 
   const { response } = await rejectDocument(app, cookie, documentId, 'Mudei de ideia');
   expect(response.status).toBe(409);
-  expect(response.body.error.message).toMatch(/já foi accepted/i);
+  expect(response.body.error.message).toMatch(/já foi aceito/i);
 
   const [row] = await db.select().from(document).where(eq(document.id, documentId));
   expect(row.reviewStatus).toBe('accepted');
@@ -145,7 +145,7 @@ test('rejeitar Documento de Solicitação encerrada responde 409', async () => {
   const { response } = await rejectDocument(app, cookie, documentId, 'Documento errado');
 
   expect(response.status).toBe(409);
-  expect(response.body.error.message).toMatch(/closed/i);
+  expect(response.body.error.message).toMatch(/encerrada/i);
 
   const [row] = await db.select().from(document).where(eq(document.id, documentId));
   expect(row.reviewStatus).toBe('pending');
@@ -163,7 +163,7 @@ test('Documento em awaiting_upload não é rejeitável: 409 e o Link não é rot
   const { response } = await rejectDocument(app, cookie, ghost, 'Não recebi nada');
 
   expect(response.status).toBe(409);
-  expect(response.body.error.message).toMatch(/ainda não foi sent/i);
+  expect(response.body.error.message).toMatch(/ainda não foi enviado/i);
 
   // o Responsável não pode perder o link por um envio que nunca chegou
   expect(await hashOf(requestId)).toBe(hashBefore);

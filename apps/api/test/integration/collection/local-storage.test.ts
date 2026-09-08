@@ -94,7 +94,7 @@ test('chave assinada que escapa do diretório de storage é 403', async () => {
   const response = await putBinary(url('../fuga-do-storage.bin'));
 
   expect(response.status).toBe(403);
-  expect(response.body.error.message).toMatch(/Caminho de file inválido/);
+  expect(response.body.error.message).toMatch(/Caminho de arquivo inválido/);
   await expect(stat(resolve(env.STORAGE_LOCAL_DIR, '../fuga-do-storage.bin'))).rejects.toThrow();
 });
 

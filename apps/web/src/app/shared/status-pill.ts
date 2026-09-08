@@ -17,15 +17,15 @@ import {
 
 type Tone = 'neutral' | 'info' | 'success' | 'danger' | 'warning' | 'closed';
 
-/* Tons de texto um passo mais escuros que os do design system: em 11px, `text-*-600`
-   sobre `bg-*-50` fica entre 3.1:1 e 4.4:1 e não passa o mínimo de 4.5:1 do WCAG AA. */
+/* Tons por token semântico (ver styles.css): `*-foreground` sobre `*-surface` é o par que
+   passa AA em 11px nos dois temas — a paleta crua `-600` sobre `-50` ficava em 3.1:1. */
 const TONE_CLASS: Record<Tone, string> = {
-  neutral: 'bg-slate-100 text-slate-600 border-slate-200',
-  info: 'bg-blue-50 text-blue-600 border-blue-200',
-  success: 'bg-emerald-50 text-emerald-700 border-emerald-200',
-  danger: 'bg-red-50 text-red-700 border-red-200',
-  warning: 'bg-amber-50 text-amber-700 border-amber-200',
-  closed: 'bg-slate-100 text-slate-600 border-slate-300',
+  neutral: 'bg-muted text-muted-foreground border-border',
+  info: 'bg-info-surface text-info-foreground border-info-border',
+  success: 'bg-success-surface text-success-foreground border-success-border',
+  danger: 'bg-danger-surface text-danger-foreground border-danger-border',
+  warning: 'bg-warning-surface text-warning-foreground border-warning-border',
+  closed: 'bg-muted text-muted-foreground border-border',
 };
 
 const STATUS: Record<string, { label: string; tone: Tone; icon: string }> = {

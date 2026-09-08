@@ -11,6 +11,7 @@ import { HlmLabel } from '@spartan-ng/helm/label';
 import { apiErrorMessage, apiFieldErrors } from '../../core/http/api-error';
 import { Toaster } from '../../core/ui/toast';
 import { ErrorState } from '../../shared/error-state';
+import { Callout } from '../../shared/callout';
 import { LoadingRows } from '../../shared/loading-rows';
 import { PageHeader } from '../../shared/page-header';
 import { CATEGORY_LABEL, FLAG_LABEL, PERIODICITY_LABEL } from '../../shared/format';
@@ -43,6 +44,7 @@ const CompanyForm = z
     PageHeader,
     ErrorState,
     LoadingRows,
+    Callout,
   ],
   providers: [provideIcons({ lucideCheck, lucideCircleAlert, lucideTriangleAlert })],
   templateUrl: './company-form-page.html',

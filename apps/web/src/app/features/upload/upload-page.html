@@ -59,7 +59,9 @@
         @if (data.dueDate) {
           <p
             class="mt-3 inline-flex items-center gap-1.5 rounded-full px-2.5 py-1 text-xs font-semibold"
-            [class]="isOverdue(data.dueDate) ? 'bg-red-100 text-red-700' : 'bg-sidebar-accent'"
+            [class]="
+              isOverdue(data.dueDate) ? 'bg-danger-surface text-danger' : 'bg-sidebar-accent'
+            "
           >
             <ng-icon name="lucideClock" class="text-[12px]" aria-hidden="true" />
             @if (isOverdue(data.dueDate)) {
@@ -75,7 +77,7 @@
     <main class="mx-auto max-w-2xl p-4 pb-16">
       @if (closed()) {
         <p
-          class="mb-4 flex gap-2 rounded-lg border border-slate-300 bg-slate-100 p-3 text-sm text-slate-700"
+          class="mb-4 flex gap-2 rounded-lg border border-border bg-muted p-3 text-sm text-foreground"
           role="status"
         >
           <ng-icon name="lucideLock" class="mt-0.5 shrink-0 text-base" aria-hidden="true" />
@@ -95,27 +97,24 @@
           aria-valuemax="100"
           aria-label="Documentos enviados"
         >
-          <div
-            class="h-full rounded-full bg-emerald-500"
-            [style.width.%]="progress().percent"
-          ></div>
+          <div class="h-full rounded-full bg-success" [style.width.%]="progress().percent"></div>
         </div>
       </section>
 
       @if (allSent()) {
         <section
-          class="mt-4 rounded-xl border border-emerald-200 bg-emerald-50 p-6 text-center"
+          class="mt-4 rounded-xl border border-success-border bg-success-surface p-6 text-center"
           role="status"
         >
           <span
-            class="mx-auto flex size-12 items-center justify-center rounded-full bg-emerald-100 text-emerald-600"
+            class="mx-auto flex size-12 items-center justify-center rounded-full bg-success-surface text-success"
           >
             <ng-icon name="lucidePartyPopper" class="text-xl" aria-hidden="true" />
           </span>
-          <h2 class="mt-4 text-base font-semibold text-emerald-900">
+          <h2 class="mt-4 text-base font-semibold text-success-foreground">
             Pronto, a {{ data.accountingFirm }} já recebeu
           </h2>
-          <p class="mt-2 text-sm text-emerald-800">
+          <p class="mt-2 text-sm text-success-foreground">
             Você enviou todos os documentos de {{ monthLabel(data.referenceMonth) }}. A
             contabilidade vai revisar e avisa se faltar algo.
           </p>
@@ -126,7 +125,7 @@
           <section class="bg-card border-border mt-3 rounded-xl border p-4">
             <div class="flex items-start gap-3">
               <span
-                class="flex size-9 shrink-0 items-center justify-center rounded-full bg-blue-50 text-blue-700"
+                class="flex size-9 shrink-0 items-center justify-center rounded-full bg-info-surface text-info"
               >
                 <ng-icon name="lucideBell" class="text-base" aria-hidden="true" />
               </span>
@@ -184,7 +183,7 @@
         @for (item of data.items; track item.id) {
           <li
             class="bg-card rounded-xl border"
-            [class]="needsResend(item) ? 'border-red-300' : 'border-border'"
+            [class]="needsResend(item) ? 'border-danger-border' : 'border-border'"
           >
             <button
               type="button"
@@ -214,7 +213,7 @@
                       class="tabular-nums"
                       [class]="
                         isOverdue(item.dueDate) && item.status !== 'accepted'
-                          ? 'font-semibold text-red-600'
+                          ? 'font-semibold text-danger'
                           : 'text-muted-foreground'
                       "
                     >
@@ -232,16 +231,11 @@
             </button>
 
             @if (needsResend(item)) {
-              <div class="mx-4 mb-4 rounded-lg border border-red-200 bg-red-50 p-3">
-                <p class="text-sm font-semibold text-red-900">Precisa reenviar</p>
-                @for (rejection of itemRejections(item); track $index) {
-                  <p class="mt-1 text-xs text-red-800">
-                    {{ rejection.fileName }}: {{ rejection.rejectionReason }}
-                  </p>
-                }
-                <p class="mt-2 text-xs text-red-800">
-                  Envie o documento corrigido no botão abaixo.
-                </p>
+              <div class="mx-4 mb-4">
+                <app-resend-notice
+                  [item]="item"
+                  hint="Envie o documento corrigido no botão abaixo."
+                />
               </div>
             }
 

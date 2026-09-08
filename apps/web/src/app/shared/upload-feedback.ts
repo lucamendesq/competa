@@ -16,9 +16,15 @@ import type { FileResult } from './upload';
   providers: [provideIcons({ lucideCircleCheck, lucideX })],
   template: `
     @if (sending() || done()) {
+      <!-- superfície + foreground do MESMO tom: fundo forte com texto branco invertia no
+           tema escuro (verde claro com texto branco) -->
       <div
         class="fixed inset-x-0 bottom-0 z-50 p-4 text-sm font-medium"
-        [class]="done() ? 'bg-emerald-600 text-white' : 'bg-primary text-primary-foreground'"
+        [class]="
+          done()
+            ? 'bg-success-surface text-success-foreground border-success-border border-t'
+            : 'bg-primary text-primary-foreground'
+        "
         role="status"
         aria-live="polite"
       >
@@ -68,12 +74,12 @@ import type { FileResult } from './upload';
           <li class="flex items-start gap-3 py-3">
             <ng-icon
               name="lucideX"
-              class="mt-0.5 shrink-0 text-base text-red-600"
+              class="mt-0.5 shrink-0 text-base text-danger"
               aria-hidden="true"
             />
             <div class="min-w-0 flex-1">
               <p class="truncate text-sm font-medium">{{ result.fileName }}</p>
-              <p class="mt-0.5 text-xs text-red-700">{{ result.reason }}</p>
+              <p class="mt-0.5 text-xs text-danger">{{ result.reason }}</p>
             </div>
           </li>
         }

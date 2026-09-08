@@ -13,6 +13,7 @@ import { HlmTableImports } from '@spartan-ng/helm/table';
 import { apiErrorMessage } from '../../core/http/api-error';
 import { Toaster } from '../../core/ui/toast';
 import { PageHeader } from '../../shared/page-header';
+import { Callout } from '../../shared/callout';
 import { ChecklistsService } from '../checklists/checklists.service';
 import { CompaniesService, ImportResult } from './companies.service';
 
@@ -32,7 +33,7 @@ const COLUMNS = [
 
 @Component({
   selector: 'app-import-companies-page',
-  imports: [RouterLink, NgIcon, HlmButtonImports, HlmTableImports, PageHeader],
+  imports: [RouterLink, NgIcon, HlmButtonImports, HlmTableImports, PageHeader, Callout],
   providers: [
     provideIcons({
       lucideCircleAlert,

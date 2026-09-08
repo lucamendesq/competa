@@ -39,7 +39,7 @@
     aria-valuemax="100"
     [attr.aria-label]="'Itens aceitos na competência'"
   >
-    <div class="h-full rounded-full bg-emerald-500" [style.width.%]="sendProgress().percent"></div>
+    <div class="h-full rounded-full bg-success" [style.width.%]="sendProgress().percent"></div>
   </div>
 </section>
 
@@ -90,18 +90,20 @@
        Contador ainda quer abrir, conferir e baixar o que já chegou). -->
   @if (allDelivered()) {
     <section
-      class="flex flex-wrap items-center gap-3 rounded-xl border border-emerald-200 bg-emerald-50 p-4"
+      class="flex flex-wrap items-center gap-3 rounded-xl border border-success-border bg-success-surface p-4"
       role="status"
     >
       <span
-        class="flex size-10 shrink-0 items-center justify-center rounded-full bg-emerald-100 text-emerald-700"
+        class="flex size-10 shrink-0 items-center justify-center rounded-full bg-success-surface text-success"
         aria-hidden="true"
       >
         <ng-icon name="lucidePartyPopper" class="text-lg" />
       </span>
       <div class="min-w-0 flex-1">
-        <h2 class="text-sm font-semibold text-emerald-900">Todas as empresas entregaram tudo 🎉</h2>
-        <p class="mt-0.5 text-xs text-emerald-800">
+        <h2 class="text-sm font-semibold text-success-foreground">
+          Todas as empresas entregaram tudo 🎉
+        </h2>
+        <p class="mt-0.5 text-xs text-success-foreground">
           Nada pendente nesta competência. Você já pode baixar o zip e encerrar.
         </p>
       </div>
@@ -216,10 +218,7 @@
                 aria-valuemax="100"
                 [attr.aria-label]="'Itens aceitos de ' + line.companyName"
               >
-                <div
-                  class="h-full rounded-full bg-emerald-500"
-                  [style.width.%]="line.percent"
-                ></div>
+                <div class="h-full rounded-full bg-success" [style.width.%]="line.percent"></div>
               </div>
               <span class="text-muted-foreground shrink-0 text-xs tabular-nums">
                 {{ line.counts.accepted }} de {{ line.total }}
@@ -228,7 +227,7 @@
 
             @if (line.channelFailures.length) {
               <div
-                class="flex flex-wrap items-center gap-2 rounded-lg border border-red-200 bg-red-50 p-3 text-xs text-red-900"
+                class="flex flex-wrap items-center gap-2 rounded-lg border border-danger-border bg-danger-surface p-3 text-xs text-danger-foreground"
                 role="alert"
               >
                 <ng-icon name="lucideMailWarning" class="shrink-0 text-base" aria-hidden="true" />

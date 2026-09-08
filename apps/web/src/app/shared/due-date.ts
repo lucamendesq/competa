@@ -10,7 +10,7 @@ import { dateBr, isOverdue } from './format';
     @if (dueDate(); as due) {
       <span
         class="tabular-nums"
-        [class]="late() ? 'font-semibold text-red-700' : 'text-muted-foreground'"
+        [class]="late() ? 'font-semibold text-danger' : 'text-muted-foreground'"
       >
         Prazo {{ dateBr(due) }}
         @if (late()) {

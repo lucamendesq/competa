@@ -100,7 +100,7 @@ test('formato fora do checklist é recusado sem derrubar o lote', async () => {
   const [ok, refused] = response.body.data.files;
   expect(ok.accepted).toBe(true);
   expect(refused.accepted).toBe(false);
-  expect(refused.reason).toMatch(/Formato \.exe não accepted/);
+  expect(refused.reason).toMatch(/Formato \.exe não aceito/);
 });
 
 test('documento sem confirmação não conta como enviado', async () => {

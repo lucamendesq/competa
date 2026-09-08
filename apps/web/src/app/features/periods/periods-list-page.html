@@ -165,21 +165,17 @@
 >
   @if (result()) {
     <div class="flex flex-col gap-4">
-      <div
-        class="flex gap-3 rounded-lg border border-emerald-200 bg-emerald-50 p-3 text-sm text-emerald-900"
-        role="status"
-      >
-        <ng-icon name="lucideCircleCheck" class="mt-0.5 shrink-0 text-base" aria-hidden="true" />
+      <app-callout tone="success" icon="lucideCircleCheck">
         <p>
           Competência {{ monthLabel(result()!.referenceMonth) }} aberta.
           {{ result()!.requests.length }}
           {{ result()!.requests.length === 1 ? 'link enviado' : 'links enviados' }} por e-mail.
         </p>
-      </div>
+      </app-callout>
 
       @if (result()!.warnings.length) {
         <div
-          class="rounded-lg border border-amber-200 bg-amber-50 p-3 text-sm text-amber-900"
+          class="rounded-lg border border-warning-border bg-warning-surface p-3 text-sm text-warning-foreground"
           role="note"
         >
           <p class="font-medium">
@@ -245,21 +241,16 @@
         (submit)="$event.preventDefault(); review()"
       >
         @if (openError()) {
-          <div
-            class="flex gap-3 rounded-lg border border-red-200 bg-red-50 p-3 text-sm text-red-900"
-            role="alert"
-          >
-            <ng-icon
-              name="lucideTriangleAlert"
-              class="mt-0.5 shrink-0 text-base"
-              aria-hidden="true"
-            />
+          <app-callout tone="danger" icon="lucideTriangleAlert">
             <p>{{ openError() }}</p>
-          </div>
+          </app-callout>
         }
 
         <fieldset class="flex flex-col gap-1.5">
-          <legend hlmLabel class="mb-1.5">Mês de referência</legend>
+          <legend hlmLabel class="mb-1.5">
+            Mês de referência <span class="text-destructive" aria-hidden="true">*</span
+            ><span class="sr-only">(obrigatório)</span>
+          </legend>
           <div class="flex gap-2">
             <select
               hlmInput
@@ -320,7 +311,7 @@
 
         @if (preview().withoutContact.length) {
           <div
-            class="rounded-lg border border-amber-200 bg-amber-50 p-3 text-sm text-amber-900"
+            class="rounded-lg border border-warning-border bg-warning-surface p-3 text-sm text-warning-foreground"
             role="note"
           >
             <p class="font-medium">

@@ -1,6 +1,13 @@
 <div class="bg-muted/40 min-h-dvh lg:grid lg:grid-cols-2">
   <section class="bg-sidebar text-sidebar-foreground hidden flex-col justify-center p-12 lg:flex">
-    <img ngSrc="competa-logo.png" alt="Competa" class="h-14 w-auto brightness-0 invert" priority />
+    <img
+      ngSrc="competa-logo.png"
+      width="677"
+      height="369"
+      alt="Competa"
+      class="min-h-6 w-auto brightness-0 invert"
+      priority
+    />
     <p class="mt-6 max-w-md text-3xl font-semibold tracking-tight">
       Pare de garimpar documento no WhatsApp.
     </p>
@@ -36,7 +43,7 @@
 
       @if (error()) {
         <div
-          class="mt-6 flex gap-3 rounded-lg border border-red-200 bg-red-50 p-3 text-sm text-red-900"
+          class="mt-6 flex gap-3 rounded-lg border border-danger-border bg-danger-surface p-3 text-sm text-danger-foreground"
           role="alert"
         >
           <ng-icon name="lucideCircleAlert" class="mt-0.5 shrink-0 text-base" aria-hidden="true" />

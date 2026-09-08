@@ -107,7 +107,7 @@ test('mais de 500 arquivos num pedido é recusado com 422 e não cria Documento'
     .send({ requestItemId: statement.id, files })
     .expect(422);
 
-  expect(response.body.error.message).toMatch(/no máximo 500 files/);
+  expect(response.body.error.message).toMatch(/no máximo 500 arquivos/);
   expect(await db.select().from(document)).toHaveLength(0);
 });
 
@@ -149,7 +149,7 @@ test('formato fora do checklist é recusado por arquivo, sem derrubar o lote', a
   const [ok, formato, semFormato] = response.body.data.files;
   expect(ok.accepted).toBe(true);
   expect(formato.accepted).toBe(false);
-  expect(formato.reason).toMatch(/Formato \.xlsx não accepted/);
+  expect(formato.reason).toMatch(/Formato \.xlsx não aceito/);
   expect(semFormato.accepted).toBe(false);
   expect(semFormato.reason).toMatch(/Não foi possível identificar o formato/);
   // só o arquivo aceito virou linha
@@ -219,7 +219,7 @@ test('Item de Solicitação ENCERRADA não aceita envio: 422 apontando o Documen
     })
     .expect(422);
 
-  expect(response.body.error.message).toMatch(/DocumentRow Extra/);
+  expect(response.body.error.message).toMatch(/Documento Extra/);
   expect(await db.select().from(document)).toHaveLength(0);
 });
 

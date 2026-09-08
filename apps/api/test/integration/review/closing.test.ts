@@ -48,7 +48,7 @@ test('encerrar Solicitação com pendências devolve a contagem e o aviso', asyn
 
   expect(response.body.data.status).toBe('closed');
   expect(response.body.data.pendingItemCount).toBe(4);
-  expect(response.body.data.warning).toMatch(/4 item\(ns\) sem acceptance/);
+  expect(response.body.data.warning).toMatch(/4 item\(ns\) sem aceite/);
   expect(response.body.data.closedAt).not.toBeNull();
 });
 
@@ -77,7 +77,7 @@ test('encerrar a mesma Solicitação duas vezes responde 409', async () => {
     .set('cookie', cookie)
     .expect(409);
 
-  expect(second.body.error.message).toMatch(/já foi closed/i);
+  expect(second.body.error.message).toMatch(/já foi encerrada/i);
 });
 
 test('encerrar a Competência encerra as Solicitações dela e devolve o total pendente', async () => {
@@ -95,7 +95,7 @@ test('encerrar a Competência encerra as Solicitações dela e devolve o total p
   expect(response.body.data.closedRequestCount).toBe(2);
   // 5 itens por Empresa, nenhum aceito
   expect(response.body.data.pendingItemCount).toBe(10);
-  expect(response.body.data.warning).toMatch(/10 item\(ns\) sem acceptance/);
+  expect(response.body.data.warning).toMatch(/10 item\(ns\) sem aceite/);
 
   const [row] = await db.select().from(period).where(eq(period.id, opened.id));
   expect(row.status).toBe('closed');
@@ -132,7 +132,7 @@ test('depois de encerrada, o Item não recebe mais envio (422) mas o Documento E
     })
     .expect(422);
 
-  expect(rejection.body.error.message).toMatch(/DocumentRow Extra/);
+  expect(rejection.body.error.message).toMatch(/Documento Extra/);
 
   const extra = await uploadOk(app, token, { fileName: 'depois-do-fecho.pdf' });
   const panel = await requestPanel(app, cookie, requestId);
@@ -157,5 +157,5 @@ test('revisão em Solicitação encerrada pela Competência responde 409', async
     .set('cookie', cookie)
     .expect(409);
 
-  expect(response.body.error.message).toMatch(/closed/i);
+  expect(response.body.error.message).toMatch(/encerrada/i);
 });

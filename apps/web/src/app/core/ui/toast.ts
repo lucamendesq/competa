@@ -63,8 +63,9 @@ export class Toasts {
   protected readonly toaster = inject(Toaster);
 
   protected style(kind: ToastKind) {
-    if (kind === 'success') return 'bg-emerald-50 border-emerald-200 text-emerald-900';
-    if (kind === 'error') return 'bg-red-50 border-red-200 text-red-900';
+    if (kind === 'success')
+      return 'bg-success-surface border-success-border text-success-foreground';
+    if (kind === 'error') return 'bg-danger-surface border-danger-border text-danger-foreground';
     return 'bg-card border-border text-foreground';
   }
 }

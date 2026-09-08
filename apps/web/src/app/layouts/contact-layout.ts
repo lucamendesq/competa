@@ -1,16 +1,26 @@
 import { Component, computed, inject } from '@angular/core';
 import { Router, RouterLink, RouterLinkActive, RouterOutlet } from '@angular/router';
 import { NgIcon, provideIcons } from '@ng-icons/core';
-import { lucideClipboardList, lucideHistory, lucideLogOut } from '@ng-icons/lucide';
+import {
+  lucideClipboardList,
+  lucideHistory,
+  lucideLogOut,
+  lucideMoon,
+  lucideSun,
+} from '@ng-icons/lucide';
 import { AuthService } from '../core/auth/auth.service';
+import { ThemeService } from '../core/ui/theme.service';
 
 @Component({
   selector: 'app-contact-layout',
   imports: [RouterOutlet, RouterLink, RouterLinkActive, NgIcon],
-  providers: [provideIcons({ lucideClipboardList, lucideHistory, lucideLogOut })],
+  providers: [
+    provideIcons({ lucideClipboardList, lucideHistory, lucideLogOut, lucideMoon, lucideSun }),
+  ],
   templateUrl: './contact-layout.html',
 })
 export class ContactLayout {
+  protected readonly theme = inject(ThemeService);
   private readonly auth = inject(AuthService);
   private readonly router = inject(Router);
 

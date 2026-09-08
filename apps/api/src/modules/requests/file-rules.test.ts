@@ -12,7 +12,7 @@ test('extensão vem do nome do arquivo, com fallback no content-type', () => {
 
 test('formato fora dos accepted_formats do Item é recusado', () => {
   assert.equal(rejectionReason(pdf, ['pdf', 'zip']), null);
-  assert.match(rejectionReason(pdf, ['xml']) ?? '', /Formato \.pdf não accepted/);
+  assert.match(rejectionReason(pdf, ['xml']) ?? '', /Formato \.pdf não aceito/);
 });
 
 test('zip é formato como qualquer outro (sem extração)', () => {

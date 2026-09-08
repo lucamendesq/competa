@@ -94,14 +94,7 @@
                 }
 
                 @if (needsResend(row.item)) {
-                  <span class="mt-2 block rounded-lg border border-red-200 bg-red-50 p-3">
-                    <span class="block text-sm font-semibold text-red-900">Precisa reenviar</span>
-                    @for (rejection of itemRejections(row.item); track $index) {
-                      <span class="mt-1 block text-xs text-red-800">
-                        {{ rejection.fileName }}: {{ rejection.rejectionReason }}
-                      </span>
-                    }
-                  </span>
+                  <app-resend-notice [item]="row.item" />
                 }
 
                 <span class="mt-2 flex flex-wrap items-center gap-x-3 gap-y-1 text-xs">

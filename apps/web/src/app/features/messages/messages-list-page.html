@@ -10,7 +10,7 @@
 
 @if (failures()) {
   <div
-    class="flex flex-wrap items-center gap-3 rounded-lg border border-red-200 bg-red-50 p-3 text-sm text-red-900"
+    class="flex flex-wrap items-center gap-3 rounded-lg border border-danger-border bg-danger-surface p-3 text-sm text-danger-foreground"
     role="alert"
   >
     <ng-icon name="lucideTriangleAlert" class="shrink-0 text-base" aria-hidden="true" />
@@ -199,7 +199,9 @@
         @if (selected()!.error) {
           <div>
             <dt class="text-muted-foreground text-xs">Erro do provedor</dt>
-            <dd class="mt-0.5 rounded-lg border border-red-200 bg-red-50 p-2 text-xs text-red-900">
+            <dd
+              class="mt-0.5 rounded-lg border border-danger-border bg-danger-surface p-2 text-xs text-danger-foreground"
+            >
               {{ selected()!.error }}
             </dd>
           </div>

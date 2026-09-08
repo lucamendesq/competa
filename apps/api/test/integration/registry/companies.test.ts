@@ -177,7 +177,7 @@ test('template de checklist de outra Contabilidade é recusado com 422 no cadast
     .set('cookie', session.cookie)
     .send({ name: 'Roubada', checklistTemplateId: foreign.id })
     .expect(422);
-  expect(create.body.error.message).toMatch(/other Contabilidade/);
+  expect(create.body.error.message).toMatch(/outra Contabilidade/);
 
   await http(app)
     .patch(`/companies/${created.id}`)

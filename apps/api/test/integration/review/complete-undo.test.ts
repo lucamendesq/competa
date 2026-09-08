@@ -100,7 +100,7 @@ test('Solicitação encerrada nunca volta para open nem para complete', async ()
 
   const rejection = await rejectDocument(app, cookie, documentId, 'Tarde demais');
   expect(rejection.response.status).toBe(409);
-  expect(rejection.response.body.error.message).toMatch(/closed/i);
+  expect(rejection.response.body.error.message).toMatch(/encerrada/i);
 
   await http(app).post(`/request-items/${items[0].id}/accept`).set('cookie', cookie).expect(409);
   await http(app)
@@ -155,7 +155,7 @@ test('desfazer aceite de Item que não está aceito responde 409', async () => {
     .set('cookie', cookie)
     .expect(409);
 
-  expect(response.body.error.message).toMatch(/não está accepted/i);
+  expect(response.body.error.message).toMatch(/não está aceito/i);
 
   const [saved] = await db.select().from(requestItem).where(eq(requestItem.id, item.id));
   expect(saved.status).toBe('submitted');
@@ -173,7 +173,7 @@ test('desfazer aceite em Solicitação encerrada responde 409', async () => {
     .set('cookie', cookie)
     .expect(409);
 
-  expect(response.body.error.message).toMatch(/closed/i);
+  expect(response.body.error.message).toMatch(/encerrada/i);
 
   const [saved] = await db.select().from(requestItem).where(eq(requestItem.id, item.id));
   expect(saved.status).toBe('accepted');

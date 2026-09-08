@@ -33,7 +33,7 @@
             }}
           </button>
         } @else {
-          <p class="flex min-w-0 flex-1 items-center gap-2 text-xs text-emerald-700">
+          <p class="flex min-w-0 flex-1 items-center gap-2 text-xs text-success">
             <ng-icon name="lucideCircleCheck" class="shrink-0 text-base" aria-hidden="true" />
             {{ invitesSent() }}
             {{ invitesSent() === 1 ? 'convite enviado' : 'convites enviados' }}. Quem já tinha
@@ -64,14 +64,14 @@
               <td hlmTd>
                 @if (line.status === 'created') {
                   <span
-                    class="inline-flex items-center gap-1 rounded-full border border-emerald-200 bg-emerald-50 px-2 py-0.5 text-[11px] font-semibold text-emerald-700"
+                    class="inline-flex items-center gap-1 rounded-full border border-success-border bg-success-surface px-2 py-0.5 text-[11px] font-semibold text-success"
                   >
                     <ng-icon name="lucideCircleCheck" class="text-[12px]" aria-hidden="true" />
                     Importada
                   </span>
                 } @else {
                   <span
-                    class="inline-flex items-center gap-1 rounded-full border border-red-200 bg-red-50 px-2 py-0.5 text-[11px] font-semibold text-red-700"
+                    class="inline-flex items-center gap-1 rounded-full border border-danger-border bg-danger-surface px-2 py-0.5 text-[11px] font-semibold text-danger"
                   >
                     <ng-icon name="lucideCircleAlert" class="text-[12px]" aria-hidden="true" />
                     Erro
@@ -91,13 +91,9 @@
   <div class="grid gap-6 lg:grid-cols-[minmax(0,1fr)_minmax(0,24rem)]">
     <section class="flex flex-col gap-4">
       @if (error()) {
-        <div
-          class="flex gap-3 rounded-lg border border-red-200 bg-red-50 p-3 text-sm text-red-900"
-          role="alert"
-        >
-          <ng-icon name="lucideCircleAlert" class="mt-0.5 shrink-0 text-base" aria-hidden="true" />
+        <app-callout tone="danger" icon="lucideCircleAlert">
           <p>{{ error() }}</p>
-        </div>
+        </app-callout>
       }
 
       <div

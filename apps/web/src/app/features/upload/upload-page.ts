@@ -24,6 +24,7 @@ import { PushService } from '../../shared/push.service';
 import { DropZone } from '../../shared/drop-zone';
 import { UploadFeedback } from '../../shared/upload-feedback';
 import { StatusPill } from '../../shared/status-pill';
+import { ResendNotice } from '../../shared/resend-notice';
 import { displayItemStatus, itemRejections, needsResend } from '../../shared/item-status';
 import { isOverdue, monthLabel, dateBr, fileSize } from '../../shared/format';
 import { FileResult, uploadFiles } from '../../shared/upload';
@@ -31,7 +32,15 @@ import { UploadService } from './upload.service';
 
 @Component({
   selector: 'app-upload-page',
-  imports: [NgIcon, RouterLink, HlmButtonImports, DropZone, UploadFeedback, StatusPill],
+  imports: [
+    NgIcon,
+    RouterLink,
+    HlmButtonImports,
+    DropZone,
+    UploadFeedback,
+    StatusPill,
+    ResendNotice,
+  ],
   providers: [
     provideIcons({
       lucideBell,

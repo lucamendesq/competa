@@ -14,13 +14,9 @@
   >
     <div class="flex flex-col gap-6">
       @if (error()) {
-        <div
-          class="flex gap-3 rounded-lg border border-red-200 bg-red-50 p-3 text-sm text-red-900"
-          role="alert"
-        >
-          <ng-icon name="lucideCircleAlert" class="mt-0.5 shrink-0 text-base" aria-hidden="true" />
+        <app-callout tone="danger" icon="lucideCircleAlert">
           <p>{{ error() }}</p>
-        </div>
+        </app-callout>
       }
 
       <fieldset class="bg-card border-border rounded-xl border p-4 sm:p-5">
@@ -28,7 +24,10 @@
 
         <div class="mt-4 grid gap-4 sm:grid-cols-2">
           <div class="flex flex-col gap-1.5 sm:col-span-2">
-            <label hlmLabel for="name">Nome</label>
+            <label hlmLabel for="name"
+              >Nome <span class="text-destructive" aria-hidden="true">*</span
+              ><span class="sr-only">(obrigatório)</span></label
+            >
             <input
               hlmInput
               id="name"
@@ -142,12 +141,18 @@
 
         <div class="mt-4 grid gap-4 sm:grid-cols-2">
           <div class="flex flex-col gap-1.5">
-            <label hlmLabel for="contact-name">Nome</label>
+            <label hlmLabel for="contact-name"
+              >Nome <span class="text-destructive" aria-hidden="true">*</span
+              ><span class="sr-only">(obrigatório)</span></label
+            >
             <input hlmInput id="contact-name" type="text" [formField]="f.contactName" />
           </div>
 
           <div class="flex flex-col gap-1.5">
-            <label hlmLabel for="contact-email">E-mail</label>
+            <label hlmLabel for="contact-email"
+              >E-mail <span class="text-destructive" aria-hidden="true">*</span
+              ><span class="sr-only">(obrigatório)</span></label
+            >
             <input
               hlmInput
               id="contact-email"

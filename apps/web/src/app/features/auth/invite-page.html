@@ -10,7 +10,7 @@
     } @else if (inviteInvalid()) {
       <div class="bg-card border-border rounded-xl border p-6 text-center sm:p-8">
         <span
-          class="mx-auto flex size-12 items-center justify-center rounded-full bg-amber-50 text-amber-600"
+          class="mx-auto flex size-12 items-center justify-center rounded-full bg-warning-surface text-warning"
         >
           <ng-icon name="lucideClock" class="text-xl" aria-hidden="true" />
         </span>
@@ -40,7 +40,7 @@
 
         @if (error()) {
           <div
-            class="mt-6 flex gap-3 rounded-lg border border-red-200 bg-red-50 p-3 text-sm text-red-900"
+            class="mt-6 flex gap-3 rounded-lg border border-danger-border bg-danger-surface p-3 text-sm text-danger-foreground"
             role="alert"
           >
             <ng-icon
@@ -112,9 +112,7 @@
                 <li
                   class="flex items-center gap-1.5 text-xs"
                   [class]="
-                    accessPasswordStrength().criteria[i]
-                      ? 'text-emerald-700'
-                      : 'text-muted-foreground'
+                    accessPasswordStrength().criteria[i] ? 'text-success' : 'text-muted-foreground'
                   "
                 >
                   <ng-icon
@@ -163,7 +161,7 @@
 
         @if (error()) {
           <div
-            class="mt-6 flex gap-3 rounded-lg border border-red-200 bg-red-50 p-3 text-sm text-red-900"
+            class="mt-6 flex gap-3 rounded-lg border border-danger-border bg-danger-surface p-3 text-sm text-danger-foreground"
             role="alert"
           >
             <ng-icon
@@ -177,7 +175,10 @@
 
         <form class="mt-6 flex flex-col gap-4" (submit)="$event.preventDefault(); createAccount()">
           <div class="flex flex-col gap-1.5">
-            <label hlmLabel for="invite-email">E-mail do convite</label>
+            <label hlmLabel for="invite-email"
+              >E-mail do convite <span class="text-destructive" aria-hidden="true">*</span
+              ><span class="sr-only">(obrigatório)</span></label
+            >
             <input
               hlmInput
               id="invite-email"
@@ -193,7 +194,10 @@
           </div>
 
           <div class="flex flex-col gap-1.5">
-            <label hlmLabel for="invite-name">Nome completo</label>
+            <label hlmLabel for="invite-name"
+              >Nome completo <span class="text-destructive" aria-hidden="true">*</span
+              ><span class="sr-only">(obrigatório)</span></label
+            >
             <input
               hlmInput
               id="invite-name"
@@ -211,7 +215,10 @@
           </div>
 
           <div class="flex flex-col gap-1.5">
-            <label hlmLabel for="invite-password">Senha de acesso</label>
+            <label hlmLabel for="invite-password"
+              >Senha de acesso <span class="text-destructive" aria-hidden="true">*</span
+              ><span class="sr-only">(obrigatório)</span></label
+            >
             <input
               hlmInput
               id="invite-password"
@@ -226,7 +233,7 @@
                 <li
                   class="flex items-center gap-1.5 text-xs"
                   [class]="
-                    passwordStrength().criteria[i] ? 'text-emerald-700' : 'text-muted-foreground'
+                    passwordStrength().criteria[i] ? 'text-success' : 'text-muted-foreground'
                   "
                 >
                   <ng-icon

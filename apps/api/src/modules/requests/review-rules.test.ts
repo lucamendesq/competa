@@ -13,18 +13,18 @@ test('só Item submitted pode ser aceito', () => {
   assert.equal(acceptItemRefusal({ requestStatus: 'open', itemStatus: 'submitted' }), null);
   assert.match(
     acceptItemRefusal({ requestStatus: 'open', itemStatus: 'pending' }) ?? '',
-    /ainda não tem documents/,
+    /ainda não tem documentos/,
   );
   assert.match(
     acceptItemRefusal({ requestStatus: 'open', itemStatus: 'accepted' }) ?? '',
-    /já está accepted/,
+    /já está aceito/,
   );
 });
 
 test('Solicitação encerrada não aceita mais revisão', () => {
   assert.match(
     acceptItemRefusal({ requestStatus: 'closed', itemStatus: 'submitted' }) ?? '',
-    /closed/,
+    /encerrada/,
   );
   assert.match(
     rejectDocumentRefusal({
@@ -32,7 +32,7 @@ test('Solicitação encerrada não aceita mais revisão', () => {
       reviewStatus: 'pending',
       requestItemId: 'item',
     }) ?? '',
-    /closed/,
+    /encerrada/,
   );
 });
 
@@ -55,7 +55,7 @@ test('rejeição é por Documento de Item, e não repete estado final', () => {
       reviewStatus: 'accepted',
       requestItemId: 'i',
     }) ?? '',
-    /já foi accepted/,
+    /já foi aceito/,
   );
 });
 

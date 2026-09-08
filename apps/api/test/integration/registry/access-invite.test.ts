@@ -130,7 +130,7 @@ test('o aceite define a senha, e o convite não serve para o signup de Contador'
   const company = await registerCompany(session.cookie, 'Bar do Tião', 'tiao@bar.com.br');
   await inviteToApp(session.cookie, [company.id]);
 
-  const token = sent[0].body.match(/\/invite\/([A-Za-z0-9_-]+)/)![1];
+  const token = sent[0].body.match(/\/convite\/([A-Za-z0-9_-]+)/)![1];
 
   const preview = await http(app).get(`/invites/${token}`).expect(200);
   expect(preview.body.data).toMatchObject({
