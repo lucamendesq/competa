@@ -39,9 +39,12 @@ endpoint. Cada item abaixo é uma lacuna consciente, sinalizada na própria tela
 4. **Configurações → Canais** mostra WhatsApp como "não conectado" (Fase 8 não construída).
 5. **Baixar/visualizar um Documento avulso** não existe: só os zips
    (`/requests/:id/zip`, `/periods/:id/zip`). A revisão mostra nome, tamanho e data.
-6. **Reenviar link ou mensagem individual** não existe. A tela oferece
-   `POST /messages/reminders/run` (varredura global de lembretes). Reenvio de link só
-   acontece pela rejeição de Documento, que rotaciona o token.
+6. **Reenviar mensagem individual** não existe — a tela oferece
+   `POST /messages/reminders/run` (varredura global de lembretes). O **Link de Upload**,
+   sim: `POST /requests/:id/upload-link` (gerar e copiar) e `.../upload-link/resend`
+   (mandar por email), na revisão da Empresa e no aviso de falha de canal do Painel de
+   Pendências. Os dois **rotacionam o token** — só o hash fica no banco, então não existe
+   ler o link atual e o anterior morre.
 7. **Colunas ausentes** por não virem na listagem: "Aberta em" da Competência, nome/e-mail
    do Responsável na lista de Empresas (mostra a contagem), "empresas usando" no template.
 8. **Filtros de Mensagens** por Empresa/Canal/Tipo são aplicados no cliente sobre a página

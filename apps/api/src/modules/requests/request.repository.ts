@@ -572,6 +572,38 @@ export class RequestRepository {
     return row ? token : undefined;
   }
 
+  /** Reenvio/cópia pelo Contador: contexto e rotação juntos, com o escopo no join. O
+   *  `rotateUploadToken` cru não tem escopo — só serve à rota pública de recuperação, onde
+   *  a entrada é o email. Solicitação encerrada não recebe link novo. */
+  async rotateUploadLink(scope: FirmScope, requestId: string) {
+    const [row] = await this.db
+      .select({
+        requestStatus: request.status,
+        referenceMonth: period.referenceMonth,
+        periodDueDate: period.dueDate,
+        companyName: company.name,
+        contactName: contact.name,
+        contactEmail: contact.email,
+      })
+      .from(request)
+      .innerJoin(period, eq(period.id, request.periodId))
+      .innerJoin(company, eq(company.id, request.companyId))
+      .innerJoin(uploadLink, eq(uploadLink.requestId, request.id))
+      .innerJoin(contact, eq(contact.id, uploadLink.contactId))
+      .where(and(eq(request.id, requestId), eq(period.accountingFirmId, scope)))
+      .limit(1);
+
+    if (!row) return undefined;
+    if (row.requestStatus === 'closed') {
+      throw new InvalidTransition('Solicitação encerrada — não há mais link de envio.');
+    }
+
+    const token = await this.rotateUploadToken(requestId);
+    if (!token) return undefined;
+
+    return { ...row, token };
+  }
+
   private async itemContext(scope: FirmScope, requestItemId: string) {
     const [row] = await this.db
       .select({

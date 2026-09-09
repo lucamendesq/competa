@@ -85,9 +85,9 @@ export type ContactInvitedEvent = {
   expiresAt: Date;
 };
 
-/** "Perdi meu link": reenvia o Link de Upload de uma Solicitação aberta. Não gera login e
- *  NÃO notifica o Contador (D14, item 6) — é recuperação do Responsável, não pendência
- *  dele. `uploadUrl` já é o link rotacionado. */
+/** Reenvia o Link de Upload de uma Solicitação aberta — pelo "perdi meu link" do
+ *  Responsável ou pelo botão do Contador no painel. Não gera login e NÃO notifica o
+ *  Contador (D14, item 6). `uploadUrl` já é o link rotacionado. */
 export type UploadLinkResentEvent = {
   requestId: string;
   referenceMonth: string;

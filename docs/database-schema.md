@@ -219,6 +219,11 @@ create table upload_link (                -- Link de Upload (token próprio; NÃ
 );
 ```
 
+O token só existe em claro no momento em que é gerado: **rotacionar é a única forma de
+voltar a ter um link**. Rotacionam — invalidando o anterior — a reabertura de Item pela
+rejeição, o lembrete do cron, o "perdi meu link" do Responsável e o
+`POST /requests/:id/upload-link[/resend]` do Contador (copiar / reenviar por email).
+
 ### messaging (Comunicação)
 
 ```sql

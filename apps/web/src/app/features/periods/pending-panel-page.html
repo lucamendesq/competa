@@ -235,8 +235,19 @@
                   Falha no envio por {{ uniqueFailures(line).join(', ') }} — o fluxo continua e o
                   link segue válido.
                 </p>
-                <!-- Havia um "Reenviar" aqui, mas ele disparava a varredura do tenant
-                   inteiro: reenvio por empresa não existe ainda, e o botão prometia. -->
+                @if (line.requestStatus !== 'closed') {
+                  <button
+                    hlmBtn
+                    variant="outline"
+                    size="sm"
+                    class="shrink-0"
+                    [disabled]="resendingRequestId() === line.requestId"
+                    (click)="resendUploadLink(line)"
+                  >
+                    <ng-icon name="lucideMail" aria-hidden="true" />
+                    Reenviar link
+                  </button>
+                }
               </div>
             }
           </div>

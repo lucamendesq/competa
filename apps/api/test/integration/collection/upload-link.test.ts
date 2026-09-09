@@ -5,7 +5,7 @@ import { afterAll, beforeAll, beforeEach, expect, test } from 'vitest';
 import env from '../../../src/config/env.js';
 import { uploadLink } from '../../../src/infra/database/schema/index.js';
 import { hashToken } from '../../../src/lib/token.js';
-import { createTestApp } from '../../app.js';
+import { createTestApp, http } from '../../app.js';
 import { db, resetDatabase } from '../../db.js';
 import { createAccountantSession, createCompany, openPeriod } from '../../factories.js';
 import { resetThrottle, useOwnPort } from './_helpers.js';
@@ -80,4 +80,43 @@ test('o Link nasce ativo (não revogado)', async () => {
   const [link] = await db.select().from(uploadLink);
 
   expect(link.revoked).toBe(false);
+});
+
+test('reenvio pelo Contador troca o token: o novo vale, o anterior morre', async () => {
+  const { session, opened, token } = await setup();
+  const requestId = opened.requests.find((row) => row.companyName === 'Padaria Central')!.id;
+
+  const response = await http(app)
+    .post(`/requests/${requestId}/upload-link/resend`)
+    .set('cookie', session.cookie)
+    .expect(201);
+
+  const fresh = (response.body.data.uploadUrl as string).split('/').pop()!;
+  expect(fresh).not.toBe(token);
+
+  await http(app).get(`/upload/${fresh}`).expect(200);
+  await http(app).get(`/upload/${token}`).expect(404);
+});
+
+test('Solicitação de outra Contabilidade não existe para o reenvio', async () => {
+  const { opened } = await setup();
+  const requestId = opened.requests.find((row) => row.companyName === 'Padaria Central')!.id;
+  const stranger = await createAccountantSession(app, { firmName: 'Outra Contabilidade' });
+
+  await http(app)
+    .post(`/requests/${requestId}/upload-link`)
+    .set('cookie', stranger.cookie)
+    .expect(404);
+});
+
+test('Solicitação encerrada não gera link novo', async () => {
+  const { session, opened } = await setup();
+  const requestId = opened.requests.find((row) => row.companyName === 'Padaria Central')!.id;
+
+  await http(app).post(`/requests/${requestId}/close`).set('cookie', session.cookie).expect(201);
+
+  await http(app)
+    .post(`/requests/${requestId}/upload-link`)
+    .set('cookie', session.cookie)
+    .expect(409);
 });

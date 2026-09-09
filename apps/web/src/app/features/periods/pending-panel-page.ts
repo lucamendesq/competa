@@ -7,6 +7,7 @@ import {
   lucideCircleCheck,
   lucideFileArchive,
   lucideLock,
+  lucideMail,
   lucideMailWarning,
   lucidePartyPopper,
   lucideSearch,
@@ -26,6 +27,7 @@ import { StatusPill } from '../../shared/status-pill';
 import { DueDate } from '../../shared/due-date';
 import { isOverdue, maskedCnpj, monthLabel, dateBr, slug } from '../../shared/format';
 import { CompaniesService } from '../companies/companies.service';
+import { RequestsService } from '../requests/requests.service';
 import { PeriodsService, PanelRow } from './periods.service';
 
 type Filter = 'all' | 'pending' | 'overdue' | 'complete' | 'closed';
@@ -52,6 +54,7 @@ type Filter = 'all' | 'pending' | 'overdue' | 'complete' | 'closed';
       lucideCircleCheck,
       lucideFileArchive,
       lucideLock,
+      lucideMail,
       lucideMailWarning,
       lucidePartyPopper,
       lucideSearch,
@@ -65,6 +68,7 @@ export class PendingPanelPage {
 
   private readonly service = inject(PeriodsService);
   private readonly companies = inject(CompaniesService);
+  private readonly requests = inject(RequestsService);
   private readonly api = inject(Api);
   private readonly toaster = inject(Toaster);
 
@@ -183,6 +187,24 @@ export class PendingPanelPage {
       await this.api.download(`/requests/${requestId}/zip`, `${slug(companyName)}.zip`);
     } catch (error) {
       this.toaster.error(apiErrorMessage(error, 'Não foi possível baixar o zip.'));
+    }
+  }
+
+  protected readonly resendingRequestId = signal<string | null>(null);
+
+  /** Reenvio de UMA empresa (o "Reenviar" antigo daqui disparava a varredura do tenant
+   *  inteiro). Gera link novo — o anterior, que falhou no canal, deixa de valer. */
+  protected async resendUploadLink(line: PanelRow) {
+    this.resendingRequestId.set(line.requestId);
+
+    try {
+      const link = await this.requests.resendUploadLink(line.requestId);
+      this.toaster.success(`Link de ${line.companyName} enviado para ${link.contactEmail}.`);
+      this.panel.reload();
+    } catch (error) {
+      this.toaster.error(apiErrorMessage(error, 'Não foi possível reenviar o link.'));
+    } finally {
+      this.resendingRequestId.set(null);
     }
   }
 

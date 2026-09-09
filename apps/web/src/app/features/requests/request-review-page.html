@@ -26,6 +26,28 @@
       Baixar zip desta empresa
     </button>
     @if (!closed()) {
+      <button
+        hlmBtn
+        variant="outline"
+        [disabled]="acting()"
+        title="Gera um link de envio novo e invalida o anterior."
+        (click)="copyUploadLink()"
+      >
+        <ng-icon name="lucideLink" aria-hidden="true" />
+        Gerar e copiar link
+      </button>
+      <button
+        hlmBtn
+        variant="outline"
+        [disabled]="acting()"
+        title="Envia um link novo por email ao Responsável e invalida o anterior."
+        (click)="resendUploadLink()"
+      >
+        <ng-icon name="lucideMail" aria-hidden="true" />
+        Reenviar link por email
+      </button>
+    }
+    @if (!closed()) {
       <button hlmBtn variant="destructive" (click)="confirmClose.set(true)">
         <ng-icon name="lucideLock" aria-hidden="true" />
         Encerrar solicitação

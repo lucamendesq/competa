@@ -35,6 +35,11 @@ export type RequestDetail = {
   extraDocuments: RequestDocument[];
 };
 
+export type UploadLinkResult = {
+  uploadUrl: string;
+  contactEmail: string;
+};
+
 @Service()
 export class RequestsService {
   private readonly api = inject(Api);
@@ -85,6 +90,16 @@ export class RequestsService {
       rejectedDocuments: number;
       emailSent: boolean;
     }>(`/requests/${requestId}/review`, body);
+  }
+
+  /** Copiar e reenviar geram link NOVO: o token é guardado com hash, então o link atual
+   *  não pode ser lido de volta — o anterior deixa de valer. */
+  uploadLink(id: string) {
+    return this.api.post<UploadLinkResult>(`/requests/${id}/upload-link`);
+  }
+
+  resendUploadLink(id: string) {
+    return this.api.post<UploadLinkResult>(`/requests/${id}/upload-link/resend`);
   }
 
   closeRequest(id: string) {

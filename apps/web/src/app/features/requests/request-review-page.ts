@@ -11,7 +11,9 @@ import {
   lucideEye,
   lucideFile,
   lucideFileArchive,
+  lucideLink,
   lucideLock,
+  lucideMail,
   lucideRotateCcw,
   lucideSend,
   lucideTriangleAlert,
@@ -63,7 +65,9 @@ import { RequestDocument, RequestsService } from './requests.service';
       lucideEye,
       lucideFile,
       lucideFileArchive,
+      lucideLink,
       lucideLock,
+      lucideMail,
       lucideRotateCcw,
       lucideSend,
       lucideTriangleAlert,
@@ -411,6 +415,37 @@ export class RequestReviewPage {
     } finally {
       this.acting.set(false);
       this.confirmClose.set(false);
+    }
+  }
+
+  /* --- Link de Upload -----------------------------------------------------------------
+   * O token é guardado com hash: não existe ler o link atual. Copiar e reenviar geram um
+   * link novo e o anterior para de valer — o toast diz isso, senão o Contador copia o link
+   * e não entende por que o que ele mandou no WhatsApp ontem morreu. */
+  protected async copyUploadLink() {
+    this.acting.set(true);
+
+    try {
+      const link = await this.service.uploadLink(this.requestId());
+      await navigator.clipboard.writeText(link.uploadUrl);
+      this.toaster.success('Link novo copiado. O link anterior deixou de valer.');
+    } catch (error) {
+      this.toaster.error(apiErrorMessage(error, 'Não foi possível copiar o link.'));
+    } finally {
+      this.acting.set(false);
+    }
+  }
+
+  protected async resendUploadLink() {
+    this.acting.set(true);
+
+    try {
+      const link = await this.service.resendUploadLink(this.requestId());
+      this.toaster.success(`Link novo enviado para ${link.contactEmail}.`);
+    } catch (error) {
+      this.toaster.error(apiErrorMessage(error, 'Não foi possível reenviar o link.'));
+    } finally {
+      this.acting.set(false);
     }
   }
 
