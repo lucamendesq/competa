@@ -7,10 +7,9 @@ Backend NestJS do SaaS de coleta de documentos contábeis: REST, autenticação 
 ```bash
 # 1. variáveis de ambiente — ANTES do docker: o compose lê DB_* do .env
 cp .env.template .env
-# preencher: DB_HOST DB_PORT DB_USER DB_PASS DB_NAME
-#            BETTER_AUTH_SECRET BETTER_AUTH_URL
-#            WEB_URL INVITE_TTL_DAYS
-# (BETTER_AUTH_URL não tem default e a API não sobe sem ele — use
+# preencher: BETTER_AUTH_SECRET BETTER_AUTH_URL WEB_URL INVITE_TTL_DAYS
+# (DB_* já vem preenchido com o que o docker-compose sobe: competa_api sem senha,
+#  banco `competa`. BETTER_AUTH_URL não tem default e a API não sobe sem ele — use
 #  http://localhost:3000 em desenvolvimento)
 
 # 2. Postgres via docker compose (a partir de apps/api)

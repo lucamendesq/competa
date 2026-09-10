@@ -92,7 +92,7 @@ src/
 | apps/api — messaging       | Providers email/WhatsApp/push (1 interface) + `reminders.cron.ts`                            | `@nestjs/schedule`, ACL por provedor                                                 |
 | libs/contracts             | Schemas zod por recurso, compartilhados web ↔ api (↔ mobile)                                 | zod                                                                                  |
 | apps/mobile (futuro)       | App do Responsável: push + upload pela mesma API                                             | {a decidir: React Native vs Flutter}                                                 |
-| Banco                      | Persistência multi-tenant (FirmScope na aplicação)                                           | Postgres + Drizzle (host {a definir})                                                |
+| Banco                      | Persistência multi-tenant (FirmScope na aplicação)                                           | Postgres + Drizzle (Supabase)                                                        |
 | Storage                    | Documentos e zips (egress grátis)                                                            | Cloudflare R2 (S3-compatible)                                                        |
 
 ## Diagrama de Contexto
@@ -126,7 +126,7 @@ Direção de dependência (convenção, não polícia): **registry → collectio
 
 | Sistema            | Tipo                        | Protocolo     | Descrição                                                              |
 | ------------------ | --------------------------- | ------------- | ---------------------------------------------------------------------- |
-| Postgres           | Banco                       | Drizzle       | Persistência de tudo (inclusive tabelas Better Auth); host {a definir} |
+| Postgres           | Banco                       | Drizzle       | Persistência de tudo (inclusive tabelas Better Auth); Supabase, session pooler |
 | WhatsApp Cloud API | Saída (+ webhook de status) | HTTP REST     | Link/lembretes com template utility aprovado; degrada para email       |
 | SES ou Resend      | Saída                       | SDK/HTTP      | Email transacional; canal que nunca bloqueia o fluxo                   |
 | FCM                | Saída                       | SDK           | Push para Responsável com App (futuro)                                 |

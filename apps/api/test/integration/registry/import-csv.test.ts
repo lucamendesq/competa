@@ -1,4 +1,5 @@
 import type { INestApplication } from '@nestjs/common';
+import { MAX_IMPORT_ROWS } from '@contabilidade/contracts';
 import { eq } from 'drizzle-orm';
 import { afterAll, beforeAll, beforeEach, expect, test } from 'vitest';
 import { company, contact } from '../../../src/infra/database/schema/index.js';
@@ -130,4 +131,13 @@ test('importação grava as Empresas na Contabilidade de quem importou', async (
 
   const rows = await db.select().from(company);
   expect(rows[0].accountingFirmId).toBe(session.firm.id);
+});
+
+test('planilha acima do teto de linhas é recusada inteira, sem gravar nada', async () => {
+  const rows = Array.from({ length: MAX_IMPORT_ROWS + 1 }, (_, i) => `Empresa ${i},Template MEI`);
+  const { status, body } = await importar(['name,template', ...rows].join('\n'));
+
+  expect(status).toBe(422);
+  expect(body.error.message).toMatch(/limite por importação/);
+  expect(await db.select().from(company)).toHaveLength(0);
 });

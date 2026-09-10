@@ -32,8 +32,36 @@ export const ActivateContactAccessBody = z.object({
 });
 export type ActivateContactAccessBody = z.infer<typeof ActivateContactAccessBody>;
 
+/* O `endpoint` vem do navegador e é gravado por rota ANÔNIMA (`POST /upload/:token/push`).
+ * Sem allowlist, ele é uma URL arbitrária que o servidor vai buscar depois — SSRF cego
+ * armazenado, com a rede interna do host ao alcance. Os serviços de push são poucos e
+ * conhecidos; qualquer coisa fora disso não é uma inscrição de verdade. */
+const PUSH_HOSTS = ['fcm.googleapis.com', 'android.googleapis.com'];
+const PUSH_HOST_SUFFIXES = [
+  '.push.services.mozilla.com',
+  '.push.apple.com',
+  '.notify.windows.com',
+  '.push.microsoft.com',
+];
+
+export const isPushEndpoint = (value: string) => {
+  let url: URL;
+
+  try {
+    url = new URL(value);
+  } catch {
+    return false;
+  }
+
+  return (
+    url.protocol === 'https:' &&
+    (PUSH_HOSTS.includes(url.hostname) ||
+      PUSH_HOST_SUFFIXES.some((suffix) => url.hostname.endsWith(suffix)))
+  );
+};
+
 export const PushSubscriptionBody = z.object({
-  endpoint: z.url(),
+  endpoint: z.url().refine(isPushEndpoint, 'Endpoint de push não reconhecido.'),
   keys: z.object({ p256dh: z.string().min(1), auth: z.string().min(1) }),
 });
 export type PushSubscriptionBody = z.infer<typeof PushSubscriptionBody>;

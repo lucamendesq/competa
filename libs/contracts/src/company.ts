@@ -66,7 +66,16 @@ export const CompanyQuery = PaginationQuery.extend({
 });
 export type CompanyQuery = z.infer<typeof CompanyQuery>;
 
+/** Teto de linhas por importação. O corpo aceita 2 MB, o que dá ~40 mil linhas: sem cap,
+ *  uma importação dessas roda por minutos, estoura o timeout no meio e deixa o tenant com
+ *  metade da carteira dentro. Carteira maior que isso entra em lotes. */
+export const MAX_IMPORT_ROWS = 1000;
+
 export const ImportCompaniesBody = z.object({
-  csv: z.string().min(1),
+  // ~1 KB por linha com folga; o cap exato de linhas é conferido depois do parse
+  csv: z
+    .string()
+    .min(1)
+    .max(MAX_IMPORT_ROWS * 1024, 'Arquivo grande demais. Importe em lotes menores.'),
 });
 export type ImportCompaniesBody = z.infer<typeof ImportCompaniesBody>;

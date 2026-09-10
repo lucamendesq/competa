@@ -1,5 +1,7 @@
 import { Controller, Get, Post, Query } from '@nestjs/common';
+import { AllowAnonymous } from '@thallesp/nestjs-better-auth';
 import { MessageListQuery } from '@contabilidade/contracts';
+import env from '../../config/env.js';
 import { paginated } from '../../lib/response.interceptor.js';
 import { zodPipe } from '../../lib/zod-pipe.js';
 import { CurrentScope } from '../auth/current-scope.decorator.js';
@@ -31,5 +33,18 @@ export class MessagesController {
   @Post('reminders/run')
   runReminders() {
     return this.reminders.run();
+  }
+}
+
+/** A chave pública VAPID vem da API em vez de ser compilada no bundle do front: ela só faz
+ *  sentido casada com a privada que vive aqui, e um build antigo com a chave antiga produz
+ *  inscrições que o navegador aceita e o servidor nunca consegue usar. Vazia = push
+ *  desligado (dev, ou produção sem as chaves) e a UI não oferece o recurso. */
+@Controller('push')
+@AllowAnonymous()
+export class PushKeyController {
+  @Get('vapid-key')
+  key() {
+    return { key: env.VAPID_PUBLIC_KEY ?? '' };
   }
 }

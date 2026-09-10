@@ -89,7 +89,7 @@ test('link inválido não ativa acesso nem inscreve push', async () => {
   await http(app).post('/upload/token-invalido/access').send({}).expect(404);
   await http(app)
     .post('/upload/token-invalido/push')
-    .send({ endpoint: 'https://exemplo.push/x', keys: { p256dh: 'a', auth: 'b' } })
+    .send({ endpoint: 'https://fcm.googleapis.com/fcm/send/x', keys: { p256dh: 'a', auth: 'b' } })
     .expect(404);
 
   const [row] = await db.select().from(contact).where(eq(contact.email, 'ana@padaria.com'));
@@ -104,7 +104,7 @@ test('push é ativado pelo Link, SEM conta, e fica no Responsável', async () =>
   await http(app)
     .post(`/upload/${token}/push`)
     .send({
-      endpoint: 'https://exemplo.push/abc',
+      endpoint: 'https://fcm.googleapis.com/fcm/send/abc',
       keys: { p256dh: 'chave-p256dh', auth: 'chave-auth' },
     })
     .expect(201);
@@ -119,7 +119,7 @@ test('push é ativado pelo Link, SEM conta, e fica no Responsável', async () =>
 test('reinscrever o mesmo aparelho é upsert, não linha nova', async () => {
   const { token } = await setup();
   const body = {
-    endpoint: 'https://exemplo.push/abc',
+    endpoint: 'https://fcm.googleapis.com/fcm/send/abc',
     keys: { p256dh: 'chave-p256dh', auth: 'chave-auth' },
   };
 

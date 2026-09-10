@@ -1,5 +1,5 @@
 import { CanActivate, ExecutionContext, Injectable } from '@nestjs/common';
-import { and, eq } from 'drizzle-orm';
+import { and, asc, eq } from 'drizzle-orm';
 import { Database } from '../../infra/database/database.js';
 import { company, contact, request } from '../../infra/database/schema/index.js';
 import { Forbidden, NotFound, Unauthenticated, ValidationError } from '../../lib/app-error.js';
@@ -31,6 +31,11 @@ export class ContactUploadGuard implements CanActivate {
       .from(contact)
       .innerJoin(company, eq(company.id, contact.companyId))
       .where(eq(contact.authUserId, session.user.id))
+      /* `contact.auth_user_id` é UNIQUE, então isto já devolve no máximo uma linha — a
+       * ordenação é para o `limit(1)` não depender disso. O que a unicidade custa é outro
+       * problema, e é de produto: a mesma pessoa Responsável por três Empresas só consegue
+       * ter conta em UMA delas. Ver "Gestão de equipe" nos próximos passos. */
+      .orderBy(asc(contact.createdAt), asc(contact.id))
       .limit(1);
 
     if (!me) throw new Forbidden('Esta conta não é de um Responsável de Empresa.');

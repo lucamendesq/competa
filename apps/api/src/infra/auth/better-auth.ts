@@ -7,17 +7,42 @@ import { passkey } from '@better-auth/passkey';
  * o TS recusa exportar algo que cite dependência transitiva (TS2883). Importar o módulo
  * (mesmo sem usar nome nenhum) torna esses tipos nomeáveis. */
 import { v7 as uuidv7 } from 'uuid';
-import env from '../../config/env.js';
+import env, { allowedOrigins } from '../../config/env.js';
 import { db } from '../database/index.js';
 import * as schema from '../database/schema/auth.js';
 import { sendMagicLink } from './magic-link-sender.js';
+
+const sharedDomain = (a: string, b: string) => {
+  const left = a.split('.').reverse();
+  const right = b.split('.').reverse();
+  const common: string[] = [];
+
+  for (let i = 0; i < Math.min(left.length, right.length) && left[i] === right[i]; i++) {
+    common.push(left[i]);
+  }
+
+  return common.reverse().join('.');
+};
+
+const webHost = new URL(env.WEB_URL).hostname;
+const authHost = new URL(env.BETTER_AUTH_URL).hostname;
+const parentDomain = sharedDomain(webHost, authHost);
+
+const crossSubDomain = webHost !== authHost;
+
+if (crossSubDomain && parentDomain.split('.').length < 2) {
+  throw new Error(
+    `WEB_URL (${webHost}) e BETTER_AUTH_URL (${authHost}) não compartilham um domínio: ` +
+      'sirva os dois na mesma origem ou coloque-os sob o mesmo domínio.',
+  );
+}
 
 const auth = betterAuth({
   database: drizzleAdapter(db, {
     provider: 'pg',
     schema,
   }),
-  trustedOrigins: [env.WEB_URL],
+  trustedOrigins: allowedOrigins,
   emailAndPassword: {
     enabled: true,
   },
@@ -37,6 +62,12 @@ const auth = betterAuth({
     database: {
       generateId: () => uuidv7(),
     },
+    ...(crossSubDomain
+      ? {
+          crossSubDomainCookies: { enabled: true, domain: `.${parentDomain}` },
+          defaultCookieAttributes: { sameSite: 'none' as const, secure: true },
+        }
+      : {}),
   },
   hooks: {
     before: createAuthMiddleware(async (ctx) => {

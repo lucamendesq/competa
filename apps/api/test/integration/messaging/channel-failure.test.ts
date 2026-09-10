@@ -96,7 +96,7 @@ test('a rejeição continua gravada mesmo com o email de reenvio falhando', asyn
   expect(row.error).toContain('provedor de email fora do ar');
 });
 
-test('prazo estourado: a varredura conclui e registra falha para Responsável e Contador', async () => {
+test('prazo estourado com email fora do ar: registra a falha e NÃO marca o item como avisado', async () => {
   const session = await createAccountantSession(app);
   await createCompany(app, session.cookie, { name: 'Padaria Central' });
   // competência antiga: os prazos dos itens (dia 5) já venceram
@@ -104,7 +104,11 @@ test('prazo estourado: a varredura conclui e registra falha para Responsável e 
 
   const scan = await http(app).post('/deadlines/scan').set('cookie', session.cookie).expect(201);
 
-  expect(scan.body.data.notified.length).toBeGreaterThan(0);
+  expect(scan.body.data.overdue).toBeGreaterThan(0);
+  /* Canal quebrado não conta como "avisado": `deadline_notified_at` é idempotência, e
+   * marcá-lo aqui faria a varredura de amanhã pular o item para sempre — o Responsável
+   * nunca saberia do prazo. */
+  expect(scan.body.data.notified).toHaveLength(0);
 
   const rows = await waitFor(async () => {
     const all = await db.select().from(message).where(eq(message.purpose, 'deadline_missed'));
@@ -115,6 +119,10 @@ test('prazo estourado: a varredura conclui e registra falha para Responsável e 
   expect(rows.some((row) => row.recipient === session.email)).toBe(true);
   expect(rows.some((row) => row.recipient !== session.email)).toBe(true);
   expect(rows.every((row) => row.error)).toBeTruthy();
+
+  // sem marca, a próxima varredura tenta de novo
+  const items = await db.select().from(requestItem);
+  expect(items.every((row) => row.deadlineNotifiedAt === null)).toBe(true);
 });
 
 test('convite: falha de email não derruba a criação do convite, e não cria linha em message', async () => {

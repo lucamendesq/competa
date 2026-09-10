@@ -41,3 +41,10 @@ export class Forbidden extends AppError {
     super(message);
   }
 }
+
+/** Dependência fora do ar (banco, hoje). 503 e não 500: o orquestrador tira a instância
+ *  do balanceador em vez de tratar como bug da aplicação. */
+export class ServiceUnavailable extends AppError {
+  readonly code = 'SERVICE_UNAVAILABLE';
+  readonly status = 503;
+}

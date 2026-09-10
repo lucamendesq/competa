@@ -1,0 +1,33 @@
+# Deploy from the repo root: flyctl deploy --config apps/api/fly.toml --dockerfile apps/api/Dockerfile .
+app = "competa-api"
+primary_region = "gru"
+
+[build]
+
+[deploy]
+  release_command = "node_modules/.bin/drizzle-kit migrate"
+
+[env]
+  PORT = "3000"
+
+[[services]]
+  internal_port = 3000
+  protocol = "tcp"
+  auto_stop_machines = false
+  auto_start_machines = true
+  min_machines_running = 1
+
+  [[services.ports]]
+    port = 80
+    handlers = ["http"]
+    force_https = true
+
+  [[services.ports]]
+    port = 443
+    handlers = ["tls", "http"]
+
+  [[services.http_checks]]
+    path = "/health"
+    interval = "15s"
+    timeout = "5s"
+    grace_period = "10s"

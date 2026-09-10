@@ -149,11 +149,11 @@ Todo e-mail que chega ao Responsável diz de quem é, resolvido num ponto só (`
 A escolha é do `NODE_ENV`, não da presença de credencial: em `development`/`test` **nenhum
 provedor externo é usado**, e em `production` a subida falha nomeando a variável que falta.
 
-|                      | dev / test                                 | produção                       |
-| -------------------- | ------------------------------------------ | ------------------------------ |
-| Storage (documentos) | disco, em `STORAGE_LOCAL_DIR` (`.storage`) | Cloudflare R2 (`R2_*`)         |
-| E-mail               | log no console (`LogEmail`)                | Resend (`RESEND_API_KEY`)      |
-| Web Push             | log no console                             | VAPID quando as chaves existem |
+|                      | dev / test                                 | produção                                                             |
+| -------------------- | ------------------------------------------ | -------------------------------------------------------------------- |
+| Storage (documentos) | disco, em `STORAGE_LOCAL_DIR` (`.storage`) | Cloudflare R2 (`R2_*`)                                               |
+| E-mail               | log no console (`LogEmail`)                | Resend (`RESEND_API_KEY`)                                            |
+| Web Push             | log no console                             | VAPID; sem as chaves, falha registrada em `message` (não "entregue") |
 
 Isso deixa `pnpm --filter api start:dev` funcionar num clone novo sem nenhuma credencial, e
 tira do produto a chance de um deploy de produção gravar documento no disco do container ou
@@ -162,11 +162,16 @@ tira do produto a chance de um deploy de produção gravar documento no disco do
 
 ## Configuração necessária
 
-- `apps/web/src/environments/environment.ts`: `apiUrl` aponta a raiz da API
+- `apps/web/src/environments/environment.ts` (dev): `apiUrl` aponta a raiz da API
   (`http://localhost:3000`) porque o Nest **não** usa `setGlobalPrefix`; o Better Auth fica
   em `${apiUrl}/api/auth`.
-- `vapidPublicKey` vazia desliga o botão de notificações na área do Responsável. Preencha
-  com a chave pública VAPID (a mesma de `VAPID_PUBLIC_KEY` na API) para habilitar o push.
+- `environment.prod.ts` (usado no build de produção por `fileReplacements` no
+  `angular.json`): `apiUrl` **vazio** — produção serve web e API na mesma origem, atrás de um
+  reverse proxy. Sem o `fileReplacements` o bundle de produção sai apontando para
+  `localhost:3000`; se mexer no `angular.json`, confira com
+  `grep -r localhost:3000 apps/web/dist`.
+- A chave pública VAPID **não** fica no bundle: o front busca em `GET /push/vapid-key` e, se
+  vier vazia, o botão de notificações não aparece. Trocar a chave é mexer só no `.env` da API.
 - `libs/contracts` precisa estar compilado (`pnpm --filter contracts build`): os mesmos
   schemas zod validam o formulário do Angular e o pipe do Nest.
 

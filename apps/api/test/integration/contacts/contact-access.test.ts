@@ -147,7 +147,7 @@ test('Contador vê quem tem acesso, revoga, e a sessão do Responsável morre', 
     .post('/my/push/subscribe')
     .set('cookie', contactCookie)
     .send({
-      endpoint: 'https://exemplo.push/abc',
+      endpoint: 'https://fcm.googleapis.com/fcm/send/abc',
       keys: { p256dh: 'chave-p256dh', auth: 'chave-auth' },
     })
     .expect(201);

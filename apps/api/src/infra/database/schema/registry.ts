@@ -1,6 +1,7 @@
 import {
   boolean,
   check,
+  index,
   jsonb,
   pgTable,
   smallint,
@@ -117,19 +118,29 @@ export const company = pgTable('company', {
   ...timestamps,
 });
 
-export const contact = pgTable('contact', {
-  id: id(),
-  companyId: uuid('company_id')
-    .notNull()
-    .references(() => company.id, { onDelete: 'cascade' }),
-  name: text().notNull(),
-  email: text().notNull(),
-  phone: text(),
-  authUserId: uuid('auth_user_id')
-    .unique()
-    .references(() => user.id, { onDelete: 'set null' }),
-  ...timestamps,
-});
+export const contact = pgTable(
+  'contact',
+  {
+    id: id(),
+    companyId: uuid('company_id')
+      .notNull()
+      .references(() => company.id, { onDelete: 'cascade' }),
+    name: text().notNull(),
+    email: text().notNull(),
+    phone: text(),
+    authUserId: uuid('auth_user_id')
+      .unique()
+      .references(() => user.id, { onDelete: 'set null' }),
+    ...timestamps,
+  },
+  (t) => [
+    /* `email` é a entrada de `/access/recover` — rota pública e sem sessão, o pior lugar
+     * para um seq scan. `company_id` é o join de toda listagem de Empresa (FK no Postgres
+     * não cria índice). */
+    index('contact_email_idx').on(t.email),
+    index('contact_company_idx').on(t.companyId),
+  ],
+);
 
 export const invite = pgTable(
   'invite',

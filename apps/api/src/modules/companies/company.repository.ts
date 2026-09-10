@@ -5,9 +5,11 @@ import {
   type CompanyFlags,
   CreateCompanyBody,
   type ContactBody,
+  MAX_IMPORT_ROWS,
   type UpdateCompanyBody,
 } from '@contabilidade/contracts';
 import * as z from 'zod';
+import { ValidationError } from '../../lib/app-error.js';
 import { Database } from '../../infra/database/database.js';
 import { checklistTemplate, company, contact } from '../../infra/database/schema/index.js';
 import type { FirmScope } from '../auth/scope.js';
@@ -247,17 +249,30 @@ export class CompanyRepository {
     return new Map(rows.map((row) => [row.name.trim().toLowerCase(), row.id]));
   }
 
+  /** Uma transação para a importação inteira, com os dois inserts em lote. Antes era um
+   *  `create()` por linha, fora de transação: 40 mil linhas de um corpo de 2 MB rodavam por
+   *  minutos, o timeout cortava no meio e o tenant ficava com meia carteira dentro, sem
+   *  rollback e sem relatório. Agora ou entra tudo, ou não entra nada — e o relatório por
+   *  linha continua saindo, porque a validação acontece ANTES de tocar o banco. */
   async importFromCsv(scope: FirmScope, csv: string) {
     const records = parseCsvRecords(csv);
+
+    if (records.length > MAX_IMPORT_ROWS) {
+      throw new ValidationError(
+        `A planilha tem ${records.length} linhas; o limite por importação é ${MAX_IMPORT_ROWS}. Divida em lotes.`,
+      );
+    }
+
     const templates = await this.templatesByName(scope);
-    const results: ImportLineResult[] = [];
+    const failed: ImportLineResult[] = [];
+    const pending: { line: number; body: CreateCompanyBody }[] = [];
 
     for (const { line, values } of records) {
       const name = values.name ?? '';
       const templateId = templates.get((values.template ?? '').trim().toLowerCase());
 
       if (!templateId) {
-        results.push({
+        failed.push({
           line,
           status: 'error',
           name,
@@ -281,24 +296,61 @@ export class CompanyRepository {
       });
 
       if (!parsed.success) {
-        results.push({ line, status: 'error', name, error: firstIssue(parsed.error) });
+        failed.push({ line, status: 'error', name, error: firstIssue(parsed.error) });
         continue;
       }
 
-      try {
-        const created = await this.create(scope, parsed.data);
-        results.push({ line, status: 'created', companyId: created.id, name: created.name });
-      } catch (error) {
-        results.push({ line, status: 'error', name, error: describe(error) });
-      }
+      pending.push({ line, body: parsed.data });
     }
+
+    const created = pending.length ? await this.insertBatch(scope, pending) : [];
 
     return {
       total: records.length,
-      created: results.filter((row) => row.status === 'created').length,
-      failed: results.filter((row) => row.status === 'error').length,
-      lines: results,
+      created: created.length,
+      failed: failed.length,
+      lines: [...failed, ...created].sort((a, b) => a.line - b.line),
     };
+  }
+
+  /** `RETURNING` de um INSERT multi-linha devolve na ordem em que os valores foram dados —
+   *  é o que casa cada id com a linha da planilha e com o Responsável dela. */
+  private async insertBatch(
+    scope: FirmScope,
+    pending: { line: number; body: CreateCompanyBody }[],
+  ): Promise<ImportLineResult[]> {
+    try {
+      return await this.db.transaction(async (tx) => {
+        const rows = await tx
+          .insert(company)
+          .values(
+            pending.map(({ body }) => ({
+              accountingFirmId: scope,
+              checklistTemplateId: body.checklistTemplateId,
+              name: body.name,
+              cnpj: body.cnpj ?? null,
+              flags: body.flags,
+            })),
+          )
+          .returning({ id: company.id, name: company.name });
+
+        const contacts = pending.flatMap(({ body }, index) =>
+          body.contact ? [{ ...body.contact, companyId: rows[index].id }] : [],
+        );
+
+        if (contacts.length) await tx.insert(contact).values(contacts);
+
+        return rows.map((row, index) => ({
+          line: pending[index].line,
+          status: 'created' as const,
+          companyId: row.id,
+          name: row.name,
+        }));
+      });
+    } catch (error) {
+      // a transação já desfez tudo: o relatório precisa dizer isso, não listar "criadas"
+      throw new ValidationError(`Nada foi importado — ${describe(error)}`);
+    }
   }
 }
 

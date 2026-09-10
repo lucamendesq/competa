@@ -1,4 +1,4 @@
-import { Injectable } from '@nestjs/common';
+import { Injectable, Logger } from '@nestjs/common';
 import { OnEvent } from '@nestjs/event-emitter';
 import {
   EVENTS,
@@ -29,6 +29,8 @@ import { WebPush } from './providers/web-push.provider.js';
  *  envio não pode desfazer uma rejeição já gravada. */
 @Injectable()
 export class CollectionEventsListener {
+  private readonly logger = new Logger(CollectionEventsListener.name);
+
   constructor(
     private readonly messages: MessageRepository,
     private readonly contacts: ContactRepository,
@@ -45,28 +47,35 @@ export class CollectionEventsListener {
     body: string,
     url?: string,
   ) {
-    const subscriptions = await this.contacts.subscriptionsForRequest(requestId);
-    if (subscriptions.length === 0) return;
+    /* Try/catch em volta de TUDO: estes métodos rodam dentro de um listener de evento, e
+     * `emit` não tem quem pegue a rejeição — uma consulta que falha aqui vira
+     * unhandled rejection e derruba o processo inteiro por causa de uma notificação. */
+    try {
+      const subscriptions = await this.contacts.subscriptionsForRequest(requestId);
+      if (subscriptions.length === 0) return;
 
-    const result = await this.messages.deliverPush(
-      requestId,
-      purpose,
-      subscriptions[0].endpoint,
-      () =>
-        this.push.send({
-          title,
-          body,
-          url,
-          subscriptions: subscriptions.map((row) => ({
-            endpoint: row.endpoint,
-            keys: row.keys as Record<string, string>,
-          })),
-        }),
-    );
+      const result = await this.messages.deliverPush(
+        requestId,
+        purpose,
+        subscriptions[0].endpoint,
+        () =>
+          this.push.send({
+            title,
+            body,
+            url,
+            subscriptions: subscriptions.map((row) => ({
+              endpoint: row.endpoint,
+              keys: row.keys as Record<string, string>,
+            })),
+          }),
+      );
 
-    // inscrição que o navegador descartou não serve mais: sai para não acumular lixo
-    for (const endpoint of result?.gone ?? []) {
-      await this.contacts.deletePushSubscriptionByEndpoint(endpoint);
+      // inscrição que o navegador descartou não serve mais: sai para não acumular lixo
+      for (const endpoint of result?.gone ?? []) {
+        await this.contacts.deletePushSubscriptionByEndpoint(endpoint);
+      }
+    } catch (error) {
+      this.logger.error(`push ${purpose} da Solicitação ${requestId} falhou: ${String(error)}`);
     }
   }
 
@@ -87,9 +96,11 @@ export class CollectionEventsListener {
     });
   }
 
+  /** Devolve se o email saiu: quem emitiu (`/access/recover`) só oficializa o token novo
+   *  depois disso — link rotacionado com email falhado deixaria o Responsável sem nenhum. */
   @OnEvent(EVENTS.UploadLinkResent)
   async onUploadLinkResent(event: UploadLinkResentEvent) {
-    await this.messages.deliver({
+    return this.messages.deliver({
       requestId: event.requestId,
       purpose: 'link_delivery',
       recipient: event.contactEmail,
@@ -157,9 +168,12 @@ export class CollectionEventsListener {
     );
   }
 
+  /** Devolve se o email do RESPONSÁVEL saiu. O cron só marca `deadline_notified_at` com
+   *  isso: marcar antes de confirmar a entrega significa que um provedor de email fora do
+   *  ar faz o contato nunca ser avisado — e a marca impede a próxima varredura de tentar. */
   @OnEvent(EVENTS.DeadlineMissed)
   async onDeadlineMissed(event: DeadlineMissedEvent) {
-    await this.messages.deliver({
+    const delivered = await this.messages.deliver({
       requestId: event.requestId,
       purpose: 'deadline_missed',
       recipient: event.contactEmail,
@@ -182,5 +196,7 @@ export class CollectionEventsListener {
         ...deadlineMissedAccountantEmail(event),
       });
     }
+
+    return delivered;
   }
 }

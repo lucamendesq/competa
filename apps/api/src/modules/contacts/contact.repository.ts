@@ -1,11 +1,12 @@
 import { Injectable } from '@nestjs/common';
-import { and, asc, count, desc, eq, inArray, isNotNull, ne } from 'drizzle-orm';
+import { and, asc, count, desc, eq, inArray, isNotNull, ne, sql } from 'drizzle-orm';
 import { Database } from '../../infra/database/database.js';
 import {
   accountingFirm,
   company,
   contact,
   document,
+  message,
   period,
   pushSubscription,
   request,
@@ -81,6 +82,15 @@ export class ContactRepository {
         referenceMonth: period.referenceMonth,
         periodDueDate: period.dueDate,
         hasAccess: contact.authUserId,
+        /* Última entrega de link para esta Solicitação — é o que segura o cooldown do
+         * "perdi meu link". Falhada não conta: se o email não saiu, o Responsável ainda
+         * está sem link e precisa poder pedir de novo. */
+        lastLinkSentAt: sql<Date | null>`(
+          select max(${message.createdAt}) from ${message}
+          where ${message.requestId} = ${request.id}
+            and ${message.purpose} = 'link_delivery'
+            and ${message.status} <> 'failed'
+        )`,
       })
       .from(contact)
       .innerJoin(company, eq(company.id, contact.companyId))

@@ -62,18 +62,24 @@ export class MessageRepository {
     }
   }
 
+  /** Nunca lança — nem quando é o BANCO que cai. O `insert` do log ficava fora do try, e
+   *  como quem chama é um listener de evento, uma falha ali virava unhandled rejection e
+   *  derrubava o processo. */
   async deliverPush<T extends { sent: number; failed: number; gone: string[] }>(
     requestId: string,
     purpose: MessagePurpose,
     recipient: string,
     send: () => Promise<T>,
   ) {
-    const [row] = await this.db
-      .insert(message)
-      .values({ requestId, channel: 'push', purpose, recipient, status: 'queued' })
-      .returning({ id: message.id });
+    let messageId: string | undefined;
 
     try {
+      const [row] = await this.db
+        .insert(message)
+        .values({ requestId, channel: 'push', purpose, recipient, status: 'queued' })
+        .returning({ id: message.id });
+
+      messageId = row.id;
       const result = await send();
 
       await this.db
@@ -88,13 +94,27 @@ export class MessageRepository {
       return result;
     } catch (error) {
       const reason = error instanceof Error ? error.message : String(error);
-      await this.db
-        .update(message)
-        .set({ status: 'failed', error: reason })
-        .where(eq(message.id, row.id));
+      await this.markFailed(messageId, reason);
       this.logger.error(`push para ${recipient} falhou: ${reason}`);
 
       return undefined;
+    }
+  }
+
+  /** O update é o último recurso de registro: se ele também falhar, resta o log — mas nunca
+   *  uma exceção subindo de dentro do tratamento de erro. */
+  private async markFailed(messageId: string | undefined, reason: string) {
+    if (!messageId) return;
+
+    try {
+      await this.db
+        .update(message)
+        .set({ status: 'failed', error: reason })
+        .where(eq(message.id, messageId));
+    } catch (error) {
+      this.logger.error(
+        `não deu para registrar a falha da mensagem ${messageId}: ${String(error)}`,
+      );
     }
   }
 
@@ -114,19 +134,27 @@ export class MessageRepository {
     return row?.name;
   }
 
+  /** Devolve se a mensagem saiu, e NUNCA lança — nem por falha do banco. Quem chamou
+   *  decide o que fazer: o lembrete não rotaciona o Link se o envio não saiu, o cron de
+   *  prazo não marca o item como avisado, e a recuperação de acesso não oficializa o token
+   *  novo. Canal quebrado nunca sobe como erro. */
   async deliver({ requestId, purpose, recipient, subject, body }: Delivery) {
-    const [row] = await this.db
-      .insert(message)
-      .values({ requestId, channel: this.provider.channel, purpose, recipient, status: 'queued' })
-      .returning({ id: message.id });
-
-    const senderName = await this.firmNameOf(requestId);
-    const assunto = senderName ? `${senderName} · ${subject}` : subject;
-    const corpo = senderName
-      ? `${body}\n<p style="color:#64748b;font-size:12px">Enviado por <b>${senderName}</b> através do Coleta de Documentos.</p>`
-      : body;
+    let messageId: string | undefined;
 
     try {
+      const [row] = await this.db
+        .insert(message)
+        .values({ requestId, channel: this.provider.channel, purpose, recipient, status: 'queued' })
+        .returning({ id: message.id });
+
+      messageId = row.id;
+
+      const senderName = await this.firmNameOf(requestId);
+      const assunto = senderName ? `${senderName} · ${subject}` : subject;
+      const corpo = senderName
+        ? `${body}\n<p style="color:#64748b;font-size:12px">Enviado por <b>${senderName}</b> através do Coleta de Documentos.</p>`
+        : body;
+
       await this.provider.send({ recipient, subject: assunto, body: corpo, senderName });
       await this.db
         .update(message)
@@ -136,14 +164,9 @@ export class MessageRepository {
       return true;
     } catch (error) {
       const reason = error instanceof Error ? error.message : String(error);
-      await this.db
-        .update(message)
-        .set({ status: 'failed', error: reason })
-        .where(eq(message.id, row.id));
+      await this.markFailed(messageId, reason);
       this.logger.error(`envio ${purpose} para ${recipient} falhou: ${reason}`);
 
-      // devolve o resultado em vez de lançar: quem chamou decide (o lembrete, por exemplo,
-      // não rotaciona o Link se o envio não saiu) — e canal quebrado nunca sobe como erro
       return false;
     }
   }

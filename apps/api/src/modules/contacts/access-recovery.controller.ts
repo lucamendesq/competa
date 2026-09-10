@@ -1,10 +1,12 @@
-import { Body, Controller, Post } from '@nestjs/common';
+import { Body, Controller, Logger, Post } from '@nestjs/common';
 import { AllowAnonymous } from '@thallesp/nestjs-better-auth';
 import { EventEmitter2 } from '@nestjs/event-emitter';
 import { Throttle, seconds } from '@nestjs/throttler';
 import { RecoverAccessBody } from '@contabilidade/contracts';
+import { subMinutes } from 'date-fns';
 import env from '../../config/env.js';
 import { EVENTS, type UploadLinkResentEvent } from '../../lib/events.js';
+import { createToken } from '../../lib/token.js';
 import { zodPipe } from '../../lib/zod-pipe.js';
 import { AuthProvider } from '../auth/auth-provider.js';
 import { RequestRepository } from '../requests/request.repository.js';
@@ -21,9 +23,20 @@ const SAME_ANSWER = {
  *  contaria o que a mensagem esconde. */
 const MINIMUM_DURATION_MS = 700;
 
+/** Janela em que um pedido novo NÃO gera link novo. Sem ela, qualquer um que saiba o email
+ *  do Responsável mantém o link da caixa de entrada dele quebrado: cada pedido rotacionava
+ *  o token e matava o que já tinha sido enviado, e 3 req/min bastam. Dentro da janela o
+ *  pedido é aceito, responde igual e não faz nada — o link que está na caixa continua
+ *  valendo.
+ *  ponytail: janela fixa. O certo é confirmar posse do email antes de rotacionar (link de
+ *  confirmação em dois passos); isso é tela nova e ficou para depois. */
+const RESEND_COOLDOWN_MINUTES = 15;
+
 @Controller('access/recover')
 @AllowAnonymous()
 export class AccessRecoveryController {
+  private readonly logger = new Logger(AccessRecoveryController.name);
+
   constructor(
     private readonly contacts: ContactRepository,
     private readonly requests: RequestRepository,
@@ -54,9 +67,15 @@ export class AccessRecoveryController {
       return;
     }
 
+    const cooldownStart = subMinutes(new Date(), RESEND_COOLDOWN_MINUTES);
+
     for (const row of openRequests) {
-      const token = await this.requests.rotateUploadToken(row.requestId, row.contactId);
-      if (!token) continue;
+      if (row.lastLinkSentAt && row.lastLinkSentAt > cooldownStart) continue;
+
+      /* O token vai para o email ANTES de virar o token oficial: `applyUploadToken` só
+       * grava depois que a entrega confirma. Rotacionar primeiro deixaria o Responsável
+       * sem link nenhum toda vez que o provedor de email falhasse. */
+      const { token, tokenHash } = createToken();
 
       const resent: UploadLinkResentEvent = {
         requestId: row.requestId,
@@ -68,7 +87,16 @@ export class AccessRecoveryController {
         uploadUrl: `${env.WEB_URL}/envio/${token}`,
       };
 
-      this.events.emit(EVENTS.UploadLinkResent, resent);
+      /* `emitAsync` e não `emit`: o listener devolve se o email saiu, e sem esperar por
+       * ele não haveria o que confirmar. Nenhum `true` = ninguém entregou. */
+      const delivered = await this.events.emitAsync(EVENTS.UploadLinkResent, resent);
+      if (!delivered.includes(true)) continue;
+
+      const applied = await this.requests.applyUploadToken(row.requestId, tokenHash, row.contactId);
+
+      if (!applied) {
+        this.logger.error(`Solicitação ${row.requestId} sem upload_link: link enviado morto.`);
+      }
     }
   }
 }

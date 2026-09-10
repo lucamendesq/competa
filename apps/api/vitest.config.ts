@@ -1,6 +1,6 @@
 import { defineConfig } from 'vitest/config';
 
-/** Testes rodam contra o banco `contabilidade_test`, migrado de banco vazio pelas mesmas
+/** Testes rodam contra o banco `competa_test`, migrado de banco vazio pelas mesmas
  *  migrations de produção.
  *
  *  `fileParallelism: false` é OBRIGATÓRIO, não preferência: os arquivos compartilham o

@@ -6,7 +6,7 @@ import { setMagicLinkSender } from '../../infra/auth/magic-link-sender.js';
 import { WebPush } from './providers/web-push.provider.js';
 import { magicLinkEmail } from './email-body.js';
 import { MessageRepository } from './message.repository.js';
-import { MessagesController } from './messages.controller.js';
+import { MessagesController, PushKeyController } from './messages.controller.js';
 import { LogEmail } from './providers/log-email.provider.js';
 import { MessageProvider } from './providers/message.provider.js';
 import { ResendEmail } from './providers/resend-email.provider.js';
@@ -22,7 +22,7 @@ new Logger('MessagingModule').log(useResend ? 'ResendEmail' : 'LogEmail (console
   // para rotacionar o Link no lembrete (o token em claro só existe na rotação).
   // Sem ciclo: RequestsModule importa apenas StorageModule.
   imports: [RequestsModule, ContactsModule],
-  controllers: [MessagesController],
+  controllers: [MessagesController, PushKeyController],
   providers: [
     { provide: MessageProvider, useClass: useResend ? ResendEmail : LogEmail },
     MessageRepository,

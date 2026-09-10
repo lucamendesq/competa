@@ -1,5 +1,5 @@
 /** Precisa rodar ANTES de qualquer import que leia `config/env.ts`. */
-process.env.DB_NAME = process.env.TEST_DB_NAME ?? 'contabilidade_test';
+process.env.DB_NAME = process.env.TEST_DB_NAME ?? 'competa_test';
 process.env.BETTER_AUTH_SECRET ??= 'segredo-de-teste-com-tamanho-suficiente';
 process.env.BETTER_AUTH_URL ??= 'http://localhost:3999';
 process.env.WEB_URL ??= 'http://localhost:4200';

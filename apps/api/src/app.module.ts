@@ -6,6 +6,8 @@ import { ConfigModule } from '@nestjs/config';
 import { EventEmitterModule } from '@nestjs/event-emitter';
 import { ScheduleModule } from '@nestjs/schedule';
 import { ThrottlerGuard, ThrottlerModule, seconds } from '@nestjs/throttler';
+import { HealthController } from './health.controller.js';
+import { HealthRepository } from './health.repository.js';
 import { AuthModule } from './modules/auth/auth.module.js';
 import { DatabaseModule } from './infra/database/database.module.js';
 import { TenantGuard } from './modules/auth/tenant.guard.js';
@@ -53,7 +55,9 @@ import { ContactsModule } from './modules/contacts/contacts.module.js';
     MessagingModule,
     ContactsModule,
   ],
+  controllers: [HealthController],
   providers: [
+    HealthRepository,
     // ordem importa: barra o excesso ANTES de resolver sessão e tocar o banco
     { provide: APP_GUARD, useClass: ThrottlerGuard },
     { provide: APP_GUARD, useClass: TenantGuard },

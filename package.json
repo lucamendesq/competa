@@ -9,7 +9,9 @@
     "format": "prettier --write .",
     "format:check": "prettier --check .",
     "predev": "pnpm --filter contracts build",
-    "dev": "pnpm -r --parallel run dev"
+    "dev": "pnpm -r --parallel run dev",
+    "predev:lan": "pnpm --filter contracts build",
+    "dev:lan": "pnpm -r --parallel run dev:lan"
   },
   "devDependencies": {
     "angular-eslint": "^20.0.0",

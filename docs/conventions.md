@@ -51,6 +51,12 @@ Diretivas (`eslint-disable-next-line`, `@ts-expect-error`) não são comentário
 - **Todo repositório exige `FirmScope`, `UploadScope` ou `ContactScope` como parâmetro** — tipos branded criados SÓ pelo `TenantGuard`/`UploadTokenGuard` em `modules/auth/`. Uma regra de lint (`no-restricted-imports`/`no-restricted-syntax` em `eslint.config.mjs`) audita que `Database` só é importado por repositório/guard/script, que os três construtores (`toFirmScope`/`toUploadScope`/`toContactScope`) só são importados dentro de `modules/auth/` e que nenhum dos três tipos é forjado com `as`; contornar o tipo é **bug de segurança**, não de estilo.
 - PK `uuid` gerado na aplicação (uuidv7, não `gen_random_uuid()` do Postgres); FKs com sufixo `_id`; estados como `text` + `check` (nunca enum nativo do Postgres); timestamps `timestamptz`, `created_at` default `now()` em toda tabela.
 
+### Credenciais de banco
+
+- **Database:** `competa` — sem sufixo de ambiente; produção (Supabase) e dev (Postgres local via `docker-compose.yml`) já são instâncias separadas, então o sufixo só convidaria erro de copiar/colar na connection string.
+- **Role de runtime:** `competa_api` — único role hoje (dev solo, um único consumidor). Criar `competa_migrator` separado só quando migration parar de rodar com o mesmo role que serve tráfego; não antes.
+- **Senha:** em dev, nenhuma (`POSTGRES_HOST_AUTH_METHOD=trust` no compose — o Postgres local não sai da rede da máquina). Em produção, a que o Supabase gera; nunca commitada, nunca em log; guardada só como secret do Fly (`flyctl secrets set`).
+
 ## API
 
 - REST na API Nest; endpoints kebab-case, plural para coleções (`/companies`, `/periods/:id/close`).

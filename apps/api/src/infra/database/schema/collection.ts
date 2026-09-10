@@ -118,20 +118,30 @@ export const document = pgTable(
     check('document_review_status_chk', oneOf(sql`${t.reviewStatus}`, DOCUMENT_REVIEW_STATUS)),
     check('document_upload_status_chk', oneOf(sql`${t.uploadStatus}`, DOCUMENT_UPLOAD_STATUS)),
     index('document_pending_upload_idx').on(t.uploadStatus, t.createdAt),
+    /* Chave estrangeira não cria índice no Postgres. Estes dois são o caminho de TODA tela
+     * de revisão e de todo zip ("os documentos desta Solicitação", "deste Item"), e sem
+     * eles é seq scan em `document` — a tabela que mais cresce no produto. */
+    index('document_request_idx').on(t.requestId),
+    index('document_request_item_idx').on(t.requestItemId),
   ],
 );
 
 /** Link de Upload — token próprio, NÃO é sessão/auth. Só o hash é persistido. */
-export const uploadLink = pgTable('upload_link', {
-  id: id(),
-  requestId: uuid('request_id')
-    .notNull()
-    .references(() => request.id, { onDelete: 'cascade' }),
-  contactId: uuid('contact_id')
-    .notNull()
-    .references(() => contact.id),
-  tokenHash: text('token_hash').notNull().unique(),
-  expiresAt: timestamp('expires_at', { withTimezone: true }).notNull(),
-  revoked: boolean().notNull().default(false),
-  ...timestamps,
-});
+export const uploadLink = pgTable(
+  'upload_link',
+  {
+    id: id(),
+    requestId: uuid('request_id')
+      .notNull()
+      .references(() => request.id, { onDelete: 'cascade' }),
+    contactId: uuid('contact_id')
+      .notNull()
+      .references(() => contact.id),
+    tokenHash: text('token_hash').notNull().unique(),
+    expiresAt: timestamp('expires_at', { withTimezone: true }).notNull(),
+    revoked: boolean().notNull().default(false),
+    ...timestamps,
+  },
+  // toda rotação e todo reenvio buscam por `request_id`; o índice do token não serve aqui
+  (t) => [index('upload_link_request_idx').on(t.requestId)],
+);

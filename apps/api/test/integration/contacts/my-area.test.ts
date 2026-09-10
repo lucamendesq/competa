@@ -194,7 +194,7 @@ test('Competência de outra Empresa não aparece nem por id', async () => {
 
 test('inscrição de push é upsert por endpoint e o push sai no evento de rejeição', async () => {
   const { cookie, session, token } = await setup();
-  const endpoint = 'https://exemplo.push/abc';
+  const endpoint = 'https://fcm.googleapis.com/fcm/send/abc';
 
   await http(app)
     .post('/my/push/subscribe')

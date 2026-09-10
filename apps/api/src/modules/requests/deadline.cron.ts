@@ -4,6 +4,7 @@ import { Cron, CronExpression } from '@nestjs/schedule';
 import { format } from 'date-fns';
 import env from '../../config/env.js';
 import { EVENTS, type DeadlineMissedEvent } from '../../lib/events.js';
+import { createToken } from '../../lib/token.js';
 import type { FirmScope } from '../auth/scope.js';
 import { subHours } from 'date-fns';
 import { StorageProvider } from '../../infra/storage/storage.provider.js';
@@ -64,9 +65,12 @@ export class DeadlineCron {
       ...new Set(pendingNotice.map((row) => row.accountingFirmId)),
     ]);
 
-    // Um token por Solicitação por varredura: rotacionar por item deixaria o email do item
-    // anterior com um link já morto.
-    const tokenByRequest = new Map<string, string>();
+    /* Um token por Solicitação por varredura: rotacionar por item deixaria o email do item
+     * anterior com um link já morto. E o token só passa a valer (`applyUploadToken`) depois
+     * que a primeira entrega confirma — rotacionar antes deixaria o Responsável sem link
+     * nenhum quando o provedor de email estivesse fora do ar. */
+    const linkByRequest = new Map<string, { token: string; tokenHash: string }>();
+    const applied = new Set<string>();
     const notified: {
       requestItemId: string;
       itemName: string;
@@ -75,10 +79,8 @@ export class DeadlineCron {
     }[] = [];
 
     for (const row of pendingNotice) {
-      const token =
-        tokenByRequest.get(row.requestId) ?? (await this.requests.rotateUploadToken(row.requestId));
-      if (!token) continue;
-      tokenByRequest.set(row.requestId, token);
+      const link = linkByRequest.get(row.requestId) ?? createToken();
+      linkByRequest.set(row.requestId, link);
 
       const missed: DeadlineMissedEvent = {
         requestId: row.requestId,
@@ -88,11 +90,29 @@ export class DeadlineCron {
         companyName: row.companyName,
         contactName: row.contactName,
         contactEmail: row.contactEmail,
-        uploadUrl: `${env.WEB_URL}/envio/${token}`,
+        uploadUrl: `${env.WEB_URL}/envio/${link.token}`,
         accountantEmails: emailsByFirm.get(row.accountingFirmId) ?? [],
       };
 
-      this.events.emit(EVENTS.DeadlineMissed, missed);
+      /* `emitAsync` e não `emit`: só marca `deadline_notified_at` o item cujo email
+       * REALMENTE saiu. Marcar antes de confirmar a entrega faz um provedor de email fora
+       * do ar virar contato nunca avisado — a marca é idempotente e a varredura de amanhã
+       * pula o item para sempre. */
+      const delivered = await this.events.emitAsync(EVENTS.DeadlineMissed, missed);
+      if (!delivered.includes(true)) {
+        this.logger.warn(`Prazo de "${row.itemName}" não avisado: o email não saiu.`);
+        continue;
+      }
+
+      if (!applied.has(row.requestId)) {
+        if (!(await this.requests.applyUploadToken(row.requestId, link.tokenHash))) {
+          this.logger.error(`Solicitação ${row.requestId} sem upload_link: link enviado morto.`);
+          continue;
+        }
+
+        applied.add(row.requestId);
+      }
+
       notified.push({
         requestItemId: row.requestItemId,
         itemName: row.itemName,
@@ -101,7 +121,9 @@ export class DeadlineCron {
       });
     }
 
-    await this.requests.markDeadlineNotified(notified.map((row) => row.requestItemId));
+    if (notified.length) {
+      await this.requests.markDeadlineNotified(notified.map((row) => row.requestItemId));
+    }
 
     return {
       overdue: overdue.length,

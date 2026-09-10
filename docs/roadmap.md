@@ -6,6 +6,10 @@ Regras de leitura:
 
 1. **Faça na ordem.** Cada tarefa só depende da anterior necessária (coluna "Depende").
 2. **Uma tabela por vez.** A coluna "Tabelas novas" diz o que entra no banco. Divergência entre migration e [`database-schema.md`](./database-schema.md) (canônico) é bug — corrija um dos dois na mesma PR.
+
+> **O que está fora deste roadmap** — cobrança, WhatsApp, deploy/CI, LGPD operacional e
+> backup — está inventariado em [`next-steps.md`](./next-steps.md).
+
 3. **Sempre demonstrável.** A coluna "Demonstrável depois desta" é o que você consegue mostrar rodando localmente. Se não dá pra demonstrar, a fatia está grande demais — quebre mais. (Deploy e CI ficaram **fora do roadmap v1**, por decisão de 2026-09-02: o produto roda local até haver o que colocar no ar.)
 4. Stack canônica: **Angular SPA (CSR) + NestJS + pnpm workspaces + `libs/contracts` (zod) + Drizzle/Postgres + Better Auth + R2** (ver [`decisions.md`](./decisions.md)).
 

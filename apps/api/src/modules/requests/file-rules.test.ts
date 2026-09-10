@@ -1,6 +1,12 @@
 import assert from 'node:assert/strict';
 import { test } from 'vitest';
-import { MAX_FILE_BYTES, buildStorageKey, fileExtension, rejectionReason } from './file-rules.js';
+import {
+  MAX_FILE_BYTES,
+  buildStorageKey,
+  fileExtension,
+  rejectionReason,
+  servedContentType,
+} from './file-rules.js';
 
 const pdf = { fileName: 'Notas Fiscais.PDF', contentType: 'application/pdf', sizeBytes: 1024 };
 
@@ -44,4 +50,29 @@ test('storage_key é escopado e ignora o nome enviado pelo Responsável', () => 
     }),
     'firm/firm-1/period/2026-08-01/request/req-1/doc-1.pdf',
   );
+});
+
+test('HTML enviado como documento nunca sai renderizável', () => {
+  assert.deepEqual(servedContentType('text/html'), {
+    contentType: 'application/octet-stream',
+    inline: false,
+  });
+  assert.deepEqual(servedContentType('image/svg+xml'), {
+    contentType: 'application/octet-stream',
+    inline: false,
+  });
+  // 'constructor' existe no protótipo de um objeto literal: a allowlist não pode cair nessa
+  assert.deepEqual(servedContentType('constructor'), {
+    contentType: 'application/octet-stream',
+    inline: false,
+  });
+});
+
+test('só PDF e imagem abrem inline; o resto da allowlist vira anexo', () => {
+  assert.deepEqual(servedContentType('application/pdf; charset=utf-8'), {
+    contentType: 'application/pdf',
+    inline: true,
+  });
+  assert.deepEqual(servedContentType('IMAGE/PNG'), { contentType: 'image/png', inline: true });
+  assert.deepEqual(servedContentType('text/xml'), { contentType: 'text/xml', inline: false });
 });

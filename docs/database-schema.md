@@ -114,7 +114,11 @@ create table contact (                    -- Responsável (recebe o link, envia 
   auth_user_id  uuid unique references "user"(id) on delete set null
                                           -- nullable (D-04): login do Responsável é opcional,
                                           -- preenchido só se cadastrar no App; upload nunca exige conta
+                                          -- UNIQUE: a mesma pessoa Responsável por N Empresas
+                                          -- só tem conta em UMA (limitação conhecida — ver next-steps.md)
 );
+create index contact_email_idx on contact (email);        -- entrada de /access/recover (rota pública)
+create index contact_company_idx on contact (company_id); -- FK não cria índice no Postgres
 
 create table invite (                     -- Convite (D-03): serve os dois casos —
                                           -- convidar Contador (accounting_firm_id) ou
@@ -208,6 +212,8 @@ create table document (                   -- arquivo enviado (1 Item : N Documen
                       check (review_status in ('pending','accepted','rejected')),
   rejection_reason  text
 );
+create index document_request_idx on document (request_id);           -- revisão e zip
+create index document_request_item_idx on document (request_item_id); -- documentos de um Item
 
 create table upload_link (                -- Link de Upload (token próprio; NÃO é sessão/auth)
   id          uuid primary key,
@@ -217,6 +223,7 @@ create table upload_link (                -- Link de Upload (token próprio; NÃ
   expires_at  timestamptz not null,
   revoked     boolean not null default false
 );
+create index upload_link_request_idx on upload_link (request_id); -- toda rotação/reenvio busca por aqui
 ```
 
 O token só existe em claro no momento em que é gerado: **rotacionar é a única forma de
@@ -342,6 +349,8 @@ create table push_subscription (          -- Web Push da PWA do Responsável
   contact_id  uuid not null references contact(id) on delete cascade,
   provider    text not null default 'web' check (provider in ('web','fcm')),
   endpoint    text not null unique,       -- chave natural: o navegador troca a inscrição
+                                          -- allowlist de host na entrada (contracts/upload.ts):
+                                          -- é uma URL que o servidor busca depois, logo SSRF
   keys        jsonb not null              -- web: {p256dh, auth}; fcm (futuro): token
 );
 ```

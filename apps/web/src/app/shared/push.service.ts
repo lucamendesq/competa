@@ -1,5 +1,5 @@
 import { Service, inject, signal } from '@angular/core';
-import { environment } from '../../environments/environment';
+import { Api } from '../core/http/api';
 import { Toaster } from '../core/ui/toast';
 import { apiErrorMessage } from '../core/http/api-error';
 
@@ -21,23 +21,43 @@ const toBase64 = (buffer: ArrayBuffer | null) =>
 /** Web Push do Responsável, oferecido nos DOIS lugares: na tela de sucesso do envio (onde
  *  o `save` grava pelo token do Link, sem conta) e na área logada. Quem chama decide como
  *  a inscrição é persistida — a permissão do navegador e o service worker são iguais.
- *  Sem `vapidPublicKey` configurada não há como assinar a inscrição, então a UI não
+ *
+ *  A chave pública VAPID vem da API (`GET /push/vapid-key`), não do bundle: ela só vale
+ *  casada com a privada do servidor, e chave compilada envelhece sem ninguém notar. Sem
+ *  chave (dev, ou produção sem VAPID configurado) `available()` fica falso e a UI não
  *  oferece o recurso. */
 @Service()
 export class PushService {
+  private readonly api = inject(Api);
   private readonly toaster = inject(Toaster);
 
-  readonly available =
-    Boolean(environment.vapidPublicKey) &&
-    typeof Notification !== 'undefined' &&
-    'serviceWorker' in navigator &&
-    'PushManager' in window;
+  private readonly supported =
+    typeof Notification !== 'undefined' && 'serviceWorker' in navigator && 'PushManager' in window;
 
+  private key = '';
+
+  readonly available = signal(false);
   readonly subscribed = signal(false);
   readonly subscribing = signal(false);
 
+  constructor() {
+    if (this.supported) void this.loadKey();
+  }
+
+  /** Falha silenciosa de propósito: chave indisponível é "push desligado", não erro na
+   *  cara de quem só queria enviar um documento. */
+  private async loadKey() {
+    try {
+      const { key } = await this.api.get<{ key: string }>('/push/vapid-key');
+      this.key = key;
+      this.available.set(Boolean(key));
+    } catch {
+      this.available.set(false);
+    }
+  }
+
   async subscribe(save: (payload: PushSubscriptionPayload) => Promise<unknown>) {
-    if (!this.available) return;
+    if (!this.available()) return;
 
     this.subscribing.set(true);
 
@@ -50,7 +70,7 @@ export class PushService {
       const registration = await navigator.serviceWorker.ready;
       const subscription = await registration.pushManager.subscribe({
         userVisibleOnly: true,
-        applicationServerKey: bytesFromBase64(environment.vapidPublicKey),
+        applicationServerKey: bytesFromBase64(this.key),
       });
 
       await save({

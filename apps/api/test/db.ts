@@ -11,7 +11,7 @@ export const resetDatabase = async () => {
    * banco de desenvolvimento), a suíte destruiria os dados locais em silêncio — já
    * aconteceu. Melhor falhar alto do que limpar o banco errado. */
   const dbName = process.env.DB_NAME;
-  const expected = process.env.TEST_DB_NAME ?? 'contabilidade_test';
+  const expected = process.env.TEST_DB_NAME ?? 'competa_test';
 
   if (dbName !== expected) {
     throw new Error(

@@ -4,18 +4,24 @@
 export const MAX_FILE_BYTES = 100 * 1024 * 1024;
 export const MAX_FILES_PER_UPLOAD = 500;
 
-const EXTENSION_BY_CONTENT_TYPE: Record<string, string> = {
-  'application/pdf': 'pdf',
-  'application/zip': 'zip',
-  'application/x-zip-compressed': 'zip',
-  'application/xml': 'xml',
-  'text/xml': 'xml',
-  'text/csv': 'csv',
-  'image/jpeg': 'jpg',
-  'image/png': 'png',
-  'application/vnd.ms-excel': 'xls',
-  'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet': 'xlsx',
-};
+/* `Object.create(null)`: com um objeto literal, `'constructor' in mapa` é true e
+ * `mapa['constructor']` devolve uma função — um content-type inventado passaria pela
+ * allowlist e entraria no nome do arquivo no storage. */
+export const EXTENSION_BY_CONTENT_TYPE: Record<string, string> = Object.assign(
+  Object.create(null) as Record<string, string>,
+  {
+    'application/pdf': 'pdf',
+    'application/zip': 'zip',
+    'application/x-zip-compressed': 'zip',
+    'application/xml': 'xml',
+    'text/xml': 'xml',
+    'text/csv': 'csv',
+    'image/jpeg': 'jpg',
+    'image/png': 'png',
+    'application/vnd.ms-excel': 'xls',
+    'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet': 'xlsx',
+  },
+);
 
 export type UploadedFile = { fileName: string; contentType: string; sizeBytes: number };
 
@@ -73,4 +79,23 @@ export const confirmationRefusal = (input: {
   }
 
   return null;
+};
+
+/** Só estes o navegador pode renderizar na própria aba. PDF e imagem são inertes; qualquer
+ *  outro (HTML à frente de todos) vira `attachment`. */
+const INLINE_CONTENT_TYPES = new Set(['application/pdf', 'image/png', 'image/jpeg']);
+
+/** O `content_type` guardado é o que o Responsável DECLAROU no presign — ninguém verifica
+ *  o conteúdo, e `text/html` com script executaria na origem da API, onde vive o cookie de
+ *  sessão do Contador (e, via `blob:`, na origem do front). Por isso o que sai na resposta
+ *  nunca é o valor cru: fora da allowlist vira `application/octet-stream`, e `inline` só
+ *  para os três formatos que o painel realmente pré-visualiza. */
+export const servedContentType = (declared: string) => {
+  const normalized = declared.split(';')[0].trim().toLowerCase();
+  const allowed = normalized in EXTENSION_BY_CONTENT_TYPE;
+
+  return {
+    contentType: allowed ? normalized : 'application/octet-stream',
+    inline: allowed && INLINE_CONTENT_TYPES.has(normalized),
+  };
 };

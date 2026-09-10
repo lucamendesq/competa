@@ -18,6 +18,7 @@ Para o resumo operacional (como trabalhar aqui, o que nunca violar), comece pelo
 | [`decisions.md`](./decisions.md)               | Registro de decisões arquiteturais (ADR-001…011) com racional e alternativas                                      |
 | [`roadmap.md`](./roadmap.md)                   | Backlog v1 em fatias finas (TASK-001…037), fases e marcos de validação                                            |
 | [`frontend-status.md`](./frontend-status.md)   | Telas do `apps/web`: o que existe, o que ficou degradado por falta de rota e o que precisa de configuração        |
+| [`next-steps.md`](./next-steps.md)             | O que falta para "completo": produto, deploy/CI, observabilidade, LGPD operacional e backup                       |
 
 ## Como manter
 

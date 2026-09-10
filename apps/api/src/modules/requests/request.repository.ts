@@ -537,15 +537,18 @@ export class RequestRepository {
     }, new Map<string, string[]>());
   }
 
-  /** Rotaciona o token do Link e devolve o token em claro (só existe aqui). O `requestId`
-   *  vem sempre de uma consulta já escopada. */
   /** Persiste um token já gerado. Existe separado do `rotateUploadToken` para quem precisa
    *  MONTAR a mensagem com o link novo e só oficializar a troca depois de o envio dar
    *  certo — rotacionar antes deixaria o Responsável sem link nenhum se o email falhasse. */
-  async applyUploadToken(requestId: string, tokenHash: string) {
+  async applyUploadToken(requestId: string, tokenHash: string, contactId?: string) {
     const [row] = await this.db
       .update(uploadLink)
-      .set({ tokenHash, expiresAt: addDays(new Date(), env.UPLOAD_LINK_TTL_DAYS) })
+      .set({
+        tokenHash,
+        expiresAt: addDays(new Date(), env.UPLOAD_LINK_TTL_DAYS),
+        // reaponta o Link para quem pediu — ver `rotateUploadToken`
+        ...(contactId ? { contactId } : {}),
+      })
       .where(eq(uploadLink.requestId, requestId))
       .returning({ id: uploadLink.id });
 

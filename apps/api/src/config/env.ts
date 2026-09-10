@@ -25,6 +25,16 @@ const envSchema = z
     BETTER_AUTH_SECRET: z.string({ error: 'BETTER_AUTH_SECRET is required' }),
     BETTER_AUTH_URL: z.string({ error: 'BETTER_AUTH_URL is required' }),
     WEB_URL: z.url({ error: 'WEB_URL is required' }),
+    TRUSTED_ORIGINS: z
+      .string()
+      .optional()
+      .default('')
+      .transform((value) =>
+        value
+          .split(',')
+          .map((origin) => origin.trim().replace(/\/$/, ''))
+          .filter(Boolean),
+      ),
     INVITE_TTL_DAYS: z.string().optional().transform(Number).default(7),
     UPLOAD_LINK_TTL_DAYS: z.string().optional().transform(Number).default(30),
     R2_ACCOUNT_ID: blankAsMissing(z.string()),
@@ -61,3 +71,10 @@ if (error || !env) {
 }
 
 export default env as Env;
+
+/** Origens que o navegador pode usar para falar com a API. Não existe curinga aqui: com
+ *  `credentials: true` o navegador recusa `Access-Control-Allow-Origin: *`, então cada
+ *  origem precisa voltar ecoada. `TRUSTED_ORIGINS` é a porta para testar de outro
+ *  aparelho na rede local (`http://192.168.0.133:4200`) sem trocar a `WEB_URL`, que
+ *  continua sendo a que vai dentro de e-mail e Link de Upload. */
+export const allowedOrigins = [env.WEB_URL, ...env.TRUSTED_ORIGINS];
