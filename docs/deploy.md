@@ -2,7 +2,9 @@
 
 Stack: **Supabase** (Postgres) + **Fly.io** (API, Docker) + **Cloudflare Pages** (web estático).
 Domínio: `competa.com.br` (`app.` = web, `api.` = API). CI em `.github/workflows/`:
-`ci.yml` roda em todo push/PR; `deploy.yml` builda e sobe os dois lados em todo push em `main`.
+`ci.yml` roda em todo push/PR e, **só depois do job de teste passar**, os jobs de deploy
+sobem API e web em push na `main` (2026-09-11: `deploy.yml` foi absorvido pelo `ci.yml`).
+`backup.yml` roda o dump diário do Postgres — setup próprio em [`backup.md`](./backup.md).
 
 Isto é o que só um humano com as contas pode fazer — depois do primeiro deploy manual, o
 CI assume.
@@ -27,6 +29,7 @@ CI assume.
 flyctl apps create competa-api
 flyctl secrets set -a competa-api \
   DB_HOST=... DB_PORT=5432 DB_USER=... DB_PASS=... DB_NAME=... \
+  DB_SSL_CA="$(cat supabase-ca.crt)" \
   BETTER_AUTH_SECRET="$(openssl rand -base64 32)" \
   BETTER_AUTH_URL=https://api.competa.com.br \
   WEB_URL=https://app.competa.com.br \
@@ -37,12 +40,18 @@ flyctl secrets set -a competa-api \
 # gerar o par VAPID antes do set acima, se ainda não existir:
 npx web-push generate-vapid-keys
 
+# DB_SSL_CA (obrigatório desde a TASK-040 — sem ela o boot de produção falha):
+# Supabase dashboard → Settings → Database → SSL Configuration → baixar o certificado CA
+# (supabase-ca.crt) e passar o PEM inteiro no secret, como acima.
+
 # primeiro deploy manual (a partir da raiz do repo)
 flyctl deploy --config apps/api/fly.toml --dockerfile apps/api/Dockerfile
 
 flyctl certs add api.competa.com.br -a competa-api
 # segue a instrução impressa (CNAME api -> competa-api.fly.dev na Cloudflare, DNS-only —
 # sem o proxy laranja, senão o handshake TLS do Fly não fecha)
+# ⚠ HTTP-1 (audit): se um dia o app competa-api for deletado, REMOVA o CNAME ANTES —
+# CNAME apontando para *.fly.dev órfão é candidato a subdomain takeover.
 ```
 
 Token pro CI: `flyctl tokens create deploy -a competa-api` → secret `FLY_API_TOKEN` no GitHub.
@@ -64,15 +73,20 @@ wrangler pages project create competa-web
 
 Settings → Secrets and variables → Actions:
 
-| Secret                  | De onde        |
-| ------------------------ | --------------- |
-| `FLY_API_TOKEN`          | passo 2          |
-| `CLOUDFLARE_API_TOKEN`   | passo 3          |
-| `CLOUDFLARE_ACCOUNT_ID`  | passo 3          |
+| Secret                        | De onde                                    |
+| ----------------------------- | ------------------------------------------- |
+| `FLY_API_TOKEN`               | passo 2                                     |
+| `CLOUDFLARE_API_TOKEN`        | passo 3                                     |
+| `CLOUDFLARE_ACCOUNT_ID`       | passo 3                                     |
+| `BACKUP_DATABASE_URL`         | [`backup.md`](./backup.md) (setup do backup) |
+| `BACKUP_R2_ACCESS_KEY_ID`     | idem                                        |
+| `BACKUP_R2_SECRET_ACCESS_KEY` | idem                                        |
+| `BACKUP_R2_ENDPOINT`          | idem                                        |
 
 ## 5. Depois disso
 
-- Todo push em `main`: `ci.yml` builda/lint/testa, `deploy.yml` sobe API e web.
+- Todo push em `main`: `ci.yml` builda/lint/testa e, com o CI verde, os jobs `deploy-api`
+  e `deploy-web` do mesmo workflow sobem API e web.
 - Migrations rodam sozinhas — `release_command` no `fly.toml` roda
   `drizzle-kit migrate` antes do tráfego virar para a versão nova.
 - Trocar a chave VAPID **não** exige rebuild do Angular (`GET /push/vapid-key` serve a
@@ -80,5 +94,7 @@ Settings → Secrets and variables → Actions:
 
 ## Fora deste runbook
 
-Rastreamento de erro (Sentry), backup automatizado do Postgres/R2, LGPD operacional,
-WhatsApp — inventariados em [`next-steps.md`](./next-steps.md).
+- **Backup** (dump diário + bucket dedicado + restore): [`backup.md`](./backup.md).
+- **Retenção/expurgo**: [`retention.md`](./retention.md).
+- Sentry já está instrumentado (DSN via env nos dois apps).
+- Cobrança e WhatsApp seguem em [`next-steps.md`](./next-steps.md).

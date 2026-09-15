@@ -1,5 +1,6 @@
 export * from './common.js';
 export * from './pagination.js';
+export * from './firm.js';
 export * from './invite.js';
 export * from './registry.js';
 export * from './document-type.js';
@@ -9,3 +10,4 @@ export * from './period.js';
 export * from './upload.js';
 export * from './message.js';
 export * from './review.js';
+export * from './contact.js';

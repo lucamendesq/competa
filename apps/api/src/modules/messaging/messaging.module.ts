@@ -2,9 +2,9 @@ import { Logger, Module, type OnModuleInit } from '@nestjs/common';
 import env from '../../config/env.js';
 import { RequestsModule } from '../requests/requests.module.js';
 import { ContactsModule } from '../contacts/contacts.module.js';
-import { setMagicLinkSender } from '../../infra/auth/magic-link-sender.js';
+import { setMagicLinkSender, setResetPasswordSender } from '../../infra/auth/magic-link-sender.js';
 import { WebPush } from './providers/web-push.provider.js';
-import { magicLinkEmail } from './email-body.js';
+import { magicLinkEmail, resetPasswordEmail } from './email-body.js';
 import { MessageRepository } from './message.repository.js';
 import { MessagesController, PushKeyController } from './messages.controller.js';
 import { LogEmail } from './providers/log-email.provider.js';
@@ -39,6 +39,9 @@ export class MessagingModule implements OnModuleInit {
   onModuleInit() {
     setMagicLinkSender(async ({ email, url }) => {
       await this.messages.sendWithoutLog({ recipient: email, ...magicLinkEmail({ email, url }) });
+    });
+    setResetPasswordSender(async ({ email, url }) => {
+      await this.messages.sendWithoutLog({ recipient: email, ...resetPasswordEmail({ url }) });
     });
   }
 }

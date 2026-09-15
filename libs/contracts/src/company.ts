@@ -33,17 +33,21 @@ export const Cnpj = z
   .refine((v) => !/^(\d)\1{13}$/.test(v), 'CNPJ inválido')
   .refine(cnpjCheckDigitsMatch, 'CNPJ inválido: dígitos verificadores não conferem');
 
+export const Phone = z
+  .string()
+  .transform((v) => v.replace(/\D/g, ''))
+  .refine((v) => v.length >= 8, 'Telefone incompleto.');
+
 export const ContactBody = z.object({
   name: z.string().trim().min(1, 'Informe o nome do Responsável.'),
-  // a mensagem chega ao usuário (formulário do Angular e relatório de importação)
   email: z.email('E-mail inválido.'),
-  phone: z.string().trim().min(8, 'Telefone incompleto.').optional(),
+  phone: Phone.optional(),
 });
 export type ContactBody = z.infer<typeof ContactBody>;
 
 export const CreateCompanyBody = z.object({
-  name: z.string().trim().min(1),
-  checklistTemplateId: z.uuid(),
+  name: z.string().trim().min(1, 'Informe o nome da Empresa.'),
+  checklistTemplateId: z.uuid().optional(),
   cnpj: Cnpj.optional(),
   flags: CompanyFlags.default({}),
   contact: ContactBody.optional(),
@@ -52,14 +56,20 @@ export type CreateCompanyBody = z.infer<typeof CreateCompanyBody>;
 
 export const UpdateCompanyBody = z
   .object({
-    name: z.string().trim().min(1),
-    checklistTemplateId: z.uuid(),
+    name: z.string().trim().min(1, 'Informe o nome da Empresa.'),
+    checklistTemplateId: z.uuid().nullable(),
     cnpj: Cnpj.nullable(),
     flags: CompanyFlags,
     active: z.boolean(),
   })
   .partial();
 export type UpdateCompanyBody = z.infer<typeof UpdateCompanyBody>;
+
+export const ApplyTemplateBody = z.object({
+  companyIds: z.array(z.uuid()).min(1).max(500),
+  checklistTemplateId: z.uuid(),
+});
+export type ApplyTemplateBody = z.infer<typeof ApplyTemplateBody>;
 
 export const CompanyQuery = PaginationQuery.extend({
   active: z.stringbool().optional(),
@@ -79,3 +89,13 @@ export const ImportCompaniesBody = z.object({
     .max(MAX_IMPORT_ROWS * 1024, 'Arquivo grande demais. Importe em lotes menores.'),
 });
 export type ImportCompaniesBody = z.infer<typeof ImportCompaniesBody>;
+
+/** O front reenvia exatamente o que recebeu de `/companies/import` (as linhas já
+ *  validadas) — nada é gravado até este passo. */
+export const ImportConfirmBody = z.object({
+  pending: z
+    .array(z.object({ line: z.number(), body: CreateCompanyBody }))
+    .min(1)
+    .max(MAX_IMPORT_ROWS),
+});
+export type ImportConfirmBody = z.infer<typeof ImportConfirmBody>;

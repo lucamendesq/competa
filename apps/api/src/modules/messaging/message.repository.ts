@@ -1,6 +1,7 @@
 import { Injectable, Logger } from '@nestjs/common';
 import { and, count, desc, eq, inArray, sql } from 'drizzle-orm';
 import type { MessageListQuery } from '@contabilidade/contracts';
+import { reportChannelFailure } from '../../lib/observability.js';
 import { Database } from '../../infra/database/database.js';
 import {
   accountingFirm,
@@ -14,7 +15,7 @@ import {
 } from '../../infra/database/schema/index.js';
 import type { FirmScope } from '../auth/scope.js';
 import { MessageProvider } from './providers/message.provider.js';
-import type { ReminderCandidate } from './reminder-rules.js';
+import type { ReminderCandidate, ReminderSettings } from './reminder-rules.js';
 
 const PENDING_ITEM_STATUS = ['pending', 'rejected'] as const;
 
@@ -58,6 +59,7 @@ export class MessageRepository {
       return true;
     } catch (error) {
       this.logger.error(`envio para ${input.recipient} falhou`, error);
+      reportChannelFailure('email', 'transient', error);
       return false;
     }
   }
@@ -96,6 +98,7 @@ export class MessageRepository {
       const reason = error instanceof Error ? error.message : String(error);
       await this.markFailed(messageId, reason);
       this.logger.error(`push para ${recipient} falhou: ${reason}`);
+      reportChannelFailure('push', purpose, error);
 
       return undefined;
     }
@@ -150,12 +153,7 @@ export class MessageRepository {
       messageId = row.id;
 
       const senderName = await this.firmNameOf(requestId);
-      const assunto = senderName ? `${senderName} · ${subject}` : subject;
-      const corpo = senderName
-        ? `${body}\n<p style="color:#64748b;font-size:12px">Enviado por <b>${senderName}</b> através do Coleta de Documentos.</p>`
-        : body;
-
-      await this.provider.send({ recipient, subject: assunto, body: corpo, senderName });
+      await this.provider.send({ recipient, subject, body, senderName });
       await this.db
         .update(message)
         .set({ status: 'sent', sentAt: new Date() })
@@ -166,6 +164,7 @@ export class MessageRepository {
       const reason = error instanceof Error ? error.message : String(error);
       await this.markFailed(messageId, reason);
       this.logger.error(`envio ${purpose} para ${recipient} falhou: ${reason}`);
+      reportChannelFailure(this.provider.channel as 'email' | 'push', purpose, error);
 
       return false;
     }
@@ -241,10 +240,31 @@ export class MessageRepository {
     );
   }
 
-  async reminderCandidates(): Promise<ReminderRow[]> {
+  /** Cadência configurada de cada Contabilidade, para o `pickReminders`. */
+  async reminderSettingsByFirm(firmIds: string[]) {
+    if (!firmIds.length) return new Map<string, ReminderSettings>();
+
+    const rows = await this.db
+      .select({
+        id: accountingFirm.id,
+        reminderMax: accountingFirm.reminderMax,
+        reminderDueSoonDays: accountingFirm.reminderDueSoonDays,
+        reminderGapDays: accountingFirm.reminderGapDays,
+      })
+      .from(accountingFirm)
+      .where(inArray(accountingFirm.id, firmIds));
+
+    return new Map(rows.map(({ id, ...settings }) => [id, settings]));
+  }
+
+  /** Sem `scope` a varredura é global (cron). Com `scope` (rota manual) só a Contabilidade
+   *  do chamador entra — sem isso qualquer contador dispararia cobrança e rotação de token
+   *  nos outros tenants (AUTHZ-2). */
+  async reminderCandidates(scope?: FirmScope): Promise<ReminderRow[]> {
     const items = await this.db
       .select({
         requestId: request.id,
+        accountingFirmId: period.accountingFirmId,
         companyName: company.name,
         referenceMonth: period.referenceMonth,
         periodDueDate: period.dueDate,
@@ -260,6 +280,7 @@ export class MessageRepository {
           inArray(requestItem.status, PENDING_ITEM_STATUS),
           eq(request.status, 'open'),
           eq(period.status, 'open'),
+          scope ? eq(period.accountingFirmId, scope) : undefined,
         ),
       );
 
@@ -300,6 +321,7 @@ export class MessageRepository {
 
       const candidate = candidates.get(row.requestId) ?? {
         requestId: row.requestId,
+        accountingFirmId: row.accountingFirmId,
         companyName: row.companyName,
         referenceMonth: row.referenceMonth,
         periodDueDate: row.periodDueDate,

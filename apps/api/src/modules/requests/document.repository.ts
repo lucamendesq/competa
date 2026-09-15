@@ -1,5 +1,5 @@
 import { Injectable } from '@nestjs/common';
-import { and, eq, inArray, lt } from 'drizzle-orm';
+import { and, eq, inArray, lt, sql } from 'drizzle-orm';
 import { Database } from '../../infra/database/database.js';
 import { document, period, request, requestItem } from '../../infra/database/schema/index.js';
 import type { UploadScope } from '../auth/scope.js';
@@ -47,6 +47,20 @@ export class DocumentRepository {
       .limit(1);
 
     return { ...context, item };
+  }
+
+  /** Quanto a Solicitação já acumulou — para o teto de documentos/bytes (AVAIL-2).
+   *  `awaiting_upload` conta: a linha reserva a cota até o presign expirar e ser varrido. */
+  async usageForRequest(requestId: string) {
+    const [row] = await this.db
+      .select({
+        count: sql<number>`count(*)::int`,
+        bytes: sql<number>`coalesce(sum(${document.sizeBytes}), 0)::bigint`,
+      })
+      .from(document)
+      .where(eq(document.requestId, requestId));
+
+    return { count: row?.count ?? 0, bytes: Number(row?.bytes ?? 0) };
   }
 
   /** Linha nasce `awaiting_upload`: até a confirmação o arquivo não existe no storage e

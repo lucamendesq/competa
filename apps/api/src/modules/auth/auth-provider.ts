@@ -27,4 +27,6 @@ export abstract class AuthProvider {
   abstract signInPasswordless(input: PasswordlessSignInInput): Promise<PasswordlessSignInResponse>;
 
   abstract sendSignInLink(email: string): Promise<void>;
+
+  abstract setPassword(headers: IncomingHttpHeaders, newPassword: string): Promise<void>;
 }

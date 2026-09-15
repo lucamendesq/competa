@@ -14,8 +14,8 @@ export type Company = {
   cnpj: string | null;
   flags: CompanyFlags;
   active: boolean;
-  checklistTemplateId: string;
-  templateName: string;
+  checklistTemplateId: string | null;
+  templateName: string | null;
   contactCount: number;
   /** Responsáveis que recebem o email da abertura (nome e email). */
   contacts: { id: string; name: string; email: string }[];
@@ -53,7 +53,7 @@ export type ChecklistLine = {
 
 export type EffectiveChecklist = {
   companyId: string;
-  template: { id: string; name: string };
+  template: { id: string; name: string } | null;
   flags: CompanyFlags;
   items: ChecklistLine[];
 };
@@ -83,6 +83,20 @@ export type ImportResult = {
   created: number;
   failed: number;
   lines: ImportLine[];
+};
+
+export type PendingImportRow = { line: number; body: CreateCompanyBody };
+
+/** Nada foi gravado ainda — `pending` guarda o que `confirmImport` vai criar quando o
+ *  Contador confirmar de fato. */
+export type ImportPreviewLine =
+  | ({ status: 'pending'; name: string } & PendingImportRow)
+  | { line: number; status: 'error'; name: string; error: string };
+
+export type ImportPreviewResult = {
+  total: number;
+  failed: number;
+  lines: ImportPreviewLine[];
 };
 
 @Service()
@@ -165,7 +179,18 @@ export class CompaniesService {
     });
   }
 
+  applyTemplate(companyIds: string[], checklistTemplateId: string) {
+    return this.api.post<{ updated: number }>('/companies/apply-template', {
+      companyIds,
+      checklistTemplateId,
+    });
+  }
+
   importCsv(csv: string) {
-    return this.api.post<ImportResult>('/companies/import', { csv });
+    return this.api.post<ImportPreviewResult>('/companies/import', { csv });
+  }
+
+  confirmImport(pending: PendingImportRow[]) {
+    return this.api.post<ImportResult>('/companies/import/confirm', { pending });
   }
 }

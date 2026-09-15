@@ -1,9 +1,10 @@
 import { Injectable } from '@nestjs/common';
 import { Resend } from 'resend';
 import env from '../../../config/env.js';
+import { emailLayout } from '../email-layout.js';
 import { MessageProvider, type MessageToSend } from './message.provider.js';
 
-const PRODUCT_NAME = 'Coleta de Documentos';
+const PRODUCT_NAME = 'Competa';
 
 @Injectable()
 export class ResendEmail extends MessageProvider {
@@ -23,7 +24,7 @@ export class ResendEmail extends MessageProvider {
       from: this.sender(senderName),
       to: recipient,
       subject,
-      html: body,
+      html: emailLayout(body, senderName),
     });
 
     if (error) throw new Error(`${error.name}: ${error.message}`);

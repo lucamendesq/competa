@@ -2,16 +2,20 @@ import { Injectable, Logger } from '@nestjs/common';
 import { OnEvent } from '@nestjs/event-emitter';
 import {
   EVENTS,
+  type AccessRecoveryRequestedEvent,
   type ContactInvitedEvent,
   type DeadlineMissedEvent,
   type InviteCreatedEvent,
   type ItemReopenedEvent,
   type RequestCompletedEvent,
+  type RequestCreatedEvent,
   type ReviewPublishedEvent,
   type UploadLinkResentEvent,
 } from '../../lib/events.js';
 import {
   accessInviteEmail,
+  asMonth,
+  recoverConfirmEmail,
   deadlineMissedAccountantEmail,
   deadlineMissedContactEmail,
   inviteEmail,
@@ -42,7 +46,7 @@ export class CollectionEventsListener {
    *  a regra de canal que não bloqueia o fluxo vale igual. */
   private async notify(
     requestId: string,
-    purpose: 'rejection' | 'completion' | 'deadline_missed',
+    purpose: 'link_delivery' | 'rejection' | 'completion' | 'deadline_missed',
     title: string,
     body: string,
     url?: string,
@@ -79,6 +83,16 @@ export class CollectionEventsListener {
     }
   }
 
+  /** Devolve se o email saiu — o controller do "perdi meu link" responde cego, mas não
+   *  registra passo 1 concluído sem entrega. Sem linha em `message`: não há requestId. */
+  @OnEvent(EVENTS.AccessRecoveryRequested)
+  async onAccessRecoveryRequested(event: AccessRecoveryRequestedEvent) {
+    return this.messages.sendWithoutLog({
+      recipient: event.email,
+      ...recoverConfirmEmail({ name: event.contactName, confirmUrl: event.confirmUrl }),
+    });
+  }
+
   @OnEvent(EVENTS.InviteCreated)
   async onInviteCreated(event: InviteCreatedEvent) {
     await this.messages.sendWithoutLog({
@@ -106,6 +120,20 @@ export class CollectionEventsListener {
       recipient: event.contactEmail,
       ...linkResentEmail(event),
     });
+  }
+
+  /** F10-5: push de "novo pedido". O email do Link sai pelo `RequestCreatedListener`; aqui
+   *  é só o aviso. No primeiro mês o contato ainda não tem inscrição e `notify` retorna
+   *  cedo — quem recebe é o fan-out recorrente, onde a inscrição sobrevive ao mês. */
+  @OnEvent(EVENTS.RequestCreated)
+  async onRequestCreated(event: RequestCreatedEvent) {
+    await this.notify(
+      event.requestId,
+      'link_delivery',
+      `Novos documentos solicitados`,
+      `${event.companyName}: ${event.itemCount} documento(s) da competência ${asMonth(event.referenceMonth)}.`,
+      event.uploadUrl,
+    );
   }
 
   @OnEvent(EVENTS.ItemReopened)

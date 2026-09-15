@@ -64,7 +64,7 @@ Diretivas (`eslint-disable-next-line`, `@ts-expect-error`) não são comentário
 - Autenticação: **Better Auth montado na API** (`/api/auth/*`) — pacote comunitário `@thallesp/nestjs-better-auth` com fallback manual documentado; sessão por cookie.
 - **CORS/cookies entre origens** (`app.` ↔ `api.`): CORS restrito a `WEB_URL` com `credentials: true`; cookie domain compartilhado; `trustedOrigins` no Better Auth; no Angular, interceptor com `withCredentials: true`. Dev local: proxy do Angular (`proxy.conf.json`) evita CORS.
 - **Fluxo público de upload:** rotas com `UploadTokenGuard` (token do `upload_link`, hash + expiração), escopo SÓ-upload — nunca sessão, nunca Better Auth.
-- Upload de arquivos: direto ao R2 via URL pré-assinada (API só emite URLs e registra `document`); limites 100 MB/arquivo, 500/envio.
+- Upload de arquivos: direto ao R2 via URL pré-assinada (API só emite URLs e registra `document`); limites 100 MB/arquivo, 500/envio, 1000 docs / 500 MB acumulados por Solicitação (AVAIL-2). O presign assina `content-length` e `content-type`.
 - Formato de erro e paginação: envelope `{ data }` / `{ data, meta }` (`ResponseInterceptor`) e erro `{ error: { code, message, details? } }` (`AppErrorFilter`).
 - **Rate limiting:** `@nestjs/throttler` como guard global (dois baldes: 30/10s para rajada, 120/60s para abuso sustentado); rotas que criam recurso caro têm limite próprio via `@Throttle` (o presign é 20/60s). Excesso responde **429** `TOO_MANY_REQUESTS`, nunca 500.
 - **Migrations versionadas:** `pnpm --filter api db:generate` cria o SQL a partir do schema, `db:migrate` aplica. `db:push` existe só para prototipagem local. Mudança de coluna com dado existente exige migration de backfill na mesma leva.

@@ -15,6 +15,9 @@
     <h1 class="text-xl font-semibold tracking-tight">
       {{ monthLabel(data.referenceMonth) }}
     </h1>
+    <span class="bg-muted text-muted-foreground rounded-full px-2 py-0.5 text-xs font-medium">
+      {{ data.companyName }}
+    </span>
     <app-status-pill [status]="data.requestStatus" />
   </div>
 
@@ -96,6 +99,17 @@
                   }
                 </div>
                 <app-status-pill [status]="file.reviewStatus" />
+                <button
+                  hlmBtn
+                  variant="ghost"
+                  size="sm"
+                  type="button"
+                  [disabled]="openingPreview() === file.id"
+                  (click)="openPreview(file)"
+                >
+                  <ng-icon name="lucideEye" aria-hidden="true" />
+                  Ver
+                </button>
               </li>
             }
           </ul>
@@ -164,6 +178,17 @@
               </p>
             </div>
             <app-status-pill [status]="file.reviewStatus" />
+            <button
+              hlmBtn
+              variant="ghost"
+              size="sm"
+              type="button"
+              [disabled]="openingPreview() === file.id"
+              (click)="openPreview(file)"
+            >
+              <ng-icon name="lucideEye" aria-hidden="true" />
+              Ver
+            </button>
           </li>
         }
       </ul>
@@ -178,3 +203,46 @@
   (dismiss)="results.set(null)"
   (retry)="send($event, retryTarget())"
 />
+
+<app-modal
+  [wide]="true"
+  [open]="preview() !== null"
+  (openChange)="$event ? null : closePreview()"
+  title="Conferir arquivo"
+  [description]="preview()?.document.fileName"
+>
+  @if (preview(); as previewing) {
+    @switch (previewKind()) {
+      @case ('pdf') {
+        <iframe
+          [src]="previewing.frameUrl"
+          class="border-border h-[65vh] w-full rounded-lg border"
+          [title]="'Pré-visualização de ' + previewing.document.fileName"
+        ></iframe>
+      }
+      @case ('imagem') {
+        <img
+          [src]="previewing.imageUrl"
+          [alt]="'Pré-visualização de ' + previewing.document.fileName"
+          class="border-border mx-auto max-h-[65vh] rounded-lg border"
+        />
+      }
+      @default {
+        <p class="text-muted-foreground text-sm">
+          Este tipo de arquivo ({{ previewing.type || 'desconhecido' }}) não abre no navegador.
+          Baixe para conferir.
+        </p>
+      }
+    }
+
+    <div
+      class="border-border bg-muted/40 -mx-5 -mb-5 mt-5 flex flex-wrap justify-end gap-2 border-t p-4"
+    >
+      <button hlmBtn variant="outline" (click)="downloadDocument(previewing.document)">
+        <ng-icon name="lucideDownload" aria-hidden="true" />
+        Baixar
+      </button>
+      <button hlmBtn variant="ghost" (click)="closePreview()">Fechar</button>
+    </div>
+  }
+</app-modal>

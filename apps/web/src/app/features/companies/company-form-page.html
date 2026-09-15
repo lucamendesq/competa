@@ -71,7 +71,8 @@
       <fieldset class="bg-card border-border rounded-xl border p-4 sm:p-5">
         <legend class="px-1 text-sm font-semibold">Tipo de empresa</legend>
         <p class="text-muted-foreground mt-1 text-xs">
-          Define o template de checklist base desta empresa.
+          Define o template de checklist base desta empresa. Opcional — pode ser definido depois.
+          Empresas sem template não entram no fan-out da competência.
         </p>
 
         <div class="mt-4 grid gap-3 sm:grid-cols-2" role="radiogroup" aria-label="Tipo de empresa">
@@ -101,8 +102,14 @@
           }
         </div>
 
-        @if (f.checklistTemplateId().invalid() && f.checklistTemplateId().touched()) {
-          <p class="text-destructive mt-2 text-xs">Escolha o tipo de empresa.</p>
+        @if (data().checklistTemplateId) {
+          <button
+            type="button"
+            class="text-muted-foreground hover:text-foreground mt-3 text-xs underline"
+            (click)="selectTemplate('')"
+          >
+            Remover seleção
+          </button>
         }
       </fieldset>
 

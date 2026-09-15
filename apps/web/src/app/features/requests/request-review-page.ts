@@ -316,7 +316,9 @@ export class RequestReviewPage {
       this.preview.set({
         document,
         objectUrl,
-        frameUrl: this.sanitizer.bypassSecurityTrustResourceUrl(objectUrl),
+        frameUrl: this.sanitizer.bypassSecurityTrustResourceUrl(
+          objectUrl + '#' + encodeURIComponent(document.fileName),
+        ),
         imageUrl: this.sanitizer.bypassSecurityTrustUrl(objectUrl),
         type,
       });

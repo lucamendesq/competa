@@ -88,6 +88,37 @@ export const maskedPhone = (phone: string | null | undefined) => {
   return phone;
 };
 
+/** Máscara progressiva pra digitação (o cursor sempre vai pro fim a cada tecla — não
+ *  reordena dígitos, só insere separador). Idempotente: aplicar de novo no resultado
+ *  não muda nada, porque primeiro tira tudo que não é dígito. */
+export const cnpjInputMask = (raw: string) => {
+  const digits = raw.replace(/\D/g, '').slice(0, 14);
+  const parts = [digits.slice(0, 2), digits.slice(2, 5), digits.slice(5, 8), digits.slice(8, 12), digits.slice(12, 14)];
+
+  let out = parts[0];
+  if (parts[1]) out += `.${parts[1]}`;
+  if (parts[2]) out += `.${parts[2]}`;
+  if (parts[3]) out += `/${parts[3]}`;
+  if (parts[4]) out += `-${parts[4]}`;
+
+  return out;
+};
+
+export const phoneInputMask = (raw: string) => {
+  const digits = raw.replace(/\D/g, '').slice(0, 11);
+  if (digits.length <= 2) return digits;
+
+  const ddd = digits.slice(0, 2);
+  const rest = digits.slice(2);
+  /* 11 dígitos = celular (5+4); até 10 = fixo (4+4). Muda de grupo assim que o 11º
+   * dígito aparece, igual todo teclado de celular brasileiro faz. */
+  const splitAt = digits.length > 10 ? 5 : 4;
+  const part1 = rest.slice(0, splitAt);
+  const part2 = rest.slice(splitAt);
+
+  return `(${ddd}) ${part1}${part2 ? `-${part2}` : ''}`;
+};
+
 export const todayIso = () => {
   const now = new Date();
   const month = `${now.getMonth() + 1}`.padStart(2, '0');

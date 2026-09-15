@@ -9,3 +9,4 @@
 .claude
 .cursor
 apps/web
+.env*

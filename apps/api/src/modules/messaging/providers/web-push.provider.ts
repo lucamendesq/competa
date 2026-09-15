@@ -1,6 +1,7 @@
 import { Injectable, Logger } from '@nestjs/common';
 import webpush from 'web-push';
 import env from '../../../config/env.js';
+import { reportChannelFailure } from '../../../lib/observability.js';
 
 export type PushMessage = {
   title: string;
@@ -28,7 +29,9 @@ export class WebPush {
        * nada foi entregue. Contar como enviado marcaria a linha em `message` como `sent`,
        * e o Contador só descobriria pelo Responsável jurando que não recebeu. */
       if (env.NODE_ENV === 'production') {
-        this.logger.error('push não enviado: VAPID_PUBLIC_KEY/VAPID_PRIVATE_KEY ausentes.');
+        const missingVapidError = new Error('VAPID_PUBLIC_KEY/VAPID_PRIVATE_KEY ausentes.');
+        this.logger.error(`push não enviado: ${missingVapidError.message}`);
+        reportChannelFailure('push', 'vapid_missing', missingVapidError);
 
         return { sent: 0, failed: message.subscriptions.length, gone: [] as string[] };
       }
@@ -56,7 +59,10 @@ export class WebPush {
       } catch (error) {
         const status = (error as { statusCode?: number }).statusCode;
         if (status === 404 || status === 410) gone.push(subscription.endpoint);
-        else this.logger.error(`push falhou para ${subscription.endpoint}: ${String(error)}`);
+        else {
+          this.logger.error(`push falhou para ${subscription.endpoint}: ${String(error)}`);
+          reportChannelFailure('push', 'delivery', error);
+        }
         failed += 1;
       }
     }

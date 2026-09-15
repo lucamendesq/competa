@@ -1,7 +1,9 @@
 import { Injectable, Logger } from '@nestjs/common';
 import { Cron, CronExpression } from '@nestjs/schedule';
+import { SentryCron } from '@sentry/nestjs';
 import env from '../../config/env.js';
 import { createToken } from '../../lib/token.js';
+import type { FirmScope } from '../auth/scope.js';
 import { RequestRepository } from '../requests/request.repository.js';
 import { reminderEmail } from './email-body.js';
 import { MessageRepository } from './message.repository.js';
@@ -16,14 +18,23 @@ export class RemindersCron {
     private readonly requests: RequestRepository,
   ) {}
 
-  @Cron(CronExpression.EVERY_DAY_AT_9AM)
+  @Cron(CronExpression.EVERY_DAY_AT_9AM, { timeZone: 'America/Sao_Paulo' })
+  @SentryCron('reminders-daily', {
+    schedule: { type: 'crontab', value: '0 9 * * *' },
+    checkinMargin: 5,
+    maxRuntime: 30,
+    timezone: 'America/Sao_Paulo',
+  })
   async scheduled() {
     await this.run();
   }
 
-  async run() {
-    const candidates = await this.messages.reminderCandidates();
-    const due = pickReminders(candidates, new Date());
+  async run(scope?: FirmScope) {
+    const candidates = await this.messages.reminderCandidates(scope);
+    const settingsByFirm = await this.messages.reminderSettingsByFirm([
+      ...new Set(candidates.map((row) => row.accountingFirmId)),
+    ]);
+    const due = pickReminders(candidates, new Date(), settingsByFirm);
 
     let sent = 0;
 

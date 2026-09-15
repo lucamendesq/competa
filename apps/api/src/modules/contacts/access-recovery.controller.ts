@@ -2,11 +2,15 @@ import { Body, Controller, Logger, Post } from '@nestjs/common';
 import { AllowAnonymous } from '@thallesp/nestjs-better-auth';
 import { EventEmitter2 } from '@nestjs/event-emitter';
 import { Throttle, seconds } from '@nestjs/throttler';
-import { RecoverAccessBody } from '@contabilidade/contracts';
+import { RecoverAccessBody, RecoverAccessConfirmBody } from '@contabilidade/contracts';
 import { subMinutes } from 'date-fns';
 import env from '../../config/env.js';
-import { EVENTS, type UploadLinkResentEvent } from '../../lib/events.js';
-import { createToken } from '../../lib/token.js';
+import {
+  EVENTS,
+  type AccessRecoveryRequestedEvent,
+  type UploadLinkResentEvent,
+} from '../../lib/events.js';
+import { createToken, signRecoveryToken, verifyRecoveryToken } from '../../lib/token.js';
 import { zodPipe } from '../../lib/zod-pipe.js';
 import { AuthProvider } from '../auth/auth-provider.js';
 import { RequestRepository } from '../requests/request.repository.js';
@@ -23,15 +27,17 @@ const SAME_ANSWER = {
  *  contaria o que a mensagem esconde. */
 const MINIMUM_DURATION_MS = 700;
 
-/** Janela em que um pedido novo NÃO gera link novo. Sem ela, qualquer um que saiba o email
- *  do Responsável mantém o link da caixa de entrada dele quebrado: cada pedido rotacionava
- *  o token e matava o que já tinha sido enviado, e 3 req/min bastam. Dentro da janela o
- *  pedido é aceito, responde igual e não faz nada — o link que está na caixa continua
- *  valendo.
- *  ponytail: janela fixa. O certo é confirmar posse do email antes de rotacionar (link de
- *  confirmação em dois passos); isso é tela nova e ficou para depois. */
+/** Janela em que uma confirmação nova NÃO gera link novo. Junto com a confirmação em dois
+ *  passos, é a segunda barreira: mesmo o dono do email não rotaciona em loop. */
 const RESEND_COOLDOWN_MINUTES = 15;
 
+/** Validade do link de confirmação (passo 1 → passo 2). */
+const CONFIRM_TTL_MS = 30 * 60 * 1000;
+
+/** "Perdi meu link" em dois passos (AUTHZ-3): o passo 1 NÃO rotaciona nada — envia um
+ *  email de confirmação de posse; só o passo 2, com o token desse email, rotaciona e
+ *  entrega o link novo. Antes, qualquer um que soubesse o email matava o link vivo do
+ *  Responsável. */
 @Controller('access/recover')
 @AllowAnonymous()
 export class AccessRecoveryController {
@@ -51,26 +57,56 @@ export class AccessRecoveryController {
   async recover(@Body(zodPipe(RecoverAccessBody)) body: RecoverAccessBody) {
     const startedAt = Date.now();
 
-    await this.deliver(body.email.toLowerCase());
+    await this.requestConfirmation(body.email.toLowerCase());
     await pauseUntil(startedAt + MINIMUM_DURATION_MS);
 
     return SAME_ANSWER;
   }
 
-  private async deliver(email: string) {
-    const openRequests = await this.contacts.openRequestsForEmail(email);
+  /** Passo 2: o token prova posse do email — aí sim rotaciona. Resposta igualmente cega:
+   *  token inválido/expirado responde o mesmo que sucesso. */
+  @Throttle({ default: { ttl: seconds(60), limit: 3 } })
+  @Post('confirm')
+  async confirm(@Body(zodPipe(RecoverAccessConfirmBody)) body: RecoverAccessConfirmBody) {
+    const startedAt = Date.now();
 
-    /* Quem já tem acesso entra pela conta: o magic link do Better Auth leva à área logada,
-     * onde estão o histórico e as Competências anteriores. */
+    const email = verifyRecoveryToken(body.token);
+    if (email) await this.rotateAndSend(email);
+
+    await pauseUntil(startedAt + MINIMUM_DURATION_MS);
+
+    return SAME_ANSWER;
+  }
+
+  private async requestConfirmation(email: string) {
+    const openRequests = await this.contacts.openRequestsForEmail(email);
+    if (!openRequests.length) return;
+
+    /* Quem já tem acesso entra pela conta: o magic link do Better Auth leva à área logada
+     * e JÁ é prova de posse do email — dois passos aqui seriam três no total. */
     if (openRequests.some((row) => row.hasAccess)) {
       await this.auth.sendSignInLink(email);
       return;
     }
 
+    const token = signRecoveryToken(email, CONFIRM_TTL_MS);
+    const requested: AccessRecoveryRequestedEvent = {
+      email,
+      contactName: openRequests[0].contactName,
+      confirmUrl: `${env.WEB_URL}/perdi-meu-link/confirmar?token=${token}`,
+    };
+
+    await this.events.emitAsync(EVENTS.AccessRecoveryRequested, requested);
+  }
+
+  private async rotateAndSend(email: string) {
+    const openRequests = await this.contacts.openRequestsForEmail(email);
     const cooldownStart = subMinutes(new Date(), RESEND_COOLDOWN_MINUTES);
 
     for (const row of openRequests) {
-      if (row.lastLinkSentAt && row.lastLinkSentAt > cooldownStart) continue;
+      /* new Date(): o subquery cru devolve string, e `string > Date` é sempre false — o
+       * cooldown nunca segurava. */
+      if (row.lastLinkSentAt && new Date(row.lastLinkSentAt) > cooldownStart) continue;
 
       /* O token vai para o email ANTES de virar o token oficial: `applyUploadToken` só
        * grava depois que a entrega confirma. Rotacionar primeiro deixaria o Responsável

@@ -1,13 +1,21 @@
+import './instrument.js';
+
 import type { NestExpressApplication } from '@nestjs/platform-express';
 import { NestFactory } from '@nestjs/core';
+import { Logger } from 'nestjs-pino';
 import helmet from 'helmet';
 import { AppModule } from './app.module.js';
 import env, { allowedOrigins } from './config/env.js';
 import { AppErrorFilter } from './lib/app-error.filter.js';
+import { originCheck } from './lib/origin-check.js';
 import { ResponseInterceptor } from './lib/response.interceptor.js';
 
 async function bootstrap() {
-  const app = await NestFactory.create<NestExpressApplication>(AppModule, { bodyParser: false });
+  const app = await NestFactory.create<NestExpressApplication>(AppModule, {
+    bodyParser: false,
+    bufferLogs: true,
+  });
+  app.useLogger(app.get(Logger));
 
   /* Atrás de um reverse proxy o Express vê o IP DELE em `req.ip`, e todo @Throttle vira um
    * balde único para o mundo inteiro — um cliente barulhento 429a a base. Só em produção:
@@ -19,6 +27,7 @@ async function bootstrap() {
    * `nosniff` e o CSP do helmet são a segunda barreira depois da allowlist de
    * `content_type` — HTML que escape da allowlist ainda não executa script. */
   app.use(helmet());
+  app.use(originCheck(allowedOrigins));
 
   app.useGlobalFilters(new AppErrorFilter());
   app.useGlobalInterceptors(new ResponseInterceptor());

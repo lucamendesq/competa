@@ -12,6 +12,21 @@ export const AUTH_ROUTES: Routes = [
     loadComponent: () => import('./recover-link-page').then((m) => m.RecoverLinkPage),
   },
   {
+    path: 'perdi-meu-link/confirmar',
+    title: 'Confirmar novo link',
+    loadComponent: () => import('./recover-confirm-page').then((m) => m.RecoverConfirmPage),
+  },
+  {
+    path: 'esqueci-senha',
+    title: 'Esqueci minha senha',
+    loadComponent: () => import('./forgot-password-page').then((m) => m.ForgotPasswordPage),
+  },
+  {
+    path: 'redefinir-senha',
+    title: 'Redefinir senha',
+    loadComponent: () => import('./reset-password-page').then((m) => m.ResetPasswordPage),
+  },
+  {
     path: 'convite/:token',
     title: 'Aceitar convite',
     loadComponent: () => import('./invite-page').then((m) => m.InvitePage),

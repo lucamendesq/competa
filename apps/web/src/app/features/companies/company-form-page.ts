@@ -1,4 +1,13 @@
-import { Component, computed, inject, input, linkedSignal, signal } from '@angular/core';
+import {
+  Component,
+  computed,
+  effect,
+  ElementRef,
+  inject,
+  input,
+  linkedSignal,
+  signal,
+} from '@angular/core';
 import { Router, RouterLink } from '@angular/router';
 import { FormField, form, submit, validateStandardSchema } from '@angular/forms/signals';
 import { Cnpj, COMPANY_FLAGS, CompanyFlags } from '@contabilidade/contracts';
@@ -14,14 +23,21 @@ import { ErrorState } from '../../shared/error-state';
 import { Callout } from '../../shared/callout';
 import { LoadingRows } from '../../shared/loading-rows';
 import { PageHeader } from '../../shared/page-header';
-import { CATEGORY_LABEL, FLAG_LABEL, PERIODICITY_LABEL } from '../../shared/format';
+import {
+  CATEGORY_LABEL,
+  cnpjInputMask,
+  FLAG_LABEL,
+  PERIODICITY_LABEL,
+  phoneInputMask,
+} from '../../shared/format';
+import { focusFirstInvalid } from '../../shared/focus-first-invalid';
 import { ChecklistsService } from '../checklists/checklists.service';
 import { CompaniesService } from './companies.service';
 
 const CompanyForm = z
   .object({
     name: z.string().trim().min(1, 'Informe o nome da empresa.'),
-    checklistTemplateId: z.uuid('Escolha o tipo de empresa.'),
+    checklistTemplateId: z.union([z.uuid(), z.literal('')]),
     cnpj: z.union([Cnpj, z.literal('')]),
     contactName: z.string().trim(),
     contactEmail: z.union([z.email('E-mail inválido.'), z.literal('')]),
@@ -56,6 +72,7 @@ export class CompanyFormPage {
   private readonly checklists = inject(ChecklistsService);
   private readonly toaster = inject(Toaster);
   private readonly router = inject(Router);
+  private readonly host = inject(ElementRef<HTMLElement>);
 
   protected readonly CATEGORY_LABEL = CATEGORY_LABEL;
   protected readonly PERIODICITY_LABEL = PERIODICITY_LABEL;
@@ -87,6 +104,21 @@ export class CompanyFormPage {
       contactEmail: contact?.email ?? '',
       contactPhone: contact?.phone ?? '',
     };
+  });
+
+  /* Reformata ao digitar reaproveitando o próprio ciclo do Signal Forms: escrever em
+   * `data` aqui é o que o FormField já observa pra sincronizar de volta no <input>, sem
+   * precisar de um listener de DOM concorrente com o dele. */
+  private readonly maskCnpjOnType = effect(() => {
+    const raw = this.data().cnpj;
+    const masked = cnpjInputMask(raw);
+    if (masked !== raw) this.data.update((current) => ({ ...current, cnpj: masked }));
+  });
+
+  private readonly maskPhoneOnType = effect(() => {
+    const raw = this.data().contactPhone;
+    const masked = phoneInputMask(raw);
+    if (masked !== raw) this.data.update((current) => ({ ...current, contactPhone: masked }));
   });
 
   protected readonly f = form(this.data, (path) => validateStandardSchema(path, CompanyForm));
@@ -134,6 +166,11 @@ export class CompanyFormPage {
     this.error.set(null);
     this.fieldErrors.set({});
 
+    if (this.f().invalid()) {
+      focusFirstInvalid(this.host.nativeElement);
+      return;
+    }
+
     return submit(this.f, async (formTree) => {
       const values = formTree().value();
       const contact = values.contactEmail
@@ -150,7 +187,7 @@ export class CompanyFormPage {
         if (id) {
           await this.service.update(id, {
             name: values.name,
-            checklistTemplateId: values.checklistTemplateId,
+            checklistTemplateId: values.checklistTemplateId || null,
             cnpj: values.cnpj || null,
             flags: this.flags(),
           });
@@ -160,21 +197,24 @@ export class CompanyFormPage {
         } else {
           const created = await this.service.create({
             name: values.name,
-            checklistTemplateId: values.checklistTemplateId,
+            checklistTemplateId: values.checklistTemplateId || undefined,
             cnpj: values.cnpj || undefined,
             flags: this.flags(),
             contact: contact,
           });
           this.toaster.success('Empresa cadastrada.');
 
-          /* Próximo passo em vez de voltar para a lista: o template é um ponto de partida,
-           * e é aqui que o Contador tira o documento que esta empresa não tem (antes ele
-           * precisava criar um template novo só para isso). */
-          await this.router.navigate(['/empresas', created.id, 'checklist'], {
-            queryParams: { created: 1 },
-          });
+          if (values.checklistTemplateId) {
+            /* Próximo passo em vez de voltar para a lista: o template é um ponto de partida,
+             * e é aqui que o Contador tira o documento que esta empresa não tem (antes ele
+             * precisava criar um template novo só para isso). Sem template não há nada a
+             * confirmar ainda, então cai direto para a lista. */
+            await this.router.navigate(['/empresas', created.id, 'checklist'], {
+              queryParams: { created: 1 },
+            });
 
-          return undefined;
+            return undefined;
+          }
         }
 
         await this.router.navigate(['/empresas']);

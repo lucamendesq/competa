@@ -1,17 +1,17 @@
 import { CanActivate, ExecutionContext, Injectable } from '@nestjs/common';
-import { and, asc, eq } from 'drizzle-orm';
+import { and, eq } from 'drizzle-orm';
 import { Database } from '../../infra/database/database.js';
 import { company, contact, request } from '../../infra/database/schema/index.js';
 import { Forbidden, NotFound, Unauthenticated, ValidationError } from '../../lib/app-error.js';
 import { AuthProvider } from './auth-provider.js';
-import { toContactScope, toUploadScope } from './scope.js';
+import { toUploadScope } from './scope.js';
 
 /** Upload logado do Responsável (Fase 10). Produz o MESMO `UploadScope` do fluxo por link,
  *  a partir da sessão em vez do token — assim a área logada reaproveita o pipeline de envio
  *  inteiro (formato, limite, conferência de tamanho) sem duplicar regra.
  *
- *  O escopo continua nascendo aqui, em `modules/auth/`: a Solicitação do corpo é conferida
- *  contra a Empresa do Responsável ANTES de virar escopo. */
+ *  Um join só resolve o contato certo para o `requestId` do corpo: a Solicitação aponta a
+ *  Empresa, que aponta o `contact` deste user — multi-empresa sem ambiguidade. */
 @Injectable()
 export class ContactUploadGuard implements CanActivate {
   constructor(
@@ -26,37 +26,35 @@ export class ContactUploadGuard implements CanActivate {
 
     http.session = session;
 
-    const [me] = await this.db
-      .select({ contactId: contact.id, companyId: company.id, active: company.active })
-      .from(contact)
-      .innerJoin(company, eq(company.id, contact.companyId))
-      .where(eq(contact.authUserId, session.user.id))
-      /* `contact.auth_user_id` é UNIQUE, então isto já devolve no máximo uma linha — a
-       * ordenação é para o `limit(1)` não depender disso. O que a unicidade custa é outro
-       * problema, e é de produto: a mesma pessoa Responsável por três Empresas só consegue
-       * ter conta em UMA delas. Ver "Gestão de equipe" nos próximos passos. */
-      .orderBy(asc(contact.createdAt), asc(contact.id))
-      .limit(1);
-
-    if (!me) throw new Forbidden('Esta conta não é de um Responsável de Empresa.');
-    if (!me.active) throw new Forbidden('Esta empresa está inativa na contabilidade.');
-
     const requestId = http.body?.requestId;
     if (typeof requestId !== 'string') {
       throw new ValidationError('Informe a Solicitação (requestId) do envio.');
     }
 
     const [owned] = await this.db
-      .select({ id: request.id })
-      .from(request)
-      .where(and(eq(request.id, requestId), eq(request.companyId, me.companyId)))
+      .select({ requestId: request.id, contactId: contact.id, active: company.active })
+      .from(contact)
+      .innerJoin(company, eq(company.id, contact.companyId))
+      .innerJoin(request, eq(request.companyId, company.id))
+      .where(and(eq(contact.authUserId, session.user.id), eq(request.id, requestId)))
       .limit(1);
 
-    // Solicitação de outra Empresa não existe para este Responsável
-    if (!owned) throw new NotFound('Solicitação não encontrada.');
+    /* Distinguir "não é Responsável" de "Solicitação de outra Empresa": o primeiro é 403
+     * (conta errada), o segundo é 404 (não existe para ele). */
+    if (!owned) {
+      const [me] = await this.db
+        .select({ id: contact.id })
+        .from(contact)
+        .where(eq(contact.authUserId, session.user.id))
+        .limit(1);
 
-    http.contactScope = toContactScope(me.contactId, me.companyId);
-    http.uploadScope = toUploadScope(owned.id, me.contactId);
+      if (!me) throw new Forbidden('Esta conta não é de um Responsável de Empresa.');
+      throw new NotFound('Solicitação não encontrada.');
+    }
+
+    if (!owned.active) throw new Forbidden('Esta empresa está inativa na contabilidade.');
+
+    http.uploadScope = toUploadScope(owned.requestId, owned.contactId);
 
     return true;
   }

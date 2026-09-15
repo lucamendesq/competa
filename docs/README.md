@@ -3,7 +3,7 @@
 Documentação viva do projeto. Fonte única de contexto para pessoas e agentes de IA.
 Para o resumo operacional (como trabalhar aqui, o que nunca violar), comece pelo [`AGENTS.md`](../AGENTS.md) na raiz.
 
-> Estado (2026-08-27): **projeto pré-código** (greenfield). Estes documentos são **intenção de design** derivada da modelagem de domínio, das decisões (ADRs) e do discovery. Atualize-os na mesma mudança que altera o código.
+> Estado (2026-09-11): produto implementado até a Fase 10 (backend + telas + PWA), com deploy em Fly.io/Cloudflare Pages/Supabase e CI ativos. Estes documentos nasceram como intenção de design; hoje descrevem o sistema real. Atualize-os na mesma mudança que altera o código.
 
 ## Índice
 
@@ -16,7 +16,10 @@ Para o resumo operacional (como trabalhar aqui, o que nunca violar), comece pelo
 | [`database-schema.md`](./database-schema.md)   | **Fonte canônica** do banco — DDL completa (Postgres/Drizzle), algoritmos e transições de estado                  |
 | [`document-catalog.md`](./document-catalog.md) | Seed do produto: tipos de documento e 5 templates fixos de checklist                                              |
 | [`decisions.md`](./decisions.md)               | Registro de decisões arquiteturais (ADR-001…011) com racional e alternativas                                      |
-| [`roadmap.md`](./roadmap.md)                   | Backlog v1 em fatias finas (TASK-001…037), fases e marcos de validação                                            |
+| [`roadmap.md`](./roadmap.md)                   | Backlog v1 em fatias finas (TASK-001…055), fases, adiamentos com gatilho e marcos de validação                    |
+| [`deploy.md`](./deploy.md)                     | Runbook de deploy: Supabase (session pooler) + Fly.io + Cloudflare Pages, secrets                                 |
+| [`backup.md`](./backup.md)                     | Backup diário do Postgres (GH Actions → R2 dedicado), RPO/RTO, restore e inventário de segredos                   |
+| [`retention.md`](./retention.md)               | Política de retenção/expurgo por tipo de dado + runbook manual de cancelamento                                    |
 | [`frontend-status.md`](./frontend-status.md)   | Telas do `apps/web`: o que existe, o que ficou degradado por falta de rota e o que precisa de configuração        |
 | [`next-steps.md`](./next-steps.md)             | O que falta para "completo": produto, deploy/CI, observabilidade, LGPD operacional e backup                       |
 

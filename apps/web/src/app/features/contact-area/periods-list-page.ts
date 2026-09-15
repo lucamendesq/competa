@@ -1,4 +1,4 @@
-import { Component, inject, signal } from '@angular/core';
+import { Component, computed, inject, signal } from '@angular/core';
 import { RouterLink } from '@angular/router';
 import { EmptyState } from '../../shared/empty-state';
 import { ErrorState } from '../../shared/error-state';
@@ -26,4 +26,8 @@ export class PeriodsListPage {
     page: this.page(),
     perPage: this.perPage,
   }));
+
+  protected readonly multiCompany = computed(
+    () => new Set((this.periods.value()?.data ?? []).map((row) => row.companyId)).size > 1,
+  );
 }

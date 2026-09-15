@@ -51,6 +51,13 @@ export class BetterAuthAdapter implements AuthProvider {
     await auth.api.signInMagicLink({ body: { email }, headers: new Headers() });
   }
 
+  async setPassword(headers: IncomingHttpHeaders, newPassword: string) {
+    await auth.api.setPassword({
+      body: { newPassword },
+      headers: fromNodeHeaders(headers),
+    });
+  }
+
   async getSession(headers: IncomingHttpHeaders): Promise<AuthSession | null> {
     const session = await auth.api.getSession({ headers: fromNodeHeaders(headers) });
     if (!session) return null;

@@ -38,7 +38,7 @@ export class TenantGuard implements CanActivate {
     request.session = session;
 
     const [row] = await this.db
-      .select({ accountingFirmId: accountant.accountingFirmId })
+      .select({ id: accountant.id, accountingFirmId: accountant.accountingFirmId })
       .from(accountant)
       .where(eq(accountant.authUserId, session.user.id))
       .limit(1);
@@ -46,6 +46,7 @@ export class TenantGuard implements CanActivate {
     if (!row) throw new Forbidden('Esta conta não pertence a uma Contabilidade.');
 
     request.firmScope = toFirmScope(row.accountingFirmId);
+    request.accountantId = row.id;
     return true;
   }
 }

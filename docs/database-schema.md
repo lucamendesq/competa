@@ -40,7 +40,16 @@ Direção de dependência (convenção): `registry` → `collection` → `messag
 ```sql
 create table accounting_firm (            -- Contabilidade (tenant raiz)
   id    uuid primary key,
-  name  text not null
+  name  text not null,
+  -- preferências de lembrete (2026-09-11): a cadência do cron é por tenant;
+  -- defaults reproduzem o comportamento histórico (regras em reminder-rules.ts)
+  reminder_max            smallint not null default 2,  -- máx. lembretes por Solicitação
+  reminder_due_soon_days  smallint not null default 3,  -- começa a lembrar em D-N
+  reminder_gap_days       smallint not null default 3,  -- gap mínimo entre lembretes
+  constraint accounting_firm_reminder_chk check (
+    reminder_max between 0 and 10
+    and reminder_due_soon_days between 0 and 31
+    and reminder_gap_days between 1 and 31)
 );
 
 create table accountant (                 -- Contador (N por Contabilidade, via convite — D-01)
@@ -93,7 +102,7 @@ create table company (                    -- Empresa (cliente da Contabilidade)
   accounting_firm_id     uuid not null references accounting_firm(id),
                                           -- sem on delete: apagar uma Contabilidade com Empresas
                                           -- falha por FK — proteção intencional
-  checklist_template_id  uuid not null references checklist_template(id), -- escolhido no cadastro
+  checklist_template_id  uuid references checklist_template(id), -- opcional; NULL = sem template (empresa não entra no fan-out)
   name                   text not null,
   cnpj                   text,                 -- só dígitos; validado com DV (módulo 11)
   flags                  jsonb not null default '{}',
@@ -111,14 +120,15 @@ create table contact (                    -- Responsável (recebe o link, envia 
   name          text not null,
   email         text not null,            -- invariante: sem email não há Solicitação
   phone         text,                     -- habilita WhatsApp
-  auth_user_id  uuid unique references "user"(id) on delete set null
+  auth_user_id  uuid references "user"(id) on delete set null
                                           -- nullable (D-04): login do Responsável é opcional,
                                           -- preenchido só se cadastrar no App; upload nunca exige conta
-                                          -- UNIQUE: a mesma pessoa Responsável por N Empresas
-                                          -- só tem conta em UMA (limitação conhecida — ver next-steps.md)
+                                          -- SEM unique (2026-09-11): o mesmo user é Responsável
+                                          -- por N Empresas — um contact por Empresa; a FK é a junção
 );
 create index contact_email_idx on contact (email);        -- entrada de /access/recover (rota pública)
 create index contact_company_idx on contact (company_id); -- FK não cria índice no Postgres
+create index contact_auth_user_idx on contact (auth_user_id); -- caminho do ContactGuard em toda request logada
 
 create table invite (                     -- Convite (D-03): serve os dois casos —
                                           -- convidar Contador (accounting_firm_id) ou
@@ -130,7 +140,9 @@ create table invite (                     -- Convite (D-03): serve os dois casos
   company_id          uuid references company(id) on delete cascade,
   expires_at          timestamptz not null,
   accepted_at         timestamptz,
-  deleted_at          timestamptz,
+  deleted_at          timestamptz,           -- revogação (equipe): findByToken filtra por ele
+  created_by          uuid references accountant(id) on delete set null,
+                                             -- autoria (OPS-1): qual contador criou o convite
   constraint invite_has_one_origin check (num_nonnulls(accounting_firm_id, company_id) = 1)
 );
 
@@ -210,7 +222,10 @@ create table document (                   -- arquivo enviado (1 Item : N Documen
   uploaded_at       timestamptz,          -- preenchido na confirmação
   review_status     text not null default 'pending'
                       check (review_status in ('pending','accepted','rejected')),
-  rejection_reason  text
+  rejection_reason  text,
+  reviewed_by       uuid references accountant(id) on delete set null,
+                                          -- autoria da decisão de revisão (OPS-1);
+  reviewed_at       timestamptz           -- undo-accept limpa os dois
 );
 create index document_request_idx on document (request_id);           -- revisão e zip
 create index document_request_item_idx on document (request_item_id); -- documentos de um Item
@@ -248,9 +263,10 @@ create table message (                    -- log/outbox de tudo que sai
                                             -- Painel de Pendências mostra (MessageFailed)
 );
 create index message_reminder_idx on message (request_id, purpose);
--- cadência máx. 2 lembretes = count(*) where purpose='reminder' por request (sem tabela extra)
--- Janela escolhida na Fase 5 (constantes em modules/messaging/reminder-rules.ts, puro e testado):
--- com prazo, lembra a partir de D-3 com gap mínimo de 3 dias; sem prazo, cadência semanal.
+-- cadência = count(*) where purpose='reminder' por request (sem tabela extra), comparado
+-- contra as preferências da Contabilidade (accounting_firm.reminder_* — 2026-09-11).
+-- Defaults: máx. 2 por Solicitação; com prazo, lembra a partir de D-3 com gap mínimo de
+-- 3 dias; sem prazo, cadência semanal fixa. Regras puras em modules/messaging/reminder-rules.ts.
 -- Falha de canal nunca bloqueia o fluxo: vira status='failed' + error e segue.
 ```
 
@@ -310,7 +326,9 @@ valida `expires_at`/`revoked` e injeta `UploadScope`), `modules/requests/upload.
 
 - Valida `token_hash` + `expires_at` + `revoked` e injeta `UploadScope` limitado àquela `request`; escopo **só-upload** (a página exibe nomes/status dos itens; NUNCA lista/baixa conteúdo de documentos).
 - Upload direto ao R2 via URL pré-assinada (4–6 concorrentes); backend só emite URLs e insere `document`.
-- Limites: 100 MB/arquivo; 500 arquivos/envio. Zip aceito como formato, **sem extração**.
+- Limites: 100 MB/arquivo; 500 arquivos/envio; teto por Solicitação de 1000 documentos /
+  500 MB acumulados (AVAIL-2 — `awaiting_upload` reserva cota até a faxina). Zip aceito
+  como formato, **sem extração**.
   O limite é **imposto**, não pedido: o presign assina o tamanho (`ContentLength` no R2,
   HMAC + corte de stream no storage local) e a confirmação confere o objeto real — arquivo
   ausente, maior que o limite ou diferente do declarado é descartado (linha e objeto).
@@ -348,16 +366,23 @@ create table push_subscription (          -- Web Push da PWA do Responsável
   id          uuid primary key,
   contact_id  uuid not null references contact(id) on delete cascade,
   provider    text not null default 'web' check (provider in ('web','fcm')),
-  endpoint    text not null unique,       -- chave natural: o navegador troca a inscrição
-                                          -- allowlist de host na entrada (contracts/upload.ts):
+  endpoint    text not null,              -- allowlist de host na entrada (contracts/upload.ts):
                                           -- é uma URL que o servidor busca depois, logo SSRF
-  keys        jsonb not null              -- web: {p256dh, auth}; fcm (futuro): token
+  keys        jsonb not null,             -- web: {p256dh, auth}; fcm (futuro): token
+  unique (contact_id, endpoint)           -- par, não endpoint sozinho (2026-09-11): o mesmo
+                                          -- aparelho serve os N contatos de um user multi-empresa,
+                                          -- e o upsert não pode roubar a linha de outro contato (AUTHZ-4)
 );
 ```
 
 > **`verification.id` é `text`, não `uuid`.** A tabela é do Better Auth e a biblioteca grava
 > ali ids próprios que não são uuid (`reserveVerificationValue`, no fluxo de magic link).
 > Quem manda na forma das tabelas de auth é a biblioteca, não a nossa convenção de PK.
+
+> **Coluna nossa em `user` (exceção controlada):** `terms_accepted_at timestamptz` —
+> aceite dos Termos/Privacidade (LGPD), carimbado na criação da conta pelos 3 fluxos
+> (signup de Contador por convite, aceite de convite do Responsável, ativação pelo Link).
+> O Better Auth ignora colunas extras.
 
 ## Seed
 

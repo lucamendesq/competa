@@ -8,8 +8,9 @@ import { toContactScope } from './scope.js';
 
 /** Resolve a sessão do Responsável em `ContactScope`. Sessão de Contador NÃO passa por
  *  aqui: `contact.auth_user_id` é o único vínculo aceito, então não há escalada de
- *  privilégio de um lado para o outro. Empresa inativa perde o acesso — a Contabilidade
- *  desativou a Empresa, o Responsável não tem mais o que enviar. */
+ *  privilégio de um lado para o outro. O mesmo user pode ser Responsável por N Empresas —
+ *  o escopo carrega todos os vínculos; Empresa inativa fica de fora, e sem nenhuma ativa o
+ *  acesso cai. */
 @Injectable()
 export class ContactGuard implements CanActivate {
   constructor(
@@ -24,22 +25,23 @@ export class ContactGuard implements CanActivate {
 
     request.session = session;
 
-    const [row] = await this.db
+    const rows = await this.db
       .select({ contactId: contact.id, companyId: company.id, active: company.active })
       .from(contact)
       .innerJoin(company, eq(company.id, contact.companyId))
       .where(eq(contact.authUserId, session.user.id))
-      /* `contact.auth_user_id` é UNIQUE, então isto já devolve no máximo uma linha — a
-       * ordenação é para o `limit(1)` não depender disso. O que a unicidade custa é outro
-       * problema, e é de produto: a mesma pessoa Responsável por três Empresas só consegue
-       * ter conta em UMA delas. Ver "Gestão de equipe" nos próximos passos. */
-      .orderBy(asc(contact.createdAt), asc(contact.id))
-      .limit(1);
+      // ordem estável: a "primeira" empresa (profile, desempates) não muda entre requests
+      .orderBy(asc(contact.createdAt), asc(contact.id));
 
-    if (!row) throw new Forbidden('Esta conta não é de um Responsável de Empresa.');
-    if (!row.active) throw new Forbidden('Esta empresa está inativa na contabilidade.');
+    if (!rows.length) throw new Forbidden('Esta conta não é de um Responsável de Empresa.');
 
-    request.contactScope = toContactScope(row.contactId, row.companyId);
+    const memberships = rows
+      .filter((row) => row.active)
+      .map(({ contactId, companyId }) => ({ contactId, companyId }));
+
+    if (!memberships.length) throw new Forbidden('Esta empresa está inativa na contabilidade.');
+
+    request.contactScope = toContactScope(memberships);
 
     return true;
   }

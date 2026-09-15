@@ -59,13 +59,23 @@
     </app-empty-state>
   </div>
 } @else {
-  @for (group of byPeriod(); track group.periodId) {
+  @for (group of byPeriod(); track group.periodId + ':' + group.companyId) {
     <section class="mt-6">
       <div class="flex flex-wrap items-center justify-between gap-2">
-        <h2 class="text-base font-semibold">{{ monthLabel(group.referenceMonth) }}</h2>
+        <h2 class="text-base font-semibold">
+          {{ monthLabel(group.referenceMonth) }}
+          @if (multiCompany()) {
+            <span
+              class="bg-muted text-muted-foreground ml-2 rounded-full px-2 py-0.5 text-xs font-medium"
+            >
+              {{ group.companyName }}
+            </span>
+          }
+        </h2>
         <a
           class="text-primary text-xs font-medium hover:underline"
           [routerLink]="['/minha-area/competencias', group.periodId]"
+          [queryParams]="{ empresa: group.companyId }"
         >
           Ver tudo desta competência
         </a>

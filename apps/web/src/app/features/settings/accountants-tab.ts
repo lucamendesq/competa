@@ -2,20 +2,21 @@ import { Component, computed, inject, signal } from '@angular/core';
 import { FormField, form, submit, validateStandardSchema } from '@angular/forms/signals';
 import { CreateInviteBody } from '@contabilidade/contracts';
 import { NgIcon, provideIcons } from '@ng-icons/core';
-import { lucideCopy, lucideLock, lucideUserPlus } from '@ng-icons/lucide';
+import { lucideCopy, lucideLock, lucideTrash2, lucideUserPlus, lucideX } from '@ng-icons/lucide';
 import { HlmButtonImports } from '@spartan-ng/helm/button';
 import { HlmInputImports } from '@spartan-ng/helm/input';
 import { HlmLabel } from '@spartan-ng/helm/label';
 import { AuthService } from '../../core/auth/auth.service';
 import { apiErrorMessage } from '../../core/http/api-error';
 import { Toaster } from '../../core/ui/toast';
+import { dateBr } from '../../shared/format';
 import { Modal } from '../../shared/modal';
-import { SettingsService, CreatedInvite } from './settings.service';
+import { SettingsService, CreatedInvite, TeamAccountant } from './settings.service';
 
 @Component({
   selector: 'app-accountants-tab',
   imports: [FormField, NgIcon, HlmButtonImports, HlmInputImports, HlmLabel, Modal],
-  providers: [provideIcons({ lucideCopy, lucideLock, lucideUserPlus })],
+  providers: [provideIcons({ lucideCopy, lucideLock, lucideTrash2, lucideUserPlus, lucideX })],
   templateUrl: './accountants-tab.html',
 })
 export class AccountantsTab {
@@ -24,6 +25,43 @@ export class AccountantsTab {
   private readonly toaster = inject(Toaster);
 
   protected readonly isOwner = computed(() => this.auth.accountant()?.accountant.owner === true);
+  protected readonly myEmail = computed(() => this.auth.accountant()?.accountant.email);
+  protected readonly dateBr = dateBr;
+
+  protected readonly team = this.service.accountants();
+  protected readonly pending = this.service.pendingInvites();
+
+  /** contador marcado para remoção — o modal de confirmação lê daqui */
+  protected readonly removing = signal<TeamAccountant | null>(null);
+  protected readonly acting = signal(false);
+
+  protected async confirmRemove() {
+    const target = this.removing();
+    if (!target) return;
+
+    this.acting.set(true);
+
+    try {
+      await this.service.removeAccountant(target.id);
+      this.toaster.success(`${target.name} perdeu o acesso à contabilidade.`);
+      this.removing.set(null);
+      this.team.reload();
+    } catch (error) {
+      this.toaster.error(apiErrorMessage(error, 'Não foi possível remover.'));
+    } finally {
+      this.acting.set(false);
+    }
+  }
+
+  protected async revokeInvite(id: string) {
+    try {
+      await this.service.revokeInvite(id);
+      this.toaster.success('Convite revogado. O link deixou de valer.');
+      this.pending.reload();
+    } catch (error) {
+      this.toaster.error(apiErrorMessage(error, 'Não foi possível revogar.'));
+    }
+  }
 
   protected readonly modalOpen = signal(false);
   protected readonly created = signal<CreatedInvite | null>(null);
@@ -34,6 +72,7 @@ export class AccountantsTab {
 
   protected open() {
     this.data.set({ email: '' });
+    this.f().reset();
     this.created.set(null);
     this.error.set(null);
     this.modalOpen.set(true);
@@ -46,6 +85,7 @@ export class AccountantsTab {
       try {
         this.created.set(await this.service.invite({ email: formTree().value().email }));
         this.toaster.success('Convite criado e enviado por e-mail.');
+        this.pending.reload();
       } catch (error) {
         this.error.set(apiErrorMessage(error, 'Não foi possível criar o convite.'));
       }

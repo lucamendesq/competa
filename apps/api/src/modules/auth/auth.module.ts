@@ -5,6 +5,7 @@ import { AccountantRepository } from './accountant.repository.js';
 import { AuthController } from './auth.controller.js';
 import { InviteController } from './invite.controller.js';
 import { InviteRepository } from './invite.repository.js';
+import { TeamController } from './team.controller.js';
 
 @Module({
   providers: [
@@ -13,6 +14,6 @@ import { InviteRepository } from './invite.repository.js';
     InviteRepository,
   ],
   exports: [AuthProvider, InviteRepository],
-  controllers: [AuthController, InviteController],
+  controllers: [AuthController, InviteController, TeamController],
 })
 export class AuthModule {}

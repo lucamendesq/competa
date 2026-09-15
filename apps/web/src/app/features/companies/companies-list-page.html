@@ -81,6 +81,7 @@
         </caption>
         <thead hlmTHead>
           <tr hlmTr>
+            <th hlmTh scope="col"><span class="sr-only">Selecionar</span></th>
             <th hlmTh scope="col">Empresa</th>
             <th hlmTh scope="col">CNPJ</th>
             <th hlmTh scope="col">Responsável</th>
@@ -92,6 +93,15 @@
         <tbody hlmTBody>
           @for (company of visible(); track company.id) {
             <tr hlmTr>
+              <td hlmTd>
+                <input
+                  type="checkbox"
+                  class="size-4"
+                  [attr.aria-label]="'Selecionar ' + company.name"
+                  [checked]="isSelected(company.id)"
+                  (change)="toggleSelected(company.id)"
+                />
+              </td>
               <th hlmTd scope="row" class="font-medium">{{ company.name }}</th>
               <td hlmTd class="tabular-nums">{{ maskedCnpj(company.cnpj) }}</td>
               <td hlmTd>
@@ -120,7 +130,17 @@
                   </span>
                 }
               </td>
-              <td hlmTd>{{ company.templateName }}</td>
+              <td hlmTd>
+                @if (company.templateName) {
+                  {{ company.templateName }}
+                } @else {
+                  <span
+                    class="inline-flex items-center gap-1 rounded-full border border-warning-border bg-warning-surface px-2 py-0.5 text-[11px] font-semibold text-warning-foreground"
+                  >
+                    Sem template
+                  </span>
+                }
+              </td>
               <td hlmTd>
                 <app-status-pill [status]="company.active ? 'active' : 'inactive'" />
               </td>
@@ -214,3 +234,45 @@
     </button>
   </div>
 </app-modal>
+
+@if (selectedIds().size) {
+  <div class="h-20" aria-hidden="true"></div>
+  <div
+    class="border-border bg-card fixed inset-x-0 bottom-0 z-40 border-t p-3 shadow-[0_-4px_12px_rgba(15,23,42,0.08)]"
+    role="region"
+    aria-label="Aplicar template em lote"
+  >
+    <div class="mx-auto flex max-w-5xl flex-wrap items-center justify-end gap-3">
+      <p class="mr-auto text-sm">
+        <b>{{ selectedIds().size }}</b>
+        {{ selectedIds().size === 1 ? 'empresa selecionada' : 'empresas selecionadas' }}
+      </p>
+      <select
+        hlmInput
+        class="w-56"
+        aria-label="Template de checklist"
+        [value]="bulkTemplateId()"
+        (change)="bulkTemplateId.set($any($event.target).value)"
+      >
+        <option value="">Escolha um template</option>
+        @for (template of templates.value() ?? []; track template.id) {
+          <option [value]="template.id">{{ template.name }}</option>
+        }
+      </select>
+      <button hlmBtn variant="ghost" [disabled]="applyingTemplate()" (click)="clearSelection()">
+        Limpar seleção
+      </button>
+      <button
+        hlmBtn
+        [disabled]="applyingTemplate() || !bulkTemplateId()"
+        (click)="applyTemplateToSelected()"
+      >
+        {{
+          applyingTemplate()
+            ? 'Aplicando…'
+            : 'Aplicar a ' + selectedIds().size + (selectedIds().size === 1 ? ' empresa' : ' empresas')
+        }}
+      </button>
+    </div>
+  </div>
+}

@@ -50,9 +50,32 @@ export const sendMagicLink = async (link: MagicLink) => {
   }
 
   if (!sender) {
-    logger.warn(`sem provedor de email registrado; link de ${link.email}: ${link.url}`);
+    // nunca logar a URL em produção: o magic link é credencial (SEC-2)
+    logger.warn(`sem provedor de email registrado; link de ${link.email} descartado`);
     return;
   }
 
   await sender(link);
+};
+
+/** Mesma costura do magic link, para o reset de senha do Contador — sem o
+ *  AsyncLocalStorage, que só o passwordless usa. */
+let resetSender: Sender | undefined;
+
+export const setResetPasswordSender = (fn: Sender) => {
+  resetSender = fn;
+};
+
+export const sendResetPassword = async (link: MagicLink) => {
+  if (env.NODE_ENV !== 'production') {
+    logger.log(`reset de senha para ${link.email}: ${link.url}`);
+    return;
+  }
+
+  if (!resetSender) {
+    logger.warn(`sem provedor de email registrado; reset de ${link.email} descartado`);
+    return;
+  }
+
+  await resetSender(link);
 };

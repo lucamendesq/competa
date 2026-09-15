@@ -1,7 +1,7 @@
 import { Injectable, Logger } from '@nestjs/common';
 import { MessageProvider, type MessageToSend } from './message.provider.js';
 
-const PRODUCT_NAME = 'Coleta de Documentos';
+const PRODUCT_NAME = 'Competa';
 
 @Injectable()
 export class LogEmail extends MessageProvider {

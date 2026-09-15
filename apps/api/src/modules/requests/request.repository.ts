@@ -98,7 +98,7 @@ export class RequestRepository {
     };
   }
 
-  async acceptItem(scope: FirmScope, requestItemId: string) {
+  async acceptItem(scope: FirmScope, requestItemId: string, reviewedBy: string) {
     const context = await this.itemContext(scope, requestItemId);
     if (!context) return undefined;
 
@@ -108,7 +108,7 @@ export class RequestRepository {
     return this.db.transaction(async (tx) => {
       const accepted = await tx
         .update(document)
-        .set({ reviewStatus: 'accepted' })
+        .set({ reviewStatus: 'accepted', reviewedBy, reviewedAt: new Date() })
         .where(
           and(
             eq(document.requestItemId, requestItemId),
@@ -142,7 +142,7 @@ export class RequestRepository {
   /** Rejeitar é por Documento e reabre o Item (`rejected → pending`). O token do Link é
    *  rotacionado aqui: o token em claro só existe neste instante e viaja no evento
    *  `ItemReopened` para a Fase 5 reenviar SÓ por email. */
-  async rejectDocument(scope: FirmScope, documentId: string, reason: string) {
+  async rejectDocument(scope: FirmScope, documentId: string, reason: string, reviewedBy: string) {
     const [row] = await this.db
       .select({
         documentId: document.id,
@@ -199,10 +199,16 @@ export class RequestRepository {
     const { token, tokenHash } = createToken();
 
     const requestStatus = await this.db.transaction(async (tx) => {
-      await tx
+      /* Condicional, não check-then-act: duas revisões concorrentes no mesmo documento
+       * serializam aqui — a segunda encontra 0 linhas e vira 422, em vez de rotacionar o
+       * link de novo por cima de uma decisão já tomada (AUTHZ-5). */
+      const rejected = await tx
         .update(document)
-        .set({ reviewStatus: 'rejected', rejectionReason: reason })
-        .where(eq(document.id, documentId));
+        .set({ reviewStatus: 'rejected', rejectionReason: reason, reviewedBy, reviewedAt: new Date() })
+        .where(and(eq(document.id, documentId), ne(document.reviewStatus, 'rejected')))
+        .returning({ id: document.id });
+
+      if (!rejected.length) throw new InvalidTransition('Este documento já foi rejeitado.');
 
       // limpa a marca do cron: prazo que estourar de novo neste Item volta a avisar
       await tx
@@ -249,6 +255,7 @@ export class RequestRepository {
       rejectDocuments: { documentId: string; rejectionReason: string }[];
       reviewExtras: { documentId: string; decision: ReviewStatus; rejectionReason?: string }[];
     },
+    reviewedBy: string,
   ) {
     const [head] = await this.db
       .select({
@@ -374,7 +381,7 @@ export class RequestRepository {
       for (const itemId of input.acceptItemIds) {
         await tx
           .update(document)
-          .set({ reviewStatus: 'accepted' })
+          .set({ reviewStatus: 'accepted', reviewedBy, reviewedAt: new Date() })
           .where(
             and(
               eq(document.requestItemId, itemId),
@@ -391,7 +398,12 @@ export class RequestRepository {
 
         await tx
           .update(document)
-          .set({ reviewStatus: 'rejected', rejectionReason: row.rejectionReason })
+          .set({
+            reviewStatus: 'rejected',
+            rejectionReason: row.rejectionReason,
+            reviewedBy,
+            reviewedAt: new Date(),
+          })
           .where(eq(document.id, row.documentId));
 
         // limpa a marca do cron: prazo que estourar de novo neste Item volta a avisar
@@ -407,6 +419,8 @@ export class RequestRepository {
           .set({
             reviewStatus: row.decision,
             rejectionReason: row.decision === 'rejected' ? (row.rejectionReason ?? null) : null,
+            reviewedBy,
+            reviewedAt: new Date(),
           })
           .where(eq(document.id, row.documentId));
       }
@@ -771,6 +785,7 @@ export class RequestRepository {
     scope: FirmScope,
     documentId: string,
     decision: { reviewStatus: 'accepted' | 'rejected'; rejectionReason?: string },
+    reviewedBy: string,
   ) {
     const [row] = await this.db
       .select({
@@ -808,14 +823,19 @@ export class RequestRepository {
       .set({
         reviewStatus: decision.reviewStatus,
         rejectionReason: decision.rejectionReason ?? null,
+        reviewedBy,
+        reviewedAt: new Date(),
       })
-      .where(eq(document.id, documentId))
+      // condicional (AUTHZ-5): decisão concorrente no mesmo Extra não sobrescreve a primeira
+      .where(and(eq(document.id, documentId), eq(document.reviewStatus, 'pending')))
       .returning({
         id: document.id,
         fileName: document.fileName,
         reviewStatus: document.reviewStatus,
         rejectionReason: document.rejectionReason,
       });
+
+    if (!updated) throw new InvalidTransition('Este documento já foi revisado.');
 
     return updated;
   }
@@ -830,7 +850,7 @@ export class RequestRepository {
     return this.db.transaction(async (tx) => {
       const reverted = await tx
         .update(document)
-        .set({ reviewStatus: 'pending' })
+        .set({ reviewStatus: 'pending', reviewedBy: null, reviewedAt: null })
         .where(
           and(
             eq(document.requestItemId, requestItemId),

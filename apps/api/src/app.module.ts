@@ -1,5 +1,8 @@
 import { Module } from '@nestjs/common';
 import { APP_GUARD } from '@nestjs/core';
+import { SentryModule } from '@sentry/nestjs/setup';
+import { LoggerModule } from 'nestjs-pino';
+import { pinoOptions } from './config/logger.js';
 import { AuthModule as BetterAuthModule } from '@thallesp/nestjs-better-auth';
 import auth from './infra/auth/better-auth.js';
 import { ConfigModule } from '@nestjs/config';
@@ -21,6 +24,8 @@ import { ContactsModule } from './modules/contacts/contacts.module.js';
 
 @Module({
   imports: [
+    LoggerModule.forRoot(pinoOptions),
+    SentryModule.forRoot(),
     ConfigModule.forRoot({
       isGlobal: true,
     }),

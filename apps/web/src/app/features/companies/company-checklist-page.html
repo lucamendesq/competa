@@ -1,12 +1,12 @@
 <app-page-header
   [title]="'Checklist de ' + (company.value()?.name ?? '')"
   [description]="
-    checklist.value()
-      ? 'Baseado no template ' + checklist.value()!.template.name
-      : 'Ajuste fino do que é cobrado desta empresa.'
+    checklist.value()?.template
+      ? 'Baseado no template ' + checklist.value()!.template!.name
+      : 'Documentos avulsos desta empresa (sem template).'
   "
 >
-  @if (custom()) {
+  @if (custom() && checklist.value()?.template) {
     <button hlmBtn variant="ghost" (click)="confirmRestore.set(true)">
       <ng-icon name="lucideRotateCcw" aria-hidden="true" />
       Restaurar padrão do template
@@ -158,7 +158,7 @@
 >
   <p class="text-sm">
     O checklist volta a ser exatamente o do template
-    <strong>{{ checklist.value()?.template.name }}</strong
+    <strong>{{ checklist.value()?.template?.name }}</strong
     >. Competências já abertas não mudam.
   </p>
 

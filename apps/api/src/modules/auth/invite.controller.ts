@@ -6,6 +6,7 @@ import { addDays } from 'date-fns';
 import env from '../../config/env.js';
 import { zodPipe } from '../../lib/zod-pipe.js';
 import { createToken } from '../../lib/token.js';
+import { CurrentAccountantId } from './current-accountant.decorator.js';
 import { CurrentScope } from './current-scope.decorator.js';
 import { EVENTS, type InviteCreatedEvent } from '../../lib/events.js';
 import { AccountantRepository } from './accountant.repository.js';
@@ -29,6 +30,7 @@ export class InviteController {
   @Post()
   async create(
     @CurrentScope() scope: FirmScope,
+    @CurrentAccountantId() accountantId: string,
     @Session() session: AuthSession,
     @Body(zodPipe(CreateInviteBody)) body: CreateInviteBody,
   ) {
@@ -40,6 +42,7 @@ export class InviteController {
       email: body.email,
       tokenHash,
       expiresAt,
+      createdBy: accountantId,
     });
 
     const url = `${env.WEB_URL}/convite/${token}`;

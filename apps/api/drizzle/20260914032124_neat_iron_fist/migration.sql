@@ -1,0 +1,1 @@
+ALTER TABLE "company" ALTER COLUMN "checklist_template_id" DROP NOT NULL;

@@ -9,10 +9,12 @@
     <ng-icon name="lucideFileArchive" aria-hidden="true" />
     Baixar zip da competência
   </button>
-  <button hlmBtn variant="outline" (click)="resendReminders()">
-    <ng-icon name="lucideBellRing" aria-hidden="true" />
-    Rodar varredura de lembretes (todas as empresas)
-  </button>
+  @if (period.value()?.status === 'open') {
+    <button hlmBtn variant="outline" (click)="resendReminders()">
+      <ng-icon name="lucideBellRing" aria-hidden="true" />
+      Rodar varredura de lembretes
+    </button>
+  }
   @if (period.value()?.status === 'open') {
     <button hlmBtn variant="destructive" (click)="confirmClose.set(true)">
       <ng-icon name="lucideLock" aria-hidden="true" />
@@ -104,7 +106,11 @@
           Todas as empresas entregaram tudo 🎉
         </h2>
         <p class="mt-0.5 text-xs text-success-foreground">
-          Nada pendente nesta competência. Você já pode baixar o zip e encerrar.
+          @if (period.value()?.status === 'closed') {
+            Competência encerrada com todos os itens aceitos.
+          } @else {
+            Nada pendente nesta competência. Você já pode baixar o zip e encerrar.
+          }
         </p>
       </div>
       <button hlmBtn size="sm" (click)="downloadPeriodZip()">
@@ -296,8 +302,12 @@
   description="Encerrar é a palavra final e vale mesmo com pendências."
 >
   <p class="text-sm">
-    {{ period.value()?.pendingItemCount ?? 0 }} item(ns) ainda estão sem aceite. Depois de encerrar,
-    os Responsáveis só conseguem enviar documentos extras.
+    @if (period.value()?.pendingItemCount) {
+      {{ period.value()?.pendingItemCount }} item(ns) ainda estão sem aceite. Depois de encerrar,
+      os Responsáveis só conseguem enviar documentos extras.
+    } @else {
+      Todos os itens estão aceitos. Depois de encerrar, os Responsáveis só conseguem enviar documentos extras.
+    }
   </p>
 
   <div

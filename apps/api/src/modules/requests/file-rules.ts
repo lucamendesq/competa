@@ -3,6 +3,23 @@
 // (ou conferir com HeadObject na confirmação) quando isso virar problema real.
 export const MAX_FILE_BYTES = 100 * 1024 * 1024;
 export const MAX_FILES_PER_UPLOAD = 500;
+/* Teto por Solicitação (AVAIL-2): o link vive 30 dias e sem teto o acúmulo vira zip
+ * imontável e fatura de storage sem dono. ≥ MAX_FILES_PER_UPLOAD: um lote único cheio
+ * ainda cabe. */
+export const MAX_DOCS_PER_REQUEST = 1000;
+export const MAX_BYTES_PER_REQUEST = 500 * 1024 * 1024;
+
+export const requestCapRefusal = (usage: { count: number; bytes: number }, file: UploadedFile) => {
+  if (usage.count >= MAX_DOCS_PER_REQUEST) {
+    return `Esta solicitação já tem ${MAX_DOCS_PER_REQUEST} documentos — o limite. Fale com a contabilidade.`;
+  }
+
+  if (usage.bytes + file.sizeBytes > MAX_BYTES_PER_REQUEST) {
+    return `Esta solicitação chegou ao limite de ${megabytes(MAX_BYTES_PER_REQUEST)} MB no total. Fale com a contabilidade.`;
+  }
+
+  return null;
+};
 
 /* `Object.create(null)`: com um objeto literal, `'constructor' in mapa` é true e
  * `mapa['constructor']` devolve uma função — um content-type inventado passaria pela

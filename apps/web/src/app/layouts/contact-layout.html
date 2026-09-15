@@ -10,8 +10,15 @@
     <div class="mx-auto flex max-w-3xl items-center gap-3 px-4 py-3">
       <app-logo variant="icon" surface="dark" alt="" class="h-7 shrink-0" />
       <div class="min-w-0 flex-1">
-        <p class="truncate text-sm font-semibold">{{ perfil()?.companyName }}</p>
-        <p class="truncate text-xs opacity-70">{{ perfil()?.accountingFirmName }}</p>
+        @if ((perfil()?.companies?.length ?? 0) > 1) {
+          <p class="truncate text-sm font-semibold">{{ perfil()?.name }}</p>
+          <p class="truncate text-xs opacity-70">
+            {{ perfil()?.companies?.length }} empresas · {{ perfil()?.accountingFirmName }}
+          </p>
+        } @else {
+          <p class="truncate text-sm font-semibold">{{ perfil()?.companyName }}</p>
+          <p class="truncate text-xs opacity-70">{{ perfil()?.accountingFirmName }}</p>
+        }
       </div>
       <button
         type="button"

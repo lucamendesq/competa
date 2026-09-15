@@ -1,12 +1,70 @@
 import { Injectable } from '@nestjs/common';
-import { and, eq } from 'drizzle-orm';
+import { and, asc, eq } from 'drizzle-orm';
 import { Database } from '../../infra/database/database.js';
 import { accountant, accountingFirm, invite, user } from '../../infra/database/schema/index.js';
 import type { FirmScope } from './scope.js';
 
+type FirmPatch = Partial<{
+  name: string;
+  reminderMax: number;
+  reminderDueSoonDays: number;
+  reminderGapDays: number;
+}>;
+
 @Injectable()
 export class AccountantRepository {
   constructor(private readonly db: Database) {}
+
+  async list(scope: FirmScope) {
+    return this.db
+      .select({
+        id: accountant.id,
+        name: user.name,
+        email: user.email,
+        owner: accountant.owner,
+        createdAt: accountant.createdAt,
+      })
+      .from(accountant)
+      .innerJoin(user, eq(user.id, accountant.authUserId))
+      .where(eq(accountant.accountingFirmId, scope))
+      .orderBy(asc(accountant.createdAt), asc(accountant.id));
+  }
+
+  async findInFirm(scope: FirmScope, accountantId: string) {
+    const [row] = await this.db
+      .select({ id: accountant.id, authUserId: accountant.authUserId, owner: accountant.owner })
+      .from(accountant)
+      .where(and(eq(accountant.id, accountantId), eq(accountant.accountingFirmId, scope)))
+      .limit(1);
+
+    return row;
+  }
+
+  async firm(scope: FirmScope) {
+    const [row] = await this.db
+      .select({
+        id: accountingFirm.id,
+        name: accountingFirm.name,
+        reminderMax: accountingFirm.reminderMax,
+        reminderDueSoonDays: accountingFirm.reminderDueSoonDays,
+        reminderGapDays: accountingFirm.reminderGapDays,
+      })
+      .from(accountingFirm)
+      .where(eq(accountingFirm.id, scope))
+      .limit(1);
+
+    return row;
+  }
+
+  async updateFirm(scope: FirmScope, patch: FirmPatch) {
+    const [row] = await this.db
+      .update(accountingFirm)
+      .set(patch)
+      .where(eq(accountingFirm.id, scope))
+      .returning({ id: accountingFirm.id });
+
+    return row;
+  }
 
   async findMe(scope: FirmScope, authUserId: string) {
     const [row] = await this.db
@@ -55,6 +113,12 @@ export class AccountantRepository {
         owner: !existente,
       });
       await tx.update(invite).set({ acceptedAt: new Date() }).where(eq(invite.id, input.inviteId));
+      /* posse do email provada pelo token do convite + aceite dos Termos informado na
+       * tela de signup */
+      await tx
+        .update(user)
+        .set({ emailVerified: true, termsAcceptedAt: new Date() })
+        .where(eq(user.id, input.authUserId));
     });
   }
 

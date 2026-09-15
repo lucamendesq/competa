@@ -15,6 +15,7 @@ import {
   type ReviewPublishedEvent,
 } from '../../lib/events.js';
 import { zodPipe } from '../../lib/zod-pipe.js';
+import { CurrentAccountantId } from '../auth/current-accountant.decorator.js';
 import { CurrentScope } from '../auth/current-scope.decorator.js';
 import type { FirmScope } from '../auth/scope.js';
 import { DeadlineCron } from './deadline.cron.js';
@@ -31,8 +32,12 @@ export class ReviewController {
   ) {}
 
   @Post('request-items/:id/accept')
-  async acceptItem(@CurrentScope() scope: FirmScope, @Param(zodPipe(IdParam)) params: IdParam) {
-    const result = await this.requests.acceptItem(scope, params.id);
+  async acceptItem(
+    @CurrentScope() scope: FirmScope,
+    @CurrentAccountantId() accountantId: string,
+    @Param(zodPipe(IdParam)) params: IdParam,
+  ) {
+    const result = await this.requests.acceptItem(scope, params.id, accountantId);
     if (!result) throw new NotFound('Item não encontrado.');
 
     if (result.completed) {
@@ -56,10 +61,11 @@ export class ReviewController {
   @Post('requests/:id/review')
   async publishReview(
     @CurrentScope() scope: FirmScope,
+    @CurrentAccountantId() accountantId: string,
     @Param(zodPipe(IdParam)) params: IdParam,
     @Body(zodPipe(ReviewBatchBody)) body: ReviewBatchBody,
   ) {
-    const result = await this.requests.applyReview(scope, params.id, body);
+    const result = await this.requests.applyReview(scope, params.id, body, accountantId);
     if (!result) throw new NotFound('Solicitação não encontrada.');
 
     // Depois da transação: um email de recusa não pode sair por uma revisão que deu
@@ -101,10 +107,16 @@ export class ReviewController {
   @Post('documents/:id/reject')
   async rejectDocument(
     @CurrentScope() scope: FirmScope,
+    @CurrentAccountantId() accountantId: string,
     @Param(zodPipe(IdParam)) params: IdParam,
     @Body(zodPipe(RejectDocumentBody)) body: RejectDocumentBody,
   ) {
-    const result = await this.requests.rejectDocument(scope, params.id, body.rejectionReason);
+    const result = await this.requests.rejectDocument(
+      scope,
+      params.id,
+      body.rejectionReason,
+      accountantId,
+    );
     if (!result) throw new NotFound('Documento não encontrado.');
 
     const uploadUrl = `${env.WEB_URL}/envio/${result.token}`;
@@ -138,13 +150,16 @@ export class ReviewController {
   @Post('documents/:id/review-extra')
   async reviewExtra(
     @CurrentScope() scope: FirmScope,
+    @CurrentAccountantId() accountantId: string,
     @Param(zodPipe(IdParam)) params: IdParam,
     @Body(zodPipe(ReviewExtraBody)) body: ReviewExtraBody,
   ) {
-    const result = await this.requests.reviewExtraDocument(scope, params.id, {
-      reviewStatus: body.decision,
-      rejectionReason: body.rejectionReason,
-    });
+    const result = await this.requests.reviewExtraDocument(
+      scope,
+      params.id,
+      { reviewStatus: body.decision, rejectionReason: body.rejectionReason },
+      accountantId,
+    );
     if (!result) throw new NotFound('Documento não encontrado.');
 
     return result;

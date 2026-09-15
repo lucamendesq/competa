@@ -74,11 +74,13 @@ export class ZipController {
     /* Conferir os objetos ANTES do primeiro byte. Descobrir no meio do stream que um objeto
      * sumiu é tarde: os headers já saíram com 200 e não há como voltar atrás — o contador
      * baixa um zip a menos e não tem como saber.
-     * ponytail: um HEAD por documento; o zip da Competência inteira faz milhares. Trocar
-     * por um `sizeBytes` conferido na confirmação se a latência incomodar. */
-    const sizes = await Promise.all(
-      entries.map((entry) => this.storage.statSize(entry.storageKey)),
-    );
+     * Em lotes de 8: um Promise.all de milhares de HEADs simultâneos esgota sockets e
+     * derruba a rota para todo mundo (AVAIL-1). */
+    const sizes: (number | undefined)[] = [];
+    for (let start = 0; start < entries.length; start += 8) {
+      const batch = entries.slice(start, start + 8);
+      sizes.push(...(await Promise.all(batch.map((entry) => this.storage.statSize(entry.storageKey)))));
+    }
     const missing = entries.filter((_, index) => sizes[index] === undefined);
 
     if (missing.length) {

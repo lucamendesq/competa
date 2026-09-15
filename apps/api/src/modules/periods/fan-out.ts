@@ -15,6 +15,7 @@ type ChecklistLine = {
 type CompanyRow = {
   id: string;
   name: string;
+  checklistTemplateId: string | null;
   contact?: {
     id: string;
     name: string;
@@ -49,7 +50,7 @@ export const entersFanOut = (line: ChecklistLine, referenceMonthNumber: number) 
   (line.periodicity === 'monthly' ||
     (line.periodicity === 'annual' && line.annualMonth === referenceMonthNumber));
 
-const canBeCharged = (row: CompanyRow) => Boolean(row.contact?.email);
+const canBeCharged = (row: CompanyRow) => Boolean(row.checklistTemplateId) && Boolean(row.contact?.email);
 
 export const planFanOut = (input: {
   companies: CompanyRow[];
@@ -60,14 +61,24 @@ export const planFanOut = (input: {
 }) => {
   const referenceMonthNumber = Number(input.referenceMonth.slice(5, 7));
 
-  const warnings = input.companies
-    .filter((row) => !canBeCharged(row))
-    .map((row) => ({
-      companyId: row.id,
-      companyName: row.name,
-      reason: 'Empresa ativa sem Responsável cadastrado.',
-      blockedBy: 'contact' as const,
-    }));
+  const warnings = [
+    ...input.companies
+      .filter((row) => !row.checklistTemplateId)
+      .map((row) => ({
+        companyId: row.id,
+        companyName: row.name,
+        reason: 'Empresa ativa sem template de checklist — não recebe cobrança.',
+        blockedBy: 'template' as const,
+      })),
+    ...input.companies
+      .filter((row) => row.checklistTemplateId && !canBeCharged(row))
+      .map((row) => ({
+        companyId: row.id,
+        companyName: row.name,
+        reason: 'Empresa ativa sem Responsável cadastrado.',
+        blockedBy: 'contact' as const,
+      })),
+  ];
 
   const plans: RequestPlan[] = input.companies.filter(canBeCharged).map((row) => ({
     companyId: row.id,

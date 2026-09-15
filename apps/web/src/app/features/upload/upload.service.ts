@@ -37,7 +37,6 @@ export type PresignedFile =
       fileName: string;
       accepted: true;
       documentId: string;
-      storageKey: string;
       uploadUrl: string;
     };
 

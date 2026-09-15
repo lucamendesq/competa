@@ -15,6 +15,7 @@ export type Contact = {
   companyId: string;
   companyName: string;
   accountingFirmName: string;
+  companies: { companyId: string; companyName: string; accountingFirmName: string }[];
 };
 
 @Service()
@@ -32,9 +33,22 @@ export class AuthService {
 
   async signInAccountant(email: string, password: string) {
     const { error } = await authClient.signIn.email({ email, password });
-    if (error) throw new Error(error.message ?? 'E-mail ou senha inválidos.');
+    if (error) throw new Error('E-mail ou senha inválidos.');
 
     this.accountant.set(await this.api.get<Accountant>('/auth/me'));
+  }
+
+  async requestPasswordReset(email: string) {
+    const { error } = await authClient.requestPasswordReset({
+      email,
+      redirectTo: `${location.origin}/redefinir-senha`,
+    });
+    if (error) throw new Error('Não foi possível enviar o email. Tente de novo.');
+  }
+
+  async resetPassword(newPassword: string, token: string) {
+    const { error } = await authClient.resetPassword({ newPassword, token });
+    if (error) throw new Error('Link inválido ou expirado. Peça um novo.');
   }
 
   async signOut() {
@@ -44,21 +58,24 @@ export class AuthService {
     this.pending = undefined;
   }
 
-  /** Só quem aceitou um convite tem senha; quem ativou pelo Link de Upload entra por
-   *  passkey ou magic link. As duas formas de conta convivem, então a tela de entrada
-   *  oferece as duas. */
   async signInContact(email: string, password: string) {
     const { error } = await authClient.signIn.email({ email, password });
-    if (error) throw new Error(error.message ?? 'E-mail ou senha inválidos.');
+    if (error) throw new Error('E-mail ou senha inválidos.');
 
     await this.reloadContact();
   }
 
-  /** Marca a sessão como resolvida junto: sem isso, um `ensureLoaded` anterior que falhou
-   *  fica memoizado como "não é Responsável" e o guard manda de volta para o login logo
-   *  depois de a conta ter sido ativada com sucesso. */
   async reloadContact() {
     this.contact.set(await this.api.get<Contact>('/my/profile'));
+    this.pending = Promise.resolve();
+  }
+
+  async setContactPassword(password: string) {
+    await this.api.post<void>('/my/password', { password });
+  }
+
+  async reloadAccountant() {
+    this.accountant.set(await this.api.get<Accountant>('/auth/me'));
     this.pending = Promise.resolve();
   }
 

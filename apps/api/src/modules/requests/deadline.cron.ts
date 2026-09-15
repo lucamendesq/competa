@@ -1,8 +1,9 @@
 import { Injectable, Logger } from '@nestjs/common';
 import { EventEmitter2 } from '@nestjs/event-emitter';
 import { Cron, CronExpression } from '@nestjs/schedule';
-import { format } from 'date-fns';
+import { SentryCron } from '@sentry/nestjs';
 import env from '../../config/env.js';
+import { brazilDay } from '../../lib/brazil-time.js';
 import { EVENTS, type DeadlineMissedEvent } from '../../lib/events.js';
 import { createToken } from '../../lib/token.js';
 import type { FirmScope } from '../auth/scope.js';
@@ -32,7 +33,13 @@ export class DeadlineCron {
     private readonly events: EventEmitter2,
   ) {}
 
-  @Cron(CronExpression.EVERY_DAY_AT_7AM)
+  @Cron(CronExpression.EVERY_DAY_AT_7AM, { timeZone: 'America/Sao_Paulo' })
+  @SentryCron('deadline-daily', {
+    schedule: { type: 'crontab', value: '0 7 * * *' },
+    checkinMargin: 5,
+    maxRuntime: 30,
+    timezone: 'America/Sao_Paulo',
+  })
   async daily() {
     const { notified } = await this.scan(null);
     if (notified.length)
@@ -57,7 +64,7 @@ export class DeadlineCron {
   }
 
   async scan(scope: FirmScope | null) {
-    const today = format(new Date(), 'yyyy-MM-dd');
+    const today = brazilDay();
     const overdue = await this.requests.overdueItems(scope, today);
     const pendingNotice = overdue.filter((row) => row.deadlineNotifiedAt === null);
 

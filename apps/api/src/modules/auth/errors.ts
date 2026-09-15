@@ -71,3 +71,21 @@ export class OnlyOwnerCanInvite extends AppError {
     super('Só o dono da contabilidade pode convidar contadores.');
   }
 }
+
+export class OnlyOwnerCanManageTeam extends AppError {
+  readonly code = 'ONLY_OWNER_CAN_MANAGE_TEAM';
+  readonly status = 403;
+
+  constructor() {
+    super('Só o dono da contabilidade pode fazer isso.');
+  }
+}
+
+export class CannotRemoveOwner extends AppError {
+  readonly code = 'CANNOT_REMOVE_OWNER';
+  readonly status = 422;
+
+  constructor() {
+    super('O dono da contabilidade não pode ser removido.');
+  }
+}

@@ -34,7 +34,8 @@
       {{ currentDetail.value()?.requestCount ?? '—' }}
     </dd>
     <p class="text-muted-foreground mt-2 text-xs">
-      {{ preview().withoutContact.length }} sem Responsável cadastrado
+      {{ preview().withoutContact.length }} sem Responsável ·
+      {{ preview().withoutTemplate.length }} sem template
     </p>
   </div>
 
@@ -179,7 +180,7 @@
           role="note"
         >
           <p class="font-medium">
-            {{ result()!.warnings.length }} empresa(s) ficaram de fora por não terem Responsável:
+            {{ result()!.warnings.length }} empresa(s) ficaram de fora:
           </p>
           <ul class="mt-2 flex flex-col gap-1">
             @for (warning of result()!.warnings; track warning.companyId) {
@@ -190,7 +191,11 @@
                   [routerLink]="['/empresas', warning.companyId, 'editar']"
                   (click)="closeResult()"
                 >
-                  Cadastrar Responsável
+                  @if (warning.blockedBy === 'template') {
+                    Cadastrar template
+                  } @else {
+                    Cadastrar Responsável
+                  }
                 </a>
               </li>
             }
@@ -301,13 +306,39 @@
           <p>
             @if (preview().created === 1) {
               Será criada <strong class="tabular-nums">1</strong> solicitação para a empresa ativa
-              com Responsável cadastrado.
+              com template e Responsável cadastrado.
             } @else {
               Serão criadas <strong class="tabular-nums">{{ preview().created }}</strong>
-              solicitações para as empresas ativas com Responsável cadastrado.
+              solicitações para as empresas ativas com template e Responsável cadastrado.
             }
           </p>
         </div>
+
+        @if (preview().withoutTemplate.length) {
+          <div
+            class="rounded-lg border border-warning-border bg-warning-surface p-3 text-sm text-warning-foreground"
+            role="note"
+          >
+            <p class="font-medium">
+              {{ preview().withoutTemplate.length }} empresa(s) não receberão comunicado — sem
+              template de checklist:
+            </p>
+            <ul class="mt-2 flex flex-col gap-1">
+              @for (company of preview().withoutTemplate; track company.id) {
+                <li class="flex flex-wrap items-center justify-between gap-2">
+                  <span>{{ company.name }}</span>
+                  <a
+                    class="font-medium underline"
+                    [routerLink]="['/empresas', company.id, 'editar']"
+                    (click)="modalOpen.set(false)"
+                  >
+                    Cadastrar template
+                  </a>
+                </li>
+              }
+            </ul>
+          </div>
+        }
 
         @if (preview().withoutContact.length) {
           <div
@@ -341,6 +372,18 @@
       <!-- Passo de confirmação: o disparo é irreversível e sai para fora (email do
            cliente), então a lista de destinatários aparece ANTES, com nome e endereço. -->
       <div class="mt-5 flex flex-col gap-3">
+        @if (preview().withoutTemplate.length) {
+          <div
+            class="rounded-lg border border-warning-border bg-warning-surface p-3 text-sm text-warning-foreground"
+            role="note"
+          >
+            <p class="font-medium">
+              {{ preview().withoutTemplate.length }} empresa(s) sem template não receberão
+              comunicado desta competência.
+            </p>
+          </div>
+        }
+
         <div class="border-border rounded-lg border p-3 text-sm">
           <p class="font-medium">
             Vamos enviar

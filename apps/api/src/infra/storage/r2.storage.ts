@@ -17,9 +17,8 @@ import { PRESIGN_TTL_SECONDS, StorageProvider, type PresignPutInput } from './st
 export class R2Storage extends StorageProvider {
   private readonly client = new S3Client({
     region: 'auto',
-    // O checksum flexível do SDK v3 vai na URL assinada calculado sobre corpo vazio
-    // e o R2 rejeita o PUT do cliente; WHEN_REQUIRED tira o parâmetro da assinatura.
     requestChecksumCalculation: 'WHEN_REQUIRED',
+    forcePathStyle: true,
     endpoint: `https://${env.R2_ACCOUNT_ID}.r2.cloudflarestorage.com`,
     credentials: {
       accessKeyId: env.R2_ACCESS_KEY_ID ?? '',
@@ -32,7 +31,6 @@ export class R2Storage extends StorageProvider {
       new GetObjectCommand({ Bucket: env.R2_BUCKET, Key: storageKey }),
     );
 
-    // no Node o SDK v3 entrega o corpo como stream; sem corpo, o objeto não existe
     if (!Body) throw new NotFound('Arquivo não encontrado no storage.');
 
     return Body as Readable;
@@ -45,10 +43,11 @@ export class R2Storage extends StorageProvider {
         Bucket: env.R2_BUCKET,
         Key: storageKey,
         ContentType: contentType,
-        // assinado: o R2 recusa o PUT cujo corpo não tem exatamente este tamanho
         ContentLength: sizeBytes,
       }),
-      { expiresIn: PRESIGN_TTL_SECONDS, signableHeaders: new Set(['content-length']) },
+      /* content-type assinado (SSRF-1): o PUT só aceita o tipo declarado no presign — o
+       * mesmo que foi validado e gravado em `document.content_type`. */
+      { expiresIn: PRESIGN_TTL_SECONDS, signableHeaders: new Set(['content-length', 'content-type']) },
     );
   }
 
@@ -60,7 +59,6 @@ export class R2Storage extends StorageProvider {
 
       return ContentLength;
     } catch {
-      // objeto ausente é resposta válida aqui: presign sem PUT
       return undefined;
     }
   }

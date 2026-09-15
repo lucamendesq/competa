@@ -131,8 +131,8 @@ export class ChecklistRepository {
     return this.db
       .select(itemColumns)
       .from(company)
-      .innerJoin(checklistTemplate, eq(checklistTemplate.id, company.checklistTemplateId))
-      .innerJoin(
+      .leftJoin(checklistTemplate, eq(checklistTemplate.id, company.checklistTemplateId))
+      .leftJoin(
         checklistTemplateItem,
         eq(checklistTemplateItem.checklistTemplateId, checklistTemplate.id),
       )
@@ -332,7 +332,7 @@ export class ChecklistRepository {
         templateName: checklistTemplate.name,
       })
       .from(company)
-      .innerJoin(checklistTemplate, eq(checklistTemplate.id, company.checklistTemplateId))
+      .leftJoin(checklistTemplate, eq(checklistTemplate.id, company.checklistTemplateId))
       .where(and(eq(company.id, companyId), eq(company.accountingFirmId, scope)))
       .limit(1);
 
@@ -344,7 +344,9 @@ export class ChecklistRepository {
     if (!context) return undefined;
 
     const [templateItems, overrides] = await Promise.all([
-      this.templateItemsForCompany(scope, companyId),
+      context.checklistTemplateId
+        ? this.templateItemsForCompany(scope, companyId)
+        : Promise.resolve([]),
       this.listOverrides(scope, companyId),
     ]);
 
@@ -352,7 +354,9 @@ export class ChecklistRepository {
 
     return {
       companyId,
-      template: { id: context.checklistTemplateId, name: context.templateName },
+      template: context.checklistTemplateId
+        ? { id: context.checklistTemplateId, name: context.templateName! }
+        : null,
       flags: context.flags,
       items: lines.map((line) => ({
         ...line,

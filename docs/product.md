@@ -17,7 +17,18 @@ SaaS que elimina o garimpo manual de documentos contábeis: a Contabilidade defi
 ## Público e posicionamento
 
 - **Público:** escritórios contábeis pequenos (1–5 pessoas) que acham as suítes (Acessórias/Onvio/Nibo) caras e pesadas.
-- **Posicionamento:** ferramenta **focada e barata, com preço público** — não uma suíte. **WhatsApp-first** (critério de troca citado por contadores). Faixa de preço plausível: **R$97–197/mês por escritório** (🟡 validar).
+- **Posicionamento:** ferramenta **focada e barata, com preço público** — não uma suíte. **WhatsApp-first** (critério de troca citado por contadores). Faixa de preço plausível: **R$59–197/mês por escritório**, em tiers (🟡 validar no discovery antes da TASK-049):
+
+  | Plano        | Preço/mês  | Empresas ativas | WhatsApp incluso            |
+  | ------------ | ---------- | ---------------- | ----------------------------- |
+  | Trial        | grátis 14d | até 10            | incluído                       |
+  | Essencial    | R$59–79    | até 15–20         | add-on / pré-pago              |
+  | Profissional (âncora) | R$99–147 | até 40–50 | franquia (100–800 msgs) + overage |
+  | Escritório   | R$169–197  | até 80–100        | franquia maior (300–1.600 msgs) + overage |
+
+  Métrica de cobrança: **empresas ativas em competência aberta por mês** (não por usuário, não por
+  GB) — é o que a "Cobrança/assinatura" (ainda 🔴, sem nenhuma linha de código — ver
+  [`next-steps.md`](./next-steps.md#1-lacunas-de-produto)) deve instrumentar quando for desenhada.
 - **Time:** dev solo.
 
 ## Atores

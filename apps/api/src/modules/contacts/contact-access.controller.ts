@@ -50,10 +50,22 @@ export class ContactAccessController {
     if (!owner) throw new NotFound('Solicitação não encontrada.');
     if (owner.authUserId) throw new AccessAlreadyExists();
 
+    /* Email já tem conta de Contador (ou conta sem vínculo de contato) → recusar: o
+     * signInPasswordless abaixo logaria NA conta existente e o vínculo entregaria a
+     * sessão dela a quem controla o Link (AUTHZ-1). O front manda o dono entrar em
+     * /minha-area/acesso. Conta contact-only passa: o token do Link prova posse do email,
+     * e o vínculo só ADICIONA esta Empresa ao mesmo Responsável (multi-empresa). */
+    const existing = await this.contacts.userByEmail(owner.email);
+    if (existing && (existing.isAccountant || !existing.isContact)) {
+      throw new EmailAlreadyRegistered();
+    }
+
     const name = body.name?.trim() || owner.name;
     const session = await this.auth.signInPasswordless({ name, email: owner.email });
 
     await this.contacts.linkAuthUser(owner.id, session.userId);
+    // a tela informa que ativar implica no aceite dos Termos/Privacidade
+    await this.contacts.markTermsAccepted(session.userId);
     response.setHeader('set-cookie', session.setCookie);
 
     return { email: owner.email, name };
@@ -108,6 +120,7 @@ export class ContactInviteAccountController {
       throw signUp.error;
     }
 
+    await this.contacts.markUserEmailVerified(signUp.value.userId);
     await this.contacts.linkAuthUser(owner.id, signUp.value.userId);
     await this.invites.markAccepted(found.id);
 

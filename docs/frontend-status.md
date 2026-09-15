@@ -1,60 +1,62 @@
-# Frontend — estado das telas (2026-09-07)
+# Frontend — estado das telas (2026-09-07; revisado 2026-09-11)
 
 O que existe em `apps/web`, o que ficou degradado por falta de rota na API e o que exige
-configuração para funcionar. Complementa o [`roadmap.md`](./roadmap.md); a intenção de
-design das telas está em [`stitch-prompt.md`](./stitch-prompt.md).
+configuração para funcionar. Complementa o [`roadmap.md`](./roadmap.md).
 
 ## Telas entregues
 
 | Rota                                     | Tela                                                              | Estado                                             |
 | ---------------------------------------- | ----------------------------------------------------------------- | -------------------------------------------------- |
-| `/entrar`                                | Login do Contador                                                 | completa                                           |
+| `/entrar`                                | Login do Contador (com "Esqueci minha senha")                     | completa                                           |
+| `/esqueci-senha`, `/redefinir-senha`     | Reset de senha do Contador (token 1h, resposta cega)              | completa (2026-09-11)                              |
 | `/convite/:token`                        | Aceitar convite (define senha, Contador e Responsável)            | completa; convite já usado manda para a entrada    |
-| `/perdi-meu-link`                        | Reenvio do Link de Upload (resposta idêntica nos três casos)      | completa                                           |
+| `/perdi-meu-link`                        | Pedido de novo Link (passo 1: email de confirmação de posse)      | completa (2 passos desde 2026-09-11)               |
+| `/perdi-meu-link/confirmar`              | Passo 2: botão que confirma posse e rotaciona o Link              | completa (2026-09-11)                              |
+| `/termos`, `/privacidade`                | Páginas legais (conteúdo provisório até revisão jurídica)         | completa (2026-09-11); aceite em `user.terms_accepted_at` |
 | `/competencias`                          | Lista + KPIs + modal "Abrir competência"                          | completa, com prévia do fan-out e resumo dos links |
 | `/competencias/:id`                      | **Painel de Pendências** ("quem faltou")                          | completa, com falha de canal visível               |
-| `/solicitacoes/:id`                      | Revisão da Solicitação (aceite em lote, rejeição, extras)         | completa, menos visualizar/baixar arquivo avulso   |
+| `/solicitacoes/:id`                      | Revisão da Solicitação (aceite em lote, rejeição, extras, preview/baixar avulso) | completa                             |
 | `/empresas`                              | Lista de Empresas                                                 | completa                                           |
 | `/empresas/nova`, `/empresas/:id/editar` | Cadastro/edição + prévia do checklist efetivo                     | completa                                           |
-| `/empresas/importar`                     | Importar planilha + relatório por linha                           | completa (CSV apenas)                              |
+| `/empresas/importar`                     | Importar planilha + relatório por linha                           | completa (.xlsx e .csv, cabeçalhos PT aceitos)     |
 | `/empresas/:id/checklist`                | Overrides por Empresa                                             | completa                                           |
 | `/checklists`, `/checklists/:id`         | Templates do produto e derivados editáveis                        | completa                                           |
 | `/mensagens`                             | Log de entrega + detalhe do erro                                  | completa, menos reenvio individual                 |
-| `/configuracoes/*`                       | Contabilidade · Contadores · Lembretes · Canais                   | parcial (ver abaixo)                               |
+| `/configuracoes/*`                       | Contabilidade (nome editável) · Contadores (lista/remover/convites) · Lembretes (preferências) · Canais | completa desde 2026-09-11, menos Canais (WhatsApp = Fase 8) |
 | `/envio/:token`                          | **Página pública de envio** (mobile-first, sem senha)             | completa                                           |
-| `/minha-area/*`                          | Área do Responsável (acesso, pendências, histórico, envio logado) | completa                                           |
+| `/minha-area/*`                          | Área do Responsável (acesso, pendências, histórico, envio logado, preview/baixar documento, multi-empresa com badge) | completa                     |
 
 ## Degradado por falta de rota na API
 
 Decisão de 2026-09-07: construir a tela com o que a API expõe hoje, em vez de inventar
-endpoint. Cada item abaixo é uma lacuna consciente, sinalizada na própria tela.
+endpoint. **Revisão 2026-09-11: a maioria das lacunas fechou** — ficou assim:
 
-1. **Configurações → Contabilidade** é somente leitura: não há `PATCH accounting_firm`
-   (nome, logotipo, e-mail de contato).
-2. **Configurações → Contadores** não lista a equipe: não há rota de listagem de
-   `accountant`. O convite (`POST /invites`) funciona, com link copiável, e **só aparece
-   para o dono** da Contabilidade — quem não é dono vê a explicação no lugar do botão.
-3. **Configurações → Lembretes** explica o comportamento fixo (cron diário, máx. 2 por
-   Solicitação, só e-mail) — não há tabela de preferência por Contabilidade.
+1. ~~Configurações → Contabilidade somente leitura~~ — ✅ `GET/PATCH /accounting-firm`
+   (nome + preferências de lembrete, só o dono). Logotipo/e-mail de contato seguem fora.
+2. ~~Configurações → Contadores não lista a equipe~~ — ✅ lista (`GET /accountants`),
+   remove com confirmação (`DELETE /accountants/:id`, nunca o dono), convites pendentes
+   com revogação (`GET/DELETE /invites`).
+3. ~~Configurações → Lembretes fixo~~ — ✅ máx/D-N/gap configuráveis pelo dono; canal e
+   hora do cron seguem fixos.
 4. **Configurações → Canais** mostra WhatsApp como "não conectado" (Fase 8 não construída).
-5. **Baixar/visualizar um Documento avulso** não existe: só os zips
-   (`/requests/:id/zip`, `/periods/:id/zip`). A revisão mostra nome, tamanho e data.
+5. ~~Baixar/visualizar um Documento avulso~~ — ✅ preview/baixar na revisão
+   (`GET /documents/:id/content`) e na área do Responsável (`GET /my/documents/:id/content`).
 6. **Reenviar mensagem individual** não existe — a tela oferece
-   `POST /messages/reminders/run` (varredura global de lembretes). O **Link de Upload**,
-   sim: `POST /requests/:id/upload-link` (gerar e copiar) e `.../upload-link/resend`
-   (mandar por email), na revisão da Empresa e no aviso de falha de canal do Painel de
-   Pendências. Os dois **rotacionam o token** — só o hash fica no banco, então não existe
-   ler o link atual e o anterior morre.
+   `POST /messages/reminders/run` (varredura de lembretes, **escopada à Contabilidade da
+   sessão** desde a TASK-042). O **Link de Upload**, sim: `POST /requests/:id/upload-link`
+   (gerar e copiar) e `.../upload-link/resend` (mandar por email), na revisão da Empresa e
+   no aviso de falha de canal do Painel de Pendências. Os dois **rotacionam o token** — só
+   o hash fica no banco, então não existe ler o link atual e o anterior morre.
 7. **Colunas ausentes** por não virem na listagem: "Aberta em" da Competência, nome/e-mail
    do Responsável na lista de Empresas (mostra a contagem), "empresas usando" no template.
 8. **Filtros de Mensagens** por Empresa/Canal/Tipo são aplicados no cliente sobre a página
    carregada — a API filtra por `periodId`, `requestId` e `status`.
-9. **"Esqueci minha senha" do Contador** foi omitido: o Better Auth não tem
-   `sendResetPassword` configurado, e um link que não faz nada é pior que nenhum link. (O
-   Responsável não tem senha, então para ele isso não existe — ver D14.)
-10. **Importar planilha** aceita só `.csv` (a API recebe `{ csv }`); o cabeçalho esperado é
-    em inglês (`name`, `template`, `cnpj`, `contact_name`, `contact_email`,
-    `contact_phone`, `flags`), e a tela documenta isso com um modelo para baixar.
+9. ~~"Esqueci minha senha" do Contador omitido~~ — ✅ `sendResetPassword` configurado +
+   telas `/esqueci-senha` e `/redefinir-senha`. (O Responsável não tem senha obrigatória —
+   ver D14.)
+10. ~~Importar planilha só `.csv`~~ — ✅ aceita `.xlsx` (convertido no browser, 1ª aba) e
+    cabeçalhos em português ("Razão Social", "E-mail do responsável"…); a API continua
+    recebendo `{ csv }`.
 
 ## Mudanças fora do `apps/web` feitas junto com as telas
 
@@ -94,8 +96,10 @@ aceita o convite inicial do `create-firm`, ou seja, quem entra pelo e-mail do es
 Escolhi ancorar em "primeiro Contador" e não em "o e-mail bate com o da Contabilidade"
 porque hoje não existe coluna de e-mail no `accounting_firm` — e amarrar uma regra de
 autorização a um campo de texto editável significaria que trocar o e-mail transfere o
-controle do tenant. Quando existir gestão de equipe de verdade, o caminho é transferência
-explícita de titularidade, não coincidência de string.
+controle do tenant. A gestão de equipe existe desde 2026-09-11 (listar, remover, revogar
+convite, `PATCH /accounting-firm` — tudo do dono); **transferência de titularidade** segue
+não construída: o dono não pode ser removido (`422 CANNOT_REMOVE_OWNER`) e não há troca de
+dono pela tela.
 
 ## Acesso do Responsável — opcional, um toque (D14)
 
@@ -108,7 +112,7 @@ A conta **nunca** é pré-requisito de enviar documento. O único email obrigat�
 | Abertura da Competência (fan-out)               | **Link de envio** (`/envio/:token`) — toda Empresa ativa com email de Responsável                              |
 | Tela de sucesso do envio                        | Duas ofertas: **"Ativar avisos neste aparelho"** (push, sem conta) e **"Ativar acesso"** (um toque, sem senha) |
 | Painel → Empresas                               | **"Convidar para o app"** por Empresa — atalho do Contador que quer empurrar, nunca mecanismo                  |
-| Home → **"Perdi meu link"** (`/perdi-meu-link`) | Reenvia o Link (rotacionando o anterior) ou manda magic link a quem já tem acesso                              |
+| Home → **"Perdi meu link"** (`/perdi-meu-link`) | 2 passos (2026-09-11): email de confirmação de posse → botão em `/perdi-meu-link/confirmar` rotaciona e reenvia. Quem já tem acesso recebe magic link direto |
 
 **Duas criações de conta, prazos de validade opostos** (ver Amendment da D14):
 
@@ -130,7 +134,11 @@ sobrevive ao fan-out do mês seguinte.
 
 **"Perdi meu link"** tem limite de 3/min e responde **exatamente a mesma coisa** para email
 com acesso, Responsável sem acesso e email desconhecido, com um piso de tempo comum — a
-mensagem não pode revelar quem é cliente de quem, e o relógio também não.
+mensagem não pode revelar quem é cliente de quem, e o relógio também não. Desde
+2026-09-11 o fluxo é em **2 passos** (AUTHZ-3): o passo 1 só envia um email de confirmação
+de posse (token HMAC, 30 min); rotacionar exige o passo 2, um botão em
+`/perdi-meu-link/confirmar` — nunca auto-fire no load, para scanner de email não matar o
+link vivo.
 
 O que a Empresa mostra na lista deixou de ser trava: "Sem Responsável" (vermelho, bloqueia
 mesmo), "Envia por link" (neutro — é o caminho normal) e "Usa o app" (verde).
@@ -166,9 +174,10 @@ tira do produto a chance de um deploy de produção gravar documento no disco do
   (`http://localhost:3000`) porque o Nest **não** usa `setGlobalPrefix`; o Better Auth fica
   em `${apiUrl}/api/auth`.
 - `environment.prod.ts` (usado no build de produção por `fileReplacements` no
-  `angular.json`): `apiUrl` **vazio** — produção serve web e API na mesma origem, atrás de um
-  reverse proxy. Sem o `fileReplacements` o bundle de produção sai apontando para
-  `localhost:3000`; se mexer no `angular.json`, confira com
+  `angular.json`): `apiUrl` = `https://api.competa.com.br` — produção roda em **origens
+  separadas** (`app.` no Cloudflare Pages, `api.` no Fly; cookie `domain=.competa.com.br`
+  com `SameSite=Lax` + Origin-check, ver TASK-039). Sem o `fileReplacements` o bundle de
+  produção sai apontando para `localhost:3000`; se mexer no `angular.json`, confira com
   `grep -r localhost:3000 apps/web/dist`.
 - A chave pública VAPID **não** fica no bundle: o front busca em `GET /push/vapid-key` e, se
   vier vazia, o botão de notificações não aparece. Trocar a chave é mexer só no `.env` da API.

@@ -141,6 +141,13 @@
             {{ fAccess().submitting() ? 'Criando acesso…' : 'Criar acesso e entrar' }}
             <ng-icon name="lucideArrowRight" aria-hidden="true" />
           </button>
+
+          <p class="text-muted-foreground text-center text-xs">
+            Ao criar o acesso, você concorda com os
+            <a routerLink="/termos" target="_blank" class="text-primary hover:underline">Termos de Uso</a>
+            e a
+            <a routerLink="/privacidade" target="_blank" class="text-primary hover:underline">Política de Privacidade</a>.
+          </p>
         </form>
 
         <p class="text-muted-foreground mt-6 text-xs">
@@ -256,6 +263,13 @@
             {{ f().submitting() ? 'Criando conta…' : 'Criar minha conta' }}
             <ng-icon name="lucideArrowRight" aria-hidden="true" />
           </button>
+
+          <p class="text-muted-foreground text-center text-xs">
+            Ao criar a conta, você concorda com os
+            <a routerLink="/termos" target="_blank" class="text-primary hover:underline">Termos de Uso</a>
+            e a
+            <a routerLink="/privacidade" target="_blank" class="text-primary hover:underline">Política de Privacidade</a>.
+          </p>
         </form>
 
         <p class="text-muted-foreground mt-6 text-center text-sm">

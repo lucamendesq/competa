@@ -1,0 +1,1 @@
+CREATE UNIQUE INDEX "company_cnpj_uidx" ON "company" ("accounting_firm_id","cnpj") WHERE "cnpj" is not null;

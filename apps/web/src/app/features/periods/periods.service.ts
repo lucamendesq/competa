@@ -55,7 +55,7 @@ export type PeriodOpening = {
   referenceMonth: string;
   status: string;
   dueDate: string | null;
-  warnings: { companyId: string; companyName: string; reason: string }[];
+  warnings: { companyId: string; companyName: string; reason: string; blockedBy: 'contact' | 'template' }[];
   requests: CreatedRequest[];
 };
 

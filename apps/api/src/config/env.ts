@@ -5,12 +5,14 @@ const blankAsMissing = <T extends z.ZodType>(schema: T) =>
   z.preprocess((value) => (value === '' ? undefined : value), schema.optional());
 
 const REQUIRED_IN_PRODUCTION = [
+  'DB_SSL_CA',
   'R2_ACCOUNT_ID',
   'R2_ACCESS_KEY_ID',
   'R2_SECRET_ACCESS_KEY',
   'R2_BUCKET',
   'RESEND_API_KEY',
   'EMAIL_FROM',
+  'SENTRY_DSN',
 ] as const;
 
 const envSchema = z
@@ -22,6 +24,9 @@ const envSchema = z
     DB_USER: z.string({ error: 'DB_USER is required' }),
     DB_PASS: z.string({ error: 'DB_PASS is required' }).optional(),
     DB_NAME: z.string({ error: 'DB_NAME is required' }),
+    /* CA da Supabase (PEM). Sem verificação de cadeia o TLS de produção aceita qualquer
+     * certificado no caminho (SEC-1). */
+    DB_SSL_CA: blankAsMissing(z.string()),
     BETTER_AUTH_SECRET: z.string({ error: 'BETTER_AUTH_SECRET is required' }),
     BETTER_AUTH_URL: z.string({ error: 'BETTER_AUTH_URL is required' }),
     WEB_URL: z.url({ error: 'WEB_URL is required' }),
@@ -47,6 +52,11 @@ const envSchema = z
     VAPID_PRIVATE_KEY: blankAsMissing(z.string()),
     VAPID_SUBJECT: z.string().optional().default('mailto:contato@example.com'),
     STORAGE_LOCAL_DIR: z.string().optional().default('.storage'),
+    SENTRY_DSN: blankAsMissing(z.string()),
+    LOG_LEVEL: z
+      .enum(['fatal', 'error', 'warn', 'info', 'debug', 'trace'])
+      .optional()
+      .default('info'),
   })
   .superRefine((value, ctx) => {
     if (value.NODE_ENV !== 'production') return;

@@ -7,6 +7,8 @@ import {
   Param,
   Post,
   Query,
+  Req,
+  StreamableFile,
   UseGuards,
 } from '@nestjs/common';
 import {
@@ -14,8 +16,10 @@ import {
   MyPresignBody,
   PaginationQuery,
   PushSubscriptionBody,
+  SetPasswordBody,
 } from '@contabilidade/contracts';
 import { ConfirmUploadBody } from '@contabilidade/contracts';
+import type { Request } from 'express';
 import { NotFound } from '../../lib/app-error.js';
 import { paginated } from '../../lib/response.interceptor.js';
 import { zodPipe } from '../../lib/zod-pipe.js';
@@ -24,18 +28,27 @@ import { CurrentContactScope } from '../auth/contact-scope.decorator.js';
 import { ContactUploadGuard } from '../auth/contact-upload.guard.js';
 import { CurrentUploadScope } from '../auth/upload-scope.decorator.js';
 import type { ContactScope, UploadScope } from '../auth/scope.js';
+import * as z from 'zod';
+import { StorageProvider } from '../../infra/storage/storage.provider.js';
 import { effectiveDueDate } from '../requests/review-rules.js';
+import { servedContentType } from '../requests/file-rules.js';
 import { UploadService } from '../requests/upload.service.js';
+import { AuthProvider } from '../auth/auth-provider.js';
 import { ContactRepository } from './contact.repository.js';
 
-/** Área logada do Responsável (Fase 10). Todas as rotas são `ContactScope`: a Empresa dele
- *  e mais nada. Nenhuma devolve conteúdo de documento — só nome, status, prazo e autoria. */
+const PeriodDetailQuery = z.object({ companyId: z.uuid().optional() });
+type PeriodDetailQuery = z.infer<typeof PeriodDetailQuery>;
+
+/** Área logada do Responsável (Fase 10). Todas as rotas são `ContactScope`: as Empresas
+ *  dele e mais nada. */
 @Controller('my')
 @ContactRoute()
 export class ContactsController {
   constructor(
     private readonly contacts: ContactRepository,
     private readonly uploads: UploadService,
+    private readonly storage: StorageProvider,
+    private readonly auth: AuthProvider,
   ) {}
 
   @Get('profile')
@@ -54,6 +67,8 @@ export class ContactsController {
       requestId: row.requestId,
       periodId: row.periodId,
       referenceMonth: row.referenceMonth,
+      companyId: row.companyId,
+      companyName: row.companyName,
       item: {
         id: row.itemId,
         name: row.itemName,
@@ -80,11 +95,33 @@ export class ContactsController {
   async periodDetail(
     @CurrentContactScope() scope: ContactScope,
     @Param(zodPipe(IdParam)) params: IdParam,
+    @Query(zodPipe(PeriodDetailQuery)) query: PeriodDetailQuery,
   ) {
-    const row = await this.contacts.periodDetail(scope, params.id);
+    const row = await this.contacts.periodDetail(scope, params.id, query.companyId);
     if (!row) throw new NotFound('Competência não encontrada.');
 
     return row;
+  }
+
+  /** Preview/baixar o próprio documento (espelho do `GET /documents/:id/content` do
+   *  Contador, com `ContactScope`): o Responsável confere o que mandou e revê o que foi
+   *  rejeitado sem depender de ninguém. */
+  @Get('documents/:id/content')
+  async documentContent(
+    @CurrentContactScope() scope: ContactScope,
+    @Param(zodPipe(IdParam)) params: IdParam,
+  ) {
+    const found = await this.contacts.documentForRead(scope, params.id);
+    if (!found) throw new NotFound('Documento não encontrado.');
+
+    /* Mesma regra do painel: `content_type` é declarado no presign, não conferido —
+     * devolver cru com `inline` deixaria um HTML executar script na origem da API. */
+    const { contentType, inline } = servedContentType(found.contentType);
+
+    return new StreamableFile(await this.storage.openRead(found.storageKey), {
+      type: contentType,
+      disposition: `${inline ? 'inline' : 'attachment'}; filename*=UTF-8''${encodeURIComponent(found.fileName)}`,
+    });
   }
 
   @Post('push/subscribe')
@@ -103,6 +140,14 @@ export class ContactsController {
   ) {
     const row = await this.contacts.deletePushSubscription(scope, body.endpoint);
     if (!row) throw new NotFound('Inscrição não encontrada.');
+  }
+
+  /** Define ou redefine a senha do Responsável autenticado. Funciona para contas criadas
+   *  por magic-link (sem credencial) — a first-time call cria a credencial. */
+  @Post('password')
+  @HttpCode(204)
+  async setPassword(@Req() req: Request, @Body(zodPipe(SetPasswordBody)) body: SetPasswordBody) {
+    await this.auth.setPassword(req.headers, body.password);
   }
 }
 

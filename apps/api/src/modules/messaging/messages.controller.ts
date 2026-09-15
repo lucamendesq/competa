@@ -26,13 +26,11 @@ export class MessagesController {
     return paginated(rows, { page: query.page, perPage: query.perPage, total });
   }
 
-  /** Dispara a varredura de lembretes sob demanda. Existe para operação/verificação
-   *  enquanto não há UI. A varredura é global (atende todas as Contabilidades), então
-   *  não há `FirmScope` a passar — a sessão exigida pelo TenantGuard global é só a
-   *  barreira de acesso. */
+  /** Dispara a varredura de lembretes sob demanda, restrita à Contabilidade do chamador
+   *  (AUTHZ-2). A varredura global continua sendo só do cron. */
   @Post('reminders/run')
-  runReminders() {
-    return this.reminders.run();
+  runReminders(@CurrentScope() scope: FirmScope) {
+    return this.reminders.run(scope);
   }
 }
 

@@ -113,7 +113,7 @@ export class PendingPanelPage {
       all: lines.length,
       pending: lines.filter((line) => line.requestStatus === 'open' && line.missing.length).length,
       overdue: lines.filter((line) => line.overdue > 0).length,
-      complete: lines.filter((line) => line.requestStatus === 'complete').length,
+      complete: lines.filter((line) => line.missing.length === 0).length,
       closed: lines.filter((line) => line.requestStatus === 'closed').length,
     };
   });
@@ -126,7 +126,7 @@ export class PendingPanelPage {
       if (term && !line.companyName.toLowerCase().includes(term)) return false;
       if (filter === 'pending') return line.requestStatus === 'open' && line.missing.length > 0;
       if (filter === 'overdue') return line.overdue > 0;
-      if (filter === 'complete') return line.requestStatus === 'complete';
+      if (filter === 'complete') return line.missing.length === 0;
       if (filter === 'closed') return line.requestStatus === 'closed';
 
       return true;

@@ -1,0 +1,47 @@
+name: Backup
+
+on:
+  schedule:
+    - cron: '30 5 * * *'
+  workflow_dispatch:
+
+jobs:
+  pg-dump:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Instalar postgresql-client-17
+        run: |
+          sudo install -d /usr/share/postgresql-common/pgdg
+          sudo curl -fsSL -o /usr/share/postgresql-common/pgdg/apt.postgresql.org.asc \
+            https://www.postgresql.org/media/keys/ACCC4CF8.asc
+          echo "deb [signed-by=/usr/share/postgresql-common/pgdg/apt.postgresql.org.asc] \
+            http://apt.postgresql.org/pub/repos/apt $(lsb_release -cs)-pgdg main" \
+            | sudo tee /etc/apt/sources.list.d/pgdg.list
+          sudo apt-get update -qq
+          # Force version 17 explicitly and prevent older fallbacks
+          sudo apt-get install -y -qq postgresql-client-17=17*
+
+      - name: Dump
+        run: |
+          DAY_OF_WEEK=$(date -u +%u)
+          DAY_OF_MONTH=$(date -u +%d)
+          PREFIX=daily
+          [ "$DAY_OF_WEEK" = "7" ] && PREFIX=weekly
+          [ "$DAY_OF_MONTH" = "01" ] && PREFIX=monthly
+          echo "PREFIX=$PREFIX" >> "$GITHUB_ENV"
+          /usr/lib/postgresql/17/bin/pg_dump "$DATABASE_URL" -Fc \
+            -n public -n drizzle \
+            -f "competa-$(date -u +%Y%m%d).dump"
+        env:
+          DATABASE_URL: ${{ secrets.BACKUP_DATABASE_URL }}
+
+      - name: Enviar para o bucket de backup (R2)
+        run: |
+          aws s3 cp "competa-$(date -u +%Y%m%d).dump" \
+            "s3://competa-backups/$PREFIX/competa-$(date -u +%Y%m%d).dump" \
+            --endpoint-url "$R2_ENDPOINT"
+        env:
+          AWS_ACCESS_KEY_ID: ${{ secrets.BACKUP_R2_ACCESS_KEY_ID }}
+          AWS_SECRET_ACCESS_KEY: ${{ secrets.BACKUP_R2_SECRET_ACCESS_KEY }}
+          AWS_DEFAULT_REGION: auto
+          R2_ENDPOINT: ${{ secrets.BACKUP_R2_ENDPOINT }}

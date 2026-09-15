@@ -12,7 +12,7 @@ import {
 } from 'drizzle-orm/pg-core';
 import { sql, type SQL } from 'drizzle-orm';
 import { id, timestamps } from './columns.js';
-import { accountingFirm, company, contact, documentType } from './registry.js';
+import { accountant, accountingFirm, company, contact, documentType } from './registry.js';
 
 const oneOf = (column: SQL, values: readonly string[]) =>
   sql`${column} in (${sql.join(
@@ -112,6 +112,9 @@ export const document = pgTable(
     }),
     reviewStatus: text('review_status').notNull().default('pending'),
     rejectionReason: text('rejection_reason'),
+    /** autoria da decisão de revisão (OPS-1): quem aceitou/rejeitou, e quando */
+    reviewedBy: uuid('reviewed_by').references(() => accountant.id, { onDelete: 'set null' }),
+    reviewedAt: timestamp('reviewed_at', { withTimezone: true }),
     ...timestamps,
   },
   (t) => [

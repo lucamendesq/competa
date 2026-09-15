@@ -28,6 +28,11 @@ export const CONTACT_AREA_ROUTES: Routes = [
         title: 'Competência',
         loadComponent: () => import('./period-detail-page').then((m) => m.PeriodDetailPage),
       },
+      {
+        path: 'definir-senha',
+        title: 'Criar senha',
+        loadComponent: () => import('./set-password-page').then((m) => m.SetPasswordPage),
+      },
     ],
   },
 ];

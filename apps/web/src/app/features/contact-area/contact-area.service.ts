@@ -7,6 +7,8 @@ export type PendingItem = {
   requestId: string;
   periodId: string;
   referenceMonth: string;
+  companyId: string;
+  companyName: string;
   item: {
     id: string;
     name: string;
@@ -27,8 +29,11 @@ export type PeriodSummary = {
   referenceMonth: string;
   periodStatus: 'open' | 'closed';
   dueDate: string | null;
+  companyId: string;
+  companyName: string;
   itemCount: number;
   pendingCount: number;
+  deliveredCount: number;
 };
 
 export type MyFile = {
@@ -49,6 +54,8 @@ export type MyPeriodDetail = {
   referenceMonth: string;
   periodStatus: 'open' | 'closed';
   dueDate: string | null;
+  companyId: string;
+  companyName: string;
   items: {
     id: string;
     name: string;
@@ -78,10 +85,13 @@ export class ContactAreaService {
     return pageResource<PeriodSummary>(() => '/my/periods', params);
   }
 
-  monthLabel(id: () => string | undefined) {
+  monthLabel(id: () => string | undefined, companyId?: () => string | undefined) {
     return apiResource<MyPeriodDetail>(() => {
       const value = id();
-      return value ? `/my/periods/${value}` : undefined;
+      if (!value) return undefined;
+
+      const company = companyId?.();
+      return company ? `/my/periods/${value}?companyId=${company}` : `/my/periods/${value}`;
     });
   }
 

@@ -1,10 +1,16 @@
 # Próximos passos — o que falta para "completo"
 
-> Estado (2026-09-09). Este documento é o inventário do que **ainda não existe**. Nada aqui
-> é bug: o que estava quebrado foi corrigido na mesma mudança que criou este arquivo (ver
-> [Correções já feitas](#correções-já-feitas-2026-09-09) no fim). O que está listado abaixo é
-> trabalho que nunca começou, quase sempre por decisão consciente registrada em
-> [`decisions.md`](./decisions.md) ou no [`roadmap.md`](./roadmap.md).
+> Estado (2026-09-14, revisado). Este documento é o inventário do que **ainda não existe**;
+> linhas ~~riscadas~~ com ✅ foram entregues (a maioria no lote de 2026-09-11 — Fases 11 e 12
+> do [`roadmap.md`](./roadmap.md)). O que segue aberto de verdade: **cobrança (Fase 13,
+> TASK-047..050)**, **WhatsApp (Fase 8)**, mobile nativo (Fase 9), e a
+> LGPD operacional restante (Fase 14, TASK-051..055).
+>
+> **2026-09-14:** observabilidade completa — log estruturado (`nestjs-pino`, JSON com `firmId`/`reqId`), Sentry verificado e corrigido (`tracePropagationTargets`), falhas de canal→Sentry com tags, monitores de cron (`@SentryCron`) para os dois jobs diários.
+>
+> **2026-09-11:** os achados do audit de segurança viraram a Fase 11 do roadmap e foram
+> **todos resolvidos** (TASK-038..046 ✅), incluindo a trilha de auditoria
+> (`document.reviewed_by`, `invite.created_by`, log de 403).
 
 Legenda de peso: 🔴 impede cobrar/operar · 🟠 queima na primeira semana de uso real ·
 🟡 melhora, mas dá para viver sem.
@@ -13,93 +19,96 @@ Legenda de peso: 🔴 impede cobrar/operar · 🟠 queima na primeira semana de 
 
 | Falta                                          | Peso | Detalhe                                                                                                                                             |
 | ---------------------------------------------- | ---- | --------------------------------------------------------------------------------------------------------------------------------------------------- |
-| **Cobrança / assinatura**                      | 🔴   | Não existe uma linha de código. É um SaaS sem como cobrar: sem plano, sem gateway, sem trial, sem bloqueio por inadimplência.                       |
+| **Cobrança / assinatura**                      | 🔴   | Não existe uma linha de código. Agora numerado: **Fase 13 do roadmap (TASK-047..050)** — ADR de gateway, schema de assinatura, checkout+webhook, régua de inadimplência. |
 | **Fase 8 — WhatsApp** (TASK-035)               | 🔴   | Citado pelos contadores no discovery como critério de troca. A tela de canais mostra "não conectado" e degrada para email.                          |
-| **Push de "novo pedido"**                      | 🟠   | F10-5 promete push em novo pedido, rejeição e prazo. `request-created.listener.ts` só manda email — push existe só nos outros três eventos.         |
-| **Baixar/ver Documento avulso** — parcial      | 🟠   | `GET /documents/:id/content` já existe e a tela de revisão pré-visualiza. Falta o mesmo na área do Responsável e no Painel de Pendências.           |
-| **Gestão de equipe**                           | 🟠   | Sem listar Contadores, sem `PATCH /accounting-firm`, sem convidar/remover Contador pela tela, sem reset de senha (ver §2).                          |
-| **Um Responsável, várias Empresas**            | 🟠   | `contact.auth_user_id` é UNIQUE: a mesma pessoa Responsável por três Empresas só consegue ter conta em UMA. Exige repensar o vínculo conta↔contato. |
-| **Preferências de lembrete por Contabilidade** | 🟡   | Hoje é fixo: cron diário, máximo 2 cobranças por Solicitação, só email. Nada disso é configurável.                                                  |
-| **Import XLSX**                                | 🟡   | Só CSV, com cabeçalho em inglês (`name`, `template`, `cnpj`, `contact_email`…). O contador exporta XLSX do sistema dele.                            |
+| ~~Push de "novo pedido"~~                      | ✅   | 2026-09-11: `CollectionEventsListener.onRequestCreated` manda push de novo pedido (F10-5 completo).                                                |
+| ~~Baixar/ver Documento avulso~~                | ✅   | 2026-09-11: `GET /my/documents/:id/content` + preview/download na área do Responsável; o Painel de Pendências linka para a tela de revisão.        |
+| ~~Gestão de equipe~~                           | ✅   | 2026-09-11: `GET/DELETE /accountants`, `GET/PATCH /accounting-firm`, `GET/DELETE /invites`, telas em /configuracoes; reset de senha (§2) também.   |
+| ~~Um Responsável, várias Empresas~~            | ✅   | 2026-09-11: UNIQUE removido; `ContactScope` multi-vínculo, /my/* agregam por Empresa, revogação só apaga o user no último vínculo.                 |
+| ~~Preferências de lembrete por Contabilidade~~ | ✅   | 2026-09-11: `accounting_firm.reminder_*` (máx, D-N, gap) configuráveis na aba Lembretes; canal e hora do cron seguem fixos.                        |
+| ~~Import XLSX~~                                | ✅   | 2026-09-11: .xlsx convertido no browser (SheetJS, 1ª aba) e cabeçalhos em português aliased no servidor; a API continua recebendo só CSV.          |
 | **Fase 9 — mobile nativo** (TASK-036/037)      | 🟡   | A PWA cobre o caso por ora (instalável, push, upload).                                                                                              |
+| **Filtros avançados no Painel de Pendências**  | 🟡   | Atraso já existe (chip). Filtro por Contador ADIADO (sem atribuição empresa→contador no modelo) — gatilho no roadmap, seção "Adiados".              |
+| **Domínio de e-mail próprio por escritório**   | 🟡   | ADIADO (2026-09-11) — exige verificação DNS por firm na Resend + onboarding; gatilhos na seção "Adiados" do roadmap.                                |
+| **Assinatura digital / protocolo de entrega**  | 🟡   | Nice-to-have para coleta, mas pode virar deal-breaker se o produto for vendido para entrega formal de documentos. Não construir sem demanda validada. |
 
 ## 2. Autenticação e conta
 
 | Falta                                            | Peso | Detalhe                                                                                                                                                                           |
 | ------------------------------------------------ | ---- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| **Reset de senha do Contador**                   | 🟠   | `sendResetPassword` não está configurado no Better Auth e a tela foi omitida de propósito. Aceitável no concierge (você reseta na mão), inaceitável em self-service.              |
-| **Confirmar posse do email no "perdi meu link"** | 🟡   | Hoje há um cooldown de 15 min por Solicitação (`access-recovery.controller.ts`) segurando o abuso. O correto é um link de confirmação em dois passos antes de rotacionar o token. |
+| ~~Reset de senha do Contador~~                   | ✅   | 2026-09-11: `sendResetPassword` configurado (token 1h, sessões revogadas), telas /esqueci-senha e /redefinir-senha, link no login.                  |
+| ~~Confirmar posse do email no "perdi meu link"~~ | ✅   | 2026-09-11: fluxo em 2 passos — email de confirmação (token HMAC, 30min) antes de rotacionar; cooldown de 15min preservado (e consertado).          |
 
 ## 3. Deploy, CI e infraestrutura
 
-Fora do v1 por decisão de **2026-09-02** ("deploy e CI fora do roadmap v1"). Não é bug — é
-trabalho que ainda não começou. O que falta, em ordem de dependência:
+**Atualizado 2026-09-11 — o grosso existe** (a decisão de 2026-09-02 de deixar fora do v1
+foi revertida em 2026-09-11; as versões anteriores deste doc estavam desatualizadas):
 
-1. **Escolher o host.** Nada foi decidido (nem VPS, nem PaaS, nem Cloud Run). A escolha
-   determina tudo o que vem abaixo.
-2. **Dockerfile** para `apps/api` (Node 24, build multi-stage) e um passo de build estático
-   para `apps/web`. Nenhum dos dois existe. `apps/api/docker-compose.yml` sobe **só o
-   Postgres de desenvolvimento**.
-3. **Reverse proxy servindo web e API na MESMA origem.** É o desenho assumido por
-   `environment.prod.ts` (`apiUrl: ''`) e por `better-auth.ts`: com uma origem só, o cookie
-   de sessão é first-party e não precisa de `SameSite=None`. Requisitos:
-   - `/api/auth/*` e as rotas REST da API → `apps/api`;
-   - todo o resto → os estáticos do `apps/web`, com **fallback SPA** para `index.html`
-     (sem ele, recarregar `/minha-area/pendencias` dá 404);
-   - TLS terminado no proxy.
-   - **Se um dia web e API forem para hosts diferentes** (`app.` ↔ `api.`), o
-     `better-auth.ts` já se configura sozinho a partir de `WEB_URL`/`BETTER_AUTH_URL`
-     (cookie com `domain=.dominio` + `SameSite=None; Secure`) e falha no boot se os dois
-     não compartilharem um domínio. Falta ajustar `environment.prod.ts`.
-4. **Migrations no deploy.** `pnpm db:migrate` precisa rodar antes de subir a versão nova.
-5. **CI.** Nenhum workflow existe. O mínimo: `pnpm lint`, `pnpm -r build` e `pnpm --filter api test`
-   (a suíte de integração exige um banco `competa_test`).
-6. **Chaves VAPID em produção.** `VAPID_PUBLIC_KEY`/`VAPID_PRIVATE_KEY` (gere com
+- Host escolhido: **Fly.io** (API, região `gru`) + **Cloudflare Pages** (web) +
+  **Supabase** (Postgres, session pooler). Runbook em [`deploy.md`](./deploy.md).
+- `apps/api/Dockerfile` multi-stage (`node:22.22.3-alpine`) e `apps/api/fly.toml` existem.
+- Origens separadas (`app.` ↔ `api.`): o desenho de reverse proxy/mesma origem foi
+  descartado. Cookie de sessão em `domain=.competa.com.br` com `SameSite=Lax` +
+  Origin-check nas rotas mutantes (TASK-039).
+- **Migrations no deploy**: `release_command` do `fly.toml` roda `drizzle-kit migrate` +
+  seed antes de trocar a versão.
+- **CI**: `.github/workflows/ci.yml` (build + lint + testes com `competa_test`); o deploy
+  (API e web) roda no mesmo workflow **depois** do job de teste, só em push na `main`.
+  Node unificado via `.nvmrc` (22.22.3) + `engines` no `package.json` raiz.
+
+O que ainda falta:
+
+1. **Chaves VAPID em produção.** `VAPID_PUBLIC_KEY`/`VAPID_PRIVATE_KEY` (gere com
    `npx web-push generate-vapid-keys`). Sem elas o push fica desligado e a UI não oferece o
    recurso — a chave pública é servida por `GET /push/vapid-key`, então **não** há build novo
    do front para trocá-la.
+2. **`DB_SSL_CA`** (CA da Supabase) como Fly secret — obrigatório desde a TASK-040
+   (`rejectUnauthorized: true` em produção).
 
 ## 4. Observabilidade
 
 O que já existe: `GET /health` (toca o banco), `enableShutdownHooks()`, `helmet()`,
 `trust proxy` em produção e o `Logger` do Nest em toda falha de canal.
 
-| Falta                    | Peso | Detalhe                                                                                             |
-| ------------------------ | ---- | --------------------------------------------------------------------------------------------------- |
-| **Rastreamento de erro** | 🟠   | Sem Sentry (ou equivalente). Hoje um 500 vive só no stdout do processo.                             |
-| **Log estruturado**      | 🟡   | O `Logger` padrão do Nest imprime texto. Sem JSON não há como filtrar por tenant/rota no agregador. |
-| **Métrica e alerta**     | 🟡   | Sem contador de email/push falhado, sem alerta de cron que não rodou.                               |
+| Falta                       | Peso | Detalhe                                                                                                                                                                                                   |
+| --------------------------- | ---- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| ~~Rastreamento de erro~~    | ✅   | Sentry instalado (2026-09-11): `@sentry/nestjs` na API, `@sentry/angular` no web, DSN via env. `tracePropagationTargets` corrigido (2026-09-14) para ligar traces front→back entre origens separadas.     |
+| ~~Log estruturado~~         | ✅   | 2026-09-14: `nestjs-pino` wired; JSON em produção, pretty em dev; todo log carrega `firmId`/`accountantId` e `reqId` automaticamente; `/health` excluído do auto-log; headers sensíveis redacted.        |
+| ~~Métrica e alerta~~        | ✅   | 2026-09-14: `reportChannelFailure` envia evento Sentry com tags `{channel, purpose}` a cada falha de email/push; `@SentryCron` nos dois crons (`reminders-daily`, `deadline-daily`) alerta miss de execução. Criar regra de alerta em **Sentry > Alerts** sobre eventos com tag `channel` para fechar o ciclo. |
 
 ## 5. LGPD operacional
 
 🟠 **O produto guarda documento fiscal de terceiros** — nota, extrato, folha — enviado por
 pessoas que não são clientes da Pygmus, mas clientes do cliente. O tratamento é feito **como
-operador**, por conta da Contabilidade (controladora). Nada disso está implementado nem
-escrito:
+operador**, por conta da Contabilidade (controladora). Estado:
 
-1. **Política de privacidade e termos** — não existem. Nem página, nem aceite registrado.
-   O Link de Upload é entregue por email a um terceiro que nunca aceitou nada.
-2. **Contrato de operador** com cada Contabilidade (o que o produto pode fazer com o dado,
-   por quanto tempo, suboperadores usados — hoje Cloudflare R2 e Resend).
-3. **Retenção e expurgo.** Não há prazo definido nem rotina de descarte. Documento fiscal
-   tem prazo legal de guarda (5 anos, em geral), mas "guardar para sempre" não é política —
-   é ausência de política. Precisa de: prazo por tipo de documento, job de expurgo do
-   Postgres **e** do R2, e o que acontece quando uma Contabilidade cancela.
-4. **Exportação e exclusão a pedido do titular** (arts. 18, IV e VI). Hoje não há rota nem
-   procedimento manual escrito. Inclui o `contact` e o `push_subscription` dele.
-5. **Registro das operações de tratamento** (art. 37) — o inventário de quais dados são
-   coletados, por quê, e para onde vão.
-6. **Plano de resposta a incidente** (art. 48): quem é avisado, em quanto tempo, com que
-   texto.
-7. **Encarregado (DPO)** nomeado e um canal público de contato.
+1. ~~Política de privacidade e termos~~ — ✅ 2026-09-11: páginas `/termos` e `/privacidade`
+   (conteúdo provisório até revisão jurídica), aceite registrado em `user.terms_accepted_at`
+   nos 3 fluxos de criação de conta, com aviso nas telas.
+2. **Contrato de operador** (→ **TASK-051**) com cada Contabilidade (o que o produto pode
+   fazer com o dado, por quanto tempo, suboperadores usados — Cloudflare R2, Supabase e Resend).
+3. ~~Retenção e expurgo~~ — ✅ política escrita em [`retention.md`](./retention.md)
+   (prazos por tipo, 90 dias pós-cancelamento, runbook manual de expurgo Postgres+R2).
+   Job automático adiado até o primeiro cancelamento real (gatilho no roadmap).
+4. **Exportação e exclusão a pedido do titular** (arts. 18, IV e VI) (→ **TASK-052**). Hoje
+   não há rota nem procedimento manual escrito. Inclui o `contact` e o `push_subscription` dele.
+5. **Registro das operações de tratamento** (art. 37) (→ **TASK-053**) — o inventário de
+   quais dados são coletados, por quê, e para onde vão.
+6. **Plano de resposta a incidente** (art. 48) (→ **TASK-054**): quem é avisado, em quanto
+   tempo, com que texto.
+7. **Encarregado (DPO)** nomeado e um canal público de contato (→ **TASK-055**).
 
 > Ordem sugerida: 1 e 3 primeiro (política + retenção) — são os que aparecem na primeira
 > venda para uma contabilidade que tenha jurídico.
 
 ## 6. Backup e recuperação
 
-🔴 **Nenhum plano existe.** Nem para o Postgres, nem para o R2. Não é "falta configurar" —
-é que ninguém decidiu ainda RPO/RTO nem onde a cópia mora. O mínimo defensável:
+✅ **2026-09-11: plano definido e implementado** — ver [`backup.md`](./backup.md).
+`pg_dump` diário via GitHub Actions → bucket R2 dedicado (`competa-backups`, credencial
+própria), retenção 7d/4w/12m por prefixo+lifecycle, runbook de restore com teste
+trimestral, inventário de segredos. PITR adiado (decisão registrada lá). Falta só o setup
+único: criar bucket/token/lifecycle na Cloudflare e cadastrar os 4 secrets no GitHub.
+O plano original, para referência:
 
 **Postgres**
 
@@ -119,11 +128,11 @@ escrito:
   sem o objeto é um zip que não abre (hoje o download já falha antes de começar, com 503 —
   mas o documento continua perdido).
 
-**Cofre de segredos**
+**~~Cofre de segredos~~** ✅
 
-- `BETTER_AUTH_SECRET`, chaves do R2, `RESEND_API_KEY` e o par VAPID precisam existir fora
-  do host. Perder o `BETTER_AUTH_SECRET` invalida toda sessão; perder a VAPID privada mata
-  todas as inscrições de push já gravadas.
+~~`BETTER_AUTH_SECRET`, chaves do R2, `RESEND_API_KEY` e o par VAPID precisam existir fora
+do host. Perder o `BETTER_AUTH_SECRET` invalida toda sessão; perder a VAPID privada mata
+todas as inscrições de push já gravadas.~~ Inventário completo em [`backup.md`](./backup.md#segredos-inventário): Fly secrets + GitHub secrets são o cofre; produção falha nomeando a variável faltante.
 
 ## Correções já feitas (2026-09-09)
 

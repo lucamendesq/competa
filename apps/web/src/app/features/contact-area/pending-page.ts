@@ -75,26 +75,45 @@ export class PendingPage {
 
   protected readonly pending = this.service.pending();
 
+  /* Grupo por Competência+Empresa: o mesmo user pode responder por várias Empresas, e a
+   * mesma competência aparece uma vez por Empresa. */
   protected readonly byPeriod = computed(() => {
     const pendingCount = this.pending.value() ?? [];
     const groups = new Map<
       string,
-      { referenceMonth: string; periodId: string; items: typeof pendingCount }
+      {
+        referenceMonth: string;
+        periodId: string;
+        companyId: string;
+        companyName: string;
+        items: typeof pendingCount;
+      }
     >();
 
     for (const row of pendingCount) {
-      const group = groups.get(row.periodId) ?? {
+      const key = `${row.periodId}:${row.companyId}`;
+      const group = groups.get(key) ?? {
         referenceMonth: row.referenceMonth,
         periodId: row.periodId,
+        companyId: row.companyId,
+        companyName: row.companyName,
         items: [],
       };
 
       group.items = [...group.items, row];
-      groups.set(row.periodId, group);
+      groups.set(key, group);
     }
 
-    return [...groups.values()].sort((a, b) => b.referenceMonth.localeCompare(a.referenceMonth));
+    return [...groups.values()].sort(
+      (a, b) =>
+        b.referenceMonth.localeCompare(a.referenceMonth) ||
+        a.companyName.localeCompare(b.companyName),
+    );
   });
+
+  protected readonly multiCompany = computed(
+    () => new Set((this.pending.value() ?? []).map((row) => row.companyId)).size > 1,
+  );
 
   protected readonly expanded = signal<string | null>(null);
   protected readonly sending = signal(false);

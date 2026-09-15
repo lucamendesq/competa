@@ -16,6 +16,8 @@ export const user = pgTable('user', {
   name: text('name').notNull(),
   email: text('email').notNull().unique(),
   emailVerified: boolean('email_verified').default(false).notNull(),
+  /** aceite dos Termos/Privacidade, carimbado na criação da conta (LGPD) */
+  termsAcceptedAt: timestamp('terms_accepted_at', { withTimezone: true }),
   image: text('image'),
   ...timestamps,
 });

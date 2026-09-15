@@ -10,6 +10,7 @@ import {
   buildStorageKey,
   confirmationRefusal,
   rejectionReason,
+  requestCapRefusal,
 } from './file-rules.js';
 
 @Injectable()
@@ -40,13 +41,20 @@ export class UploadService {
 
     const created: Parameters<DocumentRepository['createMany']>[1] = [];
     const files = [];
+    // o teto é conferido contra o acumulado + o que este presign vai reservar
+    const usage = await this.documents.usageForRequest(scope.requestId);
 
     for (const file of body.files) {
-      const reason = rejectionReason(file, context.item?.acceptedFormats ?? null);
+      const reason =
+        rejectionReason(file, context.item?.acceptedFormats ?? null) ??
+        requestCapRefusal(usage, file);
       if (reason) {
         files.push({ fileName: file.fileName, accepted: false, reason });
         continue;
       }
+
+      usage.count += 1;
+      usage.bytes += file.sizeBytes;
 
       const documentId = uuidv7();
       const storageKey = buildStorageKey({
@@ -70,7 +78,6 @@ export class UploadService {
         fileName: file.fileName,
         accepted: true,
         documentId,
-        storageKey,
         uploadUrl: await this.storage.presignPut({
           storageKey,
           contentType: file.contentType,

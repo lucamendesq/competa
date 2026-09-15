@@ -98,7 +98,17 @@ export type UploadLinkResentEvent = {
   uploadUrl: string;
 };
 
+/** Passo 1 do "perdi meu link" sem acesso: email de confirmação de posse antes de
+ *  rotacionar o token (AUTHZ-3). Sem requestId: a confirmação é da pessoa, não da
+ *  Solicitação. */
+export type AccessRecoveryRequestedEvent = {
+  email: string;
+  contactName: string;
+  confirmUrl: string;
+};
+
 export const EVENTS = {
+  AccessRecoveryRequested: 'AccessRecoveryRequested',
   InviteCreated: 'InviteCreated',
   ContactInvited: 'ContactInvited',
   UploadLinkResent: 'UploadLinkResent',
@@ -110,6 +120,7 @@ export const EVENTS = {
 } as const;
 
 export type EventPayloads = {
+  AccessRecoveryRequested: AccessRecoveryRequestedEvent;
   InviteCreated: InviteCreatedEvent;
   ContactInvited: ContactInvitedEvent;
   UploadLinkResent: UploadLinkResentEvent;

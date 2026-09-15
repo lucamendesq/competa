@@ -3,23 +3,32 @@
   description="Cadastre a carteira inteira de uma vez, com relatório linha por linha."
 />
 
-@if (result()) {
+@if (preview()) {
   <section class="bg-card border-border rounded-xl border">
     <div class="border-border flex flex-wrap items-center justify-between gap-3 border-b p-4">
       <div>
-        <h2 class="text-sm font-semibold">Resultado da importação</h2>
+        <h2 class="text-sm font-semibold">
+          {{ confirmed() ? 'Resultado da importação' : 'Prévia da importação' }}
+        </h2>
         <p class="text-muted-foreground mt-1 text-xs tabular-nums">
-          {{ summary().created }} importadas · {{ summary().errors }} com erro ·
-          {{ summary().total }} linhas lidas
+          @if (confirmed()) {
+            {{ summary().created }} importadas · {{ summary().errors }} com erro ·
+            {{ summary().total }} linhas lidas
+          } @else {
+            {{ actionableCount() }} prontas para importar · {{ summary().errors }} com erro ·
+            {{ summary().total }} linhas lidas — nada foi criado ainda
+          }
         </p>
       </div>
       <div class="flex gap-2">
         <button hlmBtn variant="outline" (click)="restart()">Importar outra planilha</button>
-        <a hlmBtn routerLink="/empresas">Concluir</a>
+        <button hlmBtn variant="outline" [disabled]="confirming()" (click)="finish()">
+          {{ confirming() ? 'Concluindo…' : 'Concluir' }}
+        </button>
       </div>
     </div>
 
-    @if (importedIds().length) {
+    @if (actionableCount()) {
       <div class="border-border bg-muted/40 flex flex-wrap items-center gap-3 border-b p-4">
         @if (invitesSent() === null) {
           <p class="text-muted-foreground min-w-0 flex-1 text-xs">
@@ -29,7 +38,7 @@
           <button hlmBtn [disabled]="inviting()" (click)="sendInvites()">
             <ng-icon name="lucideMail" aria-hidden="true" />
             {{
-              inviting() ? 'Enviando…' : 'Enviar convites de acesso (' + importedIds().length + ')'
+              inviting() ? 'Enviando…' : 'Enviar convites de acesso (' + actionableCount() + ')'
             }}
           </button>
         } @else {
@@ -57,7 +66,7 @@
           </tr>
         </thead>
         <tbody hlmTBody>
-          @for (line of result()!.lines; track line.line) {
+          @for (line of displayLines(); track line.line) {
             <tr hlmTr>
               <th hlmTd scope="row" class="tabular-nums">{{ line.line }}</th>
               <td hlmTd>{{ line.name || '—' }}</td>
@@ -69,6 +78,13 @@
                     <ng-icon name="lucideCircleCheck" class="text-[12px]" aria-hidden="true" />
                     Importada
                   </span>
+                } @else if (line.status === 'pending') {
+                  <span
+                    class="text-muted-foreground border-border inline-flex items-center gap-1 rounded-full border px-2 py-0.5 text-[11px] font-semibold"
+                  >
+                    <ng-icon name="lucideClock" class="text-[12px]" aria-hidden="true" />
+                    Pronta
+                  </span>
                 } @else {
                   <span
                     class="inline-flex items-center gap-1 rounded-full border border-danger-border bg-danger-surface px-2 py-0.5 text-[11px] font-semibold text-danger"
@@ -79,7 +95,13 @@
                 }
               </td>
               <td hlmTd class="text-muted-foreground text-xs">
-                {{ line.status === 'error' ? line.error : 'Empresa criada.' }}
+                @if (line.status === 'error') {
+                  {{ line.error }}
+                } @else if (line.status === 'created') {
+                  Empresa criada.
+                } @else {
+                  Aguardando confirmação.
+                }
               </td>
             </tr>
           }
@@ -109,16 +131,21 @@
           <ng-icon name="lucideUpload" class="text-xl" aria-hidden="true" />
         </span>
 
-        <p class="mt-4 text-sm font-medium">Arraste sua planilha CSV aqui ou escolha o arquivo</p>
+        <p class="mt-4 text-sm font-medium">Arraste sua planilha (.xlsx ou .csv) aqui ou escolha o arquivo</p>
         <p class="text-muted-foreground mt-1 text-xs">
-          Somente CSV nesta versão — exporte a planilha do Excel como CSV.
+          Aceita o .xlsx exportado do seu sistema ou um CSV. Só a primeira aba é lida.
         </p>
 
         <label
           class="bg-primary text-primary-foreground hover:bg-primary/80 focus-within:ring-ring mt-5 inline-flex h-9 cursor-pointer items-center rounded-md px-3 text-sm font-medium focus-within:ring-2"
         >
           Escolher arquivo
-          <input type="file" accept=".csv,text/csv" class="sr-only" (change)="choose($event)" />
+          <input
+            type="file"
+            accept=".csv,.xlsx,text/csv,application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
+            class="sr-only"
+            (change)="choose($event)"
+          />
         </label>
 
         @if (file()) {
@@ -158,37 +185,27 @@
       <div class="border-border border-b p-4">
         <h2 class="text-sm font-semibold">Colunas esperadas</h2>
         <p class="text-muted-foreground mt-1 text-xs">
-          A primeira linha da planilha precisa ter estes nomes de coluna.
+          A primeira linha da planilha precisa ter estes nomes de coluna (variações como "Razão Social", "E-mail do responsável" e "WhatsApp" também são aceitas).
         </p>
       </div>
 
       <ul class="divide-border divide-y">
         @for (column of columns; track column.key) {
           <li class="p-3">
-            <p class="font-mono text-xs font-semibold">{{ column.key }}</p>
+            <p class="text-sm font-semibold">{{ column.header }}</p>
             <p class="text-muted-foreground mt-0.5 text-xs">
-              {{ column.label }}
               @if (column.required) {
-                · <span class="text-foreground font-medium">obrigatória</span>
+                <span class="text-foreground font-medium">Obrigatória</span>
+              } @else {
+                Opcional
+              }
+              @if (column.label) {
+                · {{ column.label }}
               }
             </p>
           </li>
         }
       </ul>
-
-      <div class="border-border border-t p-4">
-        <p class="text-muted-foreground text-xs">
-          O valor de <span class="font-mono">template</span> precisa bater com o nome de um template
-          existente:
-        </p>
-        <ul class="mt-2 flex flex-wrap gap-1">
-          @for (template of templates.value() ?? []; track template.id) {
-            <li class="bg-muted rounded-full px-2 py-0.5 text-[11px] font-medium">
-              {{ template.name }}
-            </li>
-          }
-        </ul>
-      </div>
     </aside>
   </div>
 }

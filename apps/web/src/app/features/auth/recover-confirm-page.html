@@ -1,0 +1,48 @@
+<main class="bg-muted/40 flex min-h-dvh flex-col items-center justify-center gap-6 p-4 sm:p-8">
+  <app-logo class="h-8" />
+
+  <div class="bg-card border-border w-full max-w-md rounded-xl border p-6 shadow-sm sm:p-8">
+    @if (sent()) {
+      <div class="text-center" role="status">
+        <span
+          class="mx-auto flex size-12 items-center justify-center rounded-full bg-success-surface text-success"
+        >
+          <ng-icon name="lucideMailCheck" class="text-xl" aria-hidden="true" />
+        </span>
+        <h1 class="mt-4 text-lg font-semibold">Confira seu e-mail</h1>
+        <p class="text-muted-foreground mt-2 text-sm">
+          Enviamos um novo link de envio. Ele substitui o anterior.
+        </p>
+      </div>
+    } @else if (!token()) {
+      <h1 class="text-xl font-semibold tracking-tight">Link incompleto</h1>
+      <p class="text-muted-foreground mt-1 text-sm">
+        Abra esta página pelo botão do e-mail de confirmação. Se precisar, peça de novo.
+      </p>
+      <a hlmBtn variant="outline" class="mt-4 w-full" routerLink="/perdi-meu-link">
+        Pedir novamente
+      </a>
+    } @else {
+      <h1 class="text-xl font-semibold tracking-tight">Confirme para receber o novo link</h1>
+      <p class="text-muted-foreground mt-1 text-sm">
+        Ao confirmar, o link de envio anterior deixa de valer e um novo chega no seu e-mail.
+      </p>
+
+      @if (error()) {
+        <p class="text-destructive mt-4 text-sm" role="alert">{{ error() }}</p>
+      }
+
+      <button
+        hlmBtn
+        size="lg"
+        type="button"
+        class="mt-6 w-full"
+        [disabled]="sending()"
+        (click)="confirm()"
+      >
+        {{ sending() ? 'Enviando…' : 'Receber meu novo link' }}
+        <ng-icon name="lucideArrowRight" aria-hidden="true" />
+      </button>
+    }
+  </div>
+</main>

@@ -27,6 +27,7 @@ import { PageHeader } from '../../shared/page-header';
 import { Pagination } from '../../shared/pagination';
 import { StatusPill } from '../../shared/status-pill';
 import { maskedCnpj } from '../../shared/format';
+import { ChecklistsService } from '../checklists/checklists.service';
 import { Company, CompaniesService } from './companies.service';
 
 @Component({
@@ -64,6 +65,7 @@ import { Company, CompaniesService } from './companies.service';
 })
 export class CompaniesListPage {
   private readonly service = inject(CompaniesService);
+  private readonly checklists = inject(ChecklistsService);
   private readonly toaster = inject(Toaster);
 
   protected readonly maskedCnpj = maskedCnpj;
@@ -162,6 +164,52 @@ export class CompaniesListPage {
       this.toaster.error(apiErrorMessage(error, 'Não foi possível reativar a empresa.'));
     } finally {
       this.acting.set(false);
+    }
+  }
+
+  /** Só a página carregada — igual ao `request-review-page`, sem seleção entre páginas. */
+  protected readonly selectedIds = signal<ReadonlySet<string>>(new Set());
+  protected readonly templates = this.checklists.templates();
+  protected readonly bulkTemplateId = signal('');
+  protected readonly applyingTemplate = signal(false);
+
+  protected isSelected(companyId: string) {
+    return this.selectedIds().has(companyId);
+  }
+
+  protected toggleSelected(companyId: string) {
+    this.selectedIds.update((current) => {
+      const next = new Set(current);
+      if (next.has(companyId)) next.delete(companyId);
+      else next.add(companyId);
+      return next;
+    });
+  }
+
+  protected clearSelection() {
+    this.selectedIds.set(new Set());
+  }
+
+  protected async applyTemplateToSelected() {
+    const companyIds = [...this.selectedIds()];
+    const checklistTemplateId = this.bulkTemplateId();
+    if (!companyIds.length || !checklistTemplateId) return;
+
+    this.applyingTemplate.set(true);
+
+    try {
+      const result = await this.service.applyTemplate(companyIds, checklistTemplateId);
+      this.toaster.success(
+        result.updated === 1
+          ? '1 empresa atualizada.'
+          : `${result.updated} empresas atualizadas.`,
+      );
+      this.clearSelection();
+      this.companies.reload();
+    } catch (error) {
+      this.toaster.error(apiErrorMessage(error, 'Não foi possível aplicar o template.'));
+    } finally {
+      this.applyingTemplate.set(false);
     }
   }
 }

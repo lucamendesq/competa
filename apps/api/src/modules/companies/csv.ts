@@ -55,18 +55,42 @@ const detectDelimiter = (text: string) => {
   return (header.match(/;/g)?.length ?? 0) > (header.match(/,/g)?.length ?? 0) ? ';' : ',';
 };
 
+/** Cabeçalho em português vira a coluna canônica: o contador exporta a planilha do
+ *  sistema dele, com "Razão Social" e "E-mail do responsável" — não `name`/`contact_email`. */
+const HEADER_ALIASES: Record<string, string> = {
+  razao_social: 'name',
+  empresa: 'name',
+  nome: 'name',
+  nome_da_empresa: 'name',
+  cnpj: 'cnpj',
+  responsavel: 'contact_name',
+  nome_do_responsavel: 'contact_name',
+  email: 'contact_email',
+  e_mail: 'contact_email',
+  email_do_responsavel: 'contact_email',
+  e_mail_do_responsavel: 'contact_email',
+  telefone: 'contact_phone',
+  celular: 'contact_phone',
+  whatsapp: 'contact_phone',
+  tem_funcionarios: 'flag_has_employees',
+  aceita_pagamento_por_cartao: 'flag_accepts_card_payments',
+  controla_estoque: 'flag_has_inventory',
+};
+
 export const parseCsvRecords = (text: string) => {
   const [header, ...rows] = parseCsv(text);
   if (!header) return [];
 
-  const keys = header.cells.map((cell) =>
-    cell
-      .toLowerCase()
-      .normalize('NFD')
-      .replace(/\p{Diacritic}/gu, '')
-      .replace(/[^a-z0-9]+/g, '_')
-      .replace(/^_|_$/g, ''),
-  );
+  const keys = header.cells
+    .map((cell) =>
+      cell
+        .toLowerCase()
+        .normalize('NFD')
+        .replace(/\p{Diacritic}/gu, '')
+        .replace(/[^a-z0-9]+/g, '_')
+        .replace(/^_|_$/g, ''),
+    )
+    .map((key) => HEADER_ALIASES[key] ?? key);
 
   return rows.map(({ line, cells }) => ({
     line,

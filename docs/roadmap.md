@@ -7,10 +7,13 @@ Regras de leitura:
 1. **Faça na ordem.** Cada tarefa só depende da anterior necessária (coluna "Depende").
 2. **Uma tabela por vez.** A coluna "Tabelas novas" diz o que entra no banco. Divergência entre migration e [`database-schema.md`](./database-schema.md) (canônico) é bug — corrija um dos dois na mesma PR.
 
-> **O que está fora deste roadmap** — cobrança, WhatsApp, deploy/CI, LGPD operacional e
-> backup — está inventariado em [`next-steps.md`](./next-steps.md).
+> **Tudo o que falta agora tem número:** WhatsApp (Fase 8), mobile (Fase 9), cobrança
+> (Fase 13, TASK-047..050) e LGPD operacional (Fase 14, TASK-051..055). Deploy/CI, backup e
+> a base de LGPD (termos/privacidade, aceite, retenção) **existem desde 2026-09-11** — ver
+> `deploy.md`, `backup.md` e `retention.md`. O detalhe narrativo continua em
+> [`next-steps.md`](./next-steps.md).
 
-3. **Sempre demonstrável.** A coluna "Demonstrável depois desta" é o que você consegue mostrar rodando localmente. Se não dá pra demonstrar, a fatia está grande demais — quebre mais. (Deploy e CI ficaram **fora do roadmap v1**, por decisão de 2026-09-02: o produto roda local até haver o que colocar no ar.)
+3. **Sempre demonstrável.** A coluna "Demonstrável depois desta" é o que você consegue mostrar rodando localmente. Se não dá pra demonstrar, a fatia está grande demais — quebre mais. (Deploy e CI ficaram fora do roadmap v1 por decisão de 2026-09-02, **revertida em 2026-09-11**: Dockerfile, `fly.toml` com migrations no release, CI e deploy pós-CI existem — ver [`deploy.md`](./deploy.md) e `next-steps.md` §3.)
 4. Stack canônica: **Angular SPA (CSR) + NestJS + pnpm workspaces + `libs/contracts` (zod) + Drizzle/Postgres + Better Auth + R2** (ver [`decisions.md`](./decisions.md)).
 
 > **Frontend (2026-09-07): as telas do Angular existem.** As 21 páginas das Fases 1–7 e da
@@ -141,8 +144,8 @@ Regras de leitura:
 
 ## Fase 10 — Experiência do Responsável (PWA + passkey)
 
-> Aprovada em 2026-09-04. Desenho completo em
-> [`docs/superpowers/specs/2026-09-04-fase-10-responsavel-design.md`](./superpowers/specs/2026-09-04-fase-10-responsavel-design.md).
+> Aprovada em 2026-09-04 (spec de design detalhada era doc de processo; removida na
+> limpeza de 2026-09-12 — o que vale está nesta tabela e no código).
 > Login sem senha: **passkey/biometria** com **magic link** como plano B; conta criada em
 > auto-serviço a partir do Link de Upload; visibilidade **por Empresa** com histórico de quem
 > enviou. A PWA (F10-6) foi entregue em 2026-09-07 junto com as telas.
@@ -165,6 +168,90 @@ Regras de leitura:
 | ✅ F10-5 | Web Push nos eventos existentes                                                               | F10-1, 025 | —                                       | push de novo pedido, rejeição e prazo                                                      |
 | ✅ F10-6 | PWA Angular (área do Responsável instalável)                                                  | ✅ F10-4   | —                                       | manifest + service worker; casca abre offline; push depende de `VAPID_PUBLIC_KEY` no front |
 | ✅ F10-7 | Revogação de acesso pelo Contador                                                             | ✅ F10-1   | —                                       | Contador corta o acesso de um Responsável                                                  |
+
+## Fase 11 — Segurança (achados do audit `run-20260911`) — ✅ concluída em 2026-09-11
+
+> Origem: audit de segurança `run-20260911` (11 agentes especializados + verificação
+> manual, 27 achados). Ordem = plano de remediação do próprio relatório (exploitabilidade ×
+> impacto ÷ esforço). O diretório `.security-audit/` foi removido na limpeza de 2026-09-12,
+> depois de toda a remediação — a disposição final de cada achado está no bloco abaixo e o
+> fix de cada um, no código/testes das TASKs.
+>
+> **Disposição dos 27 achados:** 19 corrigidos (TASK-038..046). **Aceitos sem mudança**
+> (Info/teóricos, inertes hoje): AUTHZ-6 (helpers de
+> repositório sem escopo — disciplina do caller, coberta pelos guards), AUTHN-3 (TOCTOU do
+> convite — bloqueado pela unicidade de email), AVAIL-4 (`files` sem `.max()` no zod — o
+> service corta em 500 e o body limit em 2MB), INJ-1 (senderName no header — só alcançável
+> via CLI), INJ-2/SUPPLY-4 (script dev-only), INJ-3 (falso positivo do semgrep).
+> **Operacional:** HTTP-1 (CNAME dangling) — nota no `deploy.md`.
+>
+> **Pendência operacional da TASK-040:** cadastrar `DB_SSL_CA` (CA da Supabase) como Fly
+> secret ANTES do próximo deploy — com `rejectUnauthorized: true`, o boot de produção falha
+> sem ela.
+
+| Task     | Título                                                                                                     | Severidade    | Achado(s)                    |
+| -------- | ------------------------------------------------------------------------------------------------------------ | ------------- | ----------------------------- |
+| ✅ TASK-038 | Recusar ativação passwordless (`POST /upload/:token/access`) quando o email já pertence a um usuário existente | Crítico       | AUTHZ-1                       |
+| ✅ TASK-039 | Remover `sameSite:'none'` (cookie `.competa.com.br` sob `Lax`) + Origin-check nas rotas mutantes            | Crítico       | CSRF-1 / AUTHN-2              |
+| ✅ TASK-040 | `sslmode=verify-full` + CA bundle da Supabase na conexão de produção (API e `drizzle.config.ts`)             | Alto          | SEC-1                         |
+| ✅ TASK-041 | `advanced.ipAddress.trustedProxies`/`ipAddressHeaders` no Better Auth (rate limiter não pode colapsar num bucket global) | Alto          | AUTHN-1                       |
+| ✅ TASK-042 | Escopar `POST /messages/reminders/run` por `firmScope` (ou remover a rota manual, deixar só o cron)          | Médio         | AUTHZ-2                       |
+| ✅ TASK-043 | Log de negação de guard (Logger + Sentry) + colunas de autoria em `document`/`request_item`/`invite`         | Médio         | OPS-1                         |
+| ✅ TASK-044 | Cap de concorrência no fan-out de HEAD do zip + limite de documentos/bytes por Solicitação/Competência        | Médio         | AVAIL-1, AVAIL-2              |
+| ✅ TASK-045 | Parar de logar a URL do magic-link no fallback de boot; pinar `setup-flyctl`; override de `qs`               | Médio / Baixo | SEC-2, SUPPLY-1, SUPPLY-2     |
+| ✅ TASK-046 | Itens Low/Info restantes (enumeração em `/access/recover`, push-subscription hijack, TOCTOU de review, R2 Content-Type, `multer` inalcançável, escape de `url` em email) | Baixo / Info  | AUTHZ-3..6, AVAIL-3/4, SSRF-1, SUPPLY-3, XSS-INFO-1, HTTP-1 |
+
+## Fase 12 — Lacunas de produto e conta (lote de 2026-09-11) — ✅ concluída
+
+> Fecharam de uma vez os itens 🟠/🟡 de `next-steps.md` §1–§2 (detalhe por item lá, marcado ✅):
+
+| Entrega | Resumo |
+| ------- | ------ |
+| ✅ Push de "novo pedido" | `RequestCreated` também vira push (F10-5 completo) |
+| ✅ Ver documento no portal do Responsável | `GET /my/documents/:id/content` + preview/download em `/minha-area` |
+| ✅ Multi-empresa | `contact.auth_user_id` sem UNIQUE; `ContactScope` multi-vínculo; ativação pelo Link vincula conta existente; revogação só apaga o user no último vínculo |
+| ✅ Gestão de equipe | `GET/DELETE /accountants`, `GET/PATCH /accounting-firm`, listar/revogar convites + telas em /configuracoes |
+| ✅ Preferências de lembrete | `accounting_firm.reminder_*` editáveis pelo dono na aba Lembretes |
+| ✅ Import XLSX | conversão no browser (SheetJS, 1ª aba) + cabeçalhos PT aliased no servidor |
+| ✅ Reset de senha do Contador | `sendResetPassword` (token 1h) + telas /esqueci-senha e /redefinir-senha |
+| ✅ "Perdi meu link" em 2 passos | email de confirmação de posse (HMAC 30min) antes de rotacionar |
+| ✅ Termos/Privacidade + aceite | páginas `/termos` e `/privacidade` + `user.terms_accepted_at` nos 3 fluxos de criação |
+| ✅ Backup + retenção | `backup.yml` (pg_dump diário → R2 dedicado) + `backup.md` + `retention.md` |
+
+## Fase 13 — Cobrança (SaaS de verdade)
+
+> 🔴 O maior buraco para operar: zero código de cobrança. Preço hipotético e métrica
+> (empresas ativas em competência aberta, tiers R$59–197) em
+> [`product.md`](./product.md); validar contra o discovery antes da TASK-049.
+
+| Task     | Título                                                                                     | Depende | Tabelas novas          | Demonstrável depois desta                                                    |
+| -------- | ------------------------------------------------------------------------------------------ | ------- | ---------------------- | ----------------------------------------------------------------------------- |
+| TASK-047 | ADR: gateway (Stripe vs Pagar.me/Asaas — pix/boleto pesam) + modelo de plano/trial          | —       | —                      | decisão registrada em `decisions.md` com preço e métrica de cobrança          |
+| TASK-048 | Schema de assinatura: `subscription` na `accounting_firm` (plano, status, trial, período)   | 047     | `subscription`         | firm nova nasce em trial; `GET /accounting-firm` devolve o plano              |
+| TASK-049 | Checkout + webhook do gateway (ativação, falha de pagamento, cancelamento)                  | 048     | —                      | assinar de verdade em sandbox; status muda via webhook                        |
+| TASK-050 | Régua de inadimplência: aviso → bloqueio de escrita (leitura/export ficam) + tela de plano  | 049     | —                      | firm inadimplente vê banner e perde escrita; regularizou, voltou              |
+
+## Fase 14 — LGPD operacional (o que restou do §5 do next-steps)
+
+> Itens 1 e 3 (termos/privacidade + aceite, retenção/expurgo) já entregues em 2026-09-11.
+> O que resta é majoritariamente documento e processo — barato, e é o que aparece na
+> primeira venda para contabilidade com jurídico.
+
+| Task     | Título                                                                                        | Depende | Tabelas novas | Demonstrável depois desta                                                  |
+| -------- | ---------------------------------------------------------------------------------------------- | ------- | ------------- | ---------------------------------------------------------------------------- |
+| TASK-051 | Contrato de operador (DPA) padrão — anexo dos Termos, com suboperadores nomeados (R2/Supabase/Resend) | —  | —             | `docs/dpa.md` + link em `/termos`; pronto para anexar em proposta            |
+| TASK-052 | Exportação e exclusão a pedido do titular (arts. 18 IV/VI): runbook manual + SQL, incluindo `contact` e `push_subscription` | — | — | `docs/retention.md` ganha a seção "pedido do titular" com prazo de 15 dias   |
+| TASK-053 | Registro das operações de tratamento (art. 37): inventário dado→finalidade→destino              | —       | —             | `docs/lgpd-registro.md` — tabela completa dos dados coletados                |
+| TASK-054 | Plano de resposta a incidente (art. 48): quem avisa, em quanto tempo, com que texto             | —       | —             | `docs/incident-response.md` com runbook e modelos de comunicação             |
+| TASK-055 | DPO nomeado + canal público de contato                                                          | 051     | —             | nome/email do encarregado publicado em `/privacidade`                        |
+
+## Adiados com gatilho (decisão de 2026-09-11)
+
+| Item                                          | Por quê adiado                                                                                                          | Gatilho para reabrir                                                                              |
+| --------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------ | -------------------------------------------------------------------------------------------------- |
+| Filtro por responsável no Painel de Pendências | Não existe atribuição empresa→contador no schema, e as firms alvo têm 1–2 contadores — o filtro não filtraria nada.       | Primeira firm com 3+ contadores pedindo divisão de carteira. Modelo mínimo: `company.responsible_accountant_id` + select no form + chip no painel. |
+| Domínio de email próprio por escritório        | Exige verificação DNS por firm na Resend + UI de onboarding + tratamento de domínio quebrado. O remetente já mostra o nome da firm. | Plano white-label no pricing, deliverability ruim atribuída ao domínio compartilhado, ou 3+ firms pedindo. |
+| Job automático de expurgo (retenção)           | Não há firm cancelada ainda; expurgo automático sem caso real é onde se apaga dado errado. Política + runbook manual em `retention.md`. | Primeiro cancelamento de Contabilidade.                                                            |
 
 ## Marcos de validação (dopamina + negócio)
 

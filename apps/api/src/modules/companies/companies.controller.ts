@@ -1,11 +1,13 @@
 import { Body, Controller, Delete, Get, HttpCode, Param, Patch, Post, Query } from '@nestjs/common';
 import { EventEmitter2 } from '@nestjs/event-emitter';
 import {
+  ApplyTemplateBody,
   CompanyQuery,
   ContactBody,
   CreateCompanyBody,
   IdParam,
   ImportCompaniesBody,
+  ImportConfirmBody,
   SendAccessInvitesBody,
   UpdateCompanyBody,
 } from '@contabilidade/contracts';
@@ -14,12 +16,14 @@ import * as z from 'zod';
 import env from '../../config/env.js';
 import { type ContactInvitedEvent, EVENTS } from '../../lib/events.js';
 import { createToken } from '../../lib/token.js';
+import { CurrentAccountantId } from '../auth/current-accountant.decorator.js';
 import { InviteRepository } from '../auth/invite.repository.js';
 import { NotFound, ValidationError } from '../../lib/app-error.js';
 import { paginated } from '../../lib/response.interceptor.js';
 import { zodPipe } from '../../lib/zod-pipe.js';
 import { CurrentScope } from '../auth/current-scope.decorator.js';
 import type { FirmScope } from '../auth/scope.js';
+import { ContactRepository } from '../contacts/contact.repository.js';
 import { CompanyRepository } from './company.repository.js';
 
 const ContactParam = z.object({ id: z.uuid(), contactId: z.uuid() });
@@ -30,6 +34,7 @@ export class CompaniesController {
   constructor(
     private readonly companies: CompanyRepository,
     private readonly invites: InviteRepository,
+    private readonly contacts: ContactRepository,
     private readonly events: EventEmitter2,
   ) {}
 
@@ -45,7 +50,7 @@ export class CompaniesController {
     @CurrentScope() scope: FirmScope,
     @Body(zodPipe(CreateCompanyBody)) body: CreateCompanyBody,
   ) {
-    await this.requireTemplate(scope, body.checklistTemplateId);
+    if (body.checklistTemplateId) await this.requireTemplate(scope, body.checklistTemplateId);
 
     return this.companies.create(scope, body);
   }
@@ -53,6 +58,7 @@ export class CompaniesController {
   @Post('access-invites')
   async sendAccessInvites(
     @CurrentScope() scope: FirmScope,
+    @CurrentAccountantId() accountantId: string,
     @Body(zodPipe(SendAccessInvitesBody)) body: SendAccessInvitesBody,
   ) {
     const results = [];
@@ -69,13 +75,15 @@ export class CompaniesController {
           companyId,
           companyName: found.name,
           contact,
+          createdBy: accountantId,
         });
 
         results.push({
           companyId,
           companyName: found.name,
           email: contact.email,
-          status: sent ? ('invited' as const) : ('skipped' as const),
+          status: sent.sent ? ('invited' as const) : ('skipped' as const),
+          reason: sent.reason,
         });
       }
 
@@ -96,12 +104,47 @@ export class CompaniesController {
     };
   }
 
+  @Post('apply-template')
+  async applyTemplate(
+    @CurrentScope() scope: FirmScope,
+    @Body(zodPipe(ApplyTemplateBody)) body: ApplyTemplateBody,
+  ) {
+    await this.requireTemplate(scope, body.checklistTemplateId);
+
+    const results = [];
+
+    for (const companyId of body.companyIds) {
+      const row = await this.companies.update(scope, companyId, {
+        checklistTemplateId: body.checklistTemplateId,
+      });
+
+      results.push(
+        row
+          ? { companyId, status: 'updated' as const }
+          : { companyId, status: 'error' as const, reason: 'Empresa não encontrada.' },
+      );
+    }
+
+    return {
+      updated: results.filter((row) => row.status === 'updated').length,
+      results,
+    };
+  }
+
   @Post('import')
-  async import(
+  import(
     @CurrentScope() scope: FirmScope,
     @Body(zodPipe(ImportCompaniesBody)) body: ImportCompaniesBody,
   ) {
-    return this.companies.importFromCsv(scope, body.csv);
+    return this.companies.validateCsv(body.csv);
+  }
+
+  @Post('import/confirm')
+  async confirmImport(
+    @CurrentScope() scope: FirmScope,
+    @Body(zodPipe(ImportConfirmBody)) body: ImportConfirmBody,
+  ) {
+    return this.companies.confirmImport(scope, body.pending);
   }
 
   @Get(':id')
@@ -183,9 +226,16 @@ export class CompaniesController {
       companyId: string;
       companyName: string;
       contact: { id: string; name: string; email: string };
+      createdBy?: string;
     },
   ) {
-    if (await this.invites.pendingForContact(input.companyId, input.contact.email)) return false;
+    if (await this.contacts.userByEmail(input.contact.email)) {
+      return { sent: false, reason: 'Este e-mail já tem uma conta cadastrada.' };
+    }
+
+    if (await this.invites.pendingForContact(input.companyId, input.contact.email)) {
+      return { sent: false };
+    }
 
     const { token, tokenHash } = createToken();
     const expiresAt = addDays(new Date(), env.INVITE_TTL_DAYS);
@@ -195,6 +245,7 @@ export class CompaniesController {
       email: input.contact.email,
       tokenHash,
       expiresAt,
+      createdBy: input.createdBy,
     });
 
     const invited: ContactInvitedEvent = {
@@ -209,7 +260,7 @@ export class CompaniesController {
 
     this.events.emit(EVENTS.ContactInvited, invited);
 
-    return true;
+    return { sent: true };
   }
 
   private async requireTemplate(scope: FirmScope, templateId: string) {

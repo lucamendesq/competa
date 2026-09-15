@@ -10,7 +10,7 @@ import { v7 as uuidv7 } from 'uuid';
 import env, { allowedOrigins } from '../../config/env.js';
 import { db } from '../database/index.js';
 import * as schema from '../database/schema/auth.js';
-import { sendMagicLink } from './magic-link-sender.js';
+import { sendMagicLink, sendResetPassword } from './magic-link-sender.js';
 
 const sharedDomain = (a: string, b: string) => {
   const left = a.split('.').reverse();
@@ -45,6 +45,11 @@ const auth = betterAuth({
   trustedOrigins: allowedOrigins,
   emailAndPassword: {
     enabled: true,
+    sendResetPassword: async ({ user, url, token }) => {
+      await sendResetPassword({ email: user.email, url, token });
+    },
+    resetPasswordTokenExpiresIn: 3600,
+    revokeSessionsOnPasswordReset: true,
   },
   plugins: [
     magicLink({
@@ -62,10 +67,18 @@ const auth = betterAuth({
     database: {
       generateId: () => uuidv7(),
     },
+    /* Fly-Client-IP é escrito pelo proxy da Fly e não é forjável; sem isto o rate limiter
+     * do better-auth cai num balde global quando X-Forwarded-For traz 2+ IPs. Só em
+     * produção: em dev a lista substituiria o default e deixaria o limiter sem chave. */
+    ...(env.NODE_ENV === 'production'
+      ? { ipAddress: { ipAddressHeaders: ['fly-client-ip'] } }
+      : {}),
     ...(crossSubDomain
       ? {
           crossSubDomainCookies: { enabled: true, domain: `.${parentDomain}` },
-          defaultCookieAttributes: { sameSite: 'none' as const, secure: true },
+          /* app. e api. sob o mesmo domínio são same-site: `lax` mantém o fetch com
+           * credenciais e barra o form-POST cross-site (CSRF-1). */
+          defaultCookieAttributes: { sameSite: 'lax' as const, secure: true },
         }
       : {}),
   },

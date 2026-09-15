@@ -48,7 +48,7 @@ export class PeriodRepository {
     const checklists = new Map(
       await Promise.all(
         companies
-          .filter((row) => row.contact?.email)
+          .filter((row) => row.checklistTemplateId && row.contact?.email)
           .map(
             async (row) =>
               [
@@ -76,7 +76,7 @@ export class PeriodRepository {
 
   async activeCompanies(scope: FirmScope) {
     const companies = await this.db
-      .select({ id: company.id, name: company.name })
+      .select({ id: company.id, name: company.name, checklistTemplateId: company.checklistTemplateId })
       .from(company)
       .where(and(eq(company.accountingFirmId, scope), eq(company.active, true)))
       .orderBy(company.name);
@@ -213,7 +213,7 @@ export class PeriodRepository {
       .select({ value: count() })
       .from(requestItem)
       .innerJoin(request, eq(request.id, requestItem.requestId))
-      .where(and(eq(request.periodId, periodId), eq(requestItem.status, 'pending')));
+      .where(and(eq(request.periodId, periodId), ne(requestItem.status, 'accepted')));
 
     return { ...row, pendingItemCount: pending.value };
   }

@@ -167,13 +167,15 @@ export class PeriodsListPage {
 
   protected readonly preview = computed(() => {
     const rows = this.active.value().data;
-    const recipients = rows.filter((row) => row.contactCount > 0);
+    const withoutTemplate = rows.filter((row) => !row.checklistTemplateId);
+    const recipients = rows.filter((row) => row.contactCount > 0 && row.checklistTemplateId);
 
     return {
       created: recipients.length,
       recipients,
       emailCount: recipients.reduce((sum, row) => sum + row.contacts.length, 0),
-      withoutContact: rows.filter((row) => row.contactCount === 0),
+      withoutContact: rows.filter((row) => row.contactCount === 0 && row.checklistTemplateId),
+      withoutTemplate,
     };
   });
 

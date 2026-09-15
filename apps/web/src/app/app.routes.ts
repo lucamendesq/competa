@@ -5,6 +5,16 @@ import { AUTH_ROUTES } from './features/auth/auth.routes';
 export const routes: Routes = [
   ...AUTH_ROUTES,
   {
+    path: 'termos',
+    title: 'Termos de Uso',
+    loadComponent: () => import('./features/legal/terms-page').then((m) => m.TermsPage),
+  },
+  {
+    path: 'privacidade',
+    title: 'Política de Privacidade',
+    loadComponent: () => import('./features/legal/privacy-page').then((m) => m.PrivacyPage),
+  },
+  {
     path: 'envio',
     loadChildren: () => import('./features/upload/upload.routes').then((m) => m.UPLOAD_ROUTES),
   },

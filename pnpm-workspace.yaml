@@ -1,6 +1,11 @@
 packages:
   - 'apps/*'
   - 'libs/*'
+overrides:
+  qs: '>=6.16.0'
+  # multer chega transitiva pelo @nestjs/platform-express e nunca é usada (sem multipart);
+  # o override só tira os advisories da árvore
+  multer: '>=2.3.0'
 allowBuilds:
   '@parcel/watcher': true
   esbuild: true

@@ -15,7 +15,7 @@ export class InviteRepository {
 
   async createForFirm(
     scope: FirmScope,
-    input: { email: string; tokenHash: string; expiresAt: Date },
+    input: { email: string; tokenHash: string; expiresAt: Date; createdBy?: string },
   ) {
     const [row] = await this.db
       .insert(invite)
@@ -30,8 +30,43 @@ export class InviteRepository {
     email: string;
     tokenHash: string;
     expiresAt: Date;
+    createdBy?: string;
   }) {
     const [row] = await this.db.insert(invite).values(input).returning();
+
+    return row;
+  }
+
+  /** Convites de Contador pendentes da Contabilidade (aba de equipe). */
+  async listPending(scope: FirmScope) {
+    return this.db
+      .select({ id: invite.id, email: invite.email, expiresAt: invite.expiresAt })
+      .from(invite)
+      .where(
+        and(
+          eq(invite.accountingFirmId, scope),
+          isNull(invite.acceptedAt),
+          isNull(invite.deletedAt),
+          gt(invite.expiresAt, new Date()),
+        ),
+      )
+      .orderBy(invite.createdAt);
+  }
+
+  /** Revogar = `deleted_at`: `findByToken` já filtra por ele, então o link morre sozinho. */
+  async revoke(scope: FirmScope, inviteId: string) {
+    const [row] = await this.db
+      .update(invite)
+      .set({ deletedAt: new Date() })
+      .where(
+        and(
+          eq(invite.id, inviteId),
+          eq(invite.accountingFirmId, scope),
+          isNull(invite.acceptedAt),
+          isNull(invite.deletedAt),
+        ),
+      )
+      .returning({ id: invite.id });
 
     return row;
   }

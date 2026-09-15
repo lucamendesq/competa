@@ -14,24 +14,96 @@
     }
   </div>
 
-  <div class="p-4">
-    @if (isOwner()) {
-      <p class="text-muted-foreground text-xs">
-        A lista de contadores da equipe ainda não é exposta pela API — por enquanto o convite é o
-        caminho para dar acesso. Cada convite vale por alguns dias e só serve para o e-mail
-        informado.
-      </p>
-    } @else {
+  <ul class="divide-border divide-y" role="list">
+    @for (member of team.value() ?? []; track member.id) {
+      <li class="flex flex-wrap items-center gap-3 p-4">
+        <div class="min-w-0 flex-1">
+          <p class="flex items-center gap-2 text-sm font-medium">
+            {{ member.name }}
+            @if (member.owner) {
+              <span class="bg-muted text-muted-foreground rounded-full px-2 py-0.5 text-xs">
+                dono
+              </span>
+            }
+            @if (member.email === myEmail()) {
+              <span class="text-muted-foreground text-xs">(você)</span>
+            }
+          </p>
+          <p class="text-muted-foreground mt-0.5 truncate text-xs">{{ member.email }}</p>
+        </div>
+        @if (isOwner() && !member.owner) {
+          <button
+            hlmBtn
+            variant="ghost"
+            size="sm"
+            type="button"
+            (click)="removing.set(member)"
+          >
+            <ng-icon name="lucideTrash2" aria-hidden="true" />
+            Remover
+          </button>
+        }
+      </li>
+    } @empty {
+      <li class="text-muted-foreground p-4 text-xs">Carregando a equipe…</li>
+    }
+  </ul>
+
+  @if (pending.value()?.length) {
+    <div class="border-border border-t p-4">
+      <h3 class="text-muted-foreground text-xs font-semibold uppercase">Convites pendentes</h3>
+      <ul class="mt-2 flex flex-col gap-2" role="list">
+        @for (invite of pending.value() ?? []; track invite.id) {
+          <li class="flex flex-wrap items-center gap-2 text-sm">
+            <span class="min-w-0 flex-1 truncate">{{ invite.email }}</span>
+            <span class="text-muted-foreground text-xs tabular-nums">
+              vale até {{ dateBr(invite.expiresAt) }}
+            </span>
+            @if (isOwner()) {
+              <button hlmBtn variant="ghost" size="sm" type="button" (click)="revokeInvite(invite.id)">
+                <ng-icon name="lucideX" aria-hidden="true" />
+                Revogar
+              </button>
+            }
+          </li>
+        }
+      </ul>
+    </div>
+  }
+
+  @if (!isOwner()) {
+    <div class="border-border border-t p-4">
       <p class="text-muted-foreground flex gap-2 text-xs" role="note">
         <ng-icon name="lucideLock" class="mt-0.5 shrink-0 text-sm" aria-hidden="true" />
         <span>
-          Só o dono da contabilidade convida novos contadores — quem acessa pelo e-mail do
-          escritório. Peça a ele o link de convite.
+          Só o dono da contabilidade convida ou remove contadores — quem acessa pelo e-mail do
+          escritório.
         </span>
       </p>
-    }
-  </div>
+    </div>
+  }
 </section>
+
+<app-modal
+  [open]="removing() !== null"
+  (openChange)="$event ? null : removing.set(null)"
+  title="Remover contador"
+  [description]="removing()?.email"
+>
+  <p class="text-sm">
+    <strong>{{ removing()?.name }}</strong> perde o acesso na hora: a sessão cai e o login deixa
+    de funcionar. Os registros do que ele já fez continuam no histórico.
+  </p>
+
+  <div
+    class="border-border bg-muted/40 -mx-5 -mb-5 mt-5 flex flex-wrap justify-end gap-2 border-t p-4"
+  >
+    <button hlmBtn variant="ghost" type="button" (click)="removing.set(null)">Cancelar</button>
+    <button hlmBtn variant="destructive" type="button" [disabled]="acting()" (click)="confirmRemove()">
+      {{ acting() ? 'Removendo…' : 'Remover acesso' }}
+    </button>
+  </div>
+</app-modal>
 
 <app-modal
   [open]="modalOpen()"

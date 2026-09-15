@@ -18,14 +18,6 @@ const bytesFromBase64 = (base64: string) => {
 const toBase64 = (buffer: ArrayBuffer | null) =>
   buffer ? btoa(String.fromCharCode(...new Uint8Array(buffer))) : '';
 
-/** Web Push do Responsável, oferecido nos DOIS lugares: na tela de sucesso do envio (onde
- *  o `save` grava pelo token do Link, sem conta) e na área logada. Quem chama decide como
- *  a inscrição é persistida — a permissão do navegador e o service worker são iguais.
- *
- *  A chave pública VAPID vem da API (`GET /push/vapid-key`), não do bundle: ela só vale
- *  casada com a privada do servidor, e chave compilada envelhece sem ninguém notar. Sem
- *  chave (dev, ou produção sem VAPID configurado) `available()` fica falso e a UI não
- *  oferece o recurso. */
 @Service()
 export class PushService {
   private readonly api = inject(Api);
@@ -41,11 +33,18 @@ export class PushService {
   readonly subscribing = signal(false);
 
   constructor() {
-    if (this.supported) void this.loadKey();
+    if (this.supported) {
+      void this.loadKey();
+      void this.checkSubscription();
+    }
   }
 
-  /** Falha silenciosa de propósito: chave indisponível é "push desligado", não erro na
-   *  cara de quem só queria enviar um documento. */
+  private async checkSubscription() {
+    const registration = await navigator.serviceWorker.ready;
+    const subscription = await registration.pushManager.getSubscription();
+    this.subscribed.set(subscription !== null);
+  }
+
   private async loadKey() {
     try {
       const { key } = await this.api.get<{ key: string }>('/push/vapid-key');

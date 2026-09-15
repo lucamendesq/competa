@@ -136,7 +136,7 @@
 
 **Alternativas rejeitadas:** manter Next frontend-only (subutilizado sem SSR, filosofia distinta do Nest); React SPA/Vite (sem apego a React nem certeza do RN); Angular Universal/SSR (nenhuma página precisa de SEO/first-paint público).
 
-**Status:** parcialmente superada — o item "Monorepo Nx" foi revertido pela D-06 da spec (`docs/superpowers/specs/2026-09-01-backend-mvp-design.md`): **pnpm workspaces puro**, sem Nx. Motivo: dev solo, só dois apps (`web`, `api`) — o ganho de Nx (cache de build, task graph, boundaries) é baixo nessa escala e não paga a cerimônia de configuração/manutenção. Os demais itens da decisão (Angular SPA/CSR, `libs/contracts`, eventos síncronos, escopo multi-tenant estrutural, mobile em aberto) seguem vigentes.
+**Status:** parcialmente superada — o item "Monorepo Nx" foi revertido pela D-06 da spec (spec de design do backend MVP, 2026-09-01 — doc de processo removido na limpeza de 2026-09-12): **pnpm workspaces puro**, sem Nx. Motivo: dev solo, só dois apps (`web`, `api`) — o ganho de Nx (cache de build, task graph, boundaries) é baixo nessa escala e não paga a cerimônia de configuração/manutenção. Os demais itens da decisão (Angular SPA/CSR, `libs/contracts`, eventos síncronos, escopo multi-tenant estrutural, mobile em aberto) seguem vigentes.
 
 ## D11 — Tailwind + Spartan UI
 

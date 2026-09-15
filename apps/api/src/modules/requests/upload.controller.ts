@@ -1,6 +1,7 @@
 import { Body, Controller, Get, Post, UseGuards } from '@nestjs/common';
 import { AllowAnonymous } from '@thallesp/nestjs-better-auth';
-import { Throttle, seconds } from '@nestjs/throttler';
+import { SkipThrottle } from '@nestjs/throttler';
+import { UploadThrottlerGuard } from './upload-throttler.guard.js';
 import { ConfirmUploadBody, PresignUploadBody } from '@contabilidade/contracts';
 import { NotFound } from '../../lib/app-error.js';
 import { zodPipe } from '../../lib/zod-pipe.js';
@@ -48,9 +49,8 @@ export class UploadController {
     };
   }
 
-  /* Presign é a rota que custa: cria linha e assina URL. Com um token válido, sem limite,
-   * dá para inflar banco e storage. */
-  @Throttle({ default: { ttl: seconds(60), limit: 20 } })
+  @SkipThrottle({ short: true, default: true })
+  @UseGuards(UploadThrottlerGuard)
   @Post('documents')
   async presign(
     @CurrentUploadScope() scope: UploadScope,

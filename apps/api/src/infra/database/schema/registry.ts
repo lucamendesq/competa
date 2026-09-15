@@ -28,11 +28,26 @@ const oneOf = (column: SQL, values: readonly string[]) =>
     sql`, `,
   )})`;
 
-export const accountingFirm = pgTable('accounting_firm', {
-  id: id(),
-  name: text().notNull(),
-  ...timestamps,
-});
+export const accountingFirm = pgTable(
+  'accounting_firm',
+  {
+    id: id(),
+    name: text().notNull(),
+    /** Preferências de lembrete (cadência do cron). Defaults = comportamento histórico. */
+    reminderMax: smallint('reminder_max').notNull().default(2),
+    reminderDueSoonDays: smallint('reminder_due_soon_days').notNull().default(3),
+    reminderGapDays: smallint('reminder_gap_days').notNull().default(3),
+    ...timestamps,
+  },
+  (t) => [
+    check(
+      'accounting_firm_reminder_chk',
+      sql`${t.reminderMax} between 0 and 10
+        and ${t.reminderDueSoonDays} between 0 and 31
+        and ${t.reminderGapDays} between 1 and 31`,
+    ),
+  ],
+);
 
 export const accountant = pgTable(
   'accountant',
@@ -103,20 +118,29 @@ export const checklistTemplateItem = pgTable(
   ],
 );
 
-export const company = pgTable('company', {
-  id: id(),
-  accountingFirmId: uuid('accounting_firm_id')
-    .notNull()
-    .references(() => accountingFirm.id),
-  checklistTemplateId: uuid('checklist_template_id')
-    .notNull()
-    .references(() => checklistTemplate.id),
-  name: text().notNull(),
-  cnpj: text(),
-  flags: jsonb().$type<CompanyFlags>().notNull().default({}),
-  active: boolean().notNull().default(true),
-  ...timestamps,
-});
+export const company = pgTable(
+  'company',
+  {
+    id: id(),
+    accountingFirmId: uuid('accounting_firm_id')
+      .notNull()
+      .references(() => accountingFirm.id),
+    checklistTemplateId: uuid('checklist_template_id').references(() => checklistTemplate.id),
+    name: text().notNull(),
+    cnpj: text(),
+    flags: jsonb().$type<CompanyFlags>().notNull().default({}),
+    active: boolean().notNull().default(true),
+    ...timestamps,
+  },
+  (t) => [
+    /* Mesma Contabilidade não pode ter duas Empresas com o mesmo CNPJ — é a chave que o
+     * import por planilha usa pra fazer upsert em vez de duplicar em reenvio. Parcial
+     * porque CNPJ é opcional. */
+    uniqueIndex('company_cnpj_uidx')
+      .on(t.accountingFirmId, t.cnpj)
+      .where(sql`${t.cnpj} is not null`),
+  ],
+);
 
 export const contact = pgTable(
   'contact',
@@ -128,17 +152,18 @@ export const contact = pgTable(
     name: text().notNull(),
     email: text().notNull(),
     phone: text(),
-    authUserId: uuid('auth_user_id')
-      .unique()
-      .references(() => user.id, { onDelete: 'set null' }),
+    /* SEM unique: o mesmo user é Responsável por N Empresas (um `contact` por Empresa).
+     * A FK é a junção user→contacts. */
+    authUserId: uuid('auth_user_id').references(() => user.id, { onDelete: 'set null' }),
     ...timestamps,
   },
   (t) => [
     /* `email` é a entrada de `/access/recover` — rota pública e sem sessão, o pior lugar
      * para um seq scan. `company_id` é o join de toda listagem de Empresa (FK no Postgres
-     * não cria índice). */
+     * não cria índice). `auth_user_id` é o caminho do ContactGuard em toda request logada. */
     index('contact_email_idx').on(t.email),
     index('contact_company_idx').on(t.companyId),
+    index('contact_auth_user_idx').on(t.authUserId),
   ],
 );
 
@@ -155,6 +180,8 @@ export const invite = pgTable(
     expiresAt: timestamp('expires_at', { withTimezone: true }).notNull(),
     acceptedAt: timestamp('accepted_at', { withTimezone: true }),
     deletedAt: timestamp('deleted_at', { withTimezone: true }),
+    /** autoria (OPS-1): qual contador criou o convite */
+    createdBy: uuid('created_by').references(() => accountant.id, { onDelete: 'set null' }),
     ...timestamps,
   },
   (t) => [

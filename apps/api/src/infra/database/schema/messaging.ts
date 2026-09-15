@@ -59,7 +59,9 @@ export const pushSubscription = pgTable(
     ...timestamps,
   },
   (t) => [
-    unique('push_subscription_endpoint_uidx').on(t.endpoint),
+    /* Par, não endpoint sozinho: o mesmo aparelho serve os N contatos de um user
+     * multi-empresa — e o upsert deixa de poder ROUBAR a linha de outro contato (AUTHZ-4). */
+    unique('push_subscription_contact_endpoint_uidx').on(t.contactId, t.endpoint),
     check('push_subscription_provider_chk', oneOf(sql`${t.provider}`, PUSH_PROVIDERS)),
   ],
 );

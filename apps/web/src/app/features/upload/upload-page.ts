@@ -18,7 +18,7 @@ import {
 import { Router, RouterLink } from '@angular/router';
 import { AuthService } from '../../core/auth/auth.service';
 import { HlmButtonImports } from '@spartan-ng/helm/button';
-import { apiErrorMessage, failureKind } from '../../core/http/api-error';
+import { apiErrorCode, apiErrorMessage, failureKind } from '../../core/http/api-error';
 import { Toaster } from '../../core/ui/toast';
 import { PushService } from '../../shared/push.service';
 import { DropZone } from '../../shared/drop-zone';
@@ -74,6 +74,9 @@ export class UploadPage {
    *  tarefa, e o benefício ("mês que vem") não é legível (D14, item 5). */
   protected readonly push = inject(PushService);
   protected readonly activatingAccess = signal(false);
+  /** O email do contato já tem conta: a ativação sem senha é recusada pela API (AUTHZ-1)
+   *  e a oferta vira "entre pela sua conta". */
+  protected readonly accountExists = signal(false);
 
   protected subscribeToPush() {
     return this.push.subscribe((payload) => this.service.subscribePush(this.token(), payload));
@@ -87,7 +90,29 @@ export class UploadPage {
       await this.auth.reloadContact();
       await this.router.navigate(['/minha-area/pendencias']);
     } catch (error) {
-      this.toaster.error(apiErrorMessage(error, 'Não foi possível ativar seu acesso.'));
+      if (apiErrorCode(error) === 'EMAIL_ALREADY_REGISTERED') {
+        this.accountExists.set(true);
+      } else {
+        this.toaster.error(apiErrorMessage(error, 'Não foi possível ativar seu acesso.'));
+      }
+    } finally {
+      this.activatingAccess.set(false);
+    }
+  }
+
+  protected async activateAndSetPassword() {
+    this.activatingAccess.set(true);
+
+    try {
+      await this.service.activateAccess(this.token());
+      await this.auth.reloadContact();
+      await this.router.navigate(['/minha-area/definir-senha']);
+    } catch (error) {
+      if (apiErrorCode(error) === 'EMAIL_ALREADY_REGISTERED') {
+        this.accountExists.set(true);
+      } else {
+        this.toaster.error(apiErrorMessage(error, 'Não foi possível ativar seu acesso.'));
+      }
     } finally {
       this.activatingAccess.set(false);
     }
@@ -138,6 +163,11 @@ export class UploadPage {
   protected readonly sending = signal(false);
   protected readonly results = signal<FileResult[] | null>(null);
   protected readonly sendProgress = signal({ done: 0, total: 0 });
+  protected readonly sendPercent = computed(() => {
+    const { done, total } = this.sendProgress();
+
+    return total ? Math.round((done / total) * 100) : 0;
+  });
 
   protected toggle(itemId: string) {
     this.expanded.update((current) => (current === itemId ? null : itemId));
@@ -161,17 +191,24 @@ export class UploadPage {
     this.results.set(null);
 
     try {
-      this.results.set(
-        await uploadFiles(files, {
-          presign: (files) => this.service.presign(this.token(), { requestItemId, files }),
-          send: (uploadUrl, file) => this.service.putFile(uploadUrl, file),
-          confirm: (documentIds) => this.service.confirm(this.token(), documentIds),
-          describeError: (error) => apiErrorMessage(error, 'Falha ao enviar o arquivo.'),
-          onProgress: (done, total) => this.sendProgress.set({ done, total }),
-        }),
-      );
+      const results = await uploadFiles(files, {
+        presign: (files) => this.service.presign(this.token(), { requestItemId, files }),
+        send: (uploadUrl, file) => this.service.putFile(uploadUrl, file),
+        confirm: (documentIds) => this.service.confirm(this.token(), documentIds),
+        describeError: (error) => apiErrorMessage(error, 'Falha ao enviar o arquivo.'),
+        onProgress: (done, total) => this.sendProgress.set({ done, total }),
+      });
 
+      this.results.set(results);
       this.checklist.reload();
+
+      if (
+        requestItemId &&
+        this.expanded() === requestItemId &&
+        results.every((result) => result.ok)
+      ) {
+        this.expanded.set(null);
+      }
     } catch (error) {
       this.toaster.error(apiErrorMessage(error, 'Não foi possível enviar os arquivos.'));
     } finally {

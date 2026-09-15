@@ -35,3 +35,7 @@ export type SendAccessInvitesBody = z.infer<typeof SendAccessInvitesBody>;
  *  Responsável sem acesso e email desconhecido — não revela se a conta existe (D14). */
 export const RecoverAccessBody = z.object({ email: z.email() });
 export type RecoverAccessBody = z.infer<typeof RecoverAccessBody>;
+
+/** Passo 2 do "perdi meu link": o token do email de confirmação. */
+export const RecoverAccessConfirmBody = z.object({ token: z.string().min(1) });
+export type RecoverAccessConfirmBody = z.infer<typeof RecoverAccessConfirmBody>;

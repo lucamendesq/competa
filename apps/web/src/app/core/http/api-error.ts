@@ -15,6 +15,15 @@ export const apiErrorMessage = (
   return body?.error?.message ?? fallback;
 };
 
+export const apiErrorCode = (error: unknown): string | undefined => {
+  if (!(error instanceof HttpErrorResponse)) return undefined;
+
+  const body = error.error as ApiErrorBody | string | null;
+  if (typeof body === 'string' || !body) return undefined;
+
+  return body.error?.code;
+};
+
 export type FailureKind = 'offline' | 'gone' | 'server' | 'other';
 
 /** A tela pública de envio chamava QUALQUER falha de "link expirado" — CORS, 500 e celular

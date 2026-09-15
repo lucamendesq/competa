@@ -1,7 +1,4 @@
-# Build from the REPO ROOT: docker build -f apps/api/Dockerfile .
-# (needs libs/contracts + the pnpm workspace lockfile, not just apps/api)
-
-FROM node:24-alpine AS build
+FROM node:22.22.3-alpine AS build
 RUN corepack enable
 WORKDIR /repo
 
@@ -13,14 +10,20 @@ RUN pnpm install --frozen-lockfile --offline
 RUN pnpm --filter @contabilidade/contracts build
 RUN pnpm --filter api build
 RUN pnpm deploy --filter=api --prod --legacy /prod/api
-# apps/api/dist is gitignored, so `pnpm deploy`'s file copy skips it — bring it back explicitly.
 RUN cp -r apps/api/dist /prod/api/dist
+# apps/api/tsconfig.json extends the workspace root's tsconfig.base.json, which `pnpm deploy`
+# doesn't copy (it's outside the package). drizzle-kit/tsx need it at runtime to load
+# drizzle.config.ts and the seed scripts.
+RUN cp tsconfig.base.json /prod/tsconfig.base.json
 
-FROM node:24-alpine
+FROM node:22.22.3-alpine
+RUN apk add --no-cache tini
 RUN addgroup -S app && adduser -S app -G app
 WORKDIR /app
 COPY --from=build --chown=app:app /prod/api ./
+COPY --from=build --chown=app:app /prod/tsconfig.base.json /tsconfig.base.json
 ENV NODE_ENV=production
 USER app
 EXPOSE 3000
+ENTRYPOINT ["/sbin/tini", "--"]
 CMD ["node", "dist/main.js"]
