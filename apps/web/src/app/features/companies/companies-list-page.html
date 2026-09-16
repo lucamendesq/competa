@@ -20,8 +20,9 @@
         class="pl-9"
         placeholder="Buscar empresa ou CNPJ"
         [value]="search()"
-        (input)="search.set($any($event.target).value)"
+        (input)="search.set($any($event.target).value); page.set(1)"
       />
+
       <ng-icon
         name="lucideSearch"
         class="text-muted-foreground pointer-events-none absolute top-2.5 left-3 text-base"

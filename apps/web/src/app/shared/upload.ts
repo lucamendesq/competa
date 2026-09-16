@@ -20,8 +20,9 @@ type Dependencies = {
   ) => Promise<{ files: AuthorizedFile[] }>;
   send: (uploadUrl: string, file: File) => Promise<unknown>;
   confirm: (documentIds: string[]) => Promise<{
-    refused: { fileName: string; reason: string }[];
+    refused: { documentId?: string; fileName: string; reason: string }[];
   }>;
+
   describeError: (error: unknown) => string;
   /** Contagem, não bytes: o roteiro é sequencial, então "3 de 5" é o progresso honesto e
    *  barato. Progresso por byte exigiria `reportProgress` em cada PUT. */
@@ -46,14 +47,15 @@ export const uploadFiles = async (files: File[], deps: Dependencies): Promise<Fi
 
   deps.onProgress?.(0, total);
 
-  for (const authorized of authorization.files) {
+  for (let i = 0; i < authorization.files.length; i++) {
+    const authorized = authorization.files[i];
     if (!authorized.accepted) {
       results.push({ fileName: authorized.fileName, ok: false, reason: authorized.reason });
       deps.onProgress?.((done += 1), total);
       continue;
     }
 
-    const file = files.find((candidate) => candidate.name === authorized.fileName);
+    const file = files[i];
     if (!file) continue;
 
     try {
@@ -77,19 +79,20 @@ export const uploadFiles = async (files: File[], deps: Dependencies): Promise<Fi
   // A palavra final é da confirmação: ela confere no storage o que realmente chegou.
   const confirmation = await deps.confirm(sent);
   const refused = new Map(
-    confirmation.refused.map((refused) => [refused.fileName, refused.reason]),
+    confirmation.refused.map((refused) => [refused.documentId, refused.reason]),
   );
 
   for (const authorized of authorization.files) {
     if (!authorized.accepted) continue;
 
-    const reason = refused.get(authorized.fileName);
+    const reason = refused.get(authorized.documentId);
     results.push(
       reason
         ? { fileName: authorized.fileName, ok: false, reason: reason }
         : { fileName: authorized.fileName, ok: true },
     );
   }
+
 
   return results;
 };

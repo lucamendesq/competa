@@ -1,14 +1,23 @@
 import * as z from 'zod';
 
 export const RejectDocumentBody = z.object({
-  rejectionReason: z.string().trim().min(3).max(500),
+  rejectionReason: z
+    .string()
+    .trim()
+    .min(3, 'O motivo deve ter pelo menos 3 caracteres.')
+    .max(500, 'O motivo deve ter no máximo 500 caracteres.'),
 });
 export type RejectDocumentBody = z.infer<typeof RejectDocumentBody>;
 
 export const ReviewExtraBody = z
   .object({
     decision: z.enum(['accepted', 'rejected']),
-    rejectionReason: z.string().trim().min(3).max(500).optional(),
+    rejectionReason: z
+      .string()
+      .trim()
+      .min(3, 'O motivo deve ter pelo menos 3 caracteres.')
+      .max(500, 'O motivo deve ter no máximo 500 caracteres.')
+      .optional(),
   })
   .refine((v) => v.decision !== 'rejected' || Boolean(v.rejectionReason), {
     message: 'Informe o motivo da rejeição.',
@@ -25,7 +34,11 @@ export const ReviewBatchBody = z
       .array(
         z.object({
           documentId: z.uuid(),
-          rejectionReason: z.string().trim().min(3).max(500),
+          rejectionReason: z
+            .string()
+            .trim()
+            .min(3, 'O motivo deve ter pelo menos 3 caracteres.')
+            .max(500, 'O motivo deve ter no máximo 500 caracteres.'),
         }),
       )
       .max(200)
@@ -36,7 +49,12 @@ export const ReviewBatchBody = z
           .object({
             documentId: z.uuid(),
             decision: z.enum(['accepted', 'rejected']),
-            rejectionReason: z.string().trim().min(3).max(500).optional(),
+            rejectionReason: z
+              .string()
+              .trim()
+              .min(3, 'O motivo deve ter pelo menos 3 caracteres.')
+              .max(500, 'O motivo deve ter no máximo 500 caracteres.')
+              .optional(),
           })
           .refine((v) => v.decision !== 'rejected' || Boolean(v.rejectionReason), {
             message: 'Informe o motivo da rejeição.',

@@ -100,6 +100,7 @@ export class CompaniesListPage {
     page: this.page(),
     perPage: this.perPage,
     active: this.state() === 'todas' ? undefined : this.state() === 'ativas' ? 'true' : 'false',
+    search: this.search().trim() || undefined,
   }));
 
   /** Vazio por filtro ≠ carteira vazia. Se a API trouxe linhas e a busca local escondeu
@@ -114,20 +115,32 @@ export class CompaniesListPage {
   protected clearFilters() {
     this.search.set('');
     this.state.set('ativas');
+    this.page.set(1);
   }
 
   protected readonly visible = computed(() => {
-    const term = this.search().trim().toLowerCase();
+    const rawTerm = this.search().trim();
     const rows = this.companies.value().data;
 
-    if (!term) return rows;
+    if (!rawTerm) return rows;
+
+    const term = rawTerm
+      .normalize('NFD')
+      .replace(/[\u0300-\u036f]/g, '')
+      .toLowerCase();
+    const digits = rawTerm.replace(/\D/g, '');
 
     return rows.filter(
       (row) =>
-        row.name.toLowerCase().includes(term) ||
-        (row.cnpj ?? '').replace(/\D/g, '').includes(term.replace(/\D/g, '')),
+        row.name
+          .normalize('NFD')
+          .replace(/[\u0300-\u036f]/g, '')
+          .toLowerCase()
+          .includes(term) ||
+        (digits.length > 0 && (row.cnpj ?? '').replace(/\D/g, '').includes(digits)),
     );
   });
+
 
   protected readonly statuses = [
     { value: 'ativas' as const, label: 'Ativas' },

@@ -1,16 +1,16 @@
 import * as z from 'zod';
-import { OVERRIDE_ACTIONS, Periodicity } from './registry.js';
+import { COMPANY_FLAGS, OVERRIDE_ACTIONS, Periodicity } from './registry.js';
 
 const scheduling = {
   periodicity: Periodicity.default('monthly'),
   annualMonth: z.number().int().min(1).max(12).nullish(),
   dueDay: z.number().int().min(1).max(31).nullish(),
   dueMonthOffset: z.number().int().min(0).max(11).default(1),
-  conditionFlag: z.string().trim().min(1).nullish(),
+  conditionFlag: z.enum(COMPANY_FLAGS).nullish(),
   required: z.boolean().default(true),
 };
 
-const annualNeedsMonth = <T extends { periodicity: string; annualMonth?: number | null }>(v: T) =>
+const annualNeedsMonth = <T extends { periodicity?: string; annualMonth?: number | null }>(v: T) =>
   v.periodicity !== 'annual' || v.annualMonth != null;
 const annualMessage = { message: 'Item anual exige annualMonth.', path: ['annualMonth'] };
 
@@ -33,10 +33,11 @@ export const UpdateTemplateItemBody = z
     annualMonth: z.number().int().min(1).max(12).nullable(),
     dueDay: z.number().int().min(1).max(31).nullable(),
     dueMonthOffset: z.number().int().min(0).max(11),
-    conditionFlag: z.string().trim().min(1).nullable(),
+    conditionFlag: z.enum(COMPANY_FLAGS).nullable(),
     required: z.boolean(),
   })
-  .partial();
+  .partial()
+  .refine(annualNeedsMonth, annualMessage);
 export type UpdateTemplateItemBody = z.infer<typeof UpdateTemplateItemBody>;
 
 export const TemplateItemParam = z.object({ id: z.uuid(), itemId: z.uuid() });

@@ -103,9 +103,10 @@ export type ImportPreviewResult = {
 export class CompaniesService {
   private readonly api = inject(Api);
 
-  list(params: () => { page: number; perPage: number; active?: string }) {
+  list(params: () => { page: number; perPage: number; active?: string; search?: string }) {
     return pageResource<Company>(() => '/companies', params);
   }
+
 
   detail(id: () => string | undefined) {
     return apiResource<CompanyDetail>(() => {

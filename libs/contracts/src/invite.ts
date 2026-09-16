@@ -5,9 +5,9 @@ export const CreateInviteBody = z.object({ email: z.email() });
 export type CreateInviteBody = z.infer<typeof CreateInviteBody>;
 
 export const SignUpBody = z.object({
-  name: z.string().min(1),
-  email: z.email(),
-  password: z.string().min(8),
+  name: z.string().trim().min(1, 'Informe seu nome.').max(255, 'O nome deve ter no máximo 255 caracteres.'),
+  email: z.email('Informe um e-mail válido.'),
+  password: z.string().min(8, 'A senha precisa de pelo menos 8 caracteres.'),
 });
 export type SignUpBody = z.infer<typeof SignUpBody>;
 
@@ -19,7 +19,7 @@ export type InviteTokenParam = z.infer<typeof InviteTokenParam>;
  *  contrário do Link de Upload, que o fan-out renova todo mês. O email vem do convite:
  *  mandá-lo no corpo só abriria espaço para divergir do que foi convidado. */
 export const AcceptContactInviteBody = z.object({
-  name: optionalText(),
+  name: optionalText(255),
   password: z.string().min(8, 'A senha precisa de pelo menos 8 caracteres.'),
 });
 export type AcceptContactInviteBody = z.infer<typeof AcceptContactInviteBody>;

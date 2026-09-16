@@ -20,6 +20,7 @@ import {
   mergeEffectiveChecklist,
   type ChecklistLine,
 } from './effective-checklist.js';
+import { ValidationError } from '../../lib/app-error.js';
 
 const visibleTo = (scope: FirmScope, column: PgColumn) => or(isNull(column), eq(column, scope))!;
 
@@ -254,6 +255,21 @@ export class ChecklistRepository {
   }
 
   async updateTemplateItem(templateId: string, itemId: string, body: UpdateTemplateItemBody) {
+    if (body.annualMonth === null && body.periodicity === undefined) {
+      const [existing] = await this.db
+        .select({ periodicity: checklistTemplateItem.periodicity })
+        .from(checklistTemplateItem)
+        .where(
+          and(
+            eq(checklistTemplateItem.id, itemId),
+            eq(checklistTemplateItem.checklistTemplateId, templateId),
+          ),
+        );
+      if (existing?.periodicity === 'annual') {
+        throw new ValidationError('Item anual exige annualMonth.');
+      }
+    }
+
     const [row] = await this.db
       .update(checklistTemplateItem)
       .set(body)

@@ -1,5 +1,5 @@
 import { Injectable } from '@nestjs/common';
-import { and, count, eq, inArray, isNotNull, isNull, or, sql } from 'drizzle-orm';
+import { and, count, eq, ilike, inArray, isNotNull, isNull, or, sql } from 'drizzle-orm';
 import {
   COMPANY_FLAGS,
   type CompanyFlags,
@@ -93,11 +93,25 @@ export class CompanyRepository {
     }
   }
 
-  async list(scope: FirmScope, query: { active?: boolean; page: number; perPage: number }) {
+  async list(
+    scope: FirmScope,
+    query: { active?: boolean; search?: string; page: number; perPage: number },
+  ) {
+    const searchTrimmed = query.search?.trim();
+    const cleanDigits = searchTrimmed ? searchTrimmed.replace(/\D/g, '') : '';
+    const searchFilter = searchTrimmed
+      ? or(
+          ilike(company.name, `%${searchTrimmed}%`),
+          cleanDigits ? ilike(company.cnpj, `%${cleanDigits}%`) : undefined,
+        )
+      : undefined;
+
     const where = and(
       eq(company.accountingFirmId, scope),
       query.active === undefined ? undefined : eq(company.active, query.active),
+      searchFilter,
     );
+
 
     const [rows, [total]] = await Promise.all([
       this.db

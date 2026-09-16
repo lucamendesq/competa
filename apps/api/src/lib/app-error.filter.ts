@@ -58,6 +58,35 @@ export class AppErrorFilter implements ExceptionFilter {
       });
     }
 
+    if (exception instanceof HttpException) {
+      const status = exception.getStatus();
+      if (status < 500) {
+        const res = exception.getResponse();
+        const message =
+          typeof res === 'object' && res !== null && 'message' in res
+            ? Array.isArray((res as { message: unknown }).message)
+              ? (res as { message: unknown[] }).message.join(', ')
+              : String((res as { message: unknown }).message)
+            : exception.message;
+
+        const code =
+          status === 400
+            ? 'BAD_REQUEST'
+            : status === 413
+              ? 'PAYLOAD_TOO_LARGE'
+              : status === 401
+                ? 'UNAUTHENTICATED'
+                : 'HTTP_ERROR';
+
+        return response.status(status).json({
+          error: {
+            code,
+            message,
+          },
+        });
+      }
+    }
+
     this.logger.error(exception);
     Sentry.captureException(exception);
     return response

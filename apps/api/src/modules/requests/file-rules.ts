@@ -37,8 +37,24 @@ export const EXTENSION_BY_CONTENT_TYPE: Record<string, string> = Object.assign(
     'image/png': 'png',
     'application/vnd.ms-excel': 'xls',
     'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet': 'xlsx',
+    'application/x-ofx': 'ofx',
+    'application/ofx': 'ofx',
+    'text/ofx': 'ofx',
   },
 );
+
+export const DEFAULT_EXTRA_ACCEPTED_FORMATS = [
+  'pdf',
+  'xml',
+  'zip',
+  'csv',
+  'xlsx',
+  'xls',
+  'ofx',
+  'jpg',
+  'jpeg',
+  'png',
+] as const;
 
 export type UploadedFile = { fileName: string; contentType: string; sizeBytes: number };
 
@@ -52,17 +68,27 @@ export const fileExtension = ({ fileName, contentType }: Omit<UploadedFile, 'siz
 const megabytes = (bytes: number) => Math.round(bytes / (1024 * 1024));
 
 export const rejectionReason = (file: UploadedFile, acceptedFormats: readonly string[] | null) => {
+  if (file.sizeBytes <= 0) {
+    return 'Arquivo vazio (0 bytes).';
+  }
+
+  if (file.fileName.length > 255) {
+    return 'Nome do arquivo excede o limite de 255 caracteres.';
+  }
+
   if (file.sizeBytes > MAX_FILE_BYTES) {
     return `Arquivo de ${megabytes(file.sizeBytes)} MB acima do limite de ${megabytes(MAX_FILE_BYTES)} MB por arquivo.`;
   }
 
-  if (!acceptedFormats) return null;
+  const formats = acceptedFormats ?? DEFAULT_EXTRA_ACCEPTED_FORMATS;
 
   const extension = fileExtension(file);
   if (!extension) return 'Não foi possível identificar o formato do arquivo.';
 
-  if (!acceptedFormats.includes(extension)) {
-    return `Formato .${extension} não aceito neste item (aceitos: ${acceptedFormats.join(', ')}).`;
+  if (!formats.includes(extension)) {
+    return acceptedFormats
+      ? `Formato .${extension} não aceito neste item (aceitos: ${acceptedFormats.join(', ')}).`
+      : `Formato .${extension} não aceito para documento extra (aceitos: ${DEFAULT_EXTRA_ACCEPTED_FORMATS.join(', ')}).`;
   }
 
   return null;
