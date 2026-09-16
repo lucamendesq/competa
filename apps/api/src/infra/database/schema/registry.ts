@@ -47,7 +47,7 @@ export const accountingFirm = pgTable(
         and ${t.reminderGapDays} between 1 and 31`,
     ),
   ],
-);
+).enableRLS();
 
 export const accountant = pgTable(
   'accountant',
@@ -70,7 +70,7 @@ export const accountant = pgTable(
       .on(t.accountingFirmId)
       .where(sql`${t.owner}`),
   ],
-);
+).enableRLS();
 
 export const documentType = pgTable(
   'document_type',
@@ -84,7 +84,7 @@ export const documentType = pgTable(
     ...timestamps,
   },
   (t) => [check('document_type_category_chk', oneOf(sql`${t.category}`, DOCUMENT_CATEGORIES))],
-);
+).enableRLS();
 
 export const checklistTemplate = pgTable('checklist_template', {
   id: id(),
@@ -92,7 +92,7 @@ export const checklistTemplate = pgTable('checklist_template', {
   name: text().notNull(),
   derivedFrom: uuid('derived_from').references((): AnyPgColumn => checklistTemplate.id),
   ...timestamps,
-});
+}).enableRLS();
 
 export const checklistTemplateItem = pgTable(
   'checklist_template_item',
@@ -116,7 +116,7 @@ export const checklistTemplateItem = pgTable(
     unique('checklist_template_item_uidx').on(t.checklistTemplateId, t.documentTypeId),
     check('checklist_template_item_periodicity_chk', oneOf(sql`${t.periodicity}`, PERIODICITIES)),
   ],
-);
+).enableRLS();
 
 export const company = pgTable(
   'company',
@@ -140,7 +140,7 @@ export const company = pgTable(
       .on(t.accountingFirmId, t.cnpj)
       .where(sql`${t.cnpj} is not null`),
   ],
-);
+).enableRLS();
 
 export const contact = pgTable(
   'contact',
@@ -165,7 +165,7 @@ export const contact = pgTable(
     index('contact_company_idx').on(t.companyId),
     index('contact_auth_user_idx').on(t.authUserId),
   ],
-);
+).enableRLS();
 
 export const invite = pgTable(
   'invite',
@@ -187,7 +187,7 @@ export const invite = pgTable(
   (t) => [
     check('invite_has_one_origin', sql`num_nonnulls(${t.accountingFirmId}, ${t.companyId}) = 1`),
   ],
-);
+).enableRLS();
 
 export const companyChecklistOverride = pgTable(
   'company_checklist_override',
@@ -216,4 +216,4 @@ export const companyChecklistOverride = pgTable(
       sql`${t.periodicity} is null or ${oneOf(sql`${t.periodicity}`, PERIODICITIES)}`,
     ),
   ],
-);
+).enableRLS();

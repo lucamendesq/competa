@@ -44,7 +44,7 @@ export const period = pgTable(
     unique('period_firm_month_uidx').on(t.accountingFirmId, t.referenceMonth),
     check('period_status_chk', oneOf(sql`${t.status}`, PERIOD_STATUS)),
   ],
-);
+).enableRLS();
 
 export const request = pgTable(
   'request',
@@ -64,7 +64,7 @@ export const request = pgTable(
     unique('request_period_company_uidx').on(t.periodId, t.companyId),
     check('request_status_chk', oneOf(sql`${t.status}`, REQUEST_STATUS)),
   ],
-);
+).enableRLS();
 
 export const requestItem = pgTable(
   'request_item',
@@ -90,7 +90,7 @@ export const requestItem = pgTable(
     check('request_item_status_chk', oneOf(sql`${t.status}`, REQUEST_ITEM_STATUS)),
     index('request_item_pending_idx').on(t.requestId, t.status),
   ],
-);
+).enableRLS();
 
 export const document = pgTable(
   'document',
@@ -127,7 +127,7 @@ export const document = pgTable(
     index('document_request_idx').on(t.requestId),
     index('document_request_item_idx').on(t.requestItemId),
   ],
-);
+).enableRLS();
 
 /** Link de Upload — token próprio, NÃO é sessão/auth. Só o hash é persistido. */
 export const uploadLink = pgTable(
@@ -147,4 +147,4 @@ export const uploadLink = pgTable(
   },
   // toda rotação e todo reenvio buscam por `request_id`; o índice do token não serve aqui
   (t) => [index('upload_link_request_idx').on(t.requestId)],
-);
+).enableRLS();

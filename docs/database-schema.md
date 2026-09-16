@@ -29,7 +29,7 @@ Direção de dependência (convenção): `registry` → `collection` → `messag
 
 1. PK `uuid`; `id` gerado como `uuidv7()` **na aplicação** (não `default gen_random_uuid()` — ordenação temporal de graça; §8.7 do spec). FKs com sufixo `_id`.
 2. Estados como `text` + `check` constraint (nunca enum nativo do Postgres — migração dolorosa).
-3. Toda tabela alcança `accounting_firm_id` (direto ou por join) — **isolamento por tenant é obrigação da camada de aplicação**: guards da API Nest injetam `FirmScope`/`UploadScope` (tipos branded) e todo repositório os exige por assinatura. RLS nativa é endurecimento futuro.
+3. Toda tabela alcança `accounting_firm_id` (direto ou por join) — **isolamento por tenant é obrigação da camada de aplicação**: guards da API Nest injetam `FirmScope`/`UploadScope`/`ContactScope` (tipos branded) e todo repositório os exige por assinatura. **Row-Level Security (RLS) está habilitada em todas as tabelas do schema `public`** (`enableRLS()`) com default-deny para blindar o PostgREST/Supabase HTTP contra acesso não autorizado (COM-57 e COM-58), com privilégios revogados dos roles `anon` e `authenticated`. A API Nest conecta como owner/superuser (`BYPASSRLS`), operando sem restrições. Políticas de tenant no RLS permanecem como endurecimento futuro caso desejado.
 4. `accounting_firm_id IS NULL` em `document_type`/`checklist_template` = registro **seed do produto**, imutável pelas Contabilidades.
 5. Timestamps `timestamptz`; `created_at` default `now()` em toda tabela (omitido abaixo por brevidade — incluir na migration).
 

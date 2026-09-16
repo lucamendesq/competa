@@ -42,7 +42,7 @@ export const message = pgTable(
     check('message_status_chk', oneOf(sql`${t.status}`, MESSAGE_STATUS)),
     index('message_reminder_idx').on(t.requestId, t.purpose),
   ],
-);
+).enableRLS();
 
 export const PUSH_PROVIDERS = ['web', 'fcm'] as const;
 
@@ -64,4 +64,4 @@ export const pushSubscription = pgTable(
     unique('push_subscription_contact_endpoint_uidx').on(t.contactId, t.endpoint),
     check('push_subscription_provider_chk', oneOf(sql`${t.provider}`, PUSH_PROVIDERS)),
   ],
-);
+).enableRLS();

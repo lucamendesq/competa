@@ -29,7 +29,7 @@ export const user = pgTable('user', {
   termsAcceptedAt: timestamp('terms_accepted_at', { withTimezone: true }),
   image: text('image'),
   ...timestamps,
-});
+}).enableRLS();
 
 export const session = pgTable(
   'session',
@@ -45,7 +45,7 @@ export const session = pgTable(
     ...timestamps,
   },
   (table) => [index('session_userId_idx').on(table.userId)],
-);
+).enableRLS();
 
 export const account = pgTable(
   'account',
@@ -70,7 +70,7 @@ export const account = pgTable(
     uniqueIndex('account_issuer_accountId_uidx').on(table.issuer, table.accountId),
     index('account_userId_idx').on(table.userId),
   ],
-);
+).enableRLS();
 
 /** `id` é `text`, não `uuid`: o Better Auth grava aqui ids próprios que não são uuid
  *  (`reserveVerificationValue` do fluxo de magic link usa chave determinística). A tabela é
@@ -87,7 +87,7 @@ export const verification = pgTable(
     ...timestamps,
   },
   (table) => [index('verification_identifier_idx').on(table.identifier)],
-);
+).enableRLS();
 
 export const passkey = pgTable(
   'passkey',
@@ -107,7 +107,7 @@ export const passkey = pgTable(
     createdAt: timestamp('created_at', { withTimezone: true }).defaultNow().notNull(),
   },
   (t) => [index('passkey_user_id_idx').on(t.userId)],
-);
+).enableRLS();
 
 export const userDevice = pgTable(
   'user_device',
@@ -128,5 +128,5 @@ export const userDevice = pgTable(
     index('user_device_user_id_idx').on(t.userId),
     check('user_device_platform_chk', oneOf(sql`${t.platform}`, DEVICE_PLATFORMS)),
   ],
-);
+).enableRLS();
 
