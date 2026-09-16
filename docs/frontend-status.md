@@ -21,7 +21,7 @@ configuração para funcionar. Complementa o [`roadmap.md`](./roadmap.md).
 | `/empresas/importar`                     | Importar planilha + relatório por linha                           | completa (.xlsx e .csv, cabeçalhos PT aceitos)     |
 | `/empresas/:id/checklist`                | Overrides por Empresa                                             | completa                                           |
 | `/checklists`, `/checklists/:id`         | Templates do produto e derivados editáveis                        | completa                                           |
-| `/mensagens`                             | Log de entrega + detalhe do erro                                  | completa, menos reenvio individual                 |
+| `/mensagens`                             | Log de entrega + detalhe do erro                                  | completa (2026-09-15)                              |
 | `/configuracoes/*`                       | Contabilidade (nome editável) · Contadores (lista/remover/convites) · Lembretes (preferências) · Canais | completa desde 2026-09-11, menos Canais (WhatsApp = Fase 8) |
 | `/envio/:token`                          | **Página pública de envio** (mobile-first, sem senha)             | completa                                           |
 | `/minha-area/*`                          | Área do Responsável (acesso, pendências, histórico, envio logado, preview/baixar documento, multi-empresa com badge) | completa                     |
@@ -41,16 +41,12 @@ endpoint. **Revisão 2026-09-11: a maioria das lacunas fechou** — ficou assim:
 4. **Configurações → Canais** mostra WhatsApp como "não conectado" (Fase 8 não construída).
 5. ~~Baixar/visualizar um Documento avulso~~ — ✅ preview/baixar na revisão
    (`GET /documents/:id/content`) e na área do Responsável (`GET /my/documents/:id/content`).
-6. **Reenviar mensagem individual** não existe — a tela oferece
-   `POST /messages/reminders/run` (varredura de lembretes, **escopada à Contabilidade da
-   sessão** desde a TASK-042). O **Link de Upload**, sim: `POST /requests/:id/upload-link`
-   (gerar e copiar) e `.../upload-link/resend` (mandar por email), na revisão da Empresa e
-   no aviso de falha de canal do Painel de Pendências. Os dois **rotacionam o token** — só
-   o hash fica no banco, então não existe ler o link atual e o anterior morre.
-7. **Colunas ausentes** por não virem na listagem: "Aberta em" da Competência, nome/e-mail
-   do Responsável na lista de Empresas (mostra a contagem), "empresas usando" no template.
-8. **Filtros de Mensagens** por Empresa/Canal/Tipo são aplicados no cliente sobre a página
-   carregada — a API filtra por `periodId`, `requestId` e `status`.
+6. ~~Reenviar mensagem individual~~ — ✅ `POST /messages/:id/resend` e botão "Reenviar mensagem"
+   no detalhe do envio em `/mensagens`.
+7. ~~Colunas ausentes~~ — ✅ "Aberta em" da Competência, nome/e-mail do Responsável na lista de
+   Empresas, "empresas usando" no template.
+8. ~~Filtros de Mensagens~~ — ✅ filtros por Empresa (`companyId`), Canal (`channel`) e Tipo
+   (`purpose`) aplicados no banco na API e sincronizados com a paginação.
 9. ~~"Esqueci minha senha" do Contador omitido~~ — ✅ `sendResetPassword` configurado +
    telas `/esqueci-senha` e `/redefinir-senha`. (O Responsável não tem senha obrigatória —
    ver D14.)

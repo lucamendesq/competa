@@ -1,12 +1,15 @@
 import { Injectable, Logger } from '@nestjs/common';
 import { and, count, desc, eq, inArray, sql } from 'drizzle-orm';
 import type { MessageListQuery } from '@contabilidade/contracts';
+import env from '../../config/env.js';
+import { InvalidTransition } from '../requests/errors.js';
 import { reportChannelFailure } from '../../lib/observability.js';
 import { Database } from '../../infra/database/database.js';
 import {
   accountingFirm,
   company,
   contact,
+  document,
   message,
   period,
   request,
@@ -14,7 +17,19 @@ import {
   uploadLink,
 } from '../../infra/database/schema/index.js';
 import type { FirmScope } from '../auth/scope.js';
+import { ContactRepository } from '../contacts/contact.repository.js';
+import { RequestRepository } from '../requests/request.repository.js';
+import {
+  asMonth,
+  deadlineMissedAccountantEmail,
+  deadlineMissedContactEmail,
+  linkResentEmail,
+  reminderEmail,
+  requestCompletedEmail,
+  reviewPublishedEmail,
+} from './email-body.js';
 import { MessageProvider } from './providers/message.provider.js';
+import { WebPush } from './providers/web-push.provider.js';
 import type { ReminderCandidate, ReminderSettings } from './reminder-rules.js';
 
 const PENDING_ITEM_STATUS = ['pending', 'rejected'] as const;
@@ -43,6 +58,9 @@ export class MessageRepository {
   constructor(
     private readonly db: Database,
     private readonly provider: MessageProvider,
+    private readonly requests: RequestRepository,
+    private readonly contacts: ContactRepository,
+    private readonly push: WebPush,
   ) {}
 
   /** Sem `FirmScope`: quem chama é o listener do evento ou o cron — não há sessão, e o
@@ -175,6 +193,9 @@ export class MessageRepository {
       eq(period.accountingFirmId, scope),
       ...(query.requestId ? [eq(message.requestId, query.requestId)] : []),
       ...(query.periodId ? [eq(request.periodId, query.periodId)] : []),
+      ...(query.companyId ? [eq(request.companyId, query.companyId)] : []),
+      ...(query.channel ? [eq(message.channel, query.channel)] : []),
+      ...(query.purpose ? [eq(message.purpose, query.purpose)] : []),
       ...(query.status ? [eq(message.status, query.status)] : []),
     );
 
@@ -211,6 +232,286 @@ export class MessageRepository {
       .where(where);
 
     return { rows, total: total.value };
+  }
+
+  async resend(scope: FirmScope, messageId: string) {
+    const [row] = await this.db
+      .select({
+        id: message.id,
+        requestId: message.requestId,
+        channel: message.channel,
+        purpose: message.purpose,
+        recipient: message.recipient,
+        status: message.status,
+        companyId: company.id,
+        companyName: company.name,
+        referenceMonth: period.referenceMonth,
+        periodDueDate: period.dueDate,
+        accountingFirmId: period.accountingFirmId,
+        requestStatus: request.status,
+      })
+      .from(message)
+      .innerJoin(request, eq(request.id, message.requestId))
+      .innerJoin(period, eq(period.id, request.periodId))
+      .innerJoin(company, eq(company.id, request.companyId))
+      .where(and(eq(message.id, messageId), eq(period.accountingFirmId, scope)))
+      .limit(1);
+
+    if (!row) return undefined;
+
+    if (row.channel === 'push') {
+      const subscriptions = await this.contacts.subscriptionsForRequest(row.requestId);
+      if (subscriptions.length === 0) {
+        return { sent: false };
+      }
+
+      let title = 'Aviso de documentos';
+      let body = `${row.companyName}: atualização sobre seus documentos contábeis.`;
+      let url: string | undefined;
+
+      if (row.purpose === 'completion') {
+        title = 'Documentos recebidos';
+        body = `${row.companyName}: recebemos e conferimos tudo. Nada mais é necessário por agora.`;
+      } else {
+        if (row.requestStatus === 'closed') {
+          throw new InvalidTransition('Solicitação encerrada — não há mais link de envio.');
+        }
+        const rotated = await this.requests.rotateUploadLink(scope, row.requestId);
+        url = rotated ? `${env.WEB_URL}/envio/${rotated.token}` : undefined;
+
+        if (row.purpose === 'link_delivery') {
+          title = 'Novos documentos solicitados';
+          body = `${row.companyName}: documentos da competência ${asMonth(row.referenceMonth)}.`;
+        } else if (row.purpose === 'reminder') {
+          title = 'Lembrete: documentos pendentes';
+          body = `${row.companyName}: faltam documentos da competência ${asMonth(row.referenceMonth)}.`;
+        } else if (row.purpose === 'rejection') {
+          title = 'Reenvio necessário';
+          body = `${row.companyName}: a contabilidade conferiu e alguns arquivos precisam voltar.`;
+        } else if (row.purpose === 'deadline_missed') {
+          title = 'Prazo vencido';
+          body = `${row.companyName}: documentos da competência ${asMonth(row.referenceMonth)} pendentes.`;
+        }
+      }
+
+      const result = await this.deliverPush(
+        row.requestId,
+        row.purpose as MessagePurpose,
+        subscriptions[0].endpoint,
+        () =>
+          this.push.send({
+            title,
+            body,
+            url,
+            subscriptions: subscriptions.map((s) => ({
+              endpoint: s.endpoint,
+              keys: s.keys as Record<string, string>,
+            })),
+          }),
+      );
+
+      for (const endpoint of result?.gone ?? []) {
+        await this.contacts.deletePushSubscriptionByEndpoint(endpoint);
+      }
+
+      return { sent: Boolean(result && result.sent > 0) };
+    }
+
+    if (row.purpose === 'completion') {
+      const [contactRow] = await this.db
+        .select({ name: contact.name })
+        .from(uploadLink)
+        .innerJoin(contact, eq(contact.id, uploadLink.contactId))
+        .where(eq(uploadLink.requestId, row.requestId))
+        .limit(1);
+
+      const delivered = await this.deliver({
+        requestId: row.requestId,
+        purpose: 'completion',
+        recipient: row.recipient,
+        ...requestCompletedEmail({
+          companyName: row.companyName,
+          contactName: contactRow?.name ?? row.recipient,
+          contactEmail: row.recipient,
+          requestId: row.requestId,
+        }),
+      });
+
+      return { sent: delivered };
+    }
+
+    if (row.requestStatus === 'closed') {
+      throw new InvalidTransition('Solicitação encerrada — não há mais link de envio.');
+    }
+
+    const rotated = await this.requests.rotateUploadLink(scope, row.requestId);
+    if (!rotated) return { sent: false };
+
+    const uploadUrl = `${env.WEB_URL}/envio/${rotated.token}`;
+
+    if (row.purpose === 'link_delivery') {
+      const delivered = await this.deliver({
+        requestId: row.requestId,
+        purpose: 'link_delivery',
+        recipient: row.recipient,
+        ...linkResentEmail({
+          requestId: row.requestId,
+          referenceMonth: row.referenceMonth,
+          periodDueDate: row.periodDueDate,
+          companyName: row.companyName,
+          contactName: rotated.contactName,
+          contactEmail: row.recipient,
+          uploadUrl,
+        }),
+      });
+      return { sent: delivered };
+    }
+
+    if (row.purpose === 'reminder') {
+      const pendingItems = await this.db
+        .select({
+          name: requestItem.name,
+          dueDate: requestItem.dueDate,
+        })
+        .from(requestItem)
+        .where(
+          and(
+            eq(requestItem.requestId, row.requestId),
+            inArray(requestItem.status, PENDING_ITEM_STATUS),
+          ),
+        );
+
+      const [stats] = await this.db
+        .select({
+          reminderCount: sql<number>`count(*) filter (
+            where ${message.purpose} = 'reminder' and ${message.status} <> 'failed'
+          )::int`,
+          lastMessageAt: sql<Date | null>`max(${message.createdAt})`,
+        })
+        .from(message)
+        .where(eq(message.requestId, row.requestId));
+
+      const delivered = await this.deliver({
+        requestId: row.requestId,
+        purpose: 'reminder',
+        recipient: row.recipient,
+        ...reminderEmail({
+          requestId: row.requestId,
+          accountingFirmId: row.accountingFirmId,
+          companyName: row.companyName,
+          referenceMonth: row.referenceMonth,
+          periodDueDate: row.periodDueDate,
+          contactName: rotated.contactName,
+          reminderCount: stats?.reminderCount ?? 0,
+          lastMessageAt: stats?.lastMessageAt ?? null,
+          pendingItems,
+          uploadUrl,
+        }),
+      });
+      return { sent: delivered };
+    }
+
+    if (row.purpose === 'rejection') {
+      const rejectedDocs = await this.db
+        .select({
+          fileName: document.fileName,
+          itemName: requestItem.name,
+          rejectionReason: document.rejectionReason,
+        })
+        .from(document)
+        .innerJoin(requestItem, eq(requestItem.id, document.requestItemId))
+        .where(
+          and(
+            eq(document.requestId, row.requestId),
+            eq(document.uploadStatus, 'uploaded'),
+            eq(document.reviewStatus, 'rejected'),
+          ),
+        );
+
+      const emailData = rejectedDocs.length
+        ? reviewPublishedEmail({
+            requestId: row.requestId,
+            companyName: row.companyName,
+            contactName: rotated.contactName,
+            contactEmail: row.recipient,
+            uploadUrl,
+            rejected: rejectedDocs.map((doc) => ({
+              fileName: doc.fileName,
+              itemName: doc.itemName,
+              rejectionReason: doc.rejectionReason ?? '',
+            })),
+            acceptedItemNames: [],
+          })
+        : linkResentEmail({
+            requestId: row.requestId,
+            referenceMonth: row.referenceMonth,
+            periodDueDate: row.periodDueDate,
+            companyName: row.companyName,
+            contactName: rotated.contactName,
+            contactEmail: row.recipient,
+            uploadUrl,
+          });
+
+      const delivered = await this.deliver({
+        requestId: row.requestId,
+        purpose: 'rejection',
+        recipient: row.recipient,
+        ...emailData,
+      });
+      return { sent: delivered };
+    }
+
+    if (row.purpose === 'deadline_missed') {
+      const [overdueItem] = await this.db
+        .select({ id: requestItem.id, name: requestItem.name, dueDate: requestItem.dueDate })
+        .from(requestItem)
+        .where(
+          and(
+            eq(requestItem.requestId, row.requestId),
+            inArray(requestItem.status, PENDING_ITEM_STATUS),
+          ),
+        )
+        .limit(1);
+
+      const requestItemId = overdueItem?.id ?? '';
+      const itemName = overdueItem?.name ?? 'documentos';
+      const dueDate = overdueItem?.dueDate ?? row.periodDueDate ?? '';
+
+      const isContact = row.recipient === rotated.contactEmail;
+      const emailData = isContact
+        ? deadlineMissedContactEmail({
+            requestId: row.requestId,
+            requestItemId,
+            companyName: row.companyName,
+            contactName: rotated.contactName,
+            contactEmail: row.recipient,
+            itemName,
+            dueDate,
+            uploadUrl,
+            accountantEmails: [],
+          })
+        : deadlineMissedAccountantEmail({
+            requestId: row.requestId,
+            requestItemId,
+            companyName: row.companyName,
+            contactName: rotated.contactName,
+            contactEmail: rotated.contactEmail,
+            itemName,
+            dueDate,
+            uploadUrl,
+            accountantEmails: [row.recipient],
+          });
+
+      const delivered = await this.deliver({
+        requestId: row.requestId,
+        purpose: 'deadline_missed',
+        recipient: row.recipient,
+        ...emailData,
+      });
+      return { sent: delivered };
+    }
+
+    return { sent: false };
   }
 
   async failuresByPeriod(scope: FirmScope, periodId: string) {

@@ -16,6 +16,7 @@ import {
 } from '@ng-icons/lucide';
 import { AuthService } from '../core/auth/auth.service';
 import { ThemeService } from '../core/ui/theme.service';
+import { InstallService } from '../shared/install.service';
 import { Logo } from '../shared/logo';
 
 @Component({
@@ -42,9 +43,15 @@ export class PanelLayout {
   protected readonly theme = inject(ThemeService);
   private readonly auth = inject(AuthService);
   private readonly router = inject(Router);
+  private readonly install = inject(InstallService);
 
   protected readonly menuOpen = signal(false);
   protected readonly profileOpen = signal(false);
+
+  constructor() {
+    void this.install.pingOnce();
+  }
+
 
   protected readonly firmName = computed(() => this.auth.accountant()?.accountingFirm.name ?? '');
   protected readonly isOwner = computed(() => this.auth.accountant()?.accountant.owner === true);

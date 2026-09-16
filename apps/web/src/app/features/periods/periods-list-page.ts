@@ -29,7 +29,7 @@ import { Modal } from '../../shared/modal';
 import { PageHeader } from '../../shared/page-header';
 import { Pagination } from '../../shared/pagination';
 import { StatusPill } from '../../shared/status-pill';
-import { monthLabel, defaultReferenceMonth, dateBr, MONTH_OPTIONS } from '../../shared/format';
+import { monthLabel, defaultReferenceMonth, dateBr, dateTimeBr, MONTH_OPTIONS } from '../../shared/format';
 import { CompaniesService } from '../companies/companies.service';
 import { PeriodOpening, PeriodsService, CreatedRequest } from './periods.service';
 
@@ -74,6 +74,7 @@ export class PeriodsListPage {
 
   protected readonly monthLabel = monthLabel;
   protected readonly dateBr = dateBr;
+  protected readonly dateTimeBr = dateTimeBr;
 
   protected readonly page = signal(1);
   protected readonly perPage = 20;

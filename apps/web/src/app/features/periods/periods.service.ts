@@ -7,6 +7,7 @@ export type Period = {
   status: 'open' | 'closed';
   dueDate: string | null;
   requestCount: number;
+  createdAt: string;
 };
 
 export type PeriodDetail = Period & {

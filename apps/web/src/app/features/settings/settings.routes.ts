@@ -23,6 +23,10 @@ export const SETTINGS_ROUTES: Routes = [
         path: 'canais',
         loadComponent: () => import('./channels-tab').then((m) => m.ChannelsTab),
       },
+      {
+        path: 'dispositivos',
+        loadComponent: () => import('./devices-tab').then((m) => m.DevicesTab),
+      },
     ],
   },
 ];

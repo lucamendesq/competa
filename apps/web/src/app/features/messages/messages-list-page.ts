@@ -6,6 +6,7 @@ import {
   lucideBellRing,
   lucideMail,
   lucideMessageSquare,
+  lucideSend,
   lucideSmartphone,
   lucideTriangleAlert,
 } from '@ng-icons/lucide';
@@ -21,6 +22,7 @@ import { PageHeader } from '../../shared/page-header';
 import { Pagination } from '../../shared/pagination';
 import { StatusPill } from '../../shared/status-pill';
 import { monthLabel, dateTimeBr } from '../../shared/format';
+import { CompaniesService } from '../companies/companies.service';
 import { PeriodsService } from '../periods/periods.service';
 import {
   CHANNEL_LABEL,
@@ -50,6 +52,7 @@ import {
       lucideBellRing,
       lucideMail,
       lucideMessageSquare,
+      lucideSend,
       lucideSmartphone,
       lucideTriangleAlert,
     }),
@@ -59,6 +62,7 @@ import {
 export class MessagesListPage {
   private readonly service = inject(MessagesService);
   private readonly periodsService = inject(PeriodsService);
+  private readonly companiesService = inject(CompaniesService);
   private readonly toaster = inject(Toaster);
 
   protected readonly PURPOSE_LABEL = PURPOSE_LABEL;
@@ -67,39 +71,62 @@ export class MessagesListPage {
   protected readonly monthLabel = monthLabel;
   protected readonly dateTimeBr = dateTimeBr;
   protected readonly availableStatuses = MESSAGE_STATUS;
+  protected readonly availablePurposes = Object.keys(PURPOSE_LABEL);
+  protected readonly availableChannels = ['email', 'push', 'whatsapp'] as const;
 
   protected readonly page = signal(1);
   protected readonly perPage = 20;
   protected readonly periodId = signal('');
-  protected readonly status = signal('');
+  protected readonly companyId = signal('');
   protected readonly channel = signal('');
+  protected readonly purpose = signal('');
+  protected readonly status = signal('');
 
   protected readonly periodOptions = this.periodsService.list(() => ({ page: 1, perPage: 100 }));
+  protected readonly companyOptions = this.companiesService.list(() => ({
+    page: 1,
+    perPage: 100,
+    active: 'true',
+  }));
 
   protected readonly messages = this.service.list(() => ({
     page: this.page(),
     perPage: this.perPage,
     periodId: this.periodId() || undefined,
+    companyId: this.companyId() || undefined,
+    channel: this.channel() || undefined,
+    purpose: this.purpose() || undefined,
     status: this.status() || undefined,
   }));
 
-  protected readonly visible = computed(() =>
-    this.messages
-      .value()
-      .data.filter((message) => !this.channel() || message.channel === this.channel()),
-  );
+  protected readonly visible = computed(() => this.messages.value().data);
 
   protected readonly failures = computed(
     () => this.messages.value().data.filter((message) => message.status === 'failed').length,
   );
 
   protected readonly selected = signal<Message | null>(null);
+  protected readonly resending = signal(false);
 
   protected channelIcon(channel: string) {
     if (channel === 'whatsapp') return 'lucideMessageSquare';
     if (channel === 'push') return 'lucideSmartphone';
 
     return 'lucideMail';
+  }
+
+  protected async resendMessage(message: Message) {
+    this.resending.set(true);
+
+    try {
+      await this.service.resend(message.id);
+      this.toaster.success('Mensagem reenviada.');
+      this.messages.reload();
+    } catch (error) {
+      this.toaster.error(apiErrorMessage(error, 'Não foi possível reenviar a mensagem.'));
+    } finally {
+      this.resending.set(false);
+    }
   }
 
   protected async resendReminders() {

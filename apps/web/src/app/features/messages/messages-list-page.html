@@ -44,6 +44,59 @@
       </div>
 
       <div class="flex flex-col gap-1">
+        <label class="text-muted-foreground text-xs font-medium" for="company-filter">
+          Empresa
+        </label>
+        <select
+          hlmInput
+          id="company-filter"
+          class="h-8 w-44"
+          (change)="companyId.set($any($event.target).value); page.set(1)"
+        >
+          <option value="" [selected]="companyId() === ''">Todas</option>
+          @for (comp of companyOptions.value().data; track comp.id) {
+            <option [value]="comp.id" [selected]="comp.id === companyId()">
+              {{ comp.name }}
+            </option>
+          }
+        </select>
+      </div>
+
+      <div class="flex flex-col gap-1">
+        <label class="text-muted-foreground text-xs font-medium" for="purpose-filter">
+          Tipo
+        </label>
+        <select
+          hlmInput
+          id="purpose-filter"
+          class="h-8 w-40"
+          (change)="purpose.set($any($event.target).value); page.set(1)"
+        >
+          <option value="" [selected]="purpose() === ''">Todos</option>
+          @for (p of availablePurposes; track p) {
+            <option [value]="p" [selected]="p === purpose()">
+              {{ PURPOSE_LABEL[p] }}
+            </option>
+          }
+        </select>
+      </div>
+
+      <div class="flex flex-col gap-1">
+        <label class="text-muted-foreground text-xs font-medium" for="channel-filter">Canal</label>
+        <select
+          hlmInput
+          id="channel-filter"
+          class="h-8 w-32"
+          (change)="channel.set($any($event.target).value); page.set(1)"
+        >
+          <option value="" [selected]="channel() === ''">Todos</option>
+          <option value="email" [selected]="channel() === 'email'">E-mail</option>
+          <option value="push" [selected]="channel() === 'push'">Push</option>
+          <option value="whatsapp" [selected]="channel() === 'whatsapp'">WhatsApp</option>
+        </select>
+      </div>
+
+      <div class="flex flex-col gap-1">
         <label class="text-muted-foreground text-xs font-medium" for="status-filter">
           Status
         </label>
@@ -59,21 +112,6 @@
               {{ STATUS_LABEL[option] }}
             </option>
           }
-        </select>
-      </div>
-
-      <div class="flex flex-col gap-1">
-        <label class="text-muted-foreground text-xs font-medium" for="channel-filter">Canal</label>
-        <select
-          hlmInput
-          id="channel-filter"
-          class="h-8 w-32"
-          (change)="channel.set($any($event.target).value)"
-        >
-          <option value="" [selected]="channel() === ''">Todos</option>
-          <option value="email" [selected]="channel() === 'email'">E-mail</option>
-          <option value="push" [selected]="channel() === 'push'">Push</option>
-          <option value="whatsapp" [selected]="channel() === 'whatsapp'">WhatsApp</option>
         </select>
       </div>
     </div>
@@ -208,7 +246,16 @@
         }
       </dl>
 
-      <div class="border-border border-t p-4">
+      <div class="border-border flex flex-wrap items-center gap-2 border-t p-4">
+        <button
+          hlmBtn
+          size="sm"
+          [disabled]="resending()"
+          (click)="resendMessage(selected()!)"
+        >
+          <ng-icon name="lucideSend" aria-hidden="true" />
+          {{ resending() ? 'Reenviando…' : 'Reenviar mensagem' }}
+        </button>
         <a
           hlmBtn
           variant="outline"

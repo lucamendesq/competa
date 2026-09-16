@@ -105,29 +105,39 @@
               <th hlmTd scope="row" class="font-medium">{{ company.name }}</th>
               <td hlmTd class="tabular-nums">{{ maskedCnpj(company.cnpj) }}</td>
               <td hlmTd>
-                @if (!company.contactCount) {
+                @if (!company.contactCount || !company.contacts.length) {
                   <span
                     class="inline-flex items-center gap-1 rounded-full border border-danger-border bg-danger-surface px-2 py-0.5 text-[11px] font-semibold text-danger"
                   >
                     <ng-icon name="lucideMailX" class="text-[12px]" aria-hidden="true" />
                     Sem Responsável
                   </span>
-                } @else if (!company.readyContactCount) {
-                  <!-- Neutro de propósito: conta é opcional e não bloqueia a competência -->
-                  <span
-                    class="text-muted-foreground border-border inline-flex items-center gap-1 rounded-full border px-2 py-0.5 text-[11px] font-semibold"
-                    title="O Responsável envia pelo link, sem conta. A conta é opcional."
-                  >
-                    <ng-icon name="lucideMail" class="text-[12px]" aria-hidden="true" />
-                    Envia por link
-                  </span>
                 } @else {
-                  <span
-                    class="inline-flex items-center gap-1 rounded-full border border-success-border bg-success-surface px-2 py-0.5 text-[11px] font-semibold text-success"
-                  >
-                    <ng-icon name="lucideCircleCheck" class="text-[12px]" aria-hidden="true" />
-                    Usa o app
-                  </span>
+                  <div class="flex flex-col gap-0.5">
+                    <div class="flex items-center gap-1.5">
+                      <span class="text-xs font-medium">{{ company.contacts[0].name }}</span>
+                      @if (!company.readyContactCount) {
+                        <span
+                          class="text-muted-foreground border-border inline-flex items-center gap-1 rounded-full border px-1.5 py-0.5 text-[10px] font-semibold"
+                          title="O Responsável envia pelo link, sem conta. A conta é opcional."
+                        >
+                          <ng-icon name="lucideMail" class="text-[10px]" aria-hidden="true" />
+                          Link
+                        </span>
+                      } @else {
+                        <span
+                          class="inline-flex items-center gap-1 rounded-full border border-success-border bg-success-surface px-1.5 py-0.5 text-[10px] font-semibold text-success"
+                        >
+                          <ng-icon name="lucideCircleCheck" class="text-[10px]" aria-hidden="true" />
+                          App
+                        </span>
+                      }
+                    </div>
+                    <span class="text-muted-foreground text-xs">{{ company.contacts[0].email }}</span>
+                    @if (company.contacts.length > 1) {
+                      <span class="text-muted-foreground text-[10px]">+{{ company.contacts.length - 1 }} outro(s)</span>
+                    }
+                  </div>
                 }
               </td>
               <td hlmTd>

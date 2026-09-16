@@ -13,6 +13,7 @@ export type Template = {
   derivedFrom: string | null;
   isProduct: boolean;
   itemCount: number;
+  companyCount: number;
 };
 
 export type TemplateItem = {

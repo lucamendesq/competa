@@ -494,3 +494,4 @@ export class ContactRepository {
       .where(inArray(contact.companyId, companyIds));
   }
 }
+

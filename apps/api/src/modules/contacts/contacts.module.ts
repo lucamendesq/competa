@@ -24,6 +24,7 @@ import { ContactUploadController, ContactsController } from './contacts.controll
     ContactInviteAccountController,
     AccessRecoveryController,
   ],
+
   providers: [ContactRepository, ContactGuard, ContactUploadGuard],
   exports: [ContactRepository],
 })

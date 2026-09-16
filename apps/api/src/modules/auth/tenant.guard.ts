@@ -6,6 +6,7 @@ import { accountant } from '../../infra/database/schema/index.js';
 import { Forbidden, Unauthenticated } from '../../lib/app-error.js';
 import { AuthProvider } from './auth-provider.js';
 import { CONTACT_ROUTE } from './contact-route.decorator.js';
+import { SESSION_ROUTE } from './session-route.decorator.js';
 import { toFirmScope } from './scope.js';
 
 @Injectable()
@@ -23,13 +24,17 @@ export class TenantGuard implements CanActivate {
     ]);
     if (isAnonymous) return true;
 
-    /* Rota do Responsável: quem resolve é o ContactGuard, com `ContactScope`. Este guard é
-     * global e exigiria vínculo com `accountant` — barraria toda a Fase 10. */
     const isContactRoute = this.reflector.getAllAndOverride<boolean>(CONTACT_ROUTE, [
       context.getHandler(),
       context.getClass(),
     ]);
     if (isContactRoute) return true;
+
+    const isSessionRoute = this.reflector.getAllAndOverride<boolean>(SESSION_ROUTE, [
+      context.getHandler(),
+      context.getClass(),
+    ]);
+    if (isSessionRoute) return true;
 
     const request = context.switchToHttp().getRequest();
     const session = await this.auth.getSession(request.headers);

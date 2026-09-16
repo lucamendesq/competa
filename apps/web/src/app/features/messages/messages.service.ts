@@ -40,8 +40,22 @@ export const CHANNEL_LABEL: Record<string, string> = {
 export class MessagesService {
   private readonly api = inject(Api);
 
-  list(params: () => { page: number; perPage: number; periodId?: string; status?: string }) {
+  list(
+    params: () => {
+      page: number;
+      perPage: number;
+      periodId?: string;
+      companyId?: string;
+      channel?: string;
+      purpose?: string;
+      status?: string;
+    },
+  ) {
     return pageResource<Message>(() => '/messages', params);
+  }
+
+  resend(messageId: string) {
+    return this.api.post<{ sent: boolean }>(`/messages/${messageId}/resend`);
   }
 
   runReminders() {

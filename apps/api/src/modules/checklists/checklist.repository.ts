@@ -92,6 +92,14 @@ export class ChecklistRepository {
           checklistTemplateItem,
           eq(checklistTemplateItem.checklistTemplateId, checklistTemplate.id),
         ),
+        companyCount: this.db.$count(
+          company,
+          and(
+            eq(company.checklistTemplateId, checklistTemplate.id),
+            eq(company.accountingFirmId, scope),
+            eq(company.active, true),
+          ),
+        ),
       })
       .from(checklistTemplate)
       .where(visibleTo(scope, checklistTemplate.accountingFirmId))

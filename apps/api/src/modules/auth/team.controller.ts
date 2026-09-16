@@ -9,14 +9,14 @@ import { CannotRemoveOwner, OnlyOwnerCanManageTeam } from './errors.js';
 import { InviteRepository } from './invite.repository.js';
 import type { FirmScope } from './scope.js';
 import { Session } from './session.decorator.js';
+import { UserDeviceRepository } from './user-device.repository.js';
 
-/** Gestão de equipe (aba /configuracoes). Ler é de todo Contador da firm; mexer é do
- *  dono — mesma régua do convite. */
 @Controller()
 export class TeamController {
   constructor(
     private readonly accountants: AccountantRepository,
     private readonly invites: InviteRepository,
+    private readonly devices: UserDeviceRepository,
   ) {}
 
   @Get('accountants')
@@ -53,6 +53,12 @@ export class TeamController {
 
     return row;
   }
+
+  @Get('accounting-firm/device-stats')
+  async deviceStats(@CurrentScope() scope: FirmScope) {
+    return this.devices.platformStats(scope);
+  }
+
 
   @Patch('accounting-firm')
   async updateFirm(

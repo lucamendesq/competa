@@ -105,6 +105,7 @@
           <tr hlmTr>
             <th hlmTh scope="col">Competência</th>
             <th hlmTh scope="col">Status</th>
+            <th hlmTh scope="col">Aberta em</th>
             <th hlmTh scope="col" class="text-right">Empresas</th>
             <th hlmTh scope="col">Prazo geral</th>
             <th hlmTh scope="col"><span class="sr-only">Ações</span></th>
@@ -117,6 +118,7 @@
                 {{ monthLabel(row.referenceMonth) }}
               </th>
               <td hlmTd><app-status-pill [status]="row.status" /></td>
+              <td hlmTd class="text-xs tabular-nums">{{ dateTimeBr(row.createdAt) }}</td>
               <td hlmTd class="text-right tabular-nums">{{ row.requestCount }}</td>
               <td hlmTd class="tabular-nums">{{ dateBr(row.dueDate) }}</td>
               <td hlmTd>

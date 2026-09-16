@@ -18,6 +18,7 @@ import {
   PushSubscriptionBody,
   SetPasswordBody,
 } from '@contabilidade/contracts';
+
 import { ConfirmUploadBody } from '@contabilidade/contracts';
 import type { Request } from 'express';
 import { NotFound } from '../../lib/app-error.js';

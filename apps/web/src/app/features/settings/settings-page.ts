@@ -13,5 +13,6 @@ export class SettingsPage {
     { path: 'contadores', label: 'Contadores' },
     { path: 'lembretes', label: 'Lembretes' },
     { path: 'canais', label: 'Canais' },
+    { path: 'dispositivos', label: 'Dispositivos' },
   ];
 }

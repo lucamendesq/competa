@@ -1,7 +1,8 @@
-import { Controller, Get, Post, Query } from '@nestjs/common';
+import { Controller, Get, Param, Post, Query } from '@nestjs/common';
 import { AllowAnonymous } from '@thallesp/nestjs-better-auth';
-import { MessageListQuery } from '@contabilidade/contracts';
+import { IdParam, MessageListQuery } from '@contabilidade/contracts';
 import env from '../../config/env.js';
+import { NotFound } from '../../lib/app-error.js';
 import { paginated } from '../../lib/response.interceptor.js';
 import { zodPipe } from '../../lib/zod-pipe.js';
 import { CurrentScope } from '../auth/current-scope.decorator.js';
@@ -24,6 +25,17 @@ export class MessagesController {
     const { rows, total } = await this.messages.list(scope, query);
 
     return paginated(rows, { page: query.page, perPage: query.perPage, total });
+  }
+
+  @Post(':id/resend')
+  async resend(
+    @CurrentScope() scope: FirmScope,
+    @Param(zodPipe(IdParam)) params: IdParam,
+  ) {
+    const result = await this.messages.resend(scope, params.id);
+    if (!result) throw new NotFound('Mensagem não encontrada.');
+
+    return result;
   }
 
   /** Dispara a varredura de lembretes sob demanda, restrita à Contabilidade do chamador

@@ -1,5 +1,6 @@
 import {
   boolean,
+  check,
   index,
   integer,
   pgTable,
@@ -8,8 +9,16 @@ import {
   uniqueIndex,
   uuid,
 } from 'drizzle-orm/pg-core';
+import { sql, type SQL } from 'drizzle-orm';
+import { DEVICE_PLATFORMS } from '@contabilidade/contracts';
 import { v7 as uuidv7 } from 'uuid';
 import { id, timestamps } from './columns.js';
+
+const oneOf = (column: SQL, values: readonly string[]) =>
+  sql`${column} in (${sql.join(
+    values.map((value) => sql`${value}`),
+    sql`, `,
+  )})`;
 
 export const user = pgTable('user', {
   id: id(),
@@ -99,3 +108,25 @@ export const passkey = pgTable(
   },
   (t) => [index('passkey_user_id_idx').on(t.userId)],
 );
+
+export const userDevice = pgTable(
+  'user_device',
+  {
+    id: id(),
+    userId: uuid('user_id')
+      .notNull()
+      .references(() => user.id, { onDelete: 'cascade' }),
+    deviceId: text('device_id').notNull(),
+    platform: text('platform').notNull(),
+    installed: boolean('installed').default(false).notNull(),
+    userAgent: text('user_agent'),
+    lastSeenAt: timestamp('last_seen_at', { withTimezone: true }).defaultNow().notNull(),
+    ...timestamps,
+  },
+  (t) => [
+    uniqueIndex('user_device_user_device_uidx').on(t.userId, t.deviceId),
+    index('user_device_user_id_idx').on(t.userId),
+    check('user_device_platform_chk', oneOf(sql`${t.platform}`, DEVICE_PLATFORMS)),
+  ],
+);
+

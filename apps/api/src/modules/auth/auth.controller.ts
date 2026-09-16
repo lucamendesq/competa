@@ -1,7 +1,8 @@
-import { Body, Controller, Get, Logger, Post, Query } from '@nestjs/common';
+import { Body, Controller, Get, HttpCode, Logger, Patch, Post, Query, Req } from '@nestjs/common';
 import { AllowAnonymous } from '@thallesp/nestjs-better-auth';
 import { APIError } from 'better-auth/api';
-import { InviteTokenParam, SignUpBody } from '@contabilidade/contracts';
+import { InviteTokenParam, RegisterDeviceBody, SignUpBody } from '@contabilidade/contracts';
+import type { Request } from 'express';
 import { NotFound } from '../../lib/app-error.js';
 import { isFailure } from '../../lib/either.js';
 import { zodPipe } from '../../lib/zod-pipe.js';
@@ -12,6 +13,8 @@ import { EmailAlreadyRegistered, InviteEmailMismatch, InviteTargetUnsupported } 
 import { InviteRepository } from './invite.repository.js';
 import type { FirmScope } from './scope.js';
 import { Session } from './session.decorator.js';
+import { SessionRoute } from './session-route.decorator.js';
+import { UserDeviceRepository } from './user-device.repository.js';
 
 @Controller('auth')
 export class AuthController {
@@ -21,6 +24,7 @@ export class AuthController {
     private readonly auth: AuthProvider,
     private readonly invites: InviteRepository,
     private readonly accountants: AccountantRepository,
+    private readonly devices: UserDeviceRepository,
   ) {}
 
   @Post('sign-up')
@@ -89,4 +93,22 @@ export class AuthController {
       accountingFirm: { id: me.firmId, name: me.firmName },
     };
   }
+
+  @Patch('device')
+  @SessionRoute()
+  @HttpCode(204)
+  async device(
+    @Session() session: AuthSession,
+    @Body(zodPipe(RegisterDeviceBody)) body: RegisterDeviceBody,
+    @Req() request: Request,
+  ) {
+    await this.devices.upsert({
+      userId: session.user.id,
+      deviceId: body.deviceId,
+      platform: body.platform,
+      installed: body.installed,
+      userAgent: request.headers['user-agent'],
+    });
+  }
 }
+

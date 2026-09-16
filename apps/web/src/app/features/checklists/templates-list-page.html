@@ -30,7 +30,7 @@
           </div>
 
           <p class="text-muted-foreground mt-2 text-xs tabular-nums">
-            {{ template.itemCount }} documentos
+            {{ template.itemCount }} documentos · {{ template.companyCount }} {{ template.companyCount === 1 ? 'empresa usando' : 'empresas usando' }}
           </p>
 
           <div class="mt-4 flex flex-wrap gap-2">
@@ -79,7 +79,7 @@
             </div>
 
             <p class="text-muted-foreground mt-2 text-xs tabular-nums">
-              {{ template.itemCount }} documentos
+              {{ template.itemCount }} documentos · {{ template.companyCount }} {{ template.companyCount === 1 ? 'empresa usando' : 'empresas usando' }}
             </p>
 
             <div class="mt-4">

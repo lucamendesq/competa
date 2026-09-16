@@ -1,5 +1,9 @@
 import { Service, inject } from '@angular/core';
-import type { CreateInviteBody, UpdateFirmBody } from '@contabilidade/contracts';
+import type {
+  CreateInviteBody,
+  DeviceStatsResponse,
+  UpdateFirmBody,
+} from '@contabilidade/contracts';
 import { Api, apiResource } from '../../core/http/api';
 
 export type CreatedInvite = { id: string; email: string; url: string };
@@ -53,5 +57,9 @@ export class SettingsService {
 
   runReminders() {
     return this.api.post<unknown>('/messages/reminders/run');
+  }
+
+  deviceStats() {
+    return apiResource<DeviceStatsResponse>(() => '/accounting-firm/device-stats');
   }
 }

@@ -130,6 +130,7 @@ create index contact_email_idx on contact (email);        -- entrada de /access/
 create index contact_company_idx on contact (company_id); -- FK não cria índice no Postgres
 create index contact_auth_user_idx on contact (auth_user_id); -- caminho do ContactGuard em toda request logada
 
+
 create table invite (                     -- Convite (D-03): serve os dois casos —
                                           -- convidar Contador (accounting_firm_id) ou
                                           -- convidar Responsável para o App (company_id)
@@ -349,6 +350,20 @@ valida `expires_at`/`revoked` e injeta `UploadScope`), `modules/requests/upload.
 ```sql
 -- tabela do plugin @better-auth/passkey (WebAuthn): a credencial que sobrevive à
 -- reinstalação do app, porque vive no keychain sincronizado do aparelho
+create table user_device (               -- Dispositivo acessado por usuário (Contador ou Responsável)
+  id           uuid primary key,
+  user_id      uuid not null references "user"(id) on delete cascade,
+  device_id    text not null,
+  platform     text not null check (platform in ('ios', 'android', 'desktop', 'other')),
+  installed    boolean not null default false,
+  user_agent   text,
+  last_seen_at timestamptz not null default now(),
+  created_at   timestamptz not null default now(),
+  updated_at   timestamptz not null default now(),
+  constraint user_device_user_device_uidx unique (user_id, device_id)
+);
+create index user_device_user_id_idx on user_device (user_id);
+
 create table passkey (
   id           uuid primary key,
   name         text,

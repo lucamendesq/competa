@@ -167,6 +167,7 @@ export class PeriodRepository {
           referenceMonth: period.referenceMonth,
           status: period.status,
           dueDate: period.dueDate,
+          createdAt: period.createdAt,
           requestCount: this.db.$count(request, eq(request.periodId, period.id)),
         })
         .from(period)
