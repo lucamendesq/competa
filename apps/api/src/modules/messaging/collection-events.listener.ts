@@ -116,7 +116,7 @@ export class CollectionEventsListener {
   async onUploadLinkResent(event: UploadLinkResentEvent) {
     return this.messages.deliver({
       requestId: event.requestId,
-      purpose: 'link_delivery',
+      purpose: 'resend',
       recipient: event.contactEmail,
       ...linkResentEmail(event),
     });

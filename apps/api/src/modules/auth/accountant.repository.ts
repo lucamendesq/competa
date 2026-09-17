@@ -1,7 +1,8 @@
 import { Injectable } from '@nestjs/common';
-import { and, asc, eq } from 'drizzle-orm';
+import { and, asc, eq, isNull, sql } from 'drizzle-orm';
 import { Database } from '../../infra/database/database.js';
 import { accountant, accountingFirm, invite, user } from '../../infra/database/schema/index.js';
+import { InviteNotFound } from './errors.js';
 import type { FirmScope } from './scope.js';
 
 type FirmPatch = Partial<{
@@ -97,10 +98,32 @@ export class AccountantRepository {
     return row?.owner === true;
   }
 
+  async userExistsByEmail(email: string) {
+    const [row] = await this.db
+      .select({ id: user.id })
+      .from(user)
+      .where(eq(sql`lower(${user.email})`, email.toLowerCase()))
+      .limit(1);
+
+    return Boolean(row);
+  }
+
   async acceptInvite(input: { authUserId: string; accountingFirmId: string; inviteId: string }) {
     await this.db.transaction(async (tx) => {
-      /* O primeiro Contador da Contabilidade é o dono. `accountant_owner_uidx` (índice
-       * único parcial) garante um só por tenant mesmo se dois signups correrem juntos. */
+      const [updatedInvite] = await tx
+        .update(invite)
+        .set({ acceptedAt: new Date() })
+        .where(
+          and(
+            eq(invite.id, input.inviteId),
+            isNull(invite.deletedAt),
+            isNull(invite.acceptedAt),
+          ),
+        )
+        .returning({ id: invite.id });
+
+      if (!updatedInvite) throw new InviteNotFound();
+
       const [existente] = await tx
         .select({ id: accountant.id })
         .from(accountant)
@@ -112,9 +135,7 @@ export class AccountantRepository {
         accountingFirmId: input.accountingFirmId,
         owner: !existente,
       });
-      await tx.update(invite).set({ acceptedAt: new Date() }).where(eq(invite.id, input.inviteId));
-      /* posse do email provada pelo token do convite + aceite dos Termos informado na
-       * tela de signup */
+
       await tx
         .update(user)
         .set({ emailVerified: true, termsAcceptedAt: new Date() })

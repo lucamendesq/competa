@@ -14,6 +14,7 @@ const oneOf = (column: SQL, values: readonly string[]) =>
 export const MESSAGE_CHANNELS = ['email', 'whatsapp', 'push'] as const;
 export const MESSAGE_PURPOSES = [
   'link_delivery',
+  'resend',
   'reminder',
   'rejection',
   'deadline_missed',

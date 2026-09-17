@@ -5,6 +5,7 @@ export const MESSAGE_STATUS = ['queued', 'sent', 'delivered', 'failed'] as const
 export const MESSAGE_CHANNELS = ['email', 'whatsapp', 'push'] as const;
 export const MESSAGE_PURPOSES = [
   'link_delivery',
+  'resend',
   'reminder',
   'rejection',
   'deadline_missed',

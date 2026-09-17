@@ -82,14 +82,49 @@
               {{ template.itemCount }} documentos · {{ template.companyCount }} {{ template.companyCount === 1 ? 'empresa usando' : 'empresas usando' }}
             </p>
 
-            <div class="mt-4">
+            <div class="mt-4 flex flex-wrap items-center gap-2">
               <a hlmBtn variant="outline" size="sm" [routerLink]="['/checklists', template.id]">
                 Editar itens
               </a>
+              <button
+                hlmBtn
+                variant="ghost"
+                size="sm"
+                class="text-destructive hover:bg-destructive/10"
+                [disabled]="deleting() !== null"
+                (click)="confirmDelete.set({ id: template.id, name: template.name })"
+              >
+                <ng-icon name="lucideTrash2" aria-hidden="true" />
+                Excluir
+              </button>
             </div>
           </li>
         }
       </ul>
     }
   </section>
+
+  <app-modal
+    [open]="confirmDelete() !== null"
+    (openChange)="$event ? null : confirmDelete.set(null)"
+    title="Excluir modelo de checklist?"
+  >
+    <p class="text-sm">
+      Tem certeza de que deseja excluir o modelo <strong>{{ confirmDelete()?.name }}</strong>? Esta ação não pode ser desfeita. Modelos vinculados a empresas não podem ser excluídos.
+    </p>
+
+    <div
+      class="border-border bg-muted/40 -mx-5 -mb-5 mt-5 flex flex-wrap justify-end gap-2 border-t p-4"
+    >
+      <button hlmBtn variant="ghost" (click)="confirmDelete.set(null)" [disabled]="deleting() !== null">Cancelar</button>
+      <button
+        hlmBtn
+        variant="destructive"
+        [disabled]="deleting() !== null"
+        (click)="delete(confirmDelete()!.id)"
+      >
+        {{ deleting() ? 'Excluindo…' : 'Excluir modelo' }}
+      </button>
+    </div>
+  </app-modal>
 }

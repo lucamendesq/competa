@@ -1,6 +1,7 @@
 import { Component, computed, inject, input, signal } from '@angular/core';
 import { NgIcon, provideIcons } from '@ng-icons/core';
 import {
+  lucideArrowRight,
   lucideBell,
   lucideCamera,
   lucideCheck,
@@ -9,6 +10,7 @@ import {
   lucideFile,
   lucideLink2Off,
   lucideLock,
+  lucideLogIn,
   lucidePartyPopper,
   lucideSmartphone,
   lucideUpload,
@@ -45,6 +47,7 @@ import { Logo } from '../../shared/logo';
   ],
   providers: [
     provideIcons({
+      lucideArrowRight,
       lucideBell,
       lucideCamera,
       lucideCheck,
@@ -53,6 +56,7 @@ import { Logo } from '../../shared/logo';
       lucideFile,
       lucideLink2Off,
       lucideLock,
+      lucideLogIn,
       lucidePartyPopper,
       lucideSmartphone,
       lucideUpload,

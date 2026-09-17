@@ -51,7 +51,16 @@
   } @else if (checklist.value(); as data) {
     <header class="bg-sidebar text-sidebar-foreground">
       <div class="mx-auto max-w-2xl px-4 py-6">
-        <app-logo surface="dark" class="mb-4 h-6" />
+        <div class="mb-4 flex items-center justify-between gap-3">
+          <app-logo surface="dark" class="h-6" />
+          <a
+            routerLink="/minha-area/acesso"
+            class="text-sidebar-foreground/80 hover:text-sidebar-foreground inline-flex items-center gap-1.5 text-xs font-medium transition-colors"
+          >
+            <span>Minha Área</span>
+            <ng-icon name="lucideArrowRight" class="text-[12px]" aria-hidden="true" />
+          </a>
+        </div>
         <h1 class="text-xl font-semibold tracking-tight">
           Envie os documentos de {{ monthLabel(data.referenceMonth) }}
         </h1>
@@ -203,6 +212,28 @@
                 <a routerLink="/privacidade" target="_blank" class="text-primary hover:underline">Privacidade</a>.
               </p>
             }
+          </section>
+        } @else {
+          <section class="bg-card border-border mt-3 rounded-xl border p-4">
+            <div class="flex items-start justify-between gap-3">
+              <div class="flex items-start gap-3">
+                <span
+                  class="text-muted-foreground bg-muted flex size-9 shrink-0 items-center justify-center rounded-full"
+                >
+                  <ng-icon name="lucideSmartphone" class="text-base" aria-hidden="true" />
+                </span>
+                <div class="min-w-0">
+                  <h3 class="text-sm font-semibold">Minha Área de Responsável</h3>
+                  <p class="text-muted-foreground mt-1 text-sm">
+                    Você tem acesso ativado. Entre para consultar competências anteriores e acompanhar seus envios.
+                  </p>
+                </div>
+              </div>
+            </div>
+            <a hlmBtn variant="outline" class="mt-3 w-full" routerLink="/minha-area/acesso">
+              <ng-icon name="lucideLogIn" class="mr-1.5 text-base" aria-hidden="true" />
+              Acessar minha área
+            </a>
           </section>
         }
       }
@@ -402,6 +433,13 @@
           </ul>
         }
       </section>
+
+      <footer class="mt-8 text-center text-xs text-muted-foreground">
+        <span>Já possui cadastro? </span>
+        <a routerLink="/minha-area/acesso" class="font-medium text-foreground hover:underline">
+          Acessar Minha Área
+        </a>
+      </footer>
     </main>
   }
 

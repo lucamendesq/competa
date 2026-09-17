@@ -237,9 +237,12 @@ create table upload_link (                -- Link de Upload (token próprio; NÃ
   contact_id  uuid not null references contact(id),
   token_hash  text not null unique,       -- nunca o token em claro
   expires_at  timestamptz not null,
+  previous_token_hash text,               -- token anterior (janela de carência na rotação)
+  previous_expires_at timestamptz,
   revoked     boolean not null default false
 );
 create index upload_link_request_idx on upload_link (request_id); -- toda rotação/reenvio busca por aqui
+create index upload_link_previous_token_idx on upload_link (previous_token_hash);
 ```
 
 O token só existe em claro no momento em que é gerado: **rotacionar é a única forma de
@@ -255,7 +258,7 @@ create table message (                    -- log/outbox de tudo que sai
   request_id  uuid not null references request(id) on delete cascade,
   channel     text not null check (channel in ('email','whatsapp','push')),
   purpose     text not null check (purpose in
-                ('link_delivery','reminder','rejection','deadline_missed','completion')),
+                ('link_delivery','resend','reminder','rejection','deadline_missed','completion')),
   recipient   text not null,
   status      text not null default 'queued'
                 check (status in ('queued','sent','delivered','failed')),

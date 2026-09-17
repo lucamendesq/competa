@@ -391,26 +391,30 @@
             Vamos enviar
             <strong class="tabular-nums">{{ preview().emailCount }}</strong>
             {{ preview().emailCount === 1 ? 'e-mail' : 'e-mails' }} agora, de
-            {{ monthLabel(f.referenceMonth().value()) }}, para
+            {{ monthLabel(f.referenceMonth().value()) }}, para o contato principal de
             <strong class="tabular-nums">{{ preview().created }}</strong>
             {{ preview().created === 1 ? 'empresa' : 'empresas' }}.
           </p>
           <p class="text-muted-foreground mt-1 text-xs">
-            Cada Responsável recebe o link de envio dele. Isso não se desfaz.
+            Cada Responsável principal recebe o link de envio dele. Isso não se desfaz.
           </p>
         </div>
 
         <ul class="border-border max-h-64 divide-y overflow-y-auto rounded-lg border" role="list">
           @for (company of preview().recipients; track company.id) {
             <li class="p-3">
-              <p class="text-sm font-medium">{{ company.name }}</p>
-              <ul class="mt-1 flex flex-col gap-0.5" role="list">
-                @for (contact of company.contacts; track contact.id) {
-                  <li class="text-muted-foreground text-xs">
-                    {{ contact.name }} — {{ contact.email }}
-                  </li>
+              <div class="flex items-center justify-between gap-2">
+                <p class="text-sm font-medium">{{ company.name }}</p>
+                @if (company.contacts.length > 1) {
+                  <span class="text-muted-foreground text-[11px]">
+                    +{{ company.contacts.length - 1 }} outro(s) contato(s)
+                  </span>
                 }
-              </ul>
+              </div>
+              <p class="text-muted-foreground mt-1 text-xs">
+                <span class="font-medium text-foreground">{{ company.contacts[0].name }}</span>
+                (principal) — {{ company.contacts[0].email }}
+              </p>
             </li>
           }
         </ul>

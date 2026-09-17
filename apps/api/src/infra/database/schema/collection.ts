@@ -142,9 +142,14 @@ export const uploadLink = pgTable(
       .references(() => contact.id),
     tokenHash: text('token_hash').notNull().unique(),
     expiresAt: timestamp('expires_at', { withTimezone: true }).notNull(),
+    previousTokenHash: text('previous_token_hash'),
+    previousExpiresAt: timestamp('previous_expires_at', { withTimezone: true }),
     revoked: boolean().notNull().default(false),
     ...timestamps,
   },
   // toda rotação e todo reenvio buscam por `request_id`; o índice do token não serve aqui
-  (t) => [index('upload_link_request_idx').on(t.requestId)],
+  (t) => [
+    index('upload_link_request_idx').on(t.requestId),
+    index('upload_link_previous_token_idx').on(t.previousTokenHash),
+  ],
 ).enableRLS();

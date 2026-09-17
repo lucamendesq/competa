@@ -1,5 +1,5 @@
 import { Injectable } from '@nestjs/common';
-import { and, asc, eq } from 'drizzle-orm';
+import { and, asc, eq, gt, or } from 'drizzle-orm';
 import { Database } from '../../infra/database/database.js';
 import {
   accountingFirm,
@@ -18,18 +18,40 @@ export class UploadLinkRepository {
   constructor(private readonly db: Database) {}
 
   async findByTokenHash(tokenHash: string) {
+    const now = new Date();
     const [row] = await this.db
       .select({
         requestId: uploadLink.requestId,
         contactId: uploadLink.contactId,
         expiresAt: uploadLink.expiresAt,
+        previousExpiresAt: uploadLink.previousExpiresAt,
+        tokenHash: uploadLink.tokenHash,
+        previousTokenHash: uploadLink.previousTokenHash,
         revoked: uploadLink.revoked,
       })
       .from(uploadLink)
-      .where(eq(uploadLink.tokenHash, tokenHash))
+      .where(
+        or(
+          eq(uploadLink.tokenHash, tokenHash),
+          and(
+            eq(uploadLink.previousTokenHash, tokenHash),
+            gt(uploadLink.previousExpiresAt, now),
+          ),
+        ),
+      )
       .limit(1);
 
-    return row;
+    if (!row) return undefined;
+
+    const isCurrent = row.tokenHash === tokenHash;
+    const effectiveExpiresAt = isCurrent ? row.expiresAt : row.previousExpiresAt!;
+
+    return {
+      requestId: row.requestId,
+      contactId: row.contactId,
+      expiresAt: effectiveExpiresAt,
+      revoked: row.revoked,
+    };
   }
 
   /** O que a página pública mostra. Só METADADOS de documento entram aqui — nome, status

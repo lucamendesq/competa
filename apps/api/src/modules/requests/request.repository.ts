@@ -1,5 +1,5 @@
 import { Injectable } from '@nestjs/common';
-import { addDays } from 'date-fns';
+import { addDays, addHours } from 'date-fns';
 import { and, asc, count, eq, inArray, ne } from 'drizzle-orm';
 import env from '../../config/env.js';
 import { Database } from '../../infra/database/database.js';
@@ -118,10 +118,13 @@ export class RequestRepository {
         )
         .returning({ id: document.id });
 
-      await tx
+      const [updated] = await tx
         .update(requestItem)
         .set({ status: 'accepted' })
-        .where(eq(requestItem.id, requestItemId));
+        .where(and(eq(requestItem.id, requestItemId), eq(requestItem.status, 'submitted')))
+        .returning({ id: requestItem.id });
+
+      if (!updated) throw new InvalidTransition('Este item já foi aceito.');
 
       const requestStatus = await this.syncRequestStatus(tx, context.requestId);
 
@@ -154,6 +157,8 @@ export class RequestRepository {
         requestStatus: request.status,
         companyName: company.name,
         uploadLinkId: uploadLink.id,
+        uploadLinkTokenHash: uploadLink.tokenHash,
+        uploadLinkExpiresAt: uploadLink.expiresAt,
         contactName: contact.name,
         contactEmail: contact.email,
       })
@@ -216,9 +221,23 @@ export class RequestRepository {
         .set({ status: 'pending', deadlineNotifiedAt: null })
         .where(eq(requestItem.id, row.requestItemId!));
 
+      const now = new Date();
+      const graceExpiresAt = row.uploadLinkExpiresAt
+        ? new Date(Math.min(row.uploadLinkExpiresAt.getTime(), addHours(now, 48).getTime()))
+        : null;
+
       await tx
         .update(uploadLink)
-        .set({ tokenHash, expiresAt: addDays(new Date(), env.UPLOAD_LINK_TTL_DAYS) })
+        .set({
+          tokenHash,
+          expiresAt: addDays(now, env.UPLOAD_LINK_TTL_DAYS),
+          ...(row.uploadLinkTokenHash
+            ? {
+                previousTokenHash: row.uploadLinkTokenHash,
+                previousExpiresAt: graceExpiresAt,
+              }
+            : {}),
+        })
         .where(eq(uploadLink.id, row.uploadLinkId!));
 
       return this.syncRequestStatus(tx, row.requestId);
@@ -263,6 +282,8 @@ export class RequestRepository {
         requestStatus: request.status,
         companyName: company.name,
         uploadLinkId: uploadLink.id,
+        uploadLinkTokenHash: uploadLink.tokenHash,
+        uploadLinkExpiresAt: uploadLink.expiresAt,
         contactName: contact.name,
         contactEmail: contact.email,
       })
@@ -390,7 +411,13 @@ export class RequestRepository {
             ),
           );
 
-        await tx.update(requestItem).set({ status: 'accepted' }).where(eq(requestItem.id, itemId));
+        const [updated] = await tx
+          .update(requestItem)
+          .set({ status: 'accepted' })
+          .where(and(eq(requestItem.id, itemId), eq(requestItem.status, 'submitted')))
+          .returning({ id: requestItem.id });
+
+        if (!updated) throw new InvalidTransition('Este item já foi aceito.');
       }
 
       for (const row of input.rejectDocuments) {
@@ -426,11 +453,22 @@ export class RequestRepository {
       }
 
       if (rotated) {
+        const now = new Date();
+        const graceExpiresAt = head.uploadLinkExpiresAt
+          ? new Date(Math.min(head.uploadLinkExpiresAt.getTime(), addHours(now, 48).getTime()))
+          : null;
+
         await tx
           .update(uploadLink)
           .set({
             tokenHash: rotated.tokenHash,
-            expiresAt: addDays(new Date(), env.UPLOAD_LINK_TTL_DAYS),
+            expiresAt: addDays(now, env.UPLOAD_LINK_TTL_DAYS),
+            ...(head.uploadLinkTokenHash
+              ? {
+                  previousTokenHash: head.uploadLinkTokenHash,
+                  previousExpiresAt: graceExpiresAt,
+                }
+              : {}),
           })
           .where(eq(uploadLink.id, head.uploadLinkId!));
       }
@@ -555,11 +593,28 @@ export class RequestRepository {
    *  MONTAR a mensagem com o link novo e só oficializar a troca depois de o envio dar
    *  certo — rotacionar antes deixaria o Responsável sem link nenhum se o email falhasse. */
   async applyUploadToken(requestId: string, tokenHash: string, contactId?: string) {
+    const [current] = await this.db
+      .select({ tokenHash: uploadLink.tokenHash, expiresAt: uploadLink.expiresAt })
+      .from(uploadLink)
+      .where(eq(uploadLink.requestId, requestId))
+      .limit(1);
+
+    const now = new Date();
+    const graceExpiresAt = current
+      ? new Date(Math.min(current.expiresAt.getTime(), addHours(now, 48).getTime()))
+      : null;
+
     const [row] = await this.db
       .update(uploadLink)
       .set({
         tokenHash,
-        expiresAt: addDays(new Date(), env.UPLOAD_LINK_TTL_DAYS),
+        expiresAt: addDays(now, env.UPLOAD_LINK_TTL_DAYS),
+        ...(current
+          ? {
+              previousTokenHash: current.tokenHash,
+              previousExpiresAt: graceExpiresAt,
+            }
+          : {}),
         // reaponta o Link para quem pediu — ver `rotateUploadToken`
         ...(contactId ? { contactId } : {}),
       })
@@ -576,11 +631,28 @@ export class RequestRepository {
   async rotateUploadToken(requestId: string, contactId?: string) {
     const { token, tokenHash } = createToken();
 
+    const [current] = await this.db
+      .select({ tokenHash: uploadLink.tokenHash, expiresAt: uploadLink.expiresAt })
+      .from(uploadLink)
+      .where(eq(uploadLink.requestId, requestId))
+      .limit(1);
+
+    const now = new Date();
+    const graceExpiresAt = current
+      ? new Date(Math.min(current.expiresAt.getTime(), addHours(now, 48).getTime()))
+      : null;
+
     const [row] = await this.db
       .update(uploadLink)
       .set({
         tokenHash,
-        expiresAt: addDays(new Date(), env.UPLOAD_LINK_TTL_DAYS),
+        expiresAt: addDays(now, env.UPLOAD_LINK_TTL_DAYS),
+        ...(current
+          ? {
+              previousTokenHash: current.tokenHash,
+              previousExpiresAt: graceExpiresAt,
+            }
+          : {}),
         ...(contactId ? { contactId } : {}),
       })
       .where(eq(uploadLink.requestId, requestId))

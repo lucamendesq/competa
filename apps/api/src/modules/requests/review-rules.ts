@@ -45,9 +45,6 @@ export const reviewExtraRefusal = (input: {
   requestStatus: RequestStatus;
   reviewStatus: ReviewStatus;
 }) => {
-  if (input.requestStatus === 'closed') {
-    return 'Esta solicitação foi encerrada: os documentos não podem mais ser revisados.';
-  }
   if (input.reviewStatus === 'accepted') return 'Este documento já está aceito.';
   if (input.reviewStatus === 'rejected') return 'Este documento já foi rejeitado.';
 

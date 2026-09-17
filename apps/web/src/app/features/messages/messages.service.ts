@@ -17,6 +17,7 @@ export type Message = {
 
 export const PURPOSE_LABEL: Record<string, string> = {
   link_delivery: 'Link inicial',
+  resend: 'Reenvio de link',
   reminder: 'Lembrete',
   rejection: 'Reenvio por rejeição',
   deadline_missed: 'Prazo estourado',

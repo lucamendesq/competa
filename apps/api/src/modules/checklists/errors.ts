@@ -35,3 +35,14 @@ export class TemplateItemDuplicated extends AppError {
     super('Este Tipo de Documento já está no template. Edite o item existente.');
   }
 }
+
+export class TemplateInUse extends AppError {
+  readonly code = 'TEMPLATE_IN_USE';
+  readonly status = 409;
+
+  constructor(count: number) {
+    super(
+      `Este modelo está em uso por ${count} ${count === 1 ? 'empresa' : 'empresas'}. Desvincule-as antes de excluir.`,
+    );
+  }
+}

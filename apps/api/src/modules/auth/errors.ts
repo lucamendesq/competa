@@ -36,6 +36,15 @@ export class EmailAlreadyRegistered extends AppError {
   }
 }
 
+export class InviteAlreadyPending extends AppError {
+  readonly code = 'INVITE_ALREADY_PENDING';
+  readonly status = 409;
+
+  constructor() {
+    super('Já existe um convite pendente para este email.');
+  }
+}
+
 export class InviteEmailMismatch extends AppError {
   readonly code = 'INVITE_EMAIL_MISMATCH';
   readonly status = 422;

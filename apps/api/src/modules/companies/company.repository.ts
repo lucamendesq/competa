@@ -1,4 +1,4 @@
-import { Injectable } from '@nestjs/common';
+import { Injectable, Logger } from '@nestjs/common';
 import { and, count, eq, ilike, inArray, isNotNull, isNull, or, sql } from 'drizzle-orm';
 import {
   COMPANY_FLAGS,
@@ -40,6 +40,8 @@ const violatesCompanyCnpjUnique = (error: unknown): boolean => {
 
 @Injectable()
 export class CompanyRepository {
+  private readonly logger = new Logger(CompanyRepository.name);
+
   constructor(private readonly db: Database) {}
 
   async templateIsVisible(scope: FirmScope, templateId: string) {
@@ -377,6 +379,7 @@ export class CompanyRepository {
               )
               .onConflictDoUpdate({
                 target: [company.accountingFirmId, company.cnpj],
+                targetWhere: sql`${company.cnpj} is not null`,
                 set: {
                   name: sql`excluded.name`,
                   checklistTemplateId: sql`excluded.checklist_template_id`,
@@ -405,10 +408,6 @@ export class CompanyRepository {
         withCnpj.forEach(({ line }, index) => rowByLine.set(line, upserted[index]));
         withoutCnpj.forEach(({ line }, index) => rowByLine.set(line, inserted[index]));
 
-        /* Empresa que já existia (upsert por CNPJ) ganha um Responsável novo a cada
-         * reenvio — não há chave pra deduplicar contact aqui. Se isso incomodar na
-         * prática, é o próximo ponto a resolver, com um índice único em (company_id,
-         * email) igual ao que company.cnpj ganhou agora. */
         const contacts = pending.flatMap(({ line, body }) =>
           body.contact ? [{ ...body.contact, companyId: rowByLine.get(line)!.id }] : [],
         );
@@ -421,8 +420,8 @@ export class CompanyRepository {
         });
       });
     } catch (error) {
-      // a transação já desfez tudo: o relatório precisa dizer isso, não listar "criadas"
-      throw new ValidationError(`Nada foi importado — ${describe(error)}`);
+      this.logger.error('Falha ao gravar registros de importação', error);
+      throw new ValidationError('Nada foi importado — falha ao gravar os registros no banco.');
     }
   }
 }
@@ -441,6 +440,3 @@ const firstIssue = (error: z.ZodError) => {
 
   return `${issue.path.join('.') || 'linha'}: ${issue.message}`;
 };
-
-const describe = (error: unknown) =>
-  error instanceof Error ? error.message : 'Falha ao gravar a Empresa.';

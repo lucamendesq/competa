@@ -11,7 +11,7 @@ import { CurrentScope } from './current-scope.decorator.js';
 import { EVENTS, type InviteCreatedEvent } from '../../lib/events.js';
 import { AccountantRepository } from './accountant.repository.js';
 import type { AuthSession } from './auth-provider.js';
-import { OnlyOwnerCanInvite } from './errors.js';
+import { EmailAlreadyRegistered, InviteAlreadyPending, OnlyOwnerCanInvite } from './errors.js';
 import { InviteRepository } from './invite.repository.js';
 import type { FirmScope } from './scope.js';
 import { Session } from './session.decorator.js';
@@ -35,6 +35,14 @@ export class InviteController {
     @Body(zodPipe(CreateInviteBody)) body: CreateInviteBody,
   ) {
     if (!(await this.accountants.isOwner(scope, session.user.id))) throw new OnlyOwnerCanInvite();
+
+    if (await this.accountants.userExistsByEmail(body.email)) {
+      throw new EmailAlreadyRegistered();
+    }
+
+    if (await this.invites.pendingForFirm(scope, body.email)) {
+      throw new InviteAlreadyPending();
+    }
 
     const { token, tokenHash } = createToken();
     const expiresAt = addDays(new Date(), env.INVITE_TTL_DAYS);

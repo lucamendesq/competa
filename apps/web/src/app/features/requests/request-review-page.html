@@ -364,7 +364,7 @@
               </button>
             } @else {
               <app-status-pill class="relative" [status]="document.reviewStatus" />
-              @if (!closed() && document.reviewStatus === 'pending') {
+              @if (document.reviewStatus === 'pending') {
                 <button
                   hlmBtn
                   size="sm"

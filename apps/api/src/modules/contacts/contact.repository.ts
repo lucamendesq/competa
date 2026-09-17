@@ -471,6 +471,16 @@ export class ContactRepository {
     return { revoked: true as const };
   }
 
+  async findOwnedCompany(scope: FirmScope, companyId: string) {
+    const [row] = await this.db
+      .select({ id: company.id })
+      .from(company)
+      .where(and(eq(company.id, companyId), eq(company.accountingFirmId, scope)))
+      .limit(1);
+
+    return Boolean(row);
+  }
+
   async withAccess(scope: FirmScope, companyId: string) {
     return this.db
       .select({ id: contact.id, name: contact.name, email: contact.email })

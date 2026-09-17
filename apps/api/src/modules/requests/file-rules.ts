@@ -68,6 +68,10 @@ export const fileExtension = ({ fileName, contentType }: Omit<UploadedFile, 'siz
 const megabytes = (bytes: number) => Math.round(bytes / (1024 * 1024));
 
 export const rejectionReason = (file: UploadedFile, acceptedFormats: readonly string[] | null) => {
+  if (!file.fileName || !file.fileName.trim()) {
+    return 'Nome do arquivo não pode ser vazio.';
+  }
+
   if (file.sizeBytes <= 0) {
     return 'Arquivo vazio (0 bytes).';
   }

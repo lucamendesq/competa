@@ -1,6 +1,6 @@
 import { Component, computed, inject, input, linkedSignal, signal } from '@angular/core';
-import { RouterLink } from '@angular/router';
-import { COMPANY_FLAGS, PERIODICITIES, type Periodicity } from '@contabilidade/contracts';
+import { Router, RouterLink } from '@angular/router';
+import { COMPANY_FLAGS, PERIODICITIES, type CompanyFlag, type Periodicity } from '@contabilidade/contracts';
 import { NgIcon, provideIcons } from '@ng-icons/core';
 import { lucideLock, lucidePlus, lucideTrash2 } from '@ng-icons/lucide';
 import { HlmButtonImports } from '@spartan-ng/helm/button';
@@ -60,6 +60,7 @@ export class TemplateDetailPage {
 
   private readonly service = inject(ChecklistsService);
   private readonly toaster = inject(Toaster);
+  private readonly router = inject(Router);
 
   protected readonly CATEGORY_LABEL = CATEGORY_LABEL;
   protected readonly PERIODICITY_LABEL = PERIODICITY_LABEL;
@@ -173,7 +174,7 @@ export class TemplateDetailPage {
   }
 
   protected changeCondition(item: DraftItem, value: string) {
-    this.patchItem(item.id, { conditionFlag: value === '' ? null : value });
+    this.patchItem(item.id, { conditionFlag: value === '' ? null : (value as CompanyFlag) });
   }
 
   protected toggleRequired(item: DraftItem) {
@@ -244,7 +245,7 @@ export class TemplateDetailPage {
           annualMonth: item.annualMonth,
           dueDay: item.dueDay,
           dueMonthOffset: item.dueMonthOffset,
-          conditionFlag: item.conditionFlag,
+          conditionFlag: (item.conditionFlag ?? null) as CompanyFlag | null,
           required: item.required,
         };
 
@@ -264,6 +265,22 @@ export class TemplateDetailPage {
       // recarrega para a tela refletir o que de fato foi gravado antes da falha
       this.toaster.error(apiErrorMessage(error, 'Não foi possível salvar o template.'));
       this.template.reload();
+    } finally {
+      this.acting.set(false);
+    }
+  }
+
+  protected readonly confirmDelete = signal(false);
+
+  protected async deleteTemplate() {
+    this.acting.set(true);
+    try {
+      await this.service.deleteTemplate(this.templateId());
+      this.toaster.success('Modelo excluído com sucesso.');
+      this.confirmDelete.set(false);
+      await this.router.navigate(['/checklists']);
+    } catch (error) {
+      this.toaster.error(apiErrorMessage(error, 'Não foi possível excluir o modelo.'));
     } finally {
       this.acting.set(false);
     }

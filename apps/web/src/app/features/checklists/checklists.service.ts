@@ -1,5 +1,6 @@
 import { Service, inject } from '@angular/core';
 import type {
+  CompanyFlag,
   CreateTemplateItemBody,
   DocumentCategory,
   Periodicity,
@@ -27,7 +28,7 @@ export type TemplateItem = {
   annualMonth: number | null;
   dueDay: number | null;
   dueMonthOffset: number;
-  conditionFlag: string | null;
+  conditionFlag: CompanyFlag | null;
   required: boolean;
 };
 
@@ -91,5 +92,9 @@ export class ChecklistsService {
 
   removeItem(templateId: string, itemId: string) {
     return this.api.delete<void>(`/checklist-templates/${templateId}/items/${itemId}`);
+  }
+
+  deleteTemplate(id: string) {
+    return this.api.delete<void>(`/checklist-templates/${id}`);
   }
 }

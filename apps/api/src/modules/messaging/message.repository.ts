@@ -11,6 +11,7 @@ import {
   contact,
   document,
   message,
+  MESSAGE_PURPOSES,
   period,
   request,
   requestItem,
@@ -34,7 +35,7 @@ import type { ReminderCandidate, ReminderSettings } from './reminder-rules.js';
 
 const PENDING_ITEM_STATUS = ['pending', 'rejected'] as const;
 
-type MessagePurpose = 'link_delivery' | 'reminder' | 'rejection' | 'deadline_missed' | 'completion';
+type MessagePurpose = (typeof MESSAGE_PURPOSES)[number];
 
 type Delivery = {
   requestId: string;

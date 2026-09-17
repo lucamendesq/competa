@@ -1,0 +1,1 @@
+ALTER TABLE "message" DROP CONSTRAINT "message_purpose_chk", ADD CONSTRAINT "message_purpose_chk" CHECK ("purpose" in ('link_delivery', 'resend', 'reminder', 'rejection', 'deadline_missed', 'completion'));

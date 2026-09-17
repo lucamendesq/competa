@@ -23,6 +23,10 @@
         <ng-icon name="lucidePlus" aria-hidden="true" />
         Adicionar item
       </button>
+      <button hlmBtn variant="destructive" (click)="confirmDelete.set(true)" [disabled]="acting()">
+        <ng-icon name="lucideTrash2" aria-hidden="true" />
+        Excluir modelo
+      </button>
     }
     <a hlmBtn variant="outline" routerLink="/checklists">Voltar</a>
   </app-page-header>
@@ -317,6 +321,30 @@
         (click)="remove(confirmRemoval()!)"
       >
         Remover item
+      </button>
+    </div>
+  </app-modal>
+
+  <app-modal
+    [open]="confirmDelete()"
+    (openChange)="confirmDelete.set($event)"
+    title="Excluir modelo de checklist?"
+  >
+    <p class="text-sm">
+      Tem certeza de que deseja excluir este modelo? Esta ação não pode ser desfeita. Modelos vinculados a empresas não podem ser excluídos.
+    </p>
+
+    <div
+      class="border-border bg-muted/40 -mx-5 -mb-5 mt-5 flex flex-wrap justify-end gap-2 border-t p-4"
+    >
+      <button hlmBtn variant="ghost" (click)="confirmDelete.set(false)" [disabled]="acting()">Cancelar</button>
+      <button
+        hlmBtn
+        variant="destructive"
+        [disabled]="acting()"
+        (click)="deleteTemplate()"
+      >
+        {{ acting() ? 'Excluindo…' : 'Excluir modelo' }}
       </button>
     </div>
   </app-modal>

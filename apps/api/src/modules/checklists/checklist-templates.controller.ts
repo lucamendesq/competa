@@ -16,6 +16,7 @@ import {
   DocumentTypeNotVisible,
   TemplateAlreadyOwned,
   TemplateImmutable,
+  TemplateInUse,
   TemplateItemDuplicated,
 } from './errors.js';
 
@@ -56,6 +57,21 @@ export class ChecklistTemplatesController {
     await this.requireOwned(scope, params.id);
 
     return this.checklists.renameTemplate(params.id, body.name);
+  }
+
+  @Delete(':id')
+  @HttpCode(204)
+  async delete(
+    @CurrentScope() scope: FirmScope,
+    @Param(zodPipe(IdParam)) params: IdParam,
+  ) {
+    await this.requireOwned(scope, params.id);
+
+    const count = await this.checklists.countCompaniesUsingTemplate(scope, params.id);
+    if (count > 0) throw new TemplateInUse(count);
+
+    const row = await this.checklists.deleteTemplate(scope, params.id);
+    if (!row) throw new NotFound('Template não encontrado.');
   }
 
   @Post(':id/items')

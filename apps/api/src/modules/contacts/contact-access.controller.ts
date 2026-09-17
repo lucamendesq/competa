@@ -139,6 +139,10 @@ export class ContactAccessAdminController {
 
   @Get('access')
   async list(@CurrentScope() scope: FirmScope, @Param(zodPipe(IdParam)) params: IdParam) {
+    if (!(await this.contacts.findOwnedCompany(scope, params.id))) {
+      throw new NotFound('Empresa não encontrada.');
+    }
+
     return this.contacts.withAccess(scope, params.id);
   }
 

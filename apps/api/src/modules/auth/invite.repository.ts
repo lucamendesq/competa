@@ -1,5 +1,5 @@
 import { Injectable } from '@nestjs/common';
-import { and, eq, gt, isNull } from 'drizzle-orm';
+import { and, eq, gt, isNull, sql } from 'drizzle-orm';
 import { Database } from '../../infra/database/database.js';
 import { alias } from 'drizzle-orm/pg-core';
 import { accountingFirm, company, invite } from '../../infra/database/schema/index.js';
@@ -125,8 +125,32 @@ export class InviteRepository {
     return row;
   }
 
+  async pendingForFirm(scope: FirmScope, email: string) {
+    const [row] = await this.db
+      .select({ id: invite.id })
+      .from(invite)
+      .where(
+        and(
+          eq(invite.accountingFirmId, scope),
+          eq(sql`lower(${invite.email})`, email.toLowerCase()),
+          isNull(invite.acceptedAt),
+          isNull(invite.deletedAt),
+          gt(invite.expiresAt, new Date()),
+        ),
+      )
+      .limit(1);
+
+    return Boolean(row);
+  }
+
   async markAccepted(inviteId: string) {
-    await this.db.update(invite).set({ acceptedAt: new Date() }).where(eq(invite.id, inviteId));
+    const [row] = await this.db
+      .update(invite)
+      .set({ acceptedAt: new Date() })
+      .where(and(eq(invite.id, inviteId), isNull(invite.deletedAt), isNull(invite.acceptedAt)))
+      .returning({ id: invite.id });
+
+    if (!row) throw new InviteNotFound();
   }
 
   async firmName(scope: FirmScope) {

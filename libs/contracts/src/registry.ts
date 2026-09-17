@@ -18,6 +18,9 @@ export type DocumentCategory = z.infer<typeof DocumentCategory>;
 export const Periodicity = z.enum(PERIODICITIES);
 export type Periodicity = z.infer<typeof Periodicity>;
 
+export const CompanyFlag = z.enum(COMPANY_FLAGS);
+export type CompanyFlag = z.infer<typeof CompanyFlag>;
+
 export const CompanyFlags = z.object({
   has_employees: z.boolean().optional(),
   accepts_card_payments: z.boolean().optional(),

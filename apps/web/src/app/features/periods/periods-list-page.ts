@@ -174,7 +174,7 @@ export class PeriodsListPage {
     return {
       created: recipients.length,
       recipients,
-      emailCount: recipients.reduce((sum, row) => sum + row.contacts.length, 0),
+      emailCount: recipients.length,
       withoutContact: rows.filter((row) => row.contactCount === 0 && row.checklistTemplateId),
       withoutTemplate,
     };

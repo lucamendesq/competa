@@ -388,4 +388,33 @@ export class ChecklistRepository {
       })),
     };
   }
+
+  async countCompaniesUsingTemplate(scope: FirmScope, templateId: string) {
+    const [row] = await this.db
+      .select({ count: count(company.id) })
+      .from(company)
+      .where(and(eq(company.checklistTemplateId, templateId), eq(company.accountingFirmId, scope)));
+
+    return Number(row?.count ?? 0);
+  }
+
+  async deleteTemplate(scope: FirmScope, templateId: string) {
+    return this.db.transaction(async (tx) => {
+      await tx
+        .delete(checklistTemplateItem)
+        .where(eq(checklistTemplateItem.checklistTemplateId, templateId));
+
+      const [row] = await tx
+        .delete(checklistTemplate)
+        .where(
+          and(
+            eq(checklistTemplate.id, templateId),
+            eq(checklistTemplate.accountingFirmId, scope),
+          ),
+        )
+        .returning({ id: checklistTemplate.id });
+
+      return row;
+    });
+  }
 }
