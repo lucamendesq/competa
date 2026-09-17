@@ -6,7 +6,7 @@ import { optionalText } from './common.js';
  *  um Documento Extra, com o Item continuando pendente. */
 export const UploadFile = z
   .object({
-    fileName: z.string().min(1),
+    fileName: z.string(),
     contentType: z.string().min(1).max(200),
     sizeBytes: z.number().int().nonnegative(),
   })

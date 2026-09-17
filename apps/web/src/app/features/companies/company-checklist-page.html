@@ -48,7 +48,7 @@
     @for (group of groups(); track group[0]) {
       <section class="bg-card border-border rounded-xl border">
         <h2 class="border-border border-b p-4 text-sm font-semibold">
-          {{ CATEGORY_LABEL[group[0]] ?? group[0] }}
+          {{ CATEGORY_LABEL[group[0]] }}
           <span class="text-muted-foreground font-normal">({{ group[1].length }})</span>
         </h2>
 
@@ -112,7 +112,7 @@
                     }
                   </span>
                   <span class="text-muted-foreground">
-                    {{ PERIODICITY_LABEL[line.periodicity] ?? line.periodicity }}
+                    {{ PERIODICITY_LABEL[line.periodicity] }}
                   </span>
                   @if (line.dueDay) {
                     <span class="text-muted-foreground tabular-nums">

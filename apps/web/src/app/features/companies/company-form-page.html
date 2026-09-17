@@ -212,7 +212,7 @@
             @for (group of preview().groups; track group[0]) {
               <div>
                 <h3 class="text-muted-foreground text-[11px] font-semibold tracking-wide uppercase">
-                  {{ CATEGORY_LABEL[group[0]] ?? group[0] }}
+                  {{ CATEGORY_LABEL[group[0]] }}
                 </h3>
                 <ul class="mt-2 flex flex-col gap-1.5">
                   @for (item of group[1]; track item.id) {

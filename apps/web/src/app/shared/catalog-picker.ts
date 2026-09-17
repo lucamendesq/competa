@@ -47,7 +47,7 @@ export type CatalogDocument = {
             <div class="min-w-0">
               <p class="text-sm font-medium">{{ document.name }}</p>
               <p class="text-muted-foreground mt-0.5 text-xs">
-                {{ CATEGORY_LABEL[document.category] ?? document.category }} ·
+                {{ CATEGORY_LABEL[document.category] }} ·
                 {{ document.acceptedFormats.join(', ') }}
               </p>
             </div>
