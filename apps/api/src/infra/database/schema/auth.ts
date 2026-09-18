@@ -129,4 +129,3 @@ export const userDevice = pgTable(
     check('user_device_platform_chk', oneOf(sql`${t.platform}`, DEVICE_PLATFORMS)),
   ],
 ).enableRLS();
-

@@ -6,13 +6,13 @@
 
 ## Prazos
 
-| Dado | Prazo | Racional |
-| ---- | ----- | -------- |
-| Documentos fiscais (objetos no R2 + linhas em `document`) | **5 anos** a partir do upload | prazo geral de guarda fiscal (art. 173/174 CTN) |
-| Dados cadastrais (`company`, `contact`) | enquanto a Contabilidade for cliente + 90 dias | operação do serviço |
-| Contabilidade cancelada | **90 dias** de retenção total, depois expurgo | janela de arrependimento/exportação |
-| Mensagens (`message`) e logs | 1 ano | trilha operacional |
-| Backups do Postgres | 7 diários / 4 semanais / 12 mensais | [`backup.md`](./backup.md) |
+| Dado                                                      | Prazo                                          | Racional                                        |
+| --------------------------------------------------------- | ---------------------------------------------- | ----------------------------------------------- |
+| Documentos fiscais (objetos no R2 + linhas em `document`) | **5 anos** a partir do upload                  | prazo geral de guarda fiscal (art. 173/174 CTN) |
+| Dados cadastrais (`company`, `contact`)                   | enquanto a Contabilidade for cliente + 90 dias | operação do serviço                             |
+| Contabilidade cancelada                                   | **90 dias** de retenção total, depois expurgo  | janela de arrependimento/exportação             |
+| Mensagens (`message`) e logs                              | 1 ano                                          | trilha operacional                              |
+| Backups do Postgres                                       | 7 diários / 4 semanais / 12 mensais            | [`backup.md`](./backup.md)                      |
 
 No cancelamento, a Contabilidade pode pedir a exportação (zip por Competência já existe
 por tela; dump por firm sob demanda).

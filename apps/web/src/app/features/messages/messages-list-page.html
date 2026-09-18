@@ -63,9 +63,7 @@
       </div>
 
       <div class="flex flex-col gap-1">
-        <label class="text-muted-foreground text-xs font-medium" for="purpose-filter">
-          Tipo
-        </label>
+        <label class="text-muted-foreground text-xs font-medium" for="purpose-filter"> Tipo </label>
         <select
           hlmInput
           id="purpose-filter"
@@ -247,12 +245,7 @@
       </dl>
 
       <div class="border-border flex flex-wrap items-center gap-2 border-t p-4">
-        <button
-          hlmBtn
-          size="sm"
-          [disabled]="resending()"
-          (click)="resendMessage(selected()!)"
-        >
+        <button hlmBtn size="sm" [disabled]="resending()" (click)="resendMessage(selected()!)">
           <ng-icon name="lucideSend" aria-hidden="true" />
           {{ resending() ? 'Reenviando…' : 'Reenviar mensagem' }}
         </button>

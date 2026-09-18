@@ -207,9 +207,13 @@
               </div>
               <p class="text-muted-foreground mt-2 text-center text-xs">
                 Ao ativar, você concorda com os
-                <a routerLink="/termos" target="_blank" class="text-primary hover:underline">Termos</a>
+                <a routerLink="/termos" target="_blank" class="text-primary hover:underline"
+                  >Termos</a
+                >
                 e a
-                <a routerLink="/privacidade" target="_blank" class="text-primary hover:underline">Privacidade</a>.
+                <a routerLink="/privacidade" target="_blank" class="text-primary hover:underline"
+                  >Privacidade</a
+                >.
               </p>
             }
           </section>
@@ -225,7 +229,8 @@
                 <div class="min-w-0">
                   <h3 class="text-sm font-semibold">Minha Área de Responsável</h3>
                   <p class="text-muted-foreground mt-1 text-sm">
-                    Você tem acesso ativado. Entre para consultar competências anteriores e acompanhar seus envios.
+                    Você tem acesso ativado. Entre para consultar competências anteriores e
+                    acompanhar seus envios.
                   </p>
                 </div>
               </div>
@@ -343,7 +348,10 @@
                       aria-valuemax="100"
                       aria-label="Progresso do envio"
                     >
-                      <div class="h-full rounded-full bg-primary" [style.width.%]="sendPercent()"></div>
+                      <div
+                        class="h-full rounded-full bg-primary"
+                        [style.width.%]="sendPercent()"
+                      ></div>
                     </div>
                   </div>
                 } @else {
@@ -450,5 +458,4 @@
     (dismiss)="results.set(null)"
     (retry)="send($event, retryTarget())"
   />
-
 </div>

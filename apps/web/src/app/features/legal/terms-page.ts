@@ -13,9 +13,8 @@ import { LegalPage } from './legal-page';
       </p>
       <h2 class="text-base font-semibold">1. O serviço</h2>
       <p>
-        O Competa permite que escritórios de contabilidade solicitem, recebam e organizem
-        documentos das empresas que atendem. Quem envia documentos o faz a pedido da sua
-        contabilidade.
+        O Competa permite que escritórios de contabilidade solicitem, recebam e organizem documentos
+        das empresas que atendem. Quem envia documentos o faz a pedido da sua contabilidade.
       </p>
       <h2 class="text-base font-semibold">2. Contas e acesso</h2>
       <p>
@@ -26,8 +25,8 @@ import { LegalPage } from './legal-page';
       <h2 class="text-base font-semibold">3. Conteúdo enviado</h2>
       <p>
         Os documentos enviados pertencem a você ou à empresa que você representa. O Competa os
-        armazena e disponibiliza apenas para a contabilidade responsável, conforme a
-        Política de Privacidade.
+        armazena e disponibiliza apenas para a contabilidade responsável, conforme a Política de
+        Privacidade.
       </p>
       <h2 class="text-base font-semibold">4. Encerramento</h2>
       <p>

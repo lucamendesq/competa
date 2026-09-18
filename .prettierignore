@@ -3,4 +3,6 @@ dist
 .angular
 coverage
 package-lock.json
+pnpm-lock.yaml
 apps/web/src/ui
+apps/api/drizzle

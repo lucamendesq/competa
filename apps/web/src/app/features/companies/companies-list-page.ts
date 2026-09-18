@@ -141,7 +141,6 @@ export class CompaniesListPage {
     );
   });
 
-
   protected readonly statuses = [
     { value: 'ativas' as const, label: 'Ativas' },
     { value: 'inativas' as const, label: 'Inativas' },
@@ -213,9 +212,7 @@ export class CompaniesListPage {
     try {
       const result = await this.service.applyTemplate(companyIds, checklistTemplateId);
       this.toaster.success(
-        result.updated === 1
-          ? '1 empresa atualizada.'
-          : `${result.updated} empresas atualizadas.`,
+        result.updated === 1 ? '1 empresa atualizada.' : `${result.updated} empresas atualizadas.`,
       );
       this.clearSelection();
       this.companies.reload();

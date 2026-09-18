@@ -39,14 +39,22 @@ export const Phone = z
   .refine((v) => v.length >= 8, 'Telefone incompleto.');
 
 export const ContactBody = z.object({
-  name: z.string().trim().min(1, 'Informe o nome do Responsável.').max(255, 'O nome do Responsável deve ter no máximo 255 caracteres.'),
+  name: z
+    .string()
+    .trim()
+    .min(1, 'Informe o nome do Responsável.')
+    .max(255, 'O nome do Responsável deve ter no máximo 255 caracteres.'),
   email: z.email('E-mail inválido.'),
   phone: Phone.optional(),
 });
 export type ContactBody = z.infer<typeof ContactBody>;
 
 export const CreateCompanyBody = z.object({
-  name: z.string().trim().min(1, 'Informe o nome da Empresa.').max(255, 'O nome da Empresa deve ter no máximo 255 caracteres.'),
+  name: z
+    .string()
+    .trim()
+    .min(1, 'Informe o nome da Empresa.')
+    .max(255, 'O nome da Empresa deve ter no máximo 255 caracteres.'),
   checklistTemplateId: z.uuid().optional(),
   cnpj: Cnpj.optional(),
   flags: CompanyFlags.default({}),
@@ -56,7 +64,11 @@ export type CreateCompanyBody = z.infer<typeof CreateCompanyBody>;
 
 export const UpdateCompanyBody = z
   .object({
-    name: z.string().trim().min(1, 'Informe o nome da Empresa.').max(255, 'O nome da Empresa deve ter no máximo 255 caracteres.'),
+    name: z
+      .string()
+      .trim()
+      .min(1, 'Informe o nome da Empresa.')
+      .max(255, 'O nome da Empresa deve ter no máximo 255 caracteres.'),
     checklistTemplateId: z.uuid().nullable(),
     cnpj: Cnpj.nullable(),
     flags: CompanyFlags,
@@ -76,7 +88,6 @@ export const CompanyQuery = PaginationQuery.extend({
   search: z.string().trim().optional(),
 });
 export type CompanyQuery = z.infer<typeof CompanyQuery>;
-
 
 /** Teto de linhas por importação. O corpo aceita 2 MB, o que dá ~40 mil linhas: sem cap,
  *  uma importação dessas roda por minutos, estoura o timeout no meio e deixa o tenant com

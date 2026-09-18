@@ -124,13 +124,13 @@ Direção de dependência (convenção, não polícia): **registry → collectio
 
 ## Integrações Externas
 
-| Sistema            | Tipo                        | Protocolo     | Descrição                                                              |
-| ------------------ | --------------------------- | ------------- | ---------------------------------------------------------------------- |
+| Sistema            | Tipo                        | Protocolo     | Descrição                                                                      |
+| ------------------ | --------------------------- | ------------- | ------------------------------------------------------------------------------ |
 | Postgres           | Banco                       | Drizzle       | Persistência de tudo (inclusive tabelas Better Auth); Supabase, session pooler |
-| WhatsApp Cloud API | Saída (+ webhook de status) | HTTP REST     | Link/lembretes com template utility aprovado; degrada para email       |
-| SES ou Resend      | Saída                       | SDK/HTTP      | Email transacional; canal que nunca bloqueia o fluxo                   |
-| FCM                | Saída                       | SDK           | Push para Responsável com App (futuro)                                 |
-| Cloudflare R2      | Saída                       | S3-compatible | URLs pré-assinadas para upload direto; leitura em streaming para zip   |
+| WhatsApp Cloud API | Saída (+ webhook de status) | HTTP REST     | Link/lembretes com template utility aprovado; degrada para email               |
+| SES ou Resend      | Saída                       | SDK/HTTP      | Email transacional; canal que nunca bloqueia o fluxo                           |
+| FCM                | Saída                       | SDK           | Push para Responsável com App (futuro)                                         |
+| Cloudflare R2      | Saída                       | S3-compatible | URLs pré-assinadas para upload direto; leitura em streaming para zip           |
 
 > Better Auth não é interface externa — é biblioteca dentro de `apps/api`, com tabelas no nosso Postgres. R2 e Better Auth entram em modo **Conformist** (aceitar o modelo deles, wrapper mínimo); provedores de mensagem ficam atrás de **uma interface por canal** em `messaging/providers/` — payload da Meta/SES/FCM nunca vaza para os módulos de negócio.
 

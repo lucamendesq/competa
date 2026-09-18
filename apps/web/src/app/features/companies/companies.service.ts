@@ -107,7 +107,6 @@ export class CompaniesService {
     return pageResource<Company>(() => '/companies', params);
   }
 
-
   detail(id: () => string | undefined) {
     return apiResource<CompanyDetail>(() => {
       const value = id();

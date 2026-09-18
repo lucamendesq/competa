@@ -42,9 +42,7 @@ export class AppErrorFilter implements ExceptionFilter {
     if (exception instanceof HttpException && exception.getStatus() === 403) {
       this.logDenial(host, 'FORBIDDEN');
 
-      return response
-        .status(403)
-        .json({ error: { code: 'FORBIDDEN', message: 'Acesso negado.' } });
+      return response.status(403).json({ error: { code: 'FORBIDDEN', message: 'Acesso negado.' } });
     }
 
     // Rate limit (ThrottlerGuard): tratado à parte porque "devagar aí" não é erro de

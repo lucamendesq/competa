@@ -407,10 +407,7 @@ export class ChecklistRepository {
       const [row] = await tx
         .delete(checklistTemplate)
         .where(
-          and(
-            eq(checklistTemplate.id, templateId),
-            eq(checklistTemplate.accountingFirmId, scope),
-          ),
+          and(eq(checklistTemplate.id, templateId), eq(checklistTemplate.accountingFirmId, scope)),
         )
         .returning({ id: checklistTemplate.id });
 

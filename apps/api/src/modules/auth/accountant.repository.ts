@@ -120,11 +120,7 @@ export class AccountantRepository {
         .update(invite)
         .set({ acceptedAt: new Date() })
         .where(
-          and(
-            eq(invite.id, input.inviteId),
-            isNull(invite.deletedAt),
-            isNull(invite.acceptedAt),
-          ),
+          and(eq(invite.id, input.inviteId), isNull(invite.deletedAt), isNull(invite.acceptedAt)),
         )
         .returning({ id: invite.id });
 

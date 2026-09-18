@@ -28,7 +28,9 @@ export type ReminderCandidate = {
   lastMessageAt: Date | null;
 };
 
-export const nextDueDate = (candidate: Pick<ReminderCandidate, 'pendingItems' | 'periodDueDate'>): string | null => {
+export const nextDueDate = (
+  candidate: Pick<ReminderCandidate, 'pendingItems' | 'periodDueDate'>,
+): string | null => {
   const dates = candidate.pendingItems
     .map((item) => item.dueDate ?? candidate.periodDueDate)
     .filter((date): date is string => Boolean(date));

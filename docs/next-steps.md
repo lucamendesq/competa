@@ -17,27 +17,27 @@ Legenda de peso: 🔴 impede cobrar/operar · 🟠 queima na primeira semana de 
 
 ## 1. Lacunas de produto
 
-| Falta                                          | Peso | Detalhe                                                                                                                                             |
-| ---------------------------------------------- | ---- | --------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Falta                                          | Peso | Detalhe                                                                                                                                                                  |
+| ---------------------------------------------- | ---- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
 | **Cobrança / assinatura**                      | 🔴   | Não existe uma linha de código. Agora numerado: **Fase 13 do roadmap (TASK-047..050)** — ADR de gateway, schema de assinatura, checkout+webhook, régua de inadimplência. |
-| **Fase 8 — WhatsApp** (TASK-035)               | 🔴   | Citado pelos contadores no discovery como critério de troca. A tela de canais mostra "não conectado" e degrada para email.                          |
-| ~~Push de "novo pedido"~~                      | ✅   | 2026-09-11: `CollectionEventsListener.onRequestCreated` manda push de novo pedido (F10-5 completo).                                                |
-| ~~Baixar/ver Documento avulso~~                | ✅   | 2026-09-11: `GET /my/documents/:id/content` + preview/download na área do Responsável; o Painel de Pendências linka para a tela de revisão.        |
-| ~~Gestão de equipe~~                           | ✅   | 2026-09-11: `GET/DELETE /accountants`, `GET/PATCH /accounting-firm`, `GET/DELETE /invites`, telas em /configuracoes; reset de senha (§2) também.   |
-| ~~Um Responsável, várias Empresas~~            | ✅   | 2026-09-11: UNIQUE removido; `ContactScope` multi-vínculo, /my/* agregam por Empresa, revogação só apaga o user no último vínculo.                 |
-| ~~Preferências de lembrete por Contabilidade~~ | ✅   | 2026-09-11: `accounting_firm.reminder_*` (máx, D-N, gap) configuráveis na aba Lembretes; canal e hora do cron seguem fixos.                        |
-| ~~Import XLSX~~                                | ✅   | 2026-09-11: .xlsx convertido no browser (SheetJS, 1ª aba) e cabeçalhos em português aliased no servidor; a API continua recebendo só CSV.          |
-| **Fase 9 — mobile nativo** (TASK-036/037)      | 🟡   | A PWA cobre o caso por ora (instalável, push, upload).                                                                                              |
-| **Filtros avançados no Painel de Pendências**  | 🟡   | Atraso já existe (chip). Filtro por Contador ADIADO (sem atribuição empresa→contador no modelo) — gatilho no roadmap, seção "Adiados".              |
-| **Domínio de e-mail próprio por escritório**   | 🟡   | ADIADO (2026-09-11) — exige verificação DNS por firm na Resend + onboarding; gatilhos na seção "Adiados" do roadmap.                                |
-| **Assinatura digital / protocolo de entrega**  | 🟡   | Nice-to-have para coleta, mas pode virar deal-breaker se o produto for vendido para entrega formal de documentos. Não construir sem demanda validada. |
+| **Fase 8 — WhatsApp** (TASK-035)               | 🔴   | Citado pelos contadores no discovery como critério de troca. A tela de canais mostra "não conectado" e degrada para email.                                               |
+| ~~Push de "novo pedido"~~                      | ✅   | 2026-09-11: `CollectionEventsListener.onRequestCreated` manda push de novo pedido (F10-5 completo).                                                                      |
+| ~~Baixar/ver Documento avulso~~                | ✅   | 2026-09-11: `GET /my/documents/:id/content` + preview/download na área do Responsável; o Painel de Pendências linka para a tela de revisão.                              |
+| ~~Gestão de equipe~~                           | ✅   | 2026-09-11: `GET/DELETE /accountants`, `GET/PATCH /accounting-firm`, `GET/DELETE /invites`, telas em /configuracoes; reset de senha (§2) também.                         |
+| ~~Um Responsável, várias Empresas~~            | ✅   | 2026-09-11: UNIQUE removido; `ContactScope` multi-vínculo, /my/* agregam por Empresa, revogação só apaga o user no último vínculo.                                       |
+| ~~Preferências de lembrete por Contabilidade~~ | ✅   | 2026-09-11: `accounting_firm.reminder_*` (máx, D-N, gap) configuráveis na aba Lembretes; canal e hora do cron seguem fixos.                                              |
+| ~~Import XLSX~~                                | ✅   | 2026-09-11: .xlsx convertido no browser (SheetJS, 1ª aba) e cabeçalhos em português aliased no servidor; a API continua recebendo só CSV.                                |
+| **Fase 9 — mobile nativo** (TASK-036/037)      | 🟡   | A PWA cobre o caso por ora (instalável, push, upload).                                                                                                                   |
+| **Filtros avançados no Painel de Pendências**  | 🟡   | Atraso já existe (chip). Filtro por Contador ADIADO (sem atribuição empresa→contador no modelo) — gatilho no roadmap, seção "Adiados".                                   |
+| **Domínio de e-mail próprio por escritório**   | 🟡   | ADIADO (2026-09-11) — exige verificação DNS por firm na Resend + onboarding; gatilhos na seção "Adiados" do roadmap.                                                     |
+| **Assinatura digital / protocolo de entrega**  | 🟡   | Nice-to-have para coleta, mas pode virar deal-breaker se o produto for vendido para entrega formal de documentos. Não construir sem demanda validada.                    |
 
 ## 2. Autenticação e conta
 
-| Falta                                            | Peso | Detalhe                                                                                                                                                                           |
-| ------------------------------------------------ | ---- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| ~~Reset de senha do Contador~~                   | ✅   | 2026-09-11: `sendResetPassword` configurado (token 1h, sessões revogadas), telas /esqueci-senha e /redefinir-senha, link no login.                  |
-| ~~Confirmar posse do email no "perdi meu link"~~ | ✅   | 2026-09-11: fluxo em 2 passos — email de confirmação (token HMAC, 30min) antes de rotacionar; cooldown de 15min preservado (e consertado).          |
+| Falta                                            | Peso | Detalhe                                                                                                                                    |
+| ------------------------------------------------ | ---- | ------------------------------------------------------------------------------------------------------------------------------------------ |
+| ~~Reset de senha do Contador~~                   | ✅   | 2026-09-11: `sendResetPassword` configurado (token 1h, sessões revogadas), telas /esqueci-senha e /redefinir-senha, link no login.         |
+| ~~Confirmar posse do email no "perdi meu link"~~ | ✅   | 2026-09-11: fluxo em 2 passos — email de confirmação (token HMAC, 30min) antes de rotacionar; cooldown de 15min preservado (e consertado). |
 
 ## 3. Deploy, CI e infraestrutura
 
@@ -70,11 +70,11 @@ O que ainda falta:
 O que já existe: `GET /health` (toca o banco), `enableShutdownHooks()`, `helmet()`,
 `trust proxy` em produção e o `Logger` do Nest em toda falha de canal.
 
-| Falta                       | Peso | Detalhe                                                                                                                                                                                                   |
-| --------------------------- | ---- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| ~~Rastreamento de erro~~    | ✅   | Sentry instalado (2026-09-11): `@sentry/nestjs` na API, `@sentry/angular` no web, DSN via env. `tracePropagationTargets` corrigido (2026-09-14) para ligar traces front→back entre origens separadas.     |
-| ~~Log estruturado~~         | ✅   | 2026-09-14: `nestjs-pino` wired; JSON em produção, pretty em dev; todo log carrega `firmId`/`accountantId` e `reqId` automaticamente; `/health` excluído do auto-log; headers sensíveis redacted.        |
-| ~~Métrica e alerta~~        | ✅   | 2026-09-14: `reportChannelFailure` envia evento Sentry com tags `{channel, purpose}` a cada falha de email/push; `@SentryCron` nos dois crons (`reminders-daily`, `deadline-daily`) alerta miss de execução. Regra de alerta no Sentry documentada em [`deploy.md`](./deploy.md#fora-deste-runbook) (COM-19). |
+| Falta                    | Peso | Detalhe                                                                                                                                                                                                                                                                                                       |
+| ------------------------ | ---- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| ~~Rastreamento de erro~~ | ✅   | Sentry instalado (2026-09-11): `@sentry/nestjs` na API, `@sentry/angular` no web, DSN via env. `tracePropagationTargets` corrigido (2026-09-14) para ligar traces front→back entre origens separadas.                                                                                                         |
+| ~~Log estruturado~~      | ✅   | 2026-09-14: `nestjs-pino` wired; JSON em produção, pretty em dev; todo log carrega `firmId`/`accountantId` e `reqId` automaticamente; `/health` excluído do auto-log; headers sensíveis redacted.                                                                                                             |
+| ~~Métrica e alerta~~     | ✅   | 2026-09-14: `reportChannelFailure` envia evento Sentry com tags `{channel, purpose}` a cada falha de email/push; `@SentryCron` nos dois crons (`reminders-daily`, `deadline-daily`) alerta miss de execução. Regra de alerta no Sentry documentada em [`deploy.md`](./deploy.md#fora-deste-runbook) (COM-19). |
 
 ## 5. LGPD operacional
 

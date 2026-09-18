@@ -28,10 +28,7 @@ export class MessagesController {
   }
 
   @Post(':id/resend')
-  async resend(
-    @CurrentScope() scope: FirmScope,
-    @Param(zodPipe(IdParam)) params: IdParam,
-  ) {
+  async resend(@CurrentScope() scope: FirmScope, @Param(zodPipe(IdParam)) params: IdParam) {
     const result = await this.messages.resend(scope, params.id);
     if (!result) throw new NotFound('Mensagem não encontrada.');
 

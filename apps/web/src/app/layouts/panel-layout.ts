@@ -52,7 +52,6 @@ export class PanelLayout {
     void this.install.pingOnce();
   }
 
-
   protected readonly firmName = computed(() => this.auth.accountant()?.accountingFirm.name ?? '');
   protected readonly isOwner = computed(() => this.auth.accountant()?.accountant.owner === true);
   protected readonly accountantName = computed(() => this.auth.accountant()?.accountant.name ?? '');

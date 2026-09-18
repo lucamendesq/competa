@@ -59,7 +59,6 @@ export class TeamController {
     return this.devices.platformStats(scope);
   }
 
-
   @Patch('accounting-firm')
   async updateFirm(
     @CurrentScope() scope: FirmScope,

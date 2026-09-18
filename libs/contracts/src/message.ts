@@ -21,4 +21,3 @@ export const MessageListQuery = PaginationQuery.extend({
   status: z.enum(MESSAGE_STATUS).optional(),
 });
 export type MessageListQuery = z.infer<typeof MessageListQuery>;
-

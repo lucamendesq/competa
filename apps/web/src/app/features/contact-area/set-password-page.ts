@@ -34,9 +34,7 @@ import { Toaster } from '../../core/ui/toast';
             </p>
           </div>
         </div>
-        <a hlmBtn class="mt-4 w-full" routerLink="/minha-area/pendencias">
-          Ir para pendências
-        </a>
+        <a hlmBtn class="mt-4 w-full" routerLink="/minha-area/pendencias"> Ir para pendências </a>
       } @else {
         <form
           id="set-password-form"

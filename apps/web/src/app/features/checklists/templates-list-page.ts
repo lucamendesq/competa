@@ -1,7 +1,13 @@
 import { Component, computed, inject, signal } from '@angular/core';
 import { Router, RouterLink } from '@angular/router';
 import { NgIcon, provideIcons } from '@ng-icons/core';
-import { lucideCopy, lucideEye, lucideLock, lucideSquareCheckBig, lucideTrash2 } from '@ng-icons/lucide';
+import {
+  lucideCopy,
+  lucideEye,
+  lucideLock,
+  lucideSquareCheckBig,
+  lucideTrash2,
+} from '@ng-icons/lucide';
 import { HlmButtonImports } from '@spartan-ng/helm/button';
 import { apiErrorMessage } from '../../core/http/api-error';
 import { Toaster } from '../../core/ui/toast';
@@ -26,7 +32,9 @@ import { StatusPill } from '../../shared/status-pill';
     Modal,
     StatusPill,
   ],
-  providers: [provideIcons({ lucideCopy, lucideEye, lucideLock, lucideSquareCheckBig, lucideTrash2 })],
+  providers: [
+    provideIcons({ lucideCopy, lucideEye, lucideLock, lucideSquareCheckBig, lucideTrash2 }),
+  ],
   templateUrl: './templates-list-page.html',
 })
 export class TemplatesListPage {

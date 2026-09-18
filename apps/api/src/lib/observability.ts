@@ -1,12 +1,7 @@
 import * as Sentry from '@sentry/nestjs';
 
 type Channel = 'email' | 'push';
-type MessagePurpose =
-  | 'link_delivery'
-  | 'reminder'
-  | 'rejection'
-  | 'deadline_missed'
-  | 'completion';
+type MessagePurpose = 'link_delivery' | 'reminder' | 'rejection' | 'deadline_missed' | 'completion';
 
 export function reportChannelFailure(
   channel: Channel,

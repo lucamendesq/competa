@@ -31,7 +31,11 @@ import { Modal } from './modal';
             class="bg-muted flex size-8 shrink-0 items-center justify-center rounded-full font-semibold"
             >1</span
           >
-          <span>Toque no ícone de compartilhar <ng-icon name="lucideShare" class="align-[-2px]" aria-hidden="true" /> na barra do Safari</span>
+          <span
+            >Toque no ícone de compartilhar
+            <ng-icon name="lucideShare" class="align-[-2px]" aria-hidden="true" /> na barra do
+            Safari</span
+          >
         </li>
         <li class="flex items-center gap-3">
           <span

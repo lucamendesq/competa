@@ -66,7 +66,11 @@
             (load)="previewError.set(false)"
           />
           <span class="text-muted-foreground text-xs">
-            {{ previewError() ? 'Não foi possível carregar a imagem desta URL.' : 'Prévia do logotipo' }}
+            {{
+              previewError()
+                ? 'Não foi possível carregar a imagem desta URL.'
+                : 'Prévia do logotipo'
+            }}
           </span>
         </div>
       }
@@ -74,11 +78,7 @@
 
     @if (isOwner()) {
       <div class="flex justify-end pt-2">
-        <button
-          hlmBtn
-          type="submit"
-          [disabled]="saving() || !isDirty() || !name().trim()"
-        >
+        <button hlmBtn type="submit" [disabled]="saving() || !isDirty() || !name().trim()">
           {{ saving() ? 'Salvando…' : 'Salvar alterações' }}
         </button>
       </div>

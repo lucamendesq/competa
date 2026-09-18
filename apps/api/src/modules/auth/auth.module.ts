@@ -21,4 +21,3 @@ import { UserDeviceRepository } from './user-device.repository.js';
   controllers: [AuthController, InviteController, TeamController],
 })
 export class AuthModule {}
-

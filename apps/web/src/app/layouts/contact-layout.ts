@@ -28,7 +28,6 @@ export class ContactLayout {
   private readonly router = inject(Router);
   private readonly install = inject(InstallService);
 
-
   protected readonly perfil = computed(() => this.auth.contact());
 
   protected readonly nav = [
@@ -39,7 +38,6 @@ export class ContactLayout {
   constructor() {
     void this.install.pingOnce();
   }
-
 
   protected async sair() {
     await this.auth.signOut();

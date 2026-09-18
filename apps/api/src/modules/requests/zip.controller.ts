@@ -79,7 +79,9 @@ export class ZipController {
     const sizes: (number | undefined)[] = [];
     for (let start = 0; start < entries.length; start += 8) {
       const batch = entries.slice(start, start + 8);
-      sizes.push(...(await Promise.all(batch.map((entry) => this.storage.statSize(entry.storageKey)))));
+      sizes.push(
+        ...(await Promise.all(batch.map((entry) => this.storage.statSize(entry.storageKey)))),
+      );
     }
     const missing = entries.filter((_, index) => sizes[index] === undefined);
 

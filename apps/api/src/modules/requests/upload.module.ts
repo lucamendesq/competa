@@ -10,7 +10,13 @@ import { UploadThrottlerGuard } from './upload-throttler.guard.js';
 @Module({
   imports: [StorageModule],
   controllers: [UploadController],
-  providers: [UploadTokenGuard, UploadThrottlerGuard, UploadLinkRepository, DocumentRepository, UploadService],
+  providers: [
+    UploadTokenGuard,
+    UploadThrottlerGuard,
+    UploadLinkRepository,
+    DocumentRepository,
+    UploadService,
+  ],
   exports: [UploadService, DocumentRepository, UploadLinkRepository],
 })
 export class UploadModule {}

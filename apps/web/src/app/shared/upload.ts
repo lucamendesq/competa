@@ -93,6 +93,5 @@ export const uploadFiles = async (files: File[], deps: Dependencies): Promise<Fi
     );
   }
 
-
   return results;
 };

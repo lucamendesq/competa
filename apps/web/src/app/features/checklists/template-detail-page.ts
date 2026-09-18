@@ -1,6 +1,11 @@
 import { Component, computed, inject, input, linkedSignal, signal } from '@angular/core';
 import { Router, RouterLink } from '@angular/router';
-import { COMPANY_FLAGS, PERIODICITIES, type CompanyFlag, type Periodicity } from '@contabilidade/contracts';
+import {
+  COMPANY_FLAGS,
+  PERIODICITIES,
+  type CompanyFlag,
+  type Periodicity,
+} from '@contabilidade/contracts';
 import { NgIcon, provideIcons } from '@ng-icons/core';
 import { lucideLock, lucidePlus, lucideTrash2 } from '@ng-icons/lucide';
 import { HlmButtonImports } from '@spartan-ng/helm/button';

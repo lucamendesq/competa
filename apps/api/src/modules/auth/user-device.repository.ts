@@ -6,12 +6,7 @@ import type {
   DeviceStatsResponse,
 } from '@contabilidade/contracts';
 import { Database } from '../../infra/database/database.js';
-import {
-  accountant,
-  company,
-  contact,
-  userDevice,
-} from '../../infra/database/schema/index.js';
+import { accountant, company, contact, userDevice } from '../../infra/database/schema/index.js';
 import type { FirmScope } from './scope.js';
 
 const emptyAudienceStats = (): AudienceDeviceStats => ({
@@ -25,14 +20,18 @@ const emptyAudienceStats = (): AudienceDeviceStats => ({
   },
 });
 
-const aggregateAudience = (rows: { platform: string; installed: boolean }[]): AudienceDeviceStats => {
+const aggregateAudience = (
+  rows: { platform: string; installed: boolean }[],
+): AudienceDeviceStats => {
   const result = emptyAudienceStats();
   result.total = rows.length;
 
   for (const row of rows) {
     if (row.installed) result.installed++;
 
-    const platformKey = (row.platform in result.byPlatform ? row.platform : 'other') as DevicePlatform;
+    const platformKey = (
+      row.platform in result.byPlatform ? row.platform : 'other'
+    ) as DevicePlatform;
     result.byPlatform[platformKey].total++;
     if (row.installed) {
       result.byPlatform[platformKey].installed++;

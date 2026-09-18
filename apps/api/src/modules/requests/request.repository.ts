@@ -209,7 +209,12 @@ export class RequestRepository {
        * link de novo por cima de uma decisão já tomada (AUTHZ-5). */
       const rejected = await tx
         .update(document)
-        .set({ reviewStatus: 'rejected', rejectionReason: reason, reviewedBy, reviewedAt: new Date() })
+        .set({
+          reviewStatus: 'rejected',
+          rejectionReason: reason,
+          reviewedBy,
+          reviewedAt: new Date(),
+        })
         .where(and(eq(document.id, documentId), ne(document.reviewStatus, 'rejected')))
         .returning({ id: document.id });
 

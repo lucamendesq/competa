@@ -301,9 +301,7 @@ export class ContactRepository {
       .innerJoin(company, eq(company.id, request.companyId))
       .where(
         and(
-          companyId
-            ? eq(request.companyId, companyId)
-            : inArray(request.companyId, companyIds),
+          companyId ? eq(request.companyId, companyId) : inArray(request.companyId, companyIds),
           eq(period.id, periodId),
         ),
       )
@@ -504,4 +502,3 @@ export class ContactRepository {
       .where(inArray(contact.companyId, companyIds));
   }
 }
-

@@ -37,9 +37,7 @@
           </p>
           <button hlmBtn [disabled]="inviting()" (click)="sendInvites()">
             <ng-icon name="lucideMail" aria-hidden="true" />
-            {{
-              inviting() ? 'Enviando…' : 'Enviar convites de acesso (' + actionableCount() + ')'
-            }}
+            {{ inviting() ? 'Enviando…' : 'Enviar convites de acesso (' + actionableCount() + ')' }}
           </button>
         } @else {
           <p class="flex min-w-0 flex-1 items-center gap-2 text-xs text-success">
@@ -131,7 +129,9 @@
           <ng-icon name="lucideUpload" class="text-xl" aria-hidden="true" />
         </span>
 
-        <p class="mt-4 text-sm font-medium">Arraste sua planilha (.xlsx ou .csv) aqui ou escolha o arquivo</p>
+        <p class="mt-4 text-sm font-medium">
+          Arraste sua planilha (.xlsx ou .csv) aqui ou escolha o arquivo
+        </p>
         <p class="text-muted-foreground mt-1 text-xs">
           Aceita o .xlsx exportado do seu sistema ou um CSV. Só a primeira aba é lida.
         </p>
@@ -185,7 +185,8 @@
       <div class="border-border border-b p-4">
         <h2 class="text-sm font-semibold">Colunas esperadas</h2>
         <p class="text-muted-foreground mt-1 text-xs">
-          A primeira linha da planilha precisa ter estes nomes de coluna (variações como "Razão Social", "E-mail do responsável" e "WhatsApp" também são aceitas).
+          A primeira linha da planilha precisa ter estes nomes de coluna (variações como "Razão
+          Social", "E-mail do responsável" e "WhatsApp" também são aceitas).
         </p>
       </div>
 

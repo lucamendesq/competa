@@ -166,7 +166,13 @@ ${linkButton(url, 'Entrar')}
 <p style="color:#64748b;font-size:12px">Se não foi você que pediu, ignore este email.</p>`,
 });
 
-export const recoverConfirmEmail = ({ name, confirmUrl }: { name: string; confirmUrl: string }) => ({
+export const recoverConfirmEmail = ({
+  name,
+  confirmUrl,
+}: {
+  name: string;
+  confirmUrl: string;
+}) => ({
   subject: 'Confirme que é você para receber um novo link de envio',
   body: `<p>Olá${name ? `, ${escape(name)}` : ''}.</p>
 <p>Recebemos um pedido de um novo link de envio de documentos para este email.

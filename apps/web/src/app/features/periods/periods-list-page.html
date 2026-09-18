@@ -181,9 +181,7 @@
           class="rounded-lg border border-warning-border bg-warning-surface p-3 text-sm text-warning-foreground"
           role="note"
         >
-          <p class="font-medium">
-            {{ result()!.warnings.length }} empresa(s) ficaram de fora:
-          </p>
+          <p class="font-medium">{{ result()!.warnings.length }} empresa(s) ficaram de fora:</p>
           <ul class="mt-2 flex flex-col gap-1">
             @for (warning of result()!.warnings; track warning.companyId) {
               <li class="flex flex-wrap items-center justify-between gap-2">

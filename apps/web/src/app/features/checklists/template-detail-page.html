@@ -331,19 +331,17 @@
     title="Excluir modelo de checklist?"
   >
     <p class="text-sm">
-      Tem certeza de que deseja excluir este modelo? Esta ação não pode ser desfeita. Modelos vinculados a empresas não podem ser excluídos.
+      Tem certeza de que deseja excluir este modelo? Esta ação não pode ser desfeita. Modelos
+      vinculados a empresas não podem ser excluídos.
     </p>
 
     <div
       class="border-border bg-muted/40 -mx-5 -mb-5 mt-5 flex flex-wrap justify-end gap-2 border-t p-4"
     >
-      <button hlmBtn variant="ghost" (click)="confirmDelete.set(false)" [disabled]="acting()">Cancelar</button>
-      <button
-        hlmBtn
-        variant="destructive"
-        [disabled]="acting()"
-        (click)="deleteTemplate()"
-      >
+      <button hlmBtn variant="ghost" (click)="confirmDelete.set(false)" [disabled]="acting()">
+        Cancelar
+      </button>
+      <button hlmBtn variant="destructive" [disabled]="acting()" (click)="deleteTemplate()">
         {{ acting() ? 'Excluindo…' : 'Excluir modelo' }}
       </button>
     </div>

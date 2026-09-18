@@ -76,7 +76,11 @@ export class PeriodRepository {
 
   async activeCompanies(scope: FirmScope) {
     const companies = await this.db
-      .select({ id: company.id, name: company.name, checklistTemplateId: company.checklistTemplateId })
+      .select({
+        id: company.id,
+        name: company.name,
+        checklistTemplateId: company.checklistTemplateId,
+      })
       .from(company)
       .where(and(eq(company.accountingFirmId, scope), eq(company.active, true)))
       .orderBy(company.name);

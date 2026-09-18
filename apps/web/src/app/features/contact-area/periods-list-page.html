@@ -37,7 +37,8 @@
               @if (item.pendingCount) {
                 Faltam {{ item.pendingCount }} de {{ item.itemCount }} itens
               } @else {
-                {{ item.deliveredCount }} {{ item.deliveredCount === 1 ? 'documento entregue' : 'documentos entregues' }}
+                {{ item.deliveredCount }}
+                {{ item.deliveredCount === 1 ? 'documento entregue' : 'documentos entregues' }}
               }
               @if (item.dueDate) {
                 · Prazo {{ dateBr(item.dueDate) }}

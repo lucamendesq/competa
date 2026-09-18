@@ -33,10 +33,7 @@ export class UploadLinkRepository {
       .where(
         or(
           eq(uploadLink.tokenHash, tokenHash),
-          and(
-            eq(uploadLink.previousTokenHash, tokenHash),
-            gt(uploadLink.previousExpiresAt, now),
-          ),
+          and(eq(uploadLink.previousTokenHash, tokenHash), gt(uploadLink.previousExpiresAt, now)),
         ),
       )
       .limit(1);

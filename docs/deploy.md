@@ -73,15 +73,15 @@ wrangler pages project create competa-web
 
 Settings → Secrets and variables → Actions:
 
-| Secret                        | De onde                                    |
-| ----------------------------- | ------------------------------------------- |
-| `FLY_API_TOKEN`               | passo 2                                     |
-| `CLOUDFLARE_API_TOKEN`        | passo 3                                     |
-| `CLOUDFLARE_ACCOUNT_ID`       | passo 3                                     |
+| Secret                        | De onde                                      |
+| ----------------------------- | -------------------------------------------- |
+| `FLY_API_TOKEN`               | passo 2                                      |
+| `CLOUDFLARE_API_TOKEN`        | passo 3                                      |
+| `CLOUDFLARE_ACCOUNT_ID`       | passo 3                                      |
 | `BACKUP_DATABASE_URL`         | [`backup.md`](./backup.md) (setup do backup) |
-| `BACKUP_R2_ACCESS_KEY_ID`     | idem                                        |
-| `BACKUP_R2_SECRET_ACCESS_KEY` | idem                                        |
-| `BACKUP_R2_ENDPOINT`          | idem                                        |
+| `BACKUP_R2_ACCESS_KEY_ID`     | idem                                         |
+| `BACKUP_R2_SECRET_ACCESS_KEY` | idem                                         |
+| `BACKUP_R2_ENDPOINT`          | idem                                         |
 
 ## 5. Depois disso
 
@@ -99,7 +99,7 @@ Settings → Secrets and variables → Actions:
 - **Sentry e Alertas**:
   - DSN configurado via env nos dois apps (`@sentry/nestjs` e `@sentry/angular`).
   - **Regra de Alerta de Canal** (COM-19): criar em **Sentry > Alerts > Create Alert**:
-    - **Tipo**: *Issues* ou *Number of Errors*
+    - **Tipo**: _Issues_ ou _Number of Errors_
     - **Filtro**: `tag[channel]:*` (ou `channel:email OR channel:push`)
     - **Ambiente**: `production`
     - **Condição**: Notificar imediatamente quando qualquer exceção com tag `channel` for capturada via `reportChannelFailure` (finalidades: `link_delivery`, `reminder`, `rejection`, `deadline_missed`, `completion`).

@@ -61,10 +61,7 @@ export class ChecklistTemplatesController {
 
   @Delete(':id')
   @HttpCode(204)
-  async delete(
-    @CurrentScope() scope: FirmScope,
-    @Param(zodPipe(IdParam)) params: IdParam,
-  ) {
+  async delete(@CurrentScope() scope: FirmScope, @Param(zodPipe(IdParam)) params: IdParam) {
     await this.requireOwned(scope, params.id);
 
     const count = await this.checklists.countCompaniesUsingTemplate(scope, params.id);

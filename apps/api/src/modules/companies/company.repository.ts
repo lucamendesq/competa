@@ -114,7 +114,6 @@ export class CompanyRepository {
       searchFilter,
     );
 
-
     const [rows, [total]] = await Promise.all([
       this.db
         .select({

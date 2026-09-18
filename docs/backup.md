@@ -32,9 +32,9 @@ pg_restore -d competa_restore --no-owner --no-privileges competa-YYYYMMDD.dump
 **Teste trimestral de restore** (backup nunca restaurado não é backup): rodar o runbook num
 banco descartável e anotar aqui.
 
-| Data | Dump usado | Resultado | Quem |
-| ---- | ---------- | --------- | ---- |
-| —    | —          | pendente (primeiro teste após o primeiro dump) | — |
+| Data | Dump usado | Resultado                                      | Quem |
+| ---- | ---------- | ---------------------------------------------- | ---- |
+| —    | —          | pendente (primeiro teste após o primeiro dump) | —    |
 
 ## R2 (documentos)
 
@@ -53,15 +53,15 @@ banco descartável e anotar aqui.
 Cofre dedicado (Vault/Doppler) é overkill para 2 operadores; o par Fly secrets + GitHub
 secrets é o cofre. O que existe e onde:
 
-| Segredo | Onde vive | Se perder |
-| ------- | --------- | --------- |
-| `BETTER_AUTH_SECRET` | Fly secrets | invalida toda sessão E os tokens de recuperação assinados |
-| `DB_PASS` / `BACKUP_DATABASE_URL` | Fly / GitHub | rotacionar na Supabase |
-| Chaves R2 (documentos) | Fly secrets | rotacionar na Cloudflare |
-| Chaves R2 (backup, write-only) | GitHub secrets | rotacionar na Cloudflare |
-| `RESEND_API_KEY` | Fly secrets | rotacionar na Resend |
-| Par VAPID | Fly secrets | perder a privada mata TODAS as inscrições de push |
-| `DB_SSL_CA` | Fly secrets | rebaixar do dashboard da Supabase |
-| `FLY_API_TOKEN`, `CLOUDFLARE_API_TOKEN` | GitHub secrets | rotacionar nos provedores |
+| Segredo                                 | Onde vive      | Se perder                                                 |
+| --------------------------------------- | -------------- | --------------------------------------------------------- |
+| `BETTER_AUTH_SECRET`                    | Fly secrets    | invalida toda sessão E os tokens de recuperação assinados |
+| `DB_PASS` / `BACKUP_DATABASE_URL`       | Fly / GitHub   | rotacionar na Supabase                                    |
+| Chaves R2 (documentos)                  | Fly secrets    | rotacionar na Cloudflare                                  |
+| Chaves R2 (backup, write-only)          | GitHub secrets | rotacionar na Cloudflare                                  |
+| `RESEND_API_KEY`                        | Fly secrets    | rotacionar na Resend                                      |
+| Par VAPID                               | Fly secrets    | perder a privada mata TODAS as inscrições de push         |
+| `DB_SSL_CA`                             | Fly secrets    | rebaixar do dashboard da Supabase                         |
+| `FLY_API_TOKEN`, `CLOUDFLARE_API_TOKEN` | GitHub secrets | rotacionar nos provedores                                 |
 
 Regra: valor de produção nunca entra no repo nem no `.env` de dev.

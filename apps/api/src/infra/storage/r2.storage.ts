@@ -47,7 +47,10 @@ export class R2Storage extends StorageProvider {
       }),
       /* content-type assinado (SSRF-1): o PUT só aceita o tipo declarado no presign — o
        * mesmo que foi validado e gravado em `document.content_type`. */
-      { expiresIn: PRESIGN_TTL_SECONDS, signableHeaders: new Set(['content-length', 'content-type']) },
+      {
+        expiresIn: PRESIGN_TTL_SECONDS,
+        signableHeaders: new Set(['content-length', 'content-type']),
+      },
     );
   }
 

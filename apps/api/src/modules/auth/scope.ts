@@ -19,11 +19,9 @@ export const toFirmScope = (accountingFirmId: string) => accountingFirmId as Fir
 export const toContactScope = (memberships: ContactMembership[]) =>
   ({ memberships }) as ContactScope;
 
-export const companyIdsOf = (scope: ContactScope) =>
-  scope.memberships.map((row) => row.companyId);
+export const companyIdsOf = (scope: ContactScope) => scope.memberships.map((row) => row.companyId);
 
-export const contactIdsOf = (scope: ContactScope) =>
-  scope.memberships.map((row) => row.contactId);
+export const contactIdsOf = (scope: ContactScope) => scope.memberships.map((row) => row.contactId);
 
 export const toUploadScope = (requestId: string, contactId: string) =>
   ({ requestId, contactId }) as UploadScope;

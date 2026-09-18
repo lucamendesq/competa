@@ -17,6 +17,7 @@ import {
   checklistTemplate,
   company,
   document,
+  documentType,
   invite,
   message,
   period,
@@ -94,7 +95,11 @@ async function run() {
 
     // Validar findOwnedCompany com scope da Firm D
     const ownedForeign = await contactRepo.findOwnedCompany(firmScope, foreignCompanyId);
-    assert.equal(ownedForeign, false, 'findOwnedCompany deve retornar false para empresa estrangeira');
+    assert.equal(
+      ownedForeign,
+      false,
+      'findOwnedCompany deve retornar false para empresa estrangeira',
+    );
 
     const randomId = uuidv7();
     const ownedRandom = await contactRepo.findOwnedCompany(firmScope, randomId);
@@ -253,13 +258,12 @@ async function run() {
     // BUG-07: conditionFlag aceita apenas flags válidas
     console.log('  -> Verificando BUG-07 (conditionFlag allowlist)...');
     const dummyDocTypeId = uuidv7();
-    assert.throws(
-      () =>
-        CreateTemplateItemBody.parse({
-          documentTypeId: dummyDocTypeId,
-          periodicity: 'monthly',
-          conditionFlag: 'flag_arbitraria_invalida' as any,
-        }),
+    assert.throws(() =>
+      CreateTemplateItemBody.parse({
+        documentTypeId: dummyDocTypeId,
+        periodicity: 'monthly',
+        conditionFlag: 'flag_arbitraria_invalida' as any,
+      }),
     );
     assert.ok(
       CreateTemplateItemBody.parse({
@@ -379,13 +383,12 @@ async function run() {
     // BUG-11: Revoke vs concurrent signup
     await inviteRepo.revoke(firmScope, createdInvite.id);
     const dummyAuthUserId = uuidv7();
-    await assert.rejects(
-      () =>
-        accountantRepo.acceptInvite({
-          authUserId: dummyAuthUserId,
-          accountingFirmId: firmId,
-          inviteId: createdInvite.id,
-        }),
+    await assert.rejects(() =>
+      accountantRepo.acceptInvite({
+        authUserId: dummyAuthUserId,
+        accountingFirmId: firmId,
+        inviteId: createdInvite.id,
+      }),
     );
     console.log('  ✓ BUG-11, BUG-14, BUG-15, BUG-18 validados.');
 

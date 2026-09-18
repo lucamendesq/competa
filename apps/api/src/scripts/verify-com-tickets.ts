@@ -104,7 +104,11 @@ async function run() {
       .select()
       .from(company)
       .where(and(eq(company.accountingFirmId, firmId), eq(company.cnpj, cnpjTest)));
-    assert.equal(updatedCompany.name, 'Empresa Teste CNPJ Renomeada', 'Nome deveria ter sido atualizado no upsert');
+    assert.equal(
+      updatedCompany.name,
+      'Empresa Teste CNPJ Renomeada',
+      'Nome deveria ter sido atualizado no upsert',
+    );
 
     // Testar mensagem de erro genérica em caso de falha de banco
     try {
@@ -260,7 +264,11 @@ async function run() {
     );
 
     const reasonEmpty = rejectionReason(filesBatch[3], ['pdf']);
-    assert.equal(reasonEmpty, 'Nome do arquivo não pode ser vazio.', 'Nome vazio deve ter motivo correto');
+    assert.equal(
+      reasonEmpty,
+      'Nome do arquivo não pode ser vazio.',
+      'Nome vazio deve ter motivo correto',
+    );
 
     console.log('✓ COM-36 verificado com sucesso!\n');
 

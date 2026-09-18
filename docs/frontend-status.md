@@ -5,26 +5,26 @@ configuração para funcionar. Complementa o [`roadmap.md`](./roadmap.md).
 
 ## Telas entregues
 
-| Rota                                     | Tela                                                              | Estado                                             |
-| ---------------------------------------- | ----------------------------------------------------------------- | -------------------------------------------------- |
-| `/entrar`                                | Login do Contador (com "Esqueci minha senha")                     | completa                                           |
-| `/esqueci-senha`, `/redefinir-senha`     | Reset de senha do Contador (token 1h, resposta cega)              | completa (2026-09-11)                              |
-| `/convite/:token`                        | Aceitar convite (define senha, Contador e Responsável)            | completa; convite já usado manda para a entrada    |
-| `/perdi-meu-link`                        | Pedido de novo Link (passo 1: email de confirmação de posse)      | completa (2 passos desde 2026-09-11)               |
-| `/perdi-meu-link/confirmar`              | Passo 2: botão que confirma posse e rotaciona o Link              | completa (2026-09-11)                              |
-| `/termos`, `/privacidade`                | Páginas legais (conteúdo provisório até revisão jurídica)         | completa (2026-09-11); aceite em `user.terms_accepted_at` |
-| `/competencias`                          | Lista + KPIs + modal "Abrir competência"                          | completa, com prévia do fan-out e resumo dos links |
-| `/competencias/:id`                      | **Painel de Pendências** ("quem faltou")                          | completa, com falha de canal visível               |
-| `/solicitacoes/:id`                      | Revisão da Solicitação (aceite em lote, rejeição, extras, preview/baixar avulso) | completa                             |
-| `/empresas`                              | Lista de Empresas                                                 | completa                                           |
-| `/empresas/nova`, `/empresas/:id/editar` | Cadastro/edição + prévia do checklist efetivo                     | completa                                           |
-| `/empresas/importar`                     | Importar planilha + relatório por linha                           | completa (.xlsx e .csv, cabeçalhos PT aceitos)     |
-| `/empresas/:id/checklist`                | Overrides por Empresa                                             | completa                                           |
-| `/checklists`, `/checklists/:id`         | Templates do produto e derivados editáveis                        | completa                                           |
-| `/mensagens`                             | Log de entrega + detalhe do erro                                  | completa (2026-09-15)                              |
-| `/configuracoes/*`                       | Contabilidade (nome editável) · Contadores (lista/remover/convites) · Lembretes (preferências) · Canais | completa desde 2026-09-11, menos Canais (WhatsApp = Fase 8) |
-| `/envio/:token`                          | **Página pública de envio** (mobile-first, sem senha)             | completa                                           |
-| `/minha-area/*`                          | Área do Responsável (acesso, pendências, histórico, envio logado, preview/baixar documento, multi-empresa com badge) | completa                     |
+| Rota                                     | Tela                                                                                                                 | Estado                                                      |
+| ---------------------------------------- | -------------------------------------------------------------------------------------------------------------------- | ----------------------------------------------------------- |
+| `/entrar`                                | Login do Contador (com "Esqueci minha senha")                                                                        | completa                                                    |
+| `/esqueci-senha`, `/redefinir-senha`     | Reset de senha do Contador (token 1h, resposta cega)                                                                 | completa (2026-09-11)                                       |
+| `/convite/:token`                        | Aceitar convite (define senha, Contador e Responsável)                                                               | completa; convite já usado manda para a entrada             |
+| `/perdi-meu-link`                        | Pedido de novo Link (passo 1: email de confirmação de posse)                                                         | completa (2 passos desde 2026-09-11)                        |
+| `/perdi-meu-link/confirmar`              | Passo 2: botão que confirma posse e rotaciona o Link                                                                 | completa (2026-09-11)                                       |
+| `/termos`, `/privacidade`                | Páginas legais (conteúdo provisório até revisão jurídica)                                                            | completa (2026-09-11); aceite em `user.terms_accepted_at`   |
+| `/competencias`                          | Lista + KPIs + modal "Abrir competência"                                                                             | completa, com prévia do fan-out e resumo dos links          |
+| `/competencias/:id`                      | **Painel de Pendências** ("quem faltou")                                                                             | completa, com falha de canal visível                        |
+| `/solicitacoes/:id`                      | Revisão da Solicitação (aceite em lote, rejeição, extras, preview/baixar avulso)                                     | completa                                                    |
+| `/empresas`                              | Lista de Empresas                                                                                                    | completa                                                    |
+| `/empresas/nova`, `/empresas/:id/editar` | Cadastro/edição + prévia do checklist efetivo                                                                        | completa                                                    |
+| `/empresas/importar`                     | Importar planilha + relatório por linha                                                                              | completa (.xlsx e .csv, cabeçalhos PT aceitos)              |
+| `/empresas/:id/checklist`                | Overrides por Empresa                                                                                                | completa                                                    |
+| `/checklists`, `/checklists/:id`         | Templates do produto e derivados editáveis                                                                           | completa                                                    |
+| `/mensagens`                             | Log de entrega + detalhe do erro                                                                                     | completa (2026-09-15)                                       |
+| `/configuracoes/*`                       | Contabilidade (nome editável) · Contadores (lista/remover/convites) · Lembretes (preferências) · Canais              | completa desde 2026-09-11, menos Canais (WhatsApp = Fase 8) |
+| `/envio/:token`                          | **Página pública de envio** (mobile-first, sem senha)                                                                | completa                                                    |
+| `/minha-area/*`                          | Área do Responsável (acesso, pendências, histórico, envio logado, preview/baixar documento, multi-empresa com badge) | completa                                                    |
 
 ## Degradado por falta de rota na API
 
@@ -102,12 +102,12 @@ dono pela tela.
 A conta **nunca** é pré-requisito de enviar documento. O único email obrigatório do produto
 é o Link de Upload, na abertura da Competência.
 
-| Momento                                         | O que acontece                                                                                                 |
-| ----------------------------------------------- | -------------------------------------------------------------------------------------------------------------- |
-| Cadastro da Empresa / novo Responsável          | **Nada é enviado a ele**                                                                                       |
-| Abertura da Competência (fan-out)               | **Link de envio** (`/envio/:token`) — toda Empresa ativa com email de Responsável                              |
-| Tela de sucesso do envio                        | Duas ofertas: **"Ativar avisos neste aparelho"** (push, sem conta) e **"Ativar acesso"** (um toque, sem senha) |
-| Painel → Empresas                               | **"Convidar para o app"** por Empresa — atalho do Contador que quer empurrar, nunca mecanismo                  |
+| Momento                                         | O que acontece                                                                                                                                               |
+| ----------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------ |
+| Cadastro da Empresa / novo Responsável          | **Nada é enviado a ele**                                                                                                                                     |
+| Abertura da Competência (fan-out)               | **Link de envio** (`/envio/:token`) — toda Empresa ativa com email de Responsável                                                                            |
+| Tela de sucesso do envio                        | Duas ofertas: **"Ativar avisos neste aparelho"** (push, sem conta) e **"Ativar acesso"** (um toque, sem senha)                                               |
+| Painel → Empresas                               | **"Convidar para o app"** por Empresa — atalho do Contador que quer empurrar, nunca mecanismo                                                                |
 | Home → **"Perdi meu link"** (`/perdi-meu-link`) | 2 passos (2026-09-11): email de confirmação de posse → botão em `/perdi-meu-link/confirmar` rotaciona e reenvia. Quem já tem acesso recebe magic link direto |
 
 **Duas criações de conta, prazos de validade opostos** (ver Amendment da D14):

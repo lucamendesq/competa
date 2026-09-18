@@ -50,7 +50,8 @@ export const entersFanOut = (line: ChecklistLine, referenceMonthNumber: number) 
   (line.periodicity === 'monthly' ||
     (line.periodicity === 'annual' && line.annualMonth === referenceMonthNumber));
 
-const canBeCharged = (row: CompanyRow) => Boolean(row.checklistTemplateId) && Boolean(row.contact?.email);
+const canBeCharged = (row: CompanyRow) =>
+  Boolean(row.checklistTemplateId) && Boolean(row.contact?.email);
 
 export const planFanOut = (input: {
   companies: CompanyRow[];
