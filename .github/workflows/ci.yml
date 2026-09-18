@@ -35,33 +35,30 @@ jobs:
           FLY_API_TOKEN: ${{ secrets.FLY_API_TOKEN }}
 
   deploy-web:
-    needs: build-lint
-    if: github.ref == 'refs/heads/main' && github.event_name == 'push'
     runs-on: ubuntu-latest
     permissions:
       contents: read
       deployments: write
+    name: Deploy to Cloudflare Pages
+    needs: build-lint
+    if: github.ref == 'refs/heads/main' && github.event_name == 'push'
 
     steps:
-      - uses: actions/checkout@v4
-
-      - uses: pnpm/action-setup@v4
-
-      - uses: actions/setup-node@v4
-        with:
-          node-version-file: .nvmrc
-          cache: pnpm
+      - uses: actions/checkout@v6
+      # - uses: pnpm/action-setup@v4
+      # - uses: actions/setup-node@v4
+      #   with:
+      #     node-version-file: .nvmrc
+      #     cache: pnpm
 
       - run: pnpm install --frozen-lockfile
       - run: pnpm --filter @contabilidade/contracts build
       - run: pnpm --filter web build
 
-      - name: Deploy to Cloudflare Pages
+      - name: Deploy
         uses: cloudflare/wrangler-action@v4
         with:
           apiToken: ${{ secrets.CLOUDFLARE_API_TOKEN }}
           accountId: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
-          command: pages deploy ./dist --project-name=competa-web --branch=main
-        env:
-          CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
-          CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
+          command: pages deploy ./apps/web/dist --project-name=competa-web
+          gitHubToken: ${{ secrets.GITHUB_TOKEN }}
