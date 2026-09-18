@@ -66,8 +66,8 @@ wrangler pages project create competa-web
 - No painel Cloudflare → Pages → `competa-web` → Custom domains → adicionar `app.competa.com.br`.
 - Token pro CI: My Profile → API Tokens → criar um com permissão **Pages:Edit** → secret
   `CLOUDFLARE_API_TOKEN`; o Account ID (barra lateral do dashboard) → `CLOUDFLARE_ACCOUNT_ID`.
-- Não precisa configurar build no painel — o `deploy.yml` builda no CI e sobe via
-  `cloudflare/pages-action` (direct upload).
+- Não precisa configurar build no painel — o `ci.yml` builda no CI e sobe via
+  `cloudflare/wrangler-action` (direct upload).
 
 ## 4. Secrets no GitHub
 

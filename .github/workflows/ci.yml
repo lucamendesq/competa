@@ -52,9 +52,8 @@ jobs:
       - run: pnpm --filter @contabilidade/contracts build
       - run: pnpm --filter web build
 
-      - uses: cloudflare/pages-action@v1
+      - uses: cloudflare/wrangler-action@v3
         with:
           apiToken: ${{ secrets.CLOUDFLARE_API_TOKEN }}
           accountId: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
-          projectName: competa-web
-          directory: apps/web/dist/web/browser
+          command: pages deploy apps/web/dist/web/browser --project-name=competa-web
