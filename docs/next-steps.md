@@ -74,7 +74,7 @@ O que já existe: `GET /health` (toca o banco), `enableShutdownHooks()`, `helmet
 | --------------------------- | ---- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
 | ~~Rastreamento de erro~~    | ✅   | Sentry instalado (2026-09-11): `@sentry/nestjs` na API, `@sentry/angular` no web, DSN via env. `tracePropagationTargets` corrigido (2026-09-14) para ligar traces front→back entre origens separadas.     |
 | ~~Log estruturado~~         | ✅   | 2026-09-14: `nestjs-pino` wired; JSON em produção, pretty em dev; todo log carrega `firmId`/`accountantId` e `reqId` automaticamente; `/health` excluído do auto-log; headers sensíveis redacted.        |
-| ~~Métrica e alerta~~        | ✅   | 2026-09-14: `reportChannelFailure` envia evento Sentry com tags `{channel, purpose}` a cada falha de email/push; `@SentryCron` nos dois crons (`reminders-daily`, `deadline-daily`) alerta miss de execução. Criar regra de alerta em **Sentry > Alerts** sobre eventos com tag `channel` para fechar o ciclo. |
+| ~~Métrica e alerta~~        | ✅   | 2026-09-14: `reportChannelFailure` envia evento Sentry com tags `{channel, purpose}` a cada falha de email/push; `@SentryCron` nos dois crons (`reminders-daily`, `deadline-daily`) alerta miss de execução. Regra de alerta no Sentry documentada em [`deploy.md`](./deploy.md#fora-deste-runbook) (COM-19). |
 
 ## 5. LGPD operacional
 

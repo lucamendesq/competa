@@ -32,7 +32,7 @@ Decisão de 2026-09-07: construir a tela com o que a API expõe hoje, em vez de 
 endpoint. **Revisão 2026-09-11: a maioria das lacunas fechou** — ficou assim:
 
 1. ~~Configurações → Contabilidade somente leitura~~ — ✅ `GET/PATCH /accounting-firm`
-   (nome + preferências de lembrete, só o dono). Logotipo/e-mail de contato seguem fora.
+   (nome, preferências de lembrete, logotipo e e-mail de contato, só o dono — COM-24).
 2. ~~Configurações → Contadores não lista a equipe~~ — ✅ lista (`GET /accountants`),
    remove com confirmação (`DELETE /accountants/:id`, nunca o dono), convites pendentes
    com revogação (`GET/DELETE /invites`).

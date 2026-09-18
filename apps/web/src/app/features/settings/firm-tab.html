@@ -4,35 +4,90 @@
     <p class="text-muted-foreground mt-1 text-xs">Dados do escritório e da sua conta.</p>
   </div>
 
-  <div class="p-4">
-    <label hlmLabel for="firm-name">Nome da contabilidade</label>
-    <div class="mt-1.5 flex flex-wrap gap-2">
+  <form (ngSubmit)="save()" class="space-y-4 p-4">
+    <div>
+      <label hlmLabel for="firm-name">Nome da contabilidade</label>
       <input
         hlmInput
         id="firm-name"
-        class="flex-1"
+        class="mt-1.5 w-full"
         [ngModel]="name()"
         (ngModelChange)="name.set($event)"
         [disabled]="!isOwner()"
+        name="firmName"
       />
-      @if (isOwner()) {
-        <button
-          hlmBtn
-          type="button"
-          [disabled]="saving() || !name().trim() || name().trim() === firm.value()?.name"
-          (click)="save()"
-        >
-          {{ saving() ? 'Salvando…' : 'Salvar' }}
-        </button>
+      <p class="text-muted-foreground mt-1.5 text-xs">
+        É o nome que o Responsável vê nos e-mails e nas telas de envio.
+      </p>
+    </div>
+
+    <div>
+      <label hlmLabel for="firm-contact-email">E-mail de contato</label>
+      <input
+        hlmInput
+        type="email"
+        id="firm-contact-email"
+        placeholder="contato@suacontabilidade.com.br"
+        class="mt-1.5 w-full"
+        [ngModel]="contactEmail()"
+        (ngModelChange)="contactEmail.set($event)"
+        [disabled]="!isOwner()"
+        name="contactEmail"
+      />
+      <p class="text-muted-foreground mt-1.5 text-xs">
+        E-mail de suporte ou atendimento exibido aos clientes.
+      </p>
+    </div>
+
+    <div>
+      <label hlmLabel for="firm-logo-url">Logotipo da contabilidade (URL)</label>
+      <input
+        hlmInput
+        type="url"
+        id="firm-logo-url"
+        placeholder="https://exemplo.com.br/logo.png"
+        class="mt-1.5 w-full"
+        [ngModel]="logoUrl()"
+        (ngModelChange)="logoUrl.set($event)"
+        [disabled]="!isOwner()"
+        name="logoUrl"
+      />
+      <p class="text-muted-foreground mt-1.5 text-xs">
+        Link público para a imagem do logotipo (PNG, SVG ou JPG).
+      </p>
+
+      @if (logoUrl().trim()) {
+        <div class="border-border bg-muted/30 mt-3 flex items-center gap-3 rounded-lg border p-3">
+          <img
+            [src]="logoUrl().trim()"
+            alt="Prévia do logotipo"
+            class="h-10 max-w-[140px] rounded object-contain"
+            (error)="previewError.set(true)"
+            (load)="previewError.set(false)"
+          />
+          <span class="text-muted-foreground text-xs">
+            {{ previewError() ? 'Não foi possível carregar a imagem desta URL.' : 'Prévia do logotipo' }}
+          </span>
+        </div>
       }
     </div>
-    <p class="text-muted-foreground mt-2 text-xs">
-      É o nome que o Responsável vê nos e-mails e nas telas de envio.
-      @if (!isOwner()) {
-        Só o dono da contabilidade pode alterá-lo.
-      }
-    </p>
-  </div>
+
+    @if (isOwner()) {
+      <div class="flex justify-end pt-2">
+        <button
+          hlmBtn
+          type="submit"
+          [disabled]="saving() || !isDirty() || !name().trim()"
+        >
+          {{ saving() ? 'Salvando…' : 'Salvar alterações' }}
+        </button>
+      </div>
+    } @else {
+      <p class="text-muted-foreground text-xs">
+        Só o dono da contabilidade pode alterar os dados da empresa.
+      </p>
+    }
+  </form>
 
   <dl class="divide-border border-border divide-y border-t">
     <div class="flex flex-wrap items-center justify-between gap-2 p-4">

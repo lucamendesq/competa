@@ -10,6 +10,8 @@ type FirmPatch = Partial<{
   reminderMax: number;
   reminderDueSoonDays: number;
   reminderGapDays: number;
+  logoUrl: string | null;
+  contactEmail: string | null;
 }>;
 
 @Injectable()
@@ -49,6 +51,8 @@ export class AccountantRepository {
         reminderMax: accountingFirm.reminderMax,
         reminderDueSoonDays: accountingFirm.reminderDueSoonDays,
         reminderGapDays: accountingFirm.reminderGapDays,
+        logoUrl: accountingFirm.logoUrl,
+        contactEmail: accountingFirm.contactEmail,
       })
       .from(accountingFirm)
       .where(eq(accountingFirm.id, scope))
@@ -75,6 +79,8 @@ export class AccountantRepository {
         email: user.email,
         firmId: accountingFirm.id,
         firmName: accountingFirm.name,
+        firmLogoUrl: accountingFirm.logoUrl,
+        firmContactEmail: accountingFirm.contactEmail,
         owner: accountant.owner,
       })
       .from(accountant)

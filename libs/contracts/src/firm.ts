@@ -8,6 +8,20 @@ export const UpdateFirmBody = z
     reminderMax: z.int().min(0).max(10),
     reminderDueSoonDays: z.int().min(0).max(31),
     reminderGapDays: z.int().min(1).max(31),
+    logoUrl: z
+      .string()
+      .trim()
+      .url()
+      .max(2048)
+      .nullable()
+      .or(z.literal('').transform(() => null)),
+    contactEmail: z
+      .string()
+      .trim()
+      .email()
+      .max(255)
+      .nullable()
+      .or(z.literal('').transform(() => null)),
   })
   .partial()
   .refine((body) => Object.keys(body).length > 0, { message: 'Nada para atualizar.' });

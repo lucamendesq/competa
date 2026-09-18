@@ -21,6 +21,8 @@ export type FirmSettings = {
   reminderMax: number;
   reminderDueSoonDays: number;
   reminderGapDays: number;
+  logoUrl?: string | null;
+  contactEmail?: string | null;
 };
 
 @Service()

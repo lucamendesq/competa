@@ -4,7 +4,7 @@ import { authClient } from './auth-client';
 
 export type Accountant = {
   accountant: { id: string; name: string; email: string; owner: boolean };
-  accountingFirm: { id: string; name: string };
+  accountingFirm: { id: string; name: string; logoUrl?: string | null; contactEmail?: string | null };
 };
 
 export type Contact = {

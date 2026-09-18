@@ -90,7 +90,12 @@ export class AuthController {
 
     return {
       accountant: { id: me.accountantId, name: me.name, email: me.email, owner: me.owner },
-      accountingFirm: { id: me.firmId, name: me.firmName },
+      accountingFirm: {
+        id: me.firmId,
+        name: me.firmName,
+        logoUrl: me.firmLogoUrl,
+        contactEmail: me.firmContactEmail,
+      },
     };
   }
 

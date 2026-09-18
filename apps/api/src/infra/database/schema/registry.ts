@@ -33,6 +33,8 @@ export const accountingFirm = pgTable(
   {
     id: id(),
     name: text().notNull(),
+    logoUrl: text('logo_url'),
+    contactEmail: text('contact_email'),
     /** Preferências de lembrete (cadência do cron). Defaults = comportamento histórico. */
     reminderMax: smallint('reminder_max').notNull().default(2),
     reminderDueSoonDays: smallint('reminder_due_soon_days').notNull().default(3),

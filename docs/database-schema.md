@@ -39,8 +39,10 @@ Direção de dependência (convenção): `registry` → `collection` → `messag
 
 ```sql
 create table accounting_firm (            -- Contabilidade (tenant raiz)
-  id    uuid primary key,
-  name  text not null,
+  id            uuid primary key,
+  name          text not null,
+  logo_url      text,                         -- URL pública do logotipo
+  contact_email text,                         -- E-mail público de contato da contabilidade
   -- preferências de lembrete (2026-09-11): a cadência do cron é por tenant;
   -- defaults reproduzem o comportamento histórico (regras em reminder-rules.ts)
   reminder_max            smallint not null default 2,  -- máx. lembretes por Solicitação

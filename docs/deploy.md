@@ -96,5 +96,12 @@ Settings → Secrets and variables → Actions:
 
 - **Backup** (dump diário + bucket dedicado + restore): [`backup.md`](./backup.md).
 - **Retenção/expurgo**: [`retention.md`](./retention.md).
-- Sentry já está instrumentado (DSN via env nos dois apps).
+- **Sentry e Alertas**:
+  - DSN configurado via env nos dois apps (`@sentry/nestjs` e `@sentry/angular`).
+  - **Regra de Alerta de Canal** (COM-19): criar em **Sentry > Alerts > Create Alert**:
+    - **Tipo**: *Issues* ou *Number of Errors*
+    - **Filtro**: `tag[channel]:*` (ou `channel:email OR channel:push`)
+    - **Ambiente**: `production`
+    - **Condição**: Notificar imediatamente quando qualquer exceção com tag `channel` for capturada via `reportChannelFailure` (finalidades: `link_delivery`, `reminder`, `rejection`, `deadline_missed`, `completion`).
+    - **Ações**: Enviar alerta para o canal Slack/Email da equipe de infraestrutura.
 - Cobrança e WhatsApp seguem em [`next-steps.md`](./next-steps.md).
