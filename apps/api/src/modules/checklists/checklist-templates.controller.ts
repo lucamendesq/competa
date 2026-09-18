@@ -22,7 +22,7 @@ import {
 
 @Controller('checklist-templates')
 export class ChecklistTemplatesController {
-  constructor(private readonly checklists: ChecklistRepository) { }
+  constructor(private readonly checklists: ChecklistRepository) {}
 
   @Get()
   async list(@CurrentScope() scope: FirmScope) {

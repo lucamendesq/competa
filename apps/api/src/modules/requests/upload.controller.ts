@@ -22,7 +22,7 @@ export class UploadController {
   constructor(
     private readonly links: UploadLinkRepository,
     private readonly uploads: UploadService,
-  ) { }
+  ) {}
 
   @Get()
   async checklist(@CurrentUploadScope() scope: UploadScope) {

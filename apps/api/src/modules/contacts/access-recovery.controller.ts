@@ -48,7 +48,7 @@ export class AccessRecoveryController {
     private readonly requests: RequestRepository,
     private readonly auth: AuthProvider,
     private readonly events: EventEmitter2,
-  ) { }
+  ) {}
 
   /* Rota pública que dispara email: limite por IP, senão vira ferramenta de envio em massa
    * para a caixa de terceiros. */

@@ -17,7 +17,7 @@ export class PeriodsController {
     private readonly periods: PeriodRepository,
     private readonly events: EventEmitter2,
     private readonly messages: MessageRepository,
-  ) { }
+  ) {}
 
   @Post()
   async open(

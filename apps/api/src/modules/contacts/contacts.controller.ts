@@ -50,7 +50,7 @@ export class ContactsController {
     private readonly uploads: UploadService,
     private readonly storage: StorageProvider,
     private readonly auth: AuthProvider,
-  ) { }
+  ) {}
 
   @Get('profile')
   async profile(@CurrentContactScope() scope: ContactScope) {
@@ -159,7 +159,7 @@ export class ContactsController {
 @ContactRoute()
 @UseGuards(ContactUploadGuard)
 export class ContactUploadController {
-  constructor(private readonly uploads: UploadService) { }
+  constructor(private readonly uploads: UploadService) {}
 
   @Post()
   async presign(

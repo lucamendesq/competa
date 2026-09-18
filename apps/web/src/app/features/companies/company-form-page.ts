@@ -175,10 +175,10 @@ export class CompanyFormPage {
       const values = formTree().value();
       const contact = values.contactEmail
         ? {
-          name: values.contactName || values.name,
-          email: values.contactEmail,
-          phone: values.contactPhone || undefined,
-        }
+            name: values.contactName || values.name,
+            email: values.contactEmail,
+            phone: values.contactPhone || undefined,
+          }
         : undefined;
 
       try {

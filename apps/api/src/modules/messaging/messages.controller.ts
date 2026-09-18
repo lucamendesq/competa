@@ -15,7 +15,7 @@ export class MessagesController {
   constructor(
     private readonly messages: MessageRepository,
     private readonly reminders: RemindersCron,
-  ) { }
+  ) {}
 
   @Get()
   async list(

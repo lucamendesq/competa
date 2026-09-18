@@ -25,7 +25,7 @@ export class AuthController {
     private readonly invites: InviteRepository,
     private readonly accountants: AccountantRepository,
     private readonly devices: UserDeviceRepository,
-  ) { }
+  ) {}
 
   @Post('sign-up')
   @AllowAnonymous()

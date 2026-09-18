@@ -28,8 +28,8 @@ export class InstallService {
 
   readonly isStandalone = signal(
     typeof window !== 'undefined' &&
-    (window.matchMedia?.('(display-mode: standalone)').matches ||
-      (navigator as { standalone?: boolean }).standalone === true),
+      (window.matchMedia?.('(display-mode: standalone)').matches ||
+        (navigator as { standalone?: boolean }).standalone === true),
   );
 
   readonly isIos = signal(typeof navigator !== 'undefined' && detectIos());

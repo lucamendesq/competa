@@ -22,7 +22,7 @@ export class InviteController {
     private readonly invites: InviteRepository,
     private readonly accountants: AccountantRepository,
     private readonly events: EventEmitter2,
-  ) { }
+  ) {}
 
   /** Convidar é ato do dono: um Contador convidado não amplia o acesso ao tenant por
    *  conta própria. Sem isto, qualquer convidado convida — inclusive quem foi revogado

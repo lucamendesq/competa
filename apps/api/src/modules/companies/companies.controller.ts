@@ -36,7 +36,7 @@ export class CompaniesController {
     private readonly invites: InviteRepository,
     private readonly contacts: ContactRepository,
     private readonly events: EventEmitter2,
-  ) { }
+  ) {}
 
   @Get()
   async list(@CurrentScope() scope: FirmScope, @Query(zodPipe(CompanyQuery)) query: CompanyQuery) {

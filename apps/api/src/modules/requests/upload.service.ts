@@ -18,7 +18,7 @@ export class UploadService {
   constructor(
     private readonly documents: DocumentRepository,
     private readonly storage: StorageProvider,
-  ) { }
+  ) {}
 
   async presign(scope: UploadScope, body: PresignUploadBody) {
     if (body.files.length > MAX_FILES_PER_UPLOAD) {

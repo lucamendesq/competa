@@ -62,7 +62,7 @@ export class MessageRepository {
     private readonly requests: RequestRepository,
     private readonly contacts: ContactRepository,
     private readonly push: WebPush,
-  ) { }
+  ) {}
 
   /** Sem `FirmScope`: quem chama é o listener do evento ou o cron — não há sessão, e o
    *  `request_id` já vem do fan-out/varredura, que nasceram dentro de um escopo.
@@ -431,27 +431,27 @@ export class MessageRepository {
 
       const emailData = rejectedDocs.length
         ? reviewPublishedEmail({
-          requestId: row.requestId,
-          companyName: row.companyName,
-          contactName: rotated.contactName,
-          contactEmail: row.recipient,
-          uploadUrl,
-          rejected: rejectedDocs.map((doc) => ({
-            fileName: doc.fileName,
-            itemName: doc.itemName,
-            rejectionReason: doc.rejectionReason ?? '',
-          })),
-          acceptedItemNames: [],
-        })
+            requestId: row.requestId,
+            companyName: row.companyName,
+            contactName: rotated.contactName,
+            contactEmail: row.recipient,
+            uploadUrl,
+            rejected: rejectedDocs.map((doc) => ({
+              fileName: doc.fileName,
+              itemName: doc.itemName,
+              rejectionReason: doc.rejectionReason ?? '',
+            })),
+            acceptedItemNames: [],
+          })
         : linkResentEmail({
-          requestId: row.requestId,
-          referenceMonth: row.referenceMonth,
-          periodDueDate: row.periodDueDate,
-          companyName: row.companyName,
-          contactName: rotated.contactName,
-          contactEmail: row.recipient,
-          uploadUrl,
-        });
+            requestId: row.requestId,
+            referenceMonth: row.referenceMonth,
+            periodDueDate: row.periodDueDate,
+            companyName: row.companyName,
+            contactName: rotated.contactName,
+            contactEmail: row.recipient,
+            uploadUrl,
+          });
 
       const delivered = await this.deliver({
         requestId: row.requestId,
@@ -481,27 +481,27 @@ export class MessageRepository {
       const isContact = row.recipient === rotated.contactEmail;
       const emailData = isContact
         ? deadlineMissedContactEmail({
-          requestId: row.requestId,
-          requestItemId,
-          companyName: row.companyName,
-          contactName: rotated.contactName,
-          contactEmail: row.recipient,
-          itemName,
-          dueDate,
-          uploadUrl,
-          accountantEmails: [],
-        })
+            requestId: row.requestId,
+            requestItemId,
+            companyName: row.companyName,
+            contactName: rotated.contactName,
+            contactEmail: row.recipient,
+            itemName,
+            dueDate,
+            uploadUrl,
+            accountantEmails: [],
+          })
         : deadlineMissedAccountantEmail({
-          requestId: row.requestId,
-          requestItemId,
-          companyName: row.companyName,
-          contactName: rotated.contactName,
-          contactEmail: rotated.contactEmail,
-          itemName,
-          dueDate,
-          uploadUrl,
-          accountantEmails: [row.recipient],
-        });
+            requestId: row.requestId,
+            requestItemId,
+            companyName: row.companyName,
+            contactName: rotated.contactName,
+            contactEmail: rotated.contactEmail,
+            itemName,
+            dueDate,
+            uploadUrl,
+            accountantEmails: [row.recipient],
+          });
 
       const delivered = await this.deliver({
         requestId: row.requestId,

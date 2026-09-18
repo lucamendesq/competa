@@ -8,7 +8,7 @@ import { ChecklistRepository } from './checklist.repository.js';
 
 @Controller('document-types')
 export class DocumentTypesController {
-  constructor(private readonly checklists: ChecklistRepository) { }
+  constructor(private readonly checklists: ChecklistRepository) {}
 
   @Get()
   async list(

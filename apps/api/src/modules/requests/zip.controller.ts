@@ -19,7 +19,7 @@ export class ZipController {
   constructor(
     private readonly requests: RequestRepository,
     private readonly storage: StorageProvider,
-  ) { }
+  ) {}
 
   @Get('requests/:id/zip')
   async requestZip(@CurrentScope() scope: FirmScope, @Param(zodPipe(IdParam)) params: IdParam) {

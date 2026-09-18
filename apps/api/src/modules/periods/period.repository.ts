@@ -38,7 +38,7 @@ export class PeriodRepository {
   constructor(
     private readonly db: Database,
     private readonly checklists: ChecklistRepository,
-  ) { }
+  ) {}
 
   async openPeriod(scope: FirmScope, body: OpenPeriodBody) {
     const companies = await this.activeCompanies(scope);

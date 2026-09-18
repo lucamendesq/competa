@@ -9,7 +9,7 @@ import { DocumentTypeNotVisible } from './errors.js';
 
 @Controller('companies/:companyId')
 export class ChecklistOverridesController {
-  constructor(private readonly checklists: ChecklistRepository) { }
+  constructor(private readonly checklists: ChecklistRepository) {}
 
   @Get('checklist')
   async effective(

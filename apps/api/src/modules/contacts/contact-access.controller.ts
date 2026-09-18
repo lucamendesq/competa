@@ -36,7 +36,7 @@ export class ContactAccessController {
     private readonly contacts: ContactRepository,
     private readonly links: UploadLinkRepository,
     private readonly auth: AuthProvider,
-  ) { }
+  ) {}
 
   /* Limite apertado: é rota pública que cria usuário. */
   @Throttle({ default: { ttl: seconds(60), limit: 5 } })
@@ -89,7 +89,7 @@ export class ContactInviteAccountController {
     private readonly contacts: ContactRepository,
     private readonly invites: InviteRepository,
     private readonly auth: AuthProvider,
-  ) { }
+  ) {}
 
   @Throttle({ default: { ttl: seconds(60), limit: 5 } })
   @Post()
@@ -135,7 +135,7 @@ type ContactAccessParam = z.infer<typeof ContactAccessParam>;
 
 @Controller('companies/:id/contacts')
 export class ContactAccessAdminController {
-  constructor(private readonly contacts: ContactRepository) { }
+  constructor(private readonly contacts: ContactRepository) {}
 
   @Get('access')
   async list(@CurrentScope() scope: FirmScope, @Param(zodPipe(IdParam)) params: IdParam) {

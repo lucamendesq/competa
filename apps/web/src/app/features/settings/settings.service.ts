@@ -1,9 +1,5 @@
 import { Service, inject } from '@angular/core';
-import type {
-  CreateInviteBody,
-  DeviceStatsResponse,
-  UpdateFirmBody,
-} from '@competa/contracts';
+import type { CreateInviteBody, DeviceStatsResponse, UpdateFirmBody } from '@competa/contracts';
 import { Api, apiResource } from '../../core/http/api';
 
 export type CreatedInvite = { id: string; email: string; url: string };

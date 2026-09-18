@@ -17,7 +17,7 @@ export class TeamController {
     private readonly accountants: AccountantRepository,
     private readonly invites: InviteRepository,
     private readonly devices: UserDeviceRepository,
-  ) { }
+  ) {}
 
   @Get('accountants')
   async list(@CurrentScope() scope: FirmScope) {

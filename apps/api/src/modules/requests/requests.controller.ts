@@ -14,7 +14,7 @@ export class RequestsController {
   constructor(
     private readonly requests: RequestRepository,
     private readonly events: EventEmitter2,
-  ) { }
+  ) {}
 
   @Get(':id')
   async get(@CurrentScope() scope: FirmScope, @Param(zodPipe(IdParam)) params: IdParam) {
