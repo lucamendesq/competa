@@ -11,6 +11,8 @@ allowBuilds:
   esbuild: true
   lmdb: true
   msgpackr-extract: true
+  workerd: true
+  sharp: true
 minimumReleaseAgeExclude:
   - '@inquirer/checkbox@5.2.3'
   - '@inquirer/confirm@6.3.0'
