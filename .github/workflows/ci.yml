@@ -45,11 +45,11 @@ jobs:
 
     steps:
       - uses: actions/checkout@v6
-      # - uses: pnpm/action-setup@v4
-      # - uses: actions/setup-node@v4
-      #   with:
-      #     node-version-file: .nvmrc
-      #     cache: pnpm
+      - uses: pnpm/action-setup@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version-file: .nvmrc
+          cache: pnpm
 
       - run: pnpm install --frozen-lockfile
       - run: pnpm --filter @contabilidade/contracts build
