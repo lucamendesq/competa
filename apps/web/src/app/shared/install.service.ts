@@ -1,5 +1,5 @@
 import { Service, computed, inject, signal } from '@angular/core';
-import type { DevicePlatform } from '@contabilidade/contracts';
+import type { DevicePlatform } from '@competa/contracts';
 import { Api } from '../core/http/api';
 
 type BeforeInstallPromptEvent = Event & {
@@ -28,8 +28,8 @@ export class InstallService {
 
   readonly isStandalone = signal(
     typeof window !== 'undefined' &&
-      (window.matchMedia?.('(display-mode: standalone)').matches ||
-        (navigator as { standalone?: boolean }).standalone === true),
+    (window.matchMedia?.('(display-mode: standalone)').matches ||
+      (navigator as { standalone?: boolean }).standalone === true),
   );
 
   readonly isIos = signal(typeof navigator !== 'undefined' && detectIos());

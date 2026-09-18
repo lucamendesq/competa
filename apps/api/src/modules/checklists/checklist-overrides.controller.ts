@@ -1,5 +1,5 @@
 import { Body, Controller, Delete, Get, HttpCode, Param, Put } from '@nestjs/common';
-import { CompanyIdParam, CreateOverrideBody, OverrideParam } from '@contabilidade/contracts';
+import { CompanyIdParam, CreateOverrideBody, OverrideParam } from '@competa/contracts';
 import { NotFound } from '../../lib/app-error.js';
 import { zodPipe } from '../../lib/zod-pipe.js';
 import { CurrentScope } from '../auth/current-scope.decorator.js';
@@ -9,7 +9,7 @@ import { DocumentTypeNotVisible } from './errors.js';
 
 @Controller('companies/:companyId')
 export class ChecklistOverridesController {
-  constructor(private readonly checklists: ChecklistRepository) {}
+  constructor(private readonly checklists: ChecklistRepository) { }
 
   @Get('checklist')
   async effective(

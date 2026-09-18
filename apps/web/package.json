@@ -22,7 +22,7 @@
     "@angular/router": "^22.1.0",
     "@angular/service-worker": "^22.1.5",
     "@better-auth/passkey": "^1.7.2",
-    "@contabilidade/contracts": "workspace:*",
+    "@competa/contracts": "workspace:*",
     "@ng-icons/core": "^32.2.0",
     "@ng-icons/lucide": "^32.2.0",
     "@sentry/angular": "^10.74.0",

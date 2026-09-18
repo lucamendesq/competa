@@ -18,7 +18,7 @@ import {
   OVERRIDE_ACTIONS,
   PERIODICITIES,
   type CompanyFlags,
-} from '@contabilidade/contracts';
+} from '@competa/contracts';
 import { user } from './auth.js';
 import { id, timestamps } from './columns.js';
 

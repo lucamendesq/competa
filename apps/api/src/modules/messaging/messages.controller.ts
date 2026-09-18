@@ -1,6 +1,6 @@
 import { Controller, Get, Param, Post, Query } from '@nestjs/common';
 import { AllowAnonymous } from '@thallesp/nestjs-better-auth';
-import { IdParam, MessageListQuery } from '@contabilidade/contracts';
+import { IdParam, MessageListQuery } from '@competa/contracts';
 import env from '../../config/env.js';
 import { NotFound } from '../../lib/app-error.js';
 import { paginated } from '../../lib/response.interceptor.js';
@@ -15,7 +15,7 @@ export class MessagesController {
   constructor(
     private readonly messages: MessageRepository,
     private readonly reminders: RemindersCron,
-  ) {}
+  ) { }
 
   @Get()
   async list(

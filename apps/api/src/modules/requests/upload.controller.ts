@@ -2,7 +2,7 @@ import { Body, Controller, Get, Post, UseGuards } from '@nestjs/common';
 import { AllowAnonymous } from '@thallesp/nestjs-better-auth';
 import { SkipThrottle } from '@nestjs/throttler';
 import { UploadThrottlerGuard } from './upload-throttler.guard.js';
-import { ConfirmUploadBody, PresignUploadBody } from '@contabilidade/contracts';
+import { ConfirmUploadBody, PresignUploadBody } from '@competa/contracts';
 import { NotFound } from '../../lib/app-error.js';
 import { zodPipe } from '../../lib/zod-pipe.js';
 import { UploadTokenGuard } from '../auth/upload-token.guard.js';
@@ -22,7 +22,7 @@ export class UploadController {
   constructor(
     private readonly links: UploadLinkRepository,
     private readonly uploads: UploadService,
-  ) {}
+  ) { }
 
   @Get()
   async checklist(@CurrentUploadScope() scope: UploadScope) {

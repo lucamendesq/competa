@@ -17,9 +17,9 @@ import {
   PaginationQuery,
   PushSubscriptionBody,
   SetPasswordBody,
-} from '@contabilidade/contracts';
+} from '@competa/contracts';
 
-import { ConfirmUploadBody } from '@contabilidade/contracts';
+import { ConfirmUploadBody } from '@competa/contracts';
 import type { Request } from 'express';
 import { NotFound } from '../../lib/app-error.js';
 import { paginated } from '../../lib/response.interceptor.js';
@@ -50,7 +50,7 @@ export class ContactsController {
     private readonly uploads: UploadService,
     private readonly storage: StorageProvider,
     private readonly auth: AuthProvider,
-  ) {}
+  ) { }
 
   @Get('profile')
   async profile(@CurrentContactScope() scope: ContactScope) {
@@ -159,7 +159,7 @@ export class ContactsController {
 @ContactRoute()
 @UseGuards(ContactUploadGuard)
 export class ContactUploadController {
-  constructor(private readonly uploads: UploadService) {}
+  constructor(private readonly uploads: UploadService) { }
 
   @Post()
   async presign(

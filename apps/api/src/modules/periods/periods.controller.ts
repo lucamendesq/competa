@@ -1,6 +1,6 @@
 import { Body, Controller, Get, Param, Post, Query } from '@nestjs/common';
 import { EventEmitter2 } from '@nestjs/event-emitter';
-import { IdParam, OpenPeriodBody, PaginationQuery } from '@contabilidade/contracts';
+import { IdParam, OpenPeriodBody, PaginationQuery } from '@competa/contracts';
 import { NotFound } from '../../lib/app-error.js';
 import { paginated } from '../../lib/response.interceptor.js';
 import { zodPipe } from '../../lib/zod-pipe.js';
@@ -17,7 +17,7 @@ export class PeriodsController {
     private readonly periods: PeriodRepository,
     private readonly events: EventEmitter2,
     private readonly messages: MessageRepository,
-  ) {}
+  ) { }
 
   @Post()
   async open(

@@ -1,7 +1,7 @@
 import { Body, Controller, Get, Param, Post } from '@nestjs/common';
 import { EventEmitter2 } from '@nestjs/event-emitter';
 import { AllowAnonymous } from '@thallesp/nestjs-better-auth';
-import { CreateInviteBody, InviteTokenParam } from '@contabilidade/contracts';
+import { CreateInviteBody, InviteTokenParam } from '@competa/contracts';
 import { addDays } from 'date-fns';
 import env from '../../config/env.js';
 import { zodPipe } from '../../lib/zod-pipe.js';
@@ -22,7 +22,7 @@ export class InviteController {
     private readonly invites: InviteRepository,
     private readonly accountants: AccountantRepository,
     private readonly events: EventEmitter2,
-  ) {}
+  ) { }
 
   /** Convidar é ato do dono: um Contador convidado não amplia o acesso ao tenant por
    *  conta própria. Sem isto, qualquer convidado convida — inclusive quem foi revogado

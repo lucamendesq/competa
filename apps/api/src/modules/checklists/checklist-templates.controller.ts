@@ -6,7 +6,7 @@ import {
   TemplateItemParam,
   UpdateTemplateBody,
   UpdateTemplateItemBody,
-} from '@contabilidade/contracts';
+} from '@competa/contracts';
 import { NotFound } from '../../lib/app-error.js';
 import { zodPipe } from '../../lib/zod-pipe.js';
 import { CurrentScope } from '../auth/current-scope.decorator.js';
@@ -22,7 +22,7 @@ import {
 
 @Controller('checklist-templates')
 export class ChecklistTemplatesController {
-  constructor(private readonly checklists: ChecklistRepository) {}
+  constructor(private readonly checklists: ChecklistRepository) { }
 
   @Get()
   async list(@CurrentScope() scope: FirmScope) {

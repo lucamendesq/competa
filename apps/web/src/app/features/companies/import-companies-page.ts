@@ -11,7 +11,7 @@ import {
 } from '@ng-icons/lucide';
 import { HlmButtonImports } from '@spartan-ng/helm/button';
 import { HlmTableImports } from '@spartan-ng/helm/table';
-import { COMPANY_FLAGS } from '@contabilidade/contracts';
+import { COMPANY_FLAGS } from '@competa/contracts';
 import { apiErrorMessage } from '../../core/http/api-error';
 import { Toaster } from '../../core/ui/toast';
 import { PageHeader } from '../../shared/page-header';

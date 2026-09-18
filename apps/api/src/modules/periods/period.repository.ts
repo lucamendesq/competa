@@ -1,7 +1,7 @@
 import { Injectable } from '@nestjs/common';
 import { and, asc, count, eq, ne, sql } from 'drizzle-orm';
 import { inArray } from 'drizzle-orm';
-import type { OpenPeriodBody } from '@contabilidade/contracts';
+import type { OpenPeriodBody } from '@competa/contracts';
 import { addDays } from 'date-fns';
 import env from '../../config/env.js';
 import { createToken } from '../../lib/token.js';
@@ -38,7 +38,7 @@ export class PeriodRepository {
   constructor(
     private readonly db: Database,
     private readonly checklists: ChecklistRepository,
-  ) {}
+  ) { }
 
   async openPeriod(scope: FirmScope, body: OpenPeriodBody) {
     const companies = await this.activeCompanies(scope);

@@ -1,6 +1,6 @@
 import { Component, computed, inject, signal } from '@angular/core';
 import { FormField, form, submit, validateStandardSchema } from '@angular/forms/signals';
-import { CreateInviteBody } from '@contabilidade/contracts';
+import { CreateInviteBody } from '@competa/contracts';
 import { NgIcon, provideIcons } from '@ng-icons/core';
 import { lucideCopy, lucideLock, lucideTrash2, lucideUserPlus, lucideX } from '@ng-icons/lucide';
 import { HlmButtonImports } from '@spartan-ng/helm/button';

@@ -1,5 +1,5 @@
 import { Controller, Get, Query } from '@nestjs/common';
-import { DocumentTypeQuery } from '@contabilidade/contracts';
+import { DocumentTypeQuery } from '@competa/contracts';
 import { paginated } from '../../lib/response.interceptor.js';
 import { zodPipe } from '../../lib/zod-pipe.js';
 import { CurrentScope } from '../auth/current-scope.decorator.js';
@@ -8,7 +8,7 @@ import { ChecklistRepository } from './checklist.repository.js';
 
 @Controller('document-types')
 export class DocumentTypesController {
-  constructor(private readonly checklists: ChecklistRepository) {}
+  constructor(private readonly checklists: ChecklistRepository) { }
 
   @Get()
   async list(

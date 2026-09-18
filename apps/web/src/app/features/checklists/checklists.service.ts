@@ -5,7 +5,7 @@ import type {
   DocumentCategory,
   Periodicity,
   UpdateTemplateItemBody,
-} from '@contabilidade/contracts';
+} from '@competa/contracts';
 import { Api, apiResource, pageResource } from '../../core/http/api';
 
 export type Template = {

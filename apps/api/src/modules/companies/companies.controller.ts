@@ -10,7 +10,7 @@ import {
   ImportConfirmBody,
   SendAccessInvitesBody,
   UpdateCompanyBody,
-} from '@contabilidade/contracts';
+} from '@competa/contracts';
 import { addDays } from 'date-fns';
 import * as z from 'zod';
 import env from '../../config/env.js';
@@ -36,7 +36,7 @@ export class CompaniesController {
     private readonly invites: InviteRepository,
     private readonly contacts: ContactRepository,
     private readonly events: EventEmitter2,
-  ) {}
+  ) { }
 
   @Get()
   async list(@CurrentScope() scope: FirmScope, @Query(zodPipe(CompanyQuery)) query: CompanyQuery) {

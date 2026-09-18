@@ -2,7 +2,7 @@ import { sql } from 'drizzle-orm';
 
 import { db } from '../index.js';
 import { checklistTemplate, checklistTemplateItem, documentType } from '../schema/index.js';
-import type { DocumentCategory, Periodicity } from '@contabilidade/contracts';
+import type { DocumentCategory, Periodicity } from '@competa/contracts';
 
 export type CatalogEntry = {
   id: string;

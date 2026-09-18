@@ -5,7 +5,7 @@ import {
   RejectDocumentBody,
   ReviewBatchBody,
   ReviewExtraBody,
-} from '@contabilidade/contracts';
+} from '@competa/contracts';
 import env from '../../config/env.js';
 import { NotFound } from '../../lib/app-error.js';
 import {
@@ -29,7 +29,7 @@ export class ReviewController {
     private readonly requests: RequestRepository,
     private readonly deadlines: DeadlineCron,
     private readonly events: EventEmitter2,
-  ) {}
+  ) { }
 
   @Post('request-items/:id/accept')
   async acceptItem(

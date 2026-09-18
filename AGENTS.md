@@ -56,7 +56,7 @@ Lista completa de anti-patterns: [`docs/conventions.md`](./docs/conventions.md#o
 
 ## Armadilha: `libs/contracts` é consumido COMPILADO
 
-Os apps importam `@contabilidade/contracts` do `dist`, não do `src`. Editar um schema e não
+Os apps importam `@competa/contracts` do `dist`, não do `src`. Editar um schema e não
 recompilar deixa o app validando contra o schema **antigo** — e o sintoma não é um erro, é
 **um botão que não faz nada**: o formulário do Angular fica inválido e o `submit()` não
 chama a ação, em silêncio. Já custou duas sessões de caça.

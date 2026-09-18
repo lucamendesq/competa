@@ -1,7 +1,7 @@
 import { Body, Controller, Get, HttpCode, Logger, Patch, Post, Query, Req } from '@nestjs/common';
 import { AllowAnonymous } from '@thallesp/nestjs-better-auth';
 import { APIError } from 'better-auth/api';
-import { InviteTokenParam, RegisterDeviceBody, SignUpBody } from '@contabilidade/contracts';
+import { InviteTokenParam, RegisterDeviceBody, SignUpBody } from '@competa/contracts';
 import type { Request } from 'express';
 import { NotFound } from '../../lib/app-error.js';
 import { isFailure } from '../../lib/either.js';
@@ -25,7 +25,7 @@ export class AuthController {
     private readonly invites: InviteRepository,
     private readonly accountants: AccountantRepository,
     private readonly devices: UserDeviceRepository,
-  ) {}
+  ) { }
 
   @Post('sign-up')
   @AllowAnonymous()

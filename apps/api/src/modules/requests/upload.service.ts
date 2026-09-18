@@ -1,5 +1,5 @@
 import { Injectable } from '@nestjs/common';
-import type { PresignUploadBody } from '@contabilidade/contracts';
+import type { PresignUploadBody } from '@competa/contracts';
 import { v7 as uuidv7 } from 'uuid';
 import { StorageProvider } from '../../infra/storage/storage.provider.js';
 import { NotFound, ValidationError } from '../../lib/app-error.js';
@@ -18,7 +18,7 @@ export class UploadService {
   constructor(
     private readonly documents: DocumentRepository,
     private readonly storage: StorageProvider,
-  ) {}
+  ) { }
 
   async presign(scope: UploadScope, body: PresignUploadBody) {
     if (body.files.length > MAX_FILES_PER_UPLOAD) {

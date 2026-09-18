@@ -4,7 +4,7 @@ import type {
   AudienceDeviceStats,
   DevicePlatform,
   DeviceStatsResponse,
-} from '@contabilidade/contracts';
+} from '@competa/contracts';
 import { Database } from '../../infra/database/database.js';
 import { accountant, company, contact, userDevice } from '../../infra/database/schema/index.js';
 import type { FirmScope } from './scope.js';
@@ -43,7 +43,7 @@ const aggregateAudience = (
 
 @Injectable()
 export class UserDeviceRepository {
-  constructor(private readonly db: Database) {}
+  constructor(private readonly db: Database) { }
 
   async upsert(data: {
     userId: string;

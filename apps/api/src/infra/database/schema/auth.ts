@@ -10,7 +10,7 @@ import {
   uuid,
 } from 'drizzle-orm/pg-core';
 import { sql, type SQL } from 'drizzle-orm';
-import { DEVICE_PLATFORMS } from '@contabilidade/contracts';
+import { DEVICE_PLATFORMS } from '@competa/contracts';
 import { v7 as uuidv7 } from 'uuid';
 import { id, timestamps } from './columns.js';
 

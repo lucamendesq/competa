@@ -10,7 +10,7 @@ import {
 } from '@angular/core';
 import { Router, RouterLink } from '@angular/router';
 import { FormField, form, submit, validateStandardSchema } from '@angular/forms/signals';
-import { Cnpj, COMPANY_FLAGS, CompanyFlags } from '@contabilidade/contracts';
+import { Cnpj, COMPANY_FLAGS, CompanyFlags } from '@competa/contracts';
 import * as z from 'zod';
 import { NgIcon, provideIcons } from '@ng-icons/core';
 import { lucideCheck, lucideCircleAlert, lucideTriangleAlert } from '@ng-icons/lucide';
@@ -175,10 +175,10 @@ export class CompanyFormPage {
       const values = formTree().value();
       const contact = values.contactEmail
         ? {
-            name: values.contactName || values.name,
-            email: values.contactEmail,
-            phone: values.contactPhone || undefined,
-          }
+          name: values.contactName || values.name,
+          email: values.contactEmail,
+          phone: values.contactPhone || undefined,
+        }
         : undefined;
 
       try {

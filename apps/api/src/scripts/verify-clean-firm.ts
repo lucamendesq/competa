@@ -9,7 +9,7 @@ import {
   SignUpBody,
   UpdateFirmBody,
   UpdateTemplateItemBody,
-} from '@contabilidade/contracts';
+} from '@competa/contracts';
 import { db } from '../infra/database/index.js';
 import {
   accountant,

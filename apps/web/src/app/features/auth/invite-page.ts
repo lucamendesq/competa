@@ -1,7 +1,7 @@
 import { Component, computed, inject, input, linkedSignal, signal } from '@angular/core';
 import { Router, RouterLink } from '@angular/router';
 import { form, FormField, submit, validateStandardSchema } from '@angular/forms/signals';
-import { AcceptContactInviteBody, SignUpBody } from '@contabilidade/contracts';
+import { AcceptContactInviteBody, SignUpBody } from '@competa/contracts';
 import { NgIcon, provideIcons } from '@ng-icons/core';
 import {
   lucideArrowRight,

@@ -7,7 +7,7 @@ import {
   type ContactBody,
   MAX_IMPORT_ROWS,
   type UpdateCompanyBody,
-} from '@contabilidade/contracts';
+} from '@competa/contracts';
 import * as z from 'zod';
 import { ValidationError } from '../../lib/app-error.js';
 import { Database } from '../../infra/database/database.js';
@@ -42,7 +42,7 @@ const violatesCompanyCnpjUnique = (error: unknown): boolean => {
 export class CompanyRepository {
   private readonly logger = new Logger(CompanyRepository.name);
 
-  constructor(private readonly db: Database) {}
+  constructor(private readonly db: Database) { }
 
   async templateIsVisible(scope: FirmScope, templateId: string) {
     const [row] = await this.db
@@ -77,9 +77,9 @@ export class CompanyRepository {
 
       const contacts = body.contact
         ? await executor
-            .insert(contact)
-            .values({ ...body.contact, companyId: row.id })
-            .returning()
+          .insert(contact)
+          .values({ ...body.contact, companyId: row.id })
+          .returning()
         : [];
 
       return { ...row, contacts };
@@ -103,9 +103,9 @@ export class CompanyRepository {
     const cleanDigits = searchTrimmed ? searchTrimmed.replace(/\D/g, '') : '';
     const searchFilter = searchTrimmed
       ? or(
-          ilike(company.name, `%${searchTrimmed}%`),
-          cleanDigits ? ilike(company.cnpj, `%${cleanDigits}%`) : undefined,
-        )
+        ilike(company.name, `%${searchTrimmed}%`),
+        cleanDigits ? ilike(company.cnpj, `%${cleanDigits}%`) : undefined,
+      )
       : undefined;
 
     const where = and(
@@ -147,15 +147,15 @@ export class CompanyRepository {
     const companyIds = rows.map((row) => row.id);
     const contacts = companyIds.length
       ? await this.db
-          .select({
-            companyId: contact.companyId,
-            id: contact.id,
-            name: contact.name,
-            email: contact.email,
-          })
-          .from(contact)
-          .where(inArray(contact.companyId, companyIds))
-          .orderBy(contact.name)
+        .select({
+          companyId: contact.companyId,
+          id: contact.id,
+          name: contact.name,
+          email: contact.email,
+        })
+        .from(contact)
+        .where(inArray(contact.companyId, companyIds))
+        .orderBy(contact.name)
       : [];
 
     return {
@@ -307,10 +307,10 @@ export class CompanyRepository {
         flags: parseFlags(values),
         contact: values.contact_email
           ? {
-              name: values.contact_name || name,
-              email: values.contact_email,
-              phone: values.contact_phone || undefined,
-            }
+            name: values.contact_name || name,
+            email: values.contact_email,
+            phone: values.contact_phone || undefined,
+          }
           : undefined,
       });
 
@@ -366,41 +366,41 @@ export class CompanyRepository {
 
         const upserted = withCnpj.length
           ? await tx
-              .insert(company)
-              .values(
-                withCnpj.map(({ body }) => ({
-                  accountingFirmId: scope,
-                  checklistTemplateId: body.checklistTemplateId ?? null,
-                  name: body.name,
-                  cnpj: body.cnpj,
-                  flags: body.flags,
-                })),
-              )
-              .onConflictDoUpdate({
-                target: [company.accountingFirmId, company.cnpj],
-                targetWhere: sql`${company.cnpj} is not null`,
-                set: {
-                  name: sql`excluded.name`,
-                  checklistTemplateId: sql`excluded.checklist_template_id`,
-                  flags: sql`excluded.flags`,
-                },
-              })
-              .returning({ id: company.id, name: company.name })
+            .insert(company)
+            .values(
+              withCnpj.map(({ body }) => ({
+                accountingFirmId: scope,
+                checklistTemplateId: body.checklistTemplateId ?? null,
+                name: body.name,
+                cnpj: body.cnpj,
+                flags: body.flags,
+              })),
+            )
+            .onConflictDoUpdate({
+              target: [company.accountingFirmId, company.cnpj],
+              targetWhere: sql`${company.cnpj} is not null`,
+              set: {
+                name: sql`excluded.name`,
+                checklistTemplateId: sql`excluded.checklist_template_id`,
+                flags: sql`excluded.flags`,
+              },
+            })
+            .returning({ id: company.id, name: company.name })
           : [];
 
         const inserted = withoutCnpj.length
           ? await tx
-              .insert(company)
-              .values(
-                withoutCnpj.map(({ body }) => ({
-                  accountingFirmId: scope,
-                  checklistTemplateId: body.checklistTemplateId ?? null,
-                  name: body.name,
-                  cnpj: null,
-                  flags: body.flags,
-                })),
-              )
-              .returning({ id: company.id, name: company.name })
+            .insert(company)
+            .values(
+              withoutCnpj.map(({ body }) => ({
+                accountingFirmId: scope,
+                checklistTemplateId: body.checklistTemplateId ?? null,
+                name: body.name,
+                cnpj: null,
+                flags: body.flags,
+              })),
+            )
+            .returning({ id: company.id, name: company.name })
           : [];
 
         const rowByLine = new Map<number, { id: string; name: string }>();

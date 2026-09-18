@@ -1,5 +1,5 @@
 import { Component, computed, inject } from '@angular/core';
-import type { AudienceDeviceStats, DevicePlatform } from '@contabilidade/contracts';
+import type { AudienceDeviceStats, DevicePlatform } from '@competa/contracts';
 import { SettingsService } from './settings.service';
 
 const LABELS: Record<DevicePlatform, string> = {

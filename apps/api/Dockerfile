@@ -7,7 +7,7 @@ RUN pnpm fetch
 
 COPY . .
 RUN pnpm install --frozen-lockfile --offline
-RUN pnpm --filter @contabilidade/contracts build
+RUN pnpm --filter @competa/contracts build
 RUN pnpm --filter api build
 RUN pnpm deploy --filter=api --prod --legacy /prod/api
 RUN cp -r apps/api/dist /prod/api/dist

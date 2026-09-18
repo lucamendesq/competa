@@ -1,7 +1,7 @@
 import { Component, computed, inject, signal } from '@angular/core';
 import { RouterLink } from '@angular/router';
 import { FormField, form, submit, validateStandardSchema } from '@angular/forms/signals';
-import { OpenPeriodBody } from '@contabilidade/contracts';
+import { OpenPeriodBody } from '@competa/contracts';
 import * as z from 'zod';
 import { NgIcon, provideIcons } from '@ng-icons/core';
 import {

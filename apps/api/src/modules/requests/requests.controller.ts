@@ -1,6 +1,6 @@
 import { Controller, Get, Param, Post } from '@nestjs/common';
 import { EventEmitter2 } from '@nestjs/event-emitter';
-import { IdParam } from '@contabilidade/contracts';
+import { IdParam } from '@competa/contracts';
 import env from '../../config/env.js';
 import { EVENTS, type UploadLinkResentEvent } from '../../lib/events.js';
 import { NotFound } from '../../lib/app-error.js';
@@ -14,7 +14,7 @@ export class RequestsController {
   constructor(
     private readonly requests: RequestRepository,
     private readonly events: EventEmitter2,
-  ) {}
+  ) { }
 
   @Get(':id')
   async get(@CurrentScope() scope: FirmScope, @Param(zodPipe(IdParam)) params: IdParam) {

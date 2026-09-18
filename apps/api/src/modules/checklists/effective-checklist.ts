@@ -1,4 +1,4 @@
-import type { CompanyFlags, Periodicity } from '@contabilidade/contracts';
+import type { CompanyFlags, Periodicity } from '@competa/contracts';
 
 export type ChecklistLine = {
   documentTypeId: string;

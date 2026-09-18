@@ -1,5 +1,5 @@
 import { Body, Controller, Delete, Get, Param, Patch } from '@nestjs/common';
-import { IdParam, UpdateFirmBody } from '@contabilidade/contracts';
+import { IdParam, UpdateFirmBody } from '@competa/contracts';
 import { NotFound } from '../../lib/app-error.js';
 import { zodPipe } from '../../lib/zod-pipe.js';
 import { AccountantRepository } from './accountant.repository.js';
@@ -17,7 +17,7 @@ export class TeamController {
     private readonly accountants: AccountantRepository,
     private readonly invites: InviteRepository,
     private readonly devices: UserDeviceRepository,
-  ) {}
+  ) { }
 
   @Get('accountants')
   async list(@CurrentScope() scope: FirmScope) {

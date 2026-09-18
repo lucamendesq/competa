@@ -5,7 +5,7 @@ import {
   PERIODICITIES,
   type CompanyFlag,
   type Periodicity,
-} from '@contabilidade/contracts';
+} from '@competa/contracts';
 import { NgIcon, provideIcons } from '@ng-icons/core';
 import { lucideLock, lucidePlus, lucideTrash2 } from '@ng-icons/lucide';
 import { HlmButtonImports } from '@spartan-ng/helm/button';

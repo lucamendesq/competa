@@ -5,7 +5,7 @@ import type {
   CreateOverrideBody,
   CreateTemplateItemBody,
   UpdateTemplateItemBody,
-} from '@contabilidade/contracts';
+} from '@competa/contracts';
 import { Database } from '../../infra/database/database.js';
 import {
   checklistTemplate,
@@ -41,7 +41,7 @@ const itemColumns = {
 
 @Injectable()
 export class ChecklistRepository {
-  constructor(private readonly db: Database) {}
+  constructor(private readonly db: Database) { }
 
   async listDocumentTypes(
     scope: FirmScope,
@@ -302,15 +302,15 @@ export class ChecklistRepository {
     const values =
       body.action === 'remove'
         ? {
-            documentTypeId: body.documentTypeId,
-            action: 'remove' as const,
-            periodicity: null,
-            annualMonth: null,
-            dueDay: null,
-            dueMonthOffset: null,
-            conditionFlag: null,
-            required: null,
-          }
+          documentTypeId: body.documentTypeId,
+          action: 'remove' as const,
+          periodicity: null,
+          annualMonth: null,
+          dueDay: null,
+          dueMonthOffset: null,
+          conditionFlag: null,
+          required: null,
+        }
         : body;
 
     const [row] = await this.db

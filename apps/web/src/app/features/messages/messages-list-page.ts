@@ -1,6 +1,6 @@
 import { Component, computed, inject, signal } from '@angular/core';
 import { RouterLink } from '@angular/router';
-import { MESSAGE_STATUS } from '@contabilidade/contracts';
+import { MESSAGE_STATUS } from '@competa/contracts';
 import { NgIcon, provideIcons } from '@ng-icons/core';
 import {
   lucideBellRing,

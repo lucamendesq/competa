@@ -24,7 +24,7 @@ import { AccountantRepository } from '../modules/auth/accountant.repository.js';
 import { InviteRepository } from '../modules/auth/invite.repository.js';
 import { ChecklistRepository } from '../modules/checklists/checklist.repository.js';
 import { rejectionReason } from '../modules/requests/file-rules.js';
-import { PresignUploadBody } from '@contabilidade/contracts';
+import { PresignUploadBody } from '@competa/contracts';
 import { toFirmScope } from '../modules/auth/scope.js';
 import { createToken } from '../lib/token.js';
 import { EmailAlreadyRegistered, InviteAlreadyPending } from '../modules/auth/errors.js';

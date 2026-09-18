@@ -2,7 +2,7 @@ import { Body, Controller, Logger, Post } from '@nestjs/common';
 import { AllowAnonymous } from '@thallesp/nestjs-better-auth';
 import { EventEmitter2 } from '@nestjs/event-emitter';
 import { Throttle, seconds } from '@nestjs/throttler';
-import { RecoverAccessBody, RecoverAccessConfirmBody } from '@contabilidade/contracts';
+import { RecoverAccessBody, RecoverAccessConfirmBody } from '@competa/contracts';
 import { subMinutes } from 'date-fns';
 import env from '../../config/env.js';
 import {
@@ -48,7 +48,7 @@ export class AccessRecoveryController {
     private readonly requests: RequestRepository,
     private readonly auth: AuthProvider,
     private readonly events: EventEmitter2,
-  ) {}
+  ) { }
 
   /* Rota pública que dispara email: limite por IP, senão vira ferramenta de envio em massa
    * para a caixa de terceiros. */

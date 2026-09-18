@@ -1,6 +1,6 @@
 import { Readable } from 'node:stream';
 import { Controller, Get, Logger, Param, StreamableFile } from '@nestjs/common';
-import { IdParam } from '@contabilidade/contracts';
+import { IdParam } from '@competa/contracts';
 // archiver 8 exporta classes, não uma função default
 import { ZipArchive } from 'archiver';
 import { StorageProvider } from '../../infra/storage/storage.provider.js';
@@ -19,7 +19,7 @@ export class ZipController {
   constructor(
     private readonly requests: RequestRepository,
     private readonly storage: StorageProvider,
-  ) {}
+  ) { }
 
   @Get('requests/:id/zip')
   async requestZip(@CurrentScope() scope: FirmScope, @Param(zodPipe(IdParam)) params: IdParam) {
