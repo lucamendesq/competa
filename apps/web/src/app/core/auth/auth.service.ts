@@ -23,6 +23,8 @@ export type Contact = {
   companies: { companyId: string; companyName: string; accountingFirmName: string }[];
 };
 
+const SESSION_HINT_KEY = 'competa_auth';
+
 @Service()
 export class AuthService {
   private readonly api = inject(Api);
@@ -33,13 +35,20 @@ export class AuthService {
   private pending?: Promise<void>;
 
   ensureLoaded(prefer: 'accountant' | 'contact' = 'accountant') {
-    return (this.pending ??= this.load(prefer));
+    const hint = this.getSessionHint();
+    if (!hint && prefer === 'accountant') {
+      return Promise.resolve();
+    }
+
+    const target = hint && (hint === prefer || prefer === 'accountant') ? hint : prefer;
+    return (this.pending ??= this.load(target));
   }
 
   async signInAccountant(email: string, password: string) {
     const { error } = await authClient.signIn.email({ email, password });
     if (error) throw new Error('E-mail ou senha inválidos.');
 
+    this.setSessionHint('accountant');
     this.accountant.set(await this.api.get<Accountant>('/auth/me'));
   }
 
@@ -57,6 +66,7 @@ export class AuthService {
   }
 
   async signOut() {
+    this.setSessionHint(null);
     await authClient.signOut();
     this.accountant.set(null);
     this.contact.set(null);
@@ -67,10 +77,12 @@ export class AuthService {
     const { error } = await authClient.signIn.email({ email, password });
     if (error) throw new Error('E-mail ou senha inválidos.');
 
+    this.setSessionHint('contact');
     await this.reloadContact();
   }
 
   async reloadContact() {
+    this.setSessionHint('contact');
     this.contact.set(await this.api.get<Contact>('/my/profile'));
     this.pending = Promise.resolve();
   }
@@ -80,38 +92,63 @@ export class AuthService {
   }
 
   async reloadAccountant() {
+    this.setSessionHint('accountant');
     this.accountant.set(await this.api.get<Accountant>('/auth/me'));
     this.pending = Promise.resolve();
   }
 
-  private async load(prefer: 'accountant' | 'contact') {
-    const attempts =
-      prefer === 'accountant'
-        ? [this.loadAccountant, this.loadContact]
-        : [this.loadContact, this.loadAccountant];
-
-    for (const attempt of attempts) {
-      if (await attempt.call(this)) return;
+  private async load(target: 'accountant' | 'contact') {
+    if (target === 'accountant') {
+      const ok = await this.loadAccountant();
+      if (!ok) this.setSessionHint(null);
+      return;
     }
+
+    const ok = await this.loadContact();
+    if (!ok) this.setSessionHint(null);
   }
 
   private async loadAccountant() {
     try {
-      this.accountant.set(await this.api.get<Accountant>('/auth/me'));
+      const data = await this.api.get<Accountant>('/auth/me');
+      this.accountant.set(data);
+      this.setSessionHint('accountant');
       return true;
     } catch {
       this.accountant.set(null);
+      this.pending = undefined;
       return false;
     }
   }
 
   private async loadContact() {
     try {
-      this.contact.set(await this.api.get<Contact>('/my/profile'));
+      const data = await this.api.get<Contact>('/my/profile');
+      this.contact.set(data);
+      this.setSessionHint('contact');
       return true;
     } catch {
       this.contact.set(null);
+      this.pending = undefined;
       return false;
     }
   }
+
+  private setSessionHint(role: 'accountant' | 'contact' | null) {
+    try {
+      if (role) localStorage.setItem(SESSION_HINT_KEY, role);
+      else localStorage.removeItem(SESSION_HINT_KEY);
+    } catch {
+      return;
+    }
+  }
+
+  private getSessionHint(): 'accountant' | 'contact' | null {
+    try {
+      return (localStorage.getItem(SESSION_HINT_KEY) as 'accountant' | 'contact') ?? null;
+    } catch {
+      return null;
+    }
+  }
 }
+

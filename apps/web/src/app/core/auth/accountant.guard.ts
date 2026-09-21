@@ -8,5 +8,9 @@ export const accountantGuard: CanMatchFn = async () => {
 
   await auth.ensureLoaded();
 
-  return auth.accountant() !== null || router.createUrlTree(['/entrar']);
+  if (auth.accountant() !== null) return true;
+  if (auth.contact() !== null) return router.createUrlTree(['/minha-area/pendencias']);
+
+  return router.createUrlTree(['/entrar']);
 };
+
