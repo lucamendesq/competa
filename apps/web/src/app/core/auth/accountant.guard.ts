@@ -13,4 +13,3 @@ export const accountantGuard: CanMatchFn = async () => {
 
   return router.createUrlTree(['/entrar']);
 };
-

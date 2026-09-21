@@ -14,17 +14,29 @@
     "predev": "pnpm --filter contracts build",
     "dev": "pnpm -r --parallel run dev",
     "predev:lan": "pnpm --filter contracts build",
-    "dev:lan": "pnpm -r --parallel run dev:lan"
+    "dev:lan": "pnpm -r --parallel run dev:lan",
+    "prepare": "husky"
   },
   "devDependencies": {
     "angular-eslint": "^20.0.0",
     "eslint": "^9.18.0",
     "eslint-config-prettier": "^10.0.0",
+    "husky": "^9.1.7",
+    "lint-staged": "^17.5.1",
     "prettier": "^3.8.1",
     "typescript-eslint": "^8.20.0",
     "wrangler": "^4.134.0"
   },
   "dependencies": {
     "zod": "^4.4.3"
+  },
+  "lint-staged": {
+    "*.{ts,mts,cts}": [
+      "eslint --fix",
+      "prettier --write"
+    ],
+    "*.{html,css,json,yaml,yml,md}": [
+      "prettier --write"
+    ]
   }
 }
