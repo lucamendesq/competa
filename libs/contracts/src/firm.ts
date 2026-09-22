@@ -4,7 +4,15 @@ import * as z from 'zod';
  *  que mudou. As faixas espelham o CHECK `accounting_firm_reminder_chk`. */
 export const UpdateFirmBody = z
   .object({
-    name: z.string().trim().min(1).max(120),
+    name: z
+      .string()
+      .trim()
+      .min(1)
+      .max(120)
+      .refine((val) => !/[\r\n<>"\x00-\x1f]/.test(val), {
+        message:
+          'Nome não pode conter quebras de linha, caracteres de controle ou os símbolos <, > e ".',
+      }),
     reminderMax: z.int().min(0).max(10),
     reminderDueSoonDays: z.int().min(0).max(31),
     reminderGapDays: z.int().min(1).max(31),

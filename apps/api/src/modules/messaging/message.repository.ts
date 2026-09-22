@@ -30,19 +30,23 @@ import {
   reviewPublishedEmail,
 } from './email-body.js';
 import { MessageProvider } from './providers/message.provider.js';
-import { WebPush } from './providers/web-push.provider.js';
+import { PushProvider } from './providers/push.provider.js';
 import type { ReminderCandidate, ReminderSettings } from './reminder-rules.js';
 
 const PENDING_ITEM_STATUS = ['pending', 'rejected'] as const;
 
 type MessagePurpose = (typeof MESSAGE_PURPOSES)[number];
 
-type Delivery = {
+export type Delivery = {
   requestId: string;
   purpose: MessagePurpose;
   recipient: string;
   subject: string;
   body: string;
+  channel?: string;
+  provider?: MessageProvider;
+  fallbackRecipient?: string;
+  fallbackProvider?: MessageProvider;
 };
 
 type ReminderRow = ReminderCandidate & {
@@ -60,8 +64,15 @@ export class MessageRepository {
     private readonly db: Database,
     private readonly provider: MessageProvider,
     private readonly requests: RequestRepository,
-    private readonly push: WebPush,
+    private readonly push: PushProvider,
   ) {}
+
+  private readonly defaultWhatsAppProvider: MessageProvider = {
+    channel: 'whatsapp',
+    send: async () => {
+      throw new Error('WhatsApp provider não está configurado.');
+    },
+  };
 
   async savePushSubscription(
     scope: ContactScope | UploadScope,
@@ -205,23 +216,58 @@ export class MessageRepository {
     return row?.name;
   }
 
-  /** Devolve se a mensagem saiu, e NUNCA lança — nem por falha do banco. Quem chamou
-   *  decide o que fazer: o lembrete não rotaciona o Link se o envio não saiu, o cron de
-   *  prazo não marca o item como avisado, e a recuperação de acesso não oficializa o token
-   *  novo. Canal quebrado nunca sobe como erro. */
-  async deliver({ requestId, purpose, recipient, subject, body }: Delivery) {
+  private async contactEmailOf(requestId: string): Promise<string | undefined> {
+    const [linkRow] = await this.db
+      .select({ email: contact.email })
+      .from(uploadLink)
+      .innerJoin(contact, eq(contact.id, uploadLink.contactId))
+      .where(eq(uploadLink.requestId, requestId))
+      .limit(1);
+
+    if (linkRow?.email) return linkRow.email;
+
+    const [companyContact] = await this.db
+      .select({ email: contact.email })
+      .from(request)
+      .innerJoin(contact, eq(contact.companyId, request.companyId))
+      .where(eq(request.id, requestId))
+      .limit(1);
+
+    return companyContact?.email;
+  }
+
+  private async attemptSend(input: {
+    requestId: string;
+    purpose: MessagePurpose;
+    recipient: string;
+    subject: string;
+    body: string;
+    senderName?: string;
+    provider: MessageProvider;
+  }): Promise<boolean> {
     let messageId: string | undefined;
 
     try {
       const [row] = await this.db
         .insert(message)
-        .values({ requestId, channel: this.provider.channel, purpose, recipient, status: 'queued' })
+        .values({
+          requestId: input.requestId,
+          channel: input.provider.channel,
+          purpose: input.purpose,
+          recipient: input.recipient,
+          status: 'queued',
+        })
         .returning({ id: message.id });
 
       messageId = row.id;
 
-      const senderName = await this.firmNameOf(requestId);
-      await this.provider.send({ recipient, subject, body, senderName });
+      await input.provider.send({
+        recipient: input.recipient,
+        subject: input.subject,
+        body: input.body,
+        senderName: input.senderName,
+      });
+
       await this.db
         .update(message)
         .set({ status: 'sent', sentAt: new Date() })
@@ -231,11 +277,75 @@ export class MessageRepository {
     } catch (error) {
       const reason = error instanceof Error ? error.message : String(error);
       await this.markFailed(messageId, reason);
-      this.logger.error(`envio ${purpose} para ${recipient} falhou: ${reason}`);
-      reportChannelFailure(this.provider.channel as 'email' | 'push', purpose, error);
+      this.logger.error(
+        `envio ${input.purpose} (${input.provider.channel}) para ${input.recipient} falhou: ${reason}`,
+      );
+      reportChannelFailure(input.provider.channel as 'email' | 'push', input.purpose, error);
 
       return false;
     }
+  }
+
+  /** Devolve se a mensagem saiu, e NUNCA lança — nem por falha do banco. Quem chamou
+   *  decide o que fazer: o lembrete não rotaciona o Link se o envio não saiu, o cron de
+   *  prazo não marca o item como avisado, e a recuperação de acesso não oficializa o token
+   *  novo. Canal quebrado nunca sobe como erro. */
+  async deliver({
+    requestId,
+    purpose,
+    recipient,
+    subject,
+    body,
+    channel,
+    provider,
+    fallbackRecipient,
+    fallbackProvider,
+  }: Delivery) {
+    const primaryProvider =
+      provider ?? (channel === 'whatsapp' ? this.defaultWhatsAppProvider : this.provider);
+
+    const senderName = await this.firmNameOf(requestId);
+
+    const primaryDelivered = await this.attemptSend({
+      requestId,
+      purpose,
+      recipient,
+      subject,
+      body,
+      senderName,
+      provider: primaryProvider,
+    });
+
+    if (primaryDelivered) return true;
+
+    const secondaryProvider =
+      fallbackProvider ?? (primaryProvider.channel === 'whatsapp' ? this.provider : undefined);
+
+    if (secondaryProvider && secondaryProvider.channel !== primaryProvider.channel) {
+      const secondaryRecipient =
+        fallbackRecipient ??
+        (secondaryProvider.channel === 'email' ? await this.contactEmailOf(requestId) : undefined);
+
+      if (secondaryRecipient) {
+        this.logger.warn(
+          `degradando envio ${purpose} da solicitação ${requestId}: ${primaryProvider.channel} falhou, tentando ${secondaryProvider.channel}`,
+        );
+
+        const fallbackDelivered = await this.attemptSend({
+          requestId,
+          purpose,
+          recipient: secondaryRecipient,
+          subject,
+          body,
+          senderName,
+          provider: secondaryProvider,
+        });
+
+        if (fallbackDelivered) return true;
+      }
+    }
+
+    return false;
   }
 
   async list(scope: FirmScope, query: MessageListQuery) {

@@ -25,7 +25,7 @@ import {
   reviewPublishedEmail,
 } from './email-body.js';
 import { MessageRepository } from './message.repository.js';
-import { WebPush } from './providers/web-push.provider.js';
+import { PushProvider } from './providers/push.provider.js';
 
 @Injectable()
 export class CollectionEventsListener {
@@ -33,7 +33,7 @@ export class CollectionEventsListener {
 
   constructor(
     private readonly messages: MessageRepository,
-    private readonly push: WebPush,
+    private readonly push: PushProvider,
   ) {}
 
   /** Push é ADICIONAL ao email, nunca substituto: o Responsável pode não ter instalado a
