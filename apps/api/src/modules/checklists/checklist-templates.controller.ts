@@ -56,7 +56,7 @@ export class ChecklistTemplatesController {
   ) {
     await this.requireOwned(scope, params.id);
 
-    return this.checklists.renameTemplate(params.id, body.name);
+    return this.checklists.renameTemplate(scope, params.id, body.name);
   }
 
   @Delete(':id')
@@ -82,7 +82,7 @@ export class ChecklistTemplatesController {
     const [visible] = await this.checklists.documentTypesVisible(scope, [body.documentTypeId]);
     if (!visible) throw new DocumentTypeNotVisible();
 
-    const row = await this.checklists.addTemplateItem(params.id, body);
+    const row = await this.checklists.addTemplateItem(scope, params.id, body);
     if (!row) throw new TemplateItemDuplicated();
 
     return row;
@@ -96,7 +96,7 @@ export class ChecklistTemplatesController {
   ) {
     await this.requireOwned(scope, params.id);
 
-    const row = await this.checklists.updateTemplateItem(params.id, params.itemId, body);
+    const row = await this.checklists.updateTemplateItem(scope, params.id, params.itemId, body);
     if (!row) throw new NotFound('Item do template não encontrado.');
 
     return row;
@@ -110,7 +110,7 @@ export class ChecklistTemplatesController {
   ) {
     await this.requireOwned(scope, params.id);
 
-    const row = await this.checklists.deleteTemplateItem(params.id, params.itemId);
+    const row = await this.checklists.deleteTemplateItem(scope, params.id, params.itemId);
     if (!row) throw new NotFound('Item do template não encontrado.');
   }
 
