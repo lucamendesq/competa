@@ -1,19 +1,17 @@
 import { CanActivate, ExecutionContext, Injectable } from '@nestjs/common';
 import { Reflector } from '@nestjs/core';
-import { eq } from 'drizzle-orm';
-import { Database } from '../../infra/database/database.js';
-import { accountant } from '../../infra/database/schema/index.js';
 import { Forbidden, Unauthenticated } from '../../lib/app-error.js';
 import { AuthProvider } from './auth-provider.js';
 import { CONTACT_ROUTE } from './contact-route.decorator.js';
 import { SESSION_ROUTE } from './session-route.decorator.js';
 import { toFirmScope } from './scope.js';
+import { AccountantRepository } from './accountant.repository.js';
 
 @Injectable()
 export class TenantGuard implements CanActivate {
   constructor(
     private readonly reflector: Reflector,
-    private readonly db: Database,
+    private readonly accountants: AccountantRepository,
     private readonly auth: AuthProvider,
   ) {}
 
@@ -42,11 +40,7 @@ export class TenantGuard implements CanActivate {
 
     request.session = session;
 
-    const [row] = await this.db
-      .select({ id: accountant.id, accountingFirmId: accountant.accountingFirmId })
-      .from(accountant)
-      .where(eq(accountant.authUserId, session.user.id))
-      .limit(1);
+    const row = await this.accountants.findByAuthUserId(session.user.id);
 
     if (!row) throw new Forbidden('Esta conta não pertence a uma Contabilidade.');
 

@@ -1,7 +1,7 @@
-import { Body, Controller, Get, HttpCode, Logger, Patch, Post, Query, Req } from '@nestjs/common';
+import { Body, Controller, Get, HttpCode, Logger, Patch, Post, Req } from '@nestjs/common';
 import { AllowAnonymous } from '@thallesp/nestjs-better-auth';
 import { APIError } from 'better-auth/api';
-import { InviteTokenParam, RegisterDeviceBody, SignUpBody } from '@competa/contracts';
+import { RegisterDeviceBody, SignUpBody } from '@competa/contracts';
 import type { Request } from 'express';
 import { NotFound } from '../../lib/app-error.js';
 import { isFailure } from '../../lib/either.js';
@@ -29,11 +29,8 @@ export class AuthController {
 
   @Post('sign-up')
   @AllowAnonymous()
-  async signUp(
-    @Query(zodPipe(InviteTokenParam)) query: InviteTokenParam,
-    @Body(zodPipe(SignUpBody)) body: SignUpBody,
-  ) {
-    const found = await this.invites.findUsable(query.token);
+  async signUp(@Body(zodPipe(SignUpBody)) body: SignUpBody) {
+    const found = await this.invites.findUsable(body.token);
 
     if (found.email.toLowerCase() !== body.email.toLowerCase()) throw new InviteEmailMismatch();
 

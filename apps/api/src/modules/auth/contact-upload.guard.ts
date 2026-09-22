@@ -1,10 +1,8 @@
 import { CanActivate, ExecutionContext, Injectable } from '@nestjs/common';
-import { and, eq } from 'drizzle-orm';
-import { Database } from '../../infra/database/database.js';
-import { company, contact, request } from '../../infra/database/schema/index.js';
 import { Forbidden, NotFound, Unauthenticated, ValidationError } from '../../lib/app-error.js';
 import { AuthProvider } from './auth-provider.js';
 import { toUploadScope } from './scope.js';
+import { ContactRepository } from '../contacts/contact.repository.js';
 
 /** Upload logado do Responsável (Fase 10). Produz o MESMO `UploadScope` do fluxo por link,
  *  a partir da sessão em vez do token — assim a área logada reaproveita o pipeline de envio
@@ -15,7 +13,7 @@ import { toUploadScope } from './scope.js';
 @Injectable()
 export class ContactUploadGuard implements CanActivate {
   constructor(
-    private readonly db: Database,
+    private readonly contacts: ContactRepository,
     private readonly auth: AuthProvider,
   ) {}
 
@@ -31,24 +29,13 @@ export class ContactUploadGuard implements CanActivate {
       throw new ValidationError('Informe a Solicitação (requestId) do envio.');
     }
 
-    const [owned] = await this.db
-      .select({ requestId: request.id, contactId: contact.id, active: company.active })
-      .from(contact)
-      .innerJoin(company, eq(company.id, contact.companyId))
-      .innerJoin(request, eq(request.companyId, company.id))
-      .where(and(eq(contact.authUserId, session.user.id), eq(request.id, requestId)))
-      .limit(1);
+    const owned = await this.contacts.findUploadOwnership(session.user.id, requestId);
 
     /* Distinguir "não é Responsável" de "Solicitação de outra Empresa": o primeiro é 403
      * (conta errada), o segundo é 404 (não existe para ele). */
     if (!owned) {
-      const [me] = await this.db
-        .select({ id: contact.id })
-        .from(contact)
-        .where(eq(contact.authUserId, session.user.id))
-        .limit(1);
-
-      if (!me) throw new Forbidden('Esta conta não é de um Responsável de Empresa.');
+      const exists = await this.contacts.existsByAuthUser(session.user.id);
+      if (!exists) throw new Forbidden('Esta conta não é de um Responsável de Empresa.');
       throw new NotFound('Solicitação não encontrada.');
     }
 
@@ -59,3 +46,4 @@ export class ContactUploadGuard implements CanActivate {
     return true;
   }
 }
+

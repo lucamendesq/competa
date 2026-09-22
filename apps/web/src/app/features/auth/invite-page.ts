@@ -56,6 +56,7 @@ export class InvitePage {
     name: '',
     email: this.invite.value()?.email ?? '',
     password: '',
+    token: this.token(),
   }));
   protected readonly f = form(this.data, (path) => validateStandardSchema(path, SignUpBody));
   protected readonly passwordStrength = computed(() => passwordCriteria(this.data().password));
@@ -95,7 +96,7 @@ export class InvitePage {
     this.error.set(null);
 
     return submit(this.f, async (formTree) => {
-      const { name, email, password } = formTree().value();
+      const { name, email, password, token } = formTree().value();
 
       try {
         await this.auth.signUpWithInvite({ name, email, password }, this.token());

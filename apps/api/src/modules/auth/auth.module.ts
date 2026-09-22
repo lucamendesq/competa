@@ -17,7 +17,7 @@ import { UserDeviceRepository } from './user-device.repository.js';
     UserDeviceRepository,
     SessionGuard,
   ],
-  exports: [AuthProvider, InviteRepository, UserDeviceRepository],
+  exports: [AuthProvider, InviteRepository, UserDeviceRepository, AccountantRepository],
   controllers: [AuthController, InviteController, TeamController],
 })
 export class AuthModule {}
