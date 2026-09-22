@@ -1,13 +1,15 @@
 import { Injectable } from '@nestjs/common';
 import { addDays, addHours } from 'date-fns';
-import { and, asc, count, eq, inArray, ne } from 'drizzle-orm';
+import { and, asc, count, eq, inArray, ne, sql } from 'drizzle-orm';
 import env from '../../config/env.js';
 import { Database } from '../../infra/database/database.js';
 import {
   accountant,
+  accountingFirm,
   company,
   contact,
   document,
+  message,
   period,
   request,
   requestItem,
@@ -16,6 +18,7 @@ import {
 } from '../../infra/database/schema/index.js';
 import { createToken } from '../../lib/token.js';
 import { companyIdsOf, type ContactScope, type FirmScope } from '../auth/scope.js';
+import type { ReminderCandidate, ReminderSettings } from '../messaging/reminder-rules.js';
 import { NotFound } from '../../lib/app-error.js';
 import { InvalidTransition } from './errors.js';
 import {
@@ -1018,5 +1021,124 @@ export class RequestRepository {
         requestStatus,
       };
     });
+  }
+
+  async reminderCandidates(scope?: FirmScope) {
+    const items = await this.db
+      .select({
+        requestId: request.id,
+        accountingFirmId: period.accountingFirmId,
+        companyName: company.name,
+        referenceMonth: period.referenceMonth,
+        periodDueDate: period.dueDate,
+        itemName: requestItem.name,
+        itemDueDate: requestItem.dueDate,
+      })
+      .from(requestItem)
+      .innerJoin(request, eq(request.id, requestItem.requestId))
+      .innerJoin(period, eq(period.id, request.periodId))
+      .innerJoin(company, eq(company.id, request.companyId))
+      .where(
+        and(
+          inArray(requestItem.status, ['pending', 'rejected']),
+          eq(request.status, 'open'),
+          eq(period.status, 'open'),
+          scope ? eq(period.accountingFirmId, scope) : undefined,
+        ),
+      );
+
+    const requestIds = [...new Set(items.map((row) => row.requestId))];
+    if (!requestIds.length) return [];
+
+    const recipients = await this.db
+      .selectDistinct({
+        requestId: uploadLink.requestId,
+        contactName: contact.name,
+        contactEmail: contact.email,
+      })
+      .from(uploadLink)
+      .innerJoin(contact, eq(contact.id, uploadLink.contactId))
+      .where(inArray(uploadLink.requestId, requestIds));
+
+    const stats = await this.db
+      .select({
+        requestId: message.requestId,
+        reminderCount: sql<number>`count(*) filter (
+          where ${message.purpose} = 'reminder' and ${message.status} <> 'failed'
+        )::int`,
+        lastMessageAt: sql<Date | null>`max(${message.createdAt})`,
+      })
+      .from(message)
+      .where(inArray(message.requestId, requestIds))
+      .groupBy(message.requestId);
+
+    const recipientOf = new Map(recipients.map((row) => [row.requestId, row]));
+    const statsOf = new Map(stats.map((row) => [row.requestId, row]));
+    const candidates = new Map<
+      string,
+      ReminderCandidate & {
+        companyName: string;
+        contactName: string;
+        contactEmail: string;
+        referenceMonth: string;
+      }
+    >();
+
+    for (const row of items) {
+      const recipient = recipientOf.get(row.requestId);
+      if (!recipient) continue;
+
+      const candidate = candidates.get(row.requestId) ?? {
+        requestId: row.requestId,
+        accountingFirmId: row.accountingFirmId,
+        companyName: row.companyName,
+        referenceMonth: row.referenceMonth,
+        periodDueDate: row.periodDueDate,
+        contactName: recipient.contactName,
+        contactEmail: recipient.contactEmail,
+        reminderCount: statsOf.get(row.requestId)?.reminderCount ?? 0,
+        lastMessageAt: statsOf.get(row.requestId)?.lastMessageAt ?? null,
+        pendingItems: [],
+      };
+
+      candidate.pendingItems.push({ name: row.itemName, dueDate: row.itemDueDate });
+      candidates.set(row.requestId, candidate);
+    }
+
+    return [...candidates.values()];
+  }
+
+  async reminderSettingsByFirm(firmIds: string[]): Promise<Map<string, ReminderSettings>> {
+    if (!firmIds.length) return new Map();
+
+    const rows = await this.db
+      .select({
+        id: accountingFirm.id,
+        reminderMax: accountingFirm.reminderMax,
+        reminderDueSoonDays: accountingFirm.reminderDueSoonDays,
+        reminderGapDays: accountingFirm.reminderGapDays,
+      })
+      .from(accountingFirm)
+      .where(inArray(accountingFirm.id, firmIds));
+
+    return new Map(rows.map((row) => [row.id, row]));
+  }
+
+  async withAdvisoryLock<T>(lockId: number, task: () => Promise<T>): Promise<T | null> {
+    const result = await this.db.execute<{ acquired: boolean }>(
+      sql`SELECT pg_try_advisory_lock(${lockId}) AS acquired`,
+    );
+
+    const rawRows =
+      (result as unknown as { rows?: { acquired: boolean }[] }).rows ??
+      (result as unknown as { acquired: boolean }[]);
+    const acquired = Boolean(rawRows?.[0]?.acquired);
+    if (!acquired) return null;
+
+    try {
+      return await task();
+    } finally {
+      await this.db.execute(sql`SELECT pg_advisory_unlock(${lockId})`);
+    }
   }
 }

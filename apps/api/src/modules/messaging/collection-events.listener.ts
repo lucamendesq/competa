@@ -7,6 +7,7 @@ import {
   type DeadlineMissedEvent,
   type InviteCreatedEvent,
   type ItemReopenedEvent,
+  type ReminderDueEvent,
   type RequestCompletedEvent,
   type RequestCreatedEvent,
   type ReviewPublishedEvent,
@@ -21,6 +22,7 @@ import {
   inviteEmail,
   itemReopenedEmail,
   linkResentEmail,
+  reminderEmail,
   requestCompletedEmail,
   reviewPublishedEmail,
 } from './email-body.js';
@@ -41,7 +43,7 @@ export class CollectionEventsListener {
    *  a regra de canal que não bloqueia o fluxo vale igual. */
   private async notify(
     requestId: string,
-    purpose: 'link_delivery' | 'rejection' | 'completion' | 'deadline_missed',
+    purpose: 'link_delivery' | 'rejection' | 'completion' | 'deadline_missed' | 'reminder',
     title: string,
     body: string,
     url?: string,
@@ -81,7 +83,7 @@ export class CollectionEventsListener {
    *  registra passo 1 concluído sem entrega. Sem linha em `message`: não há requestId. */
   @OnEvent(EVENTS.AccessRecoveryRequested)
   async onAccessRecoveryRequested(event: AccessRecoveryRequestedEvent) {
-    return this.messages.sendWithoutLog({
+    await this.messages.sendWithoutLog({
       recipient: event.email,
       ...recoverConfirmEmail({ name: event.contactName, confirmUrl: event.confirmUrl }),
     });
@@ -104,11 +106,9 @@ export class CollectionEventsListener {
     });
   }
 
-  /** Devolve se o email saiu: quem emitiu (`/access/recover`) só oficializa o token novo
-   *  depois disso — link rotacionado com email falhado deixaria o Responsável sem nenhum. */
   @OnEvent(EVENTS.UploadLinkResent)
   async onUploadLinkResent(event: UploadLinkResentEvent) {
-    return this.messages.deliver({
+    await this.messages.deliver({
       requestId: event.requestId,
       purpose: 'resend',
       recipient: event.contactEmail,
@@ -195,30 +195,54 @@ export class CollectionEventsListener {
    *  ar faz o contato nunca ser avisado — e a marca impede a próxima varredura de tentar. */
   @OnEvent(EVENTS.DeadlineMissed)
   async onDeadlineMissed(event: DeadlineMissedEvent) {
-    const delivered = await this.messages.deliver({
-      requestId: event.requestId,
-      purpose: 'deadline_missed',
-      recipient: event.contactEmail,
-      ...deadlineMissedContactEmail(event),
-    });
-
-    await this.notify(
-      event.requestId,
-      'deadline_missed',
-      `Prazo vencido: ${event.itemName}`,
-      `${event.companyName}: o prazo era ${event.dueDate} e o documento ainda não chegou.`,
-      event.uploadUrl,
-    );
-
-    for (const accountantEmail of event.accountantEmails) {
+    try {
       await this.messages.deliver({
         requestId: event.requestId,
         purpose: 'deadline_missed',
-        recipient: accountantEmail,
-        ...deadlineMissedAccountantEmail(event),
+        recipient: event.contactEmail,
+        ...deadlineMissedContactEmail(event),
       });
-    }
 
-    return delivered;
+      await this.notify(
+        event.requestId,
+        'deadline_missed',
+        `Prazo vencido: ${event.itemName}`,
+        `${event.companyName}: o prazo era ${event.dueDate} e o documento ainda não chegou.`,
+        event.uploadUrl,
+      );
+
+      for (const accountantEmail of event.accountantEmails) {
+        await this.messages.deliver({
+          requestId: event.requestId,
+          purpose: 'deadline_missed',
+          recipient: accountantEmail,
+          ...deadlineMissedAccountantEmail(event),
+        });
+      }
+    } catch (error) {
+      this.logger.error(`Falha no evento DeadlineMissed da Solicitação ${event.requestId}: ${String(error)}`);
+    }
+  }
+
+  @OnEvent(EVENTS.ReminderDue)
+  async onReminderDue(event: ReminderDueEvent) {
+    try {
+      await this.messages.deliver({
+        requestId: event.requestId,
+        purpose: 'reminder',
+        recipient: event.contactEmail,
+        ...reminderEmail(event),
+      });
+
+      await this.notify(
+        event.requestId,
+        'reminder',
+        `Lembrete: documentos pendentes`,
+        `${event.companyName}: faltam documentos da competência ${asMonth(event.referenceMonth)}.`,
+        event.uploadUrl,
+      );
+    } catch (error) {
+      this.logger.error(`Falha no evento ReminderDue da Solicitação ${event.requestId}: ${String(error)}`);
+    }
   }
 }

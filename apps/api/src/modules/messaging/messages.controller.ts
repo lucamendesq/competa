@@ -8,7 +8,7 @@ import { zodPipe } from '../../lib/zod-pipe.js';
 import { CurrentScope } from '../auth/current-scope.decorator.js';
 import type { FirmScope } from '../auth/scope.js';
 import { MessageRepository } from './message.repository.js';
-import { RemindersCron } from './reminders.cron.js';
+import { RemindersCron } from '../requests/reminders.cron.js';
 
 @Controller('messages')
 export class MessagesController {
@@ -25,6 +25,15 @@ export class MessagesController {
     const { rows, total } = await this.messages.list(scope, query);
 
     return paginated(rows, { page: query.page, perPage: query.perPage, total });
+  }
+
+  @Get('failures')
+  async failures(
+    @CurrentScope() scope: FirmScope,
+    @Query('periodId') periodId?: string,
+  ) {
+    if (!periodId) return [];
+    return this.messages.failuresByPeriod(scope, periodId);
   }
 
   @Post(':id/resend')

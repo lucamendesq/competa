@@ -68,6 +68,17 @@ export type DeadlineMissedEvent = {
   accountantEmails: string[];
 };
 
+export type ReminderDueEvent = {
+  requestId: string;
+  referenceMonth: string;
+  periodDueDate: string | null;
+  companyName: string;
+  contactName: string;
+  contactEmail: string;
+  uploadUrl: string;
+  pendingItems: { name: string; dueDate: string | null }[];
+};
+
 export type InviteCreatedEvent = {
   email: string;
   firmName: string;
@@ -117,6 +128,7 @@ export const EVENTS = {
   ReviewPublished: 'ReviewPublished',
   RequestCompleted: 'RequestCompleted',
   DeadlineMissed: 'DeadlineMissed',
+  ReminderDue: 'ReminderDue',
 } as const;
 
 export type EventPayloads = {
@@ -129,4 +141,5 @@ export type EventPayloads = {
   ReviewPublished: ReviewPublishedEvent;
   RequestCompleted: RequestCompletedEvent;
   DeadlineMissed: DeadlineMissedEvent;
+  ReminderDue: ReminderDueEvent;
 };

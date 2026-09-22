@@ -8,6 +8,7 @@ import { EVENTS, type DeadlineMissedEvent } from '../../lib/events.js';
 import { createToken } from '../../lib/token.js';
 import type { FirmScope } from '../auth/scope.js';
 import { subHours, subYears } from 'date-fns';
+import * as Sentry from '@sentry/nestjs';
 import { StorageProvider } from '../../infra/storage/storage.provider.js';
 import { DocumentRepository } from './document.repository.js';
 import { effectiveDueDate } from './review-rules.js';
@@ -16,6 +17,8 @@ import { RequestRepository } from './request.repository.js';
 /** Presign sem PUT: janela generosa porque o cliente pode estar subindo 500 arquivos
  *  grandes numa conexão ruim. */
 const STALE_UPLOAD_HOURS = 24;
+
+const DEADLINE_CRON_LOCK_ID = 42002;
 
 /** Varredura de prazo estourado: emite `DeadlineMissed` (avisa Responsável E Contador).
  *
@@ -41,12 +44,14 @@ export class DeadlineCron {
     timezone: 'America/Sao_Paulo',
   })
   async daily() {
-    const { notified } = await this.scan(null);
-    if (notified.length)
-      this.logger.log(`Prazo estourado: ${notified.length} item(ns) avisado(s).`);
+    await this.requests.withAdvisoryLock(DEADLINE_CRON_LOCK_ID, async () => {
+      const { notified } = await this.scan(null);
+      if (notified.length)
+        this.logger.log(`Prazo estourado: ${notified.length} item(ns) avisado(s).`);
 
-    const discarded = await this.discardStaleUploads();
-    if (discarded) this.logger.log(`Faxina: ${discarded} envio(s) não confirmado(s) removido(s).`);
+      const discarded = await this.discardStaleUploads();
+      if (discarded) this.logger.log(`Faxina: ${discarded} envio(s) não confirmado(s) removido(s).`);
+    });
   }
 
   @Cron('0 3 1 * *', { timeZone: 'America/Sao_Paulo' })
@@ -119,50 +124,45 @@ export class DeadlineCron {
     }[] = [];
 
     for (const row of pendingNotice) {
-      const link = linkByRequest.get(row.requestId) ?? createToken();
-      linkByRequest.set(row.requestId, link);
+      try {
+        const link = linkByRequest.get(row.requestId) ?? createToken();
+        linkByRequest.set(row.requestId, link);
 
-      const missed: DeadlineMissedEvent = {
-        requestId: row.requestId,
-        requestItemId: row.requestItemId,
-        itemName: row.itemName,
-        dueDate: effectiveDueDate(row)!,
-        companyName: row.companyName,
-        contactName: row.contactName,
-        contactEmail: row.contactEmail,
-        uploadUrl: `${env.WEB_URL}/envio/${link.token}`,
-        accountantEmails: emailsByFirm.get(row.accountingFirmId) ?? [],
-      };
+        const missed: DeadlineMissedEvent = {
+          requestId: row.requestId,
+          requestItemId: row.requestItemId,
+          itemName: row.itemName,
+          dueDate: effectiveDueDate(row)!,
+          companyName: row.companyName,
+          contactName: row.contactName,
+          contactEmail: row.contactEmail,
+          uploadUrl: `${env.WEB_URL}/envio/${link.token}`,
+          accountantEmails: emailsByFirm.get(row.accountingFirmId) ?? [],
+        };
 
-      /* `emitAsync` e não `emit`: só marca `deadline_notified_at` o item cujo email
-       * REALMENTE saiu. Marcar antes de confirmar a entrega faz um provedor de email fora
-       * do ar virar contato nunca avisado — a marca é idempotente e a varredura de amanhã
-       * pula o item para sempre. */
-      const delivered = await this.events.emitAsync(EVENTS.DeadlineMissed, missed);
-      if (!delivered.includes(true)) {
-        this.logger.warn(`Prazo de "${row.itemName}" não avisado: o email não saiu.`);
-        continue;
-      }
+        await this.events.emitAsync(EVENTS.DeadlineMissed, missed);
 
-      if (!applied.has(row.requestId)) {
-        if (!(await this.requests.applyUploadToken(row.requestId, link.tokenHash))) {
-          this.logger.error(`Solicitação ${row.requestId} sem upload_link: link enviado morto.`);
-          continue;
+        if (!applied.has(row.requestId)) {
+          if (!(await this.requests.applyUploadToken(row.requestId, link.tokenHash))) {
+            this.logger.error(`Solicitação ${row.requestId} sem upload_link: link enviado morto.`);
+            continue;
+          }
+
+          applied.add(row.requestId);
         }
 
-        applied.add(row.requestId);
+        await this.requests.markDeadlineNotified([row.requestItemId]);
+
+        notified.push({
+          requestItemId: row.requestItemId,
+          itemName: row.itemName,
+          companyName: row.companyName,
+          dueDate: missed.dueDate,
+        });
+      } catch (error) {
+        this.logger.error(`Erro ao processar item vencido ${row.requestItemId}`, error);
+        Sentry.captureException(error);
       }
-
-      notified.push({
-        requestItemId: row.requestItemId,
-        itemName: row.itemName,
-        companyName: row.companyName,
-        dueDate: missed.dueDate,
-      });
-    }
-
-    if (notified.length) {
-      await this.requests.markDeadlineNotified(notified.map((row) => row.requestItemId));
     }
 
     return {

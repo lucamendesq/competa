@@ -19,7 +19,6 @@ import {
   uploadLink,
 } from '../../infra/database/schema/index.js';
 import { contactIdsOf, type ContactScope, type FirmScope, type UploadScope } from '../auth/scope.js';
-import { RequestRepository } from '../requests/request.repository.js';
 import {
   asMonth,
   deadlineMissedAccountantEmail,
@@ -63,7 +62,6 @@ export class MessageRepository {
   constructor(
     private readonly db: Database,
     private readonly provider: MessageProvider,
-    private readonly requests: RequestRepository,
     private readonly push: PushProvider,
   ) {}
 
@@ -436,8 +434,7 @@ export class MessageRepository {
         if (row.requestStatus === 'closed') {
           throw new InvalidTransition('Solicitação encerrada — não há mais link de envio.');
         }
-        const rotated = await this.requests.rotateUploadLink(scope, row.requestId);
-        url = rotated ? `${env.WEB_URL}/envio/${rotated.token}` : undefined;
+        url = `${env.WEB_URL}/minha-area/pendencias`;
 
         if (row.purpose === 'link_delivery') {
           title = 'Novos documentos solicitados';
@@ -504,10 +501,16 @@ export class MessageRepository {
       throw new InvalidTransition('Solicitação encerrada — não há mais link de envio.');
     }
 
-    const rotated = await this.requests.rotateUploadLink(scope, row.requestId);
-    if (!rotated) return { sent: false };
+    const [contactRow] = await this.db
+      .select({ name: contact.name, email: contact.email })
+      .from(uploadLink)
+      .innerJoin(contact, eq(contact.id, uploadLink.contactId))
+      .where(eq(uploadLink.requestId, row.requestId))
+      .limit(1);
 
-    const uploadUrl = `${env.WEB_URL}/envio/${rotated.token}`;
+    const contactName = contactRow?.name ?? row.recipient;
+    const contactEmail = contactRow?.email ?? row.recipient;
+    const uploadUrl = `${env.WEB_URL}/minha-area/pendencias`;
 
     if (row.purpose === 'link_delivery') {
       const delivered = await this.deliver({
@@ -519,7 +522,7 @@ export class MessageRepository {
           referenceMonth: row.referenceMonth,
           periodDueDate: row.periodDueDate,
           companyName: row.companyName,
-          contactName: rotated.contactName,
+          contactName,
           contactEmail: row.recipient,
           uploadUrl,
         }),
@@ -561,7 +564,7 @@ export class MessageRepository {
           companyName: row.companyName,
           referenceMonth: row.referenceMonth,
           periodDueDate: row.periodDueDate,
-          contactName: rotated.contactName,
+          contactName,
           reminderCount: stats?.reminderCount ?? 0,
           lastMessageAt: stats?.lastMessageAt ?? null,
           pendingItems,
@@ -592,7 +595,7 @@ export class MessageRepository {
         ? reviewPublishedEmail({
             requestId: row.requestId,
             companyName: row.companyName,
-            contactName: rotated.contactName,
+            contactName,
             contactEmail: row.recipient,
             uploadUrl,
             rejected: rejectedDocs.map((doc) => ({
@@ -607,7 +610,7 @@ export class MessageRepository {
             referenceMonth: row.referenceMonth,
             periodDueDate: row.periodDueDate,
             companyName: row.companyName,
-            contactName: rotated.contactName,
+            contactName,
             contactEmail: row.recipient,
             uploadUrl,
           });
@@ -637,13 +640,13 @@ export class MessageRepository {
       const itemName = overdueItem?.name ?? 'documentos';
       const dueDate = overdueItem?.dueDate ?? row.periodDueDate ?? '';
 
-      const isContact = row.recipient === rotated.contactEmail;
+      const isContact = row.recipient === contactEmail;
       const emailData = isContact
         ? deadlineMissedContactEmail({
             requestId: row.requestId,
             requestItemId,
             companyName: row.companyName,
-            contactName: rotated.contactName,
+            contactName,
             contactEmail: row.recipient,
             itemName,
             dueDate,
@@ -654,8 +657,8 @@ export class MessageRepository {
             requestId: row.requestId,
             requestItemId,
             companyName: row.companyName,
-            contactName: rotated.contactName,
-            contactEmail: rotated.contactEmail,
+            contactName,
+            contactEmail,
             itemName,
             dueDate,
             uploadUrl,

@@ -123,11 +123,7 @@ export class AccessRecoveryController {
         uploadUrl: `${env.WEB_URL}/envio/${token}`,
       };
 
-      /* `emitAsync` e não `emit`: o listener devolve se o email saiu, e sem esperar por
-       * ele não haveria o que confirmar. Nenhum `true` = ninguém entregou. */
-      const delivered = await this.events.emitAsync(EVENTS.UploadLinkResent, resent);
-      if (!delivered.includes(true)) continue;
-
+      await this.events.emitAsync(EVENTS.UploadLinkResent, resent);
       const applied = await this.requests.applyUploadToken(
         row.requestId,
         tokenHash,
