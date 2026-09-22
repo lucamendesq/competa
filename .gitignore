@@ -62,3 +62,7 @@ Thumbs.db
 .playwright*/
 .impeccable/
 .superpowers/
+.storage/
+.worktrees/
+qa-suite/
+QA_DEFECTS_AND_FINDINGS.md

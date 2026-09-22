@@ -21,6 +21,7 @@ Para o resumo operacional (como trabalhar aqui, o que nunca violar), comece pelo
 | [`backup.md`](./backup.md)                     | Backup diário do Postgres (GH Actions → R2 dedicado), RPO/RTO, restore e inventário de segredos                   |
 | [`retention.md`](./retention.md)               | Política de retenção/expurgo por tipo de dado + runbook manual de cancelamento                                    |
 | [`frontend-status.md`](./frontend-status.md)   | Telas do `apps/web`: o que existe, o que ficou degradado por falta de rota e o que precisa de configuração        |
+| [`user-flows.md`](./user-flows.md)             | Mapeamento passo a passo de todos os fluxos de usuário da aplicação (Contador e Responsável)                      |
 | [`next-steps.md`](./next-steps.md)             | O que falta para "completo": produto, deploy/CI, observabilidade, LGPD operacional e backup                       |
 
 ## Como manter
