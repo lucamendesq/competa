@@ -133,6 +133,9 @@ importers:
       rxjs:
         specifier: ^7.8.1
         version: 7.8.2
+      tldts:
+        specifier: ^7.4.14
+        version: 7.4.14
       tsx:
         specifier: ^4.23.12
         version: 4.23.12
@@ -5718,8 +5721,15 @@ packages:
   tldts-core@7.4.11:
     resolution: {integrity: sha512-CW3WN2rIIE/Of21mulhgnGOwoDyEFNygyIBOONSdyAuSATgMMUCpLeUlB+E8sAwA5xRV9hYPl+kyZ9citHCaKg==}
 
+  tldts-core@7.4.14:
+    resolution: {integrity: sha512-KYkjfJHnIC5t+Gy7hPrMHgJmWc/N9FfmS+fggRPSlpFckidpB9HD6OzPsSTkfDH+MpZgcu2tJPGgLfHl979N1Q==}
+
   tldts@7.4.11:
     resolution: {integrity: sha512-aBiNayCfTQxuIJBm06M+xR14cYaYlDlSXZbgsnKzKNxDKUVq7KFwTjwBSsb7m9Y5xO8WfPnBc63WaYFMTGlvqw==}
+    hasBin: true
+
+  tldts@7.4.14:
+    resolution: {integrity: sha512-EahQoi+Q5oqmG3yxRHx+bwn36OaLbtw6jnTFcGjc8fcmktzTgk45xRnzAx8Ch87PFEiqRhoc3FWBmY+LBrvEGQ==}
     hasBin: true
 
   to-regex-range@5.0.1:
@@ -11189,9 +11199,15 @@ snapshots:
 
   tldts-core@7.4.11: {}
 
+  tldts-core@7.4.14: {}
+
   tldts@7.4.11:
     dependencies:
       tldts-core: 7.4.11
+
+  tldts@7.4.14:
+    dependencies:
+      tldts-core: 7.4.14
 
   to-regex-range@5.0.1:
     dependencies:

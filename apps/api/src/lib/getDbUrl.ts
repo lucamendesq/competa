@@ -7,4 +7,4 @@ interface GetDbUrlArgs {
 }
 
 export const getDbUrl = ({ user, password, host, port, dbName }: GetDbUrlArgs) =>
-  `postgresql://${user}${password ? `:${password}` : ''}@${host}:${port}/${dbName}`;
+  `postgresql://${encodeURIComponent(user)}${password ? `:${encodeURIComponent(password)}` : ''}@${host}:${port}/${dbName}`;

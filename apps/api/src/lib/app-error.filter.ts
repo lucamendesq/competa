@@ -3,6 +3,7 @@ import type { Request, Response } from 'express';
 import { ThrottlerException } from '@nestjs/throttler';
 import * as Sentry from '@sentry/nestjs';
 import { AppError } from './app-error.js';
+import { APIError } from 'better-auth/api';
 
 @Catch()
 export class AppErrorFilter implements ExceptionFilter {
@@ -31,6 +32,19 @@ export class AppErrorFilter implements ExceptionFilter {
           ...(exception.details === undefined ? {} : { details: exception.details }),
         },
       });
+    }
+
+    if (exception instanceof APIError) {
+      const status = exception.statusCode ?? 500;
+      if (status === 403) this.logDenial(host, exception.body?.code ?? 'FORBIDDEN');
+      if (status < 500) {
+        return response.status(status).json({
+          error: {
+            code: exception.body?.code ?? 'AUTH_ERROR',
+            message: exception.body?.message ?? 'Erro de autenticação.',
+          },
+        });
+      }
     }
 
     if (exception instanceof HttpException && exception.getStatus() === 404) {
