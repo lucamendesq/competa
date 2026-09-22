@@ -15,6 +15,7 @@ import { lucideX } from '@ng-icons/lucide';
       [class]="wide() ? 'max-w-5xl' : 'max-w-2xl'"
       [attr.aria-labelledby]="titleId"
       (close)="open.set(false)"
+      (click)="onBackdropClick($event)"
     >
       <div class="border-border flex items-start justify-between gap-4 border-b p-5">
         <div>
@@ -51,6 +52,22 @@ export class Modal {
   protected readonly titleId = `modal-titulo-${Math.random().toString(36).slice(2, 8)}`;
 
   private readonly dialog = viewChild.required<ElementRef<HTMLDialogElement>>('dialogo');
+
+  protected onBackdropClick(event: MouseEvent) {
+    const element = this.dialog().nativeElement;
+    if (event.target === element) {
+      const rect = element.getBoundingClientRect();
+      const isInside =
+        rect.top <= event.clientY &&
+        event.clientY <= rect.bottom &&
+        rect.left <= event.clientX &&
+        event.clientX <= rect.right;
+
+      if (!isInside) {
+        this.open.set(false);
+      }
+    }
+  }
 
   constructor() {
     effect(() => {

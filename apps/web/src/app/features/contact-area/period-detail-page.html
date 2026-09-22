@@ -34,10 +34,16 @@
   }
 
   <ul class="mt-4 flex flex-col gap-3" role="list">
-    @for (item of data.items; track item.id) {
+    @for (item of sortedItems(); track item.id) {
       <li
-        class="bg-card rounded-xl border"
-        [class]="needsResend(item) ? 'border-danger-border' : 'border-border'"
+        class="rounded-xl border"
+        [class]="
+          needsResend(item)
+            ? 'border-danger-border bg-card'
+            : item.status === 'accepted'
+              ? 'border-border/60 bg-card/60'
+              : 'border-border bg-card'
+        "
       >
         <div class="flex flex-wrap items-start gap-3 p-4">
           <div class="min-w-0 flex-1">
@@ -117,23 +123,39 @@
 
         @if (expanded() === item.id) {
           <div [id]="'detail-upload-' + item.id" class="border-border border-t p-4">
-            <label
-              appDropZone
-              [dropDisabled]="sending()"
-              (dropped)="send($event, item.id)"
-              class="border-border hover:bg-muted focus-within:ring-ring flex min-h-24 cursor-pointer flex-col items-center justify-center gap-2 rounded-lg border-2 border-dashed p-4 text-center focus-within:ring-2"
-            >
-              <span class="text-sm font-medium"
-                >Arraste os arquivos aqui ou toque para escolher</span
+            @if (sending() && retryTarget() === item.id) {
+              <div
+                class="border-border flex min-h-24 flex-col items-center justify-center gap-2 rounded-lg border-2 border-dashed p-4 text-center"
+                role="status"
+                aria-live="polite"
               >
-              <input
-                type="file"
-                multiple
-                class="sr-only"
-                [disabled]="sending()"
-                (change)="pick($event, item.id)"
-              />
-            </label>
+                <ng-icon
+                  name="lucideUpload"
+                  class="text-primary animate-bounce text-xl"
+                  aria-hidden="true"
+                />
+                <span class="text-sm font-medium">Enviando arquivos…</span>
+                <span class="text-muted-foreground text-xs">Aguarde a confirmação</span>
+              </div>
+            } @else {
+              <label
+                appDropZone
+                [dropDisabled]="sending()"
+                (dropped)="send($event, item.id)"
+                class="border-border hover:bg-muted focus-within:ring-ring flex min-h-24 cursor-pointer flex-col items-center justify-center gap-2 rounded-lg border-2 border-dashed p-4 text-center focus-within:ring-2"
+              >
+                <span class="text-sm font-medium"
+                  >Arraste os arquivos aqui ou toque para escolher</span
+                >
+                <input
+                  type="file"
+                  multiple
+                  class="sr-only"
+                  [disabled]="sending()"
+                  (change)="pick($event, item.id)"
+                />
+              </label>
+            }
           </div>
         }
       </li>
@@ -146,21 +168,37 @@
       Arquivos que você mandou fora da lista. Pode enviar mesmo com a competência encerrada.
     </p>
 
-    <label
-      appDropZone
-      [dropDisabled]="sending()"
-      (dropped)="send($event, null)"
-      class="border-border hover:bg-muted focus-within:ring-ring mt-3 flex min-h-20 cursor-pointer flex-col items-center justify-center gap-1 rounded-lg border-2 border-dashed p-4 text-center focus-within:ring-2"
-    >
-      <span class="text-sm font-medium">Arraste os arquivos aqui ou toque para escolher</span>
-      <input
-        type="file"
-        multiple
-        class="sr-only"
-        [disabled]="sending()"
-        (change)="pick($event, null)"
-      />
-    </label>
+    @if (sending() && retryTarget() === null) {
+      <div
+        class="border-border mt-3 flex min-h-20 flex-col items-center justify-center gap-1 rounded-lg border-2 border-dashed p-4 text-center"
+        role="status"
+        aria-live="polite"
+      >
+        <ng-icon
+          name="lucideUpload"
+          class="text-primary animate-bounce text-xl"
+          aria-hidden="true"
+        />
+        <span class="text-sm font-medium">Enviando arquivos…</span>
+        <span class="text-muted-foreground text-xs">Aguarde a confirmação</span>
+      </div>
+    } @else {
+      <label
+        appDropZone
+        [dropDisabled]="sending()"
+        (dropped)="send($event, null)"
+        class="border-border hover:bg-muted focus-within:ring-ring mt-3 flex min-h-20 cursor-pointer flex-col items-center justify-center gap-1 rounded-lg border-2 border-dashed p-4 text-center focus-within:ring-2"
+      >
+        <span class="text-sm font-medium">Arraste os arquivos aqui ou toque para escolher</span>
+        <input
+          type="file"
+          multiple
+          class="sr-only"
+          [disabled]="sending()"
+          (change)="pick($event, null)"
+        />
+      </label>
+    }
 
     @if (data.extraDocuments.length) {
       <ul class="border-border mt-3 divide-y rounded-lg border" role="list">
@@ -175,7 +213,13 @@
               <p class="truncate text-sm">{{ file.fileName }}</p>
               <p class="text-muted-foreground mt-0.5 text-xs tabular-nums">
                 {{ fileSize(file.sizeBytes) }} · {{ dateTimeBr(file.uploadedAt) }}
+                @if (file.uploadedByName) {
+                  · enviado por {{ file.uploadedByName }}
+                }
               </p>
+              @if (file.rejectionReason) {
+                <p class="mt-1 text-xs text-danger">Recusado: {{ file.rejectionReason }}</p>
+              }
             </div>
             <app-status-pill [status]="file.reviewStatus" />
             <button
@@ -197,8 +241,6 @@
 }
 
 <app-upload-feedback
-  [sending]="sending()"
-  [progress]="sendProgress()"
   [results]="results()"
   (dismiss)="results.set(null)"
   (retry)="send($event, retryTarget())"

@@ -30,7 +30,7 @@ import { ResendNotice } from '../../shared/resend-notice';
 import { displayItemStatus, itemRejections, needsResend } from '../../shared/item-status';
 import { isOverdue, monthLabel, dateBr, fileSize } from '../../shared/format';
 import { FileResult, uploadFiles } from '../../shared/upload';
-import { UploadService } from './upload.service';
+import { ChecklistItem, UploadService } from './upload.service';
 import { Logo } from '../../shared/logo';
 
 @Component({
@@ -163,15 +163,22 @@ export class UploadPage {
     );
   });
 
+  protected readonly sortedItems = computed(() => {
+    const items = [...(this.checklist.value()?.items ?? [])];
+    const rank = (item: ChecklistItem) => {
+      if (needsResend(item)) return 0;
+      if (item.status === 'pending') return 1;
+      if (item.status === 'submitted') return 2;
+      if (item.status === 'accepted') return 3;
+      return 4;
+    };
+
+    return items.sort((a, b) => rank(a) - rank(b) || a.name.localeCompare(b.name));
+  });
+
   protected readonly expanded = signal<string | null>(null);
   protected readonly sending = signal(false);
   protected readonly results = signal<FileResult[] | null>(null);
-  protected readonly sendProgress = signal({ done: 0, total: 0 });
-  protected readonly sendPercent = computed(() => {
-    const { done, total } = this.sendProgress();
-
-    return total ? Math.round((done / total) * 100) : 0;
-  });
 
   protected toggle(itemId: string) {
     this.expanded.update((current) => (current === itemId ? null : itemId));
@@ -200,7 +207,6 @@ export class UploadPage {
         send: (uploadUrl, file) => this.service.putFile(uploadUrl, file),
         confirm: (documentIds) => this.service.confirm(this.token(), documentIds),
         describeError: (error) => apiErrorMessage(error, 'Falha ao enviar o arquivo.'),
-        onProgress: (done, total) => this.sendProgress.set({ done, total }),
       });
 
       this.results.set(results);

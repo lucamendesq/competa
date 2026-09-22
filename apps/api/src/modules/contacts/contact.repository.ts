@@ -205,7 +205,6 @@ export class ContactRepository {
           inArray(request.companyId, companyIdsOf(scope)),
           eq(period.status, 'open'),
           ne(request.status, 'closed'),
-          ne(requestItem.status, 'accepted'),
         ),
       )
       .orderBy(asc(requestItem.dueDate), asc(requestItem.name));

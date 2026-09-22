@@ -83,10 +83,22 @@ export class PeriodDetailPage {
 
   protected readonly closed = computed(() => this.detail.value()?.requestStatus === 'closed');
 
+  protected readonly sortedItems = computed(() => {
+    const items = [...(this.detail.value()?.items ?? [])];
+    const rank = (item: (typeof items)[number]) => {
+      if (needsResend(item)) return 0;
+      if (item.status === 'pending') return 1;
+      if (item.status === 'submitted') return 2;
+      if (item.status === 'accepted') return 3;
+      return 4;
+    };
+
+    return items.sort((a, b) => rank(a) - rank(b) || a.name.localeCompare(b.name));
+  });
+
   protected readonly expanded = signal<string | null>(null);
   protected readonly sending = signal(false);
   protected readonly results = signal<FileResult[] | null>(null);
-  protected readonly sendProgress = signal({ done: 0, total: 0 });
 
   protected toggle(itemId: string) {
     this.expanded.update((current) => (current === itemId ? null : itemId));
@@ -180,7 +192,6 @@ export class PeriodDetailPage {
           send: (uploadUrl, file) => this.service.putFile(uploadUrl, file),
           confirm: (documentIds) => this.service.confirm(data.requestId, documentIds),
           describeError: (error) => apiErrorMessage(error, 'Falha ao enviar o arquivo.'),
-          onProgress: (done, total) => this.sendProgress.set({ done, total }),
         }),
       );
 

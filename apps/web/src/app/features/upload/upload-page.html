@@ -244,10 +244,16 @@
       }
 
       <ul class="mt-4 flex flex-col gap-3" role="list">
-        @for (item of data.items; track item.id) {
+        @for (item of sortedItems(); track item.id) {
           <li
-            class="bg-card rounded-xl border"
-            [class]="needsResend(item) ? 'border-danger-border' : 'border-border'"
+            class="rounded-xl border"
+            [class]="
+              needsResend(item)
+                ? 'border-danger-border bg-card'
+                : item.status === 'accepted'
+                  ? 'border-border/60 bg-card/60'
+                  : 'border-border bg-card'
+            "
           >
             <button
               type="button"
@@ -322,7 +328,16 @@
 
             @if (expanded() === item.id) {
               <div [id]="'upload-' + item.id" class="border-border border-t p-4">
-                @if (closed()) {
+                @if (item.status === 'accepted') {
+                  <p class="text-muted-foreground flex items-center gap-2 text-sm">
+                    <ng-icon
+                      name="lucideCircleCheck"
+                      class="text-success text-base"
+                      aria-hidden="true"
+                    />
+                    Este documento já foi conferido e aprovado pela contabilidade.
+                  </p>
+                } @else if (closed()) {
                   <p class="text-muted-foreground text-sm">
                     Esta competência foi encerrada — envie pelo bloco de documento extra abaixo.
                   </p>
@@ -334,25 +349,11 @@
                   >
                     <ng-icon
                       name="lucideUpload"
-                      class="text-muted-foreground animate-pulse text-xl"
+                      class="text-primary animate-bounce text-xl"
                       aria-hidden="true"
                     />
-                    <span class="text-sm font-medium">
-                      Enviando {{ sendProgress().done }} de {{ sendProgress().total }}…
-                    </span>
-                    <div
-                      class="bg-muted mt-1 h-2 w-full overflow-hidden rounded-full"
-                      role="progressbar"
-                      [attr.aria-valuenow]="sendPercent()"
-                      aria-valuemin="0"
-                      aria-valuemax="100"
-                      aria-label="Progresso do envio"
-                    >
-                      <div
-                        class="h-full rounded-full bg-primary"
-                        [style.width.%]="sendPercent()"
-                      ></div>
-                    </div>
+                    <span class="text-sm font-medium">Enviando arquivos…</span>
+                    <span class="text-muted-foreground text-xs">Aguarde a confirmação</span>
                   </div>
                 } @else {
                   <label
@@ -406,24 +407,40 @@
         <h2 class="text-base font-semibold">Enviar documento extra</h2>
         <p class="text-muted-foreground mt-1 text-sm">Se não estiver na lista acima, envie aqui.</p>
 
-        <label
-          appDropZone
-          [dropDisabled]="sending()"
-          (dropped)="send($event, null)"
-          class="border-border hover:bg-muted focus-within:ring-ring mt-3 flex min-h-20 cursor-pointer flex-col items-center justify-center gap-1 rounded-lg border-2 border-dashed p-4 text-center focus-within:ring-2"
-        >
-          <span class="text-sm font-medium">Arraste os arquivos aqui ou toque para escolher</span>
-          <span class="text-muted-foreground text-xs">
-            Documentos extras não passam pela conferência do checklist
-          </span>
-          <input
-            type="file"
-            multiple
-            class="sr-only"
-            [disabled]="sending()"
-            (change)="pick($event, null)"
-          />
-        </label>
+        @if (sending() && retryTarget() === null) {
+          <div
+            class="border-border mt-3 flex min-h-20 flex-col items-center justify-center gap-1 rounded-lg border-2 border-dashed p-4 text-center"
+            role="status"
+            aria-live="polite"
+          >
+            <ng-icon
+              name="lucideUpload"
+              class="text-primary animate-bounce text-xl"
+              aria-hidden="true"
+            />
+            <span class="text-sm font-medium">Enviando arquivos…</span>
+            <span class="text-muted-foreground text-xs">Aguarde a confirmação</span>
+          </div>
+        } @else {
+          <label
+            appDropZone
+            [dropDisabled]="sending()"
+            (dropped)="send($event, null)"
+            class="border-border hover:bg-muted focus-within:ring-ring mt-3 flex min-h-20 cursor-pointer flex-col items-center justify-center gap-1 rounded-lg border-2 border-dashed p-4 text-center focus-within:ring-2"
+          >
+            <span class="text-sm font-medium">Arraste os arquivos aqui ou toque para escolher</span>
+            <span class="text-muted-foreground text-xs">
+              Documentos extras não passam pela conferência do checklist
+            </span>
+            <input
+              type="file"
+              multiple
+              class="sr-only"
+              [disabled]="sending()"
+              (change)="pick($event, null)"
+            />
+          </label>
+        }
 
         @if (data.extraDocuments.length) {
           <ul class="border-border mt-3 divide-y rounded-lg border" role="list">
@@ -452,8 +469,6 @@
   }
 
   <app-upload-feedback
-    [sending]="sending()"
-    [progress]="sendProgress()"
     [results]="results()"
     (dismiss)="results.set(null)"
     (retry)="send($event, retryTarget())"

@@ -104,6 +104,20 @@ export class PendingPage {
       groups.set(key, group);
     }
 
+    for (const group of groups.values()) {
+      group.items.sort((a, b) => {
+        const rank = (item: (typeof a)['item']) => {
+          if (needsResend(item)) return 0;
+          if (item.status === 'pending') return 1;
+          if (item.status === 'submitted') return 2;
+          if (item.status === 'accepted') return 3;
+          return 4;
+        };
+
+        return rank(a.item) - rank(b.item) || a.item.name.localeCompare(b.item.name);
+      });
+    }
+
     return [...groups.values()].sort(
       (a, b) =>
         b.referenceMonth.localeCompare(a.referenceMonth) ||
@@ -118,7 +132,6 @@ export class PendingPage {
   protected readonly expanded = signal<string | null>(null);
   protected readonly sending = signal(false);
   protected readonly results = signal<FileResult[] | null>(null);
-  protected readonly sendProgress = signal({ done: 0, total: 0 });
 
   protected toggle(itemId: string) {
     this.expanded.update((current) => (current === itemId ? null : itemId));
@@ -133,7 +146,9 @@ export class PendingPage {
   }
 
   /** Alvo do último envio: o retry precisa cair no MESMO item. */
-  private readonly retryTarget = signal<{ requestId: string; requestItemId: string } | null>(null);
+  protected readonly retryTarget = signal<{ requestId: string; requestItemId: string } | null>(
+    null,
+  );
 
   protected retrySend(files: File[]) {
     const target = this.retryTarget();
@@ -154,7 +169,6 @@ export class PendingPage {
           send: (uploadUrl, file) => this.service.putFile(uploadUrl, file),
           confirm: (documentIds) => this.service.confirm(requestId, documentIds),
           describeError: (error) => apiErrorMessage(error, 'Falha ao enviar o arquivo.'),
-          onProgress: (done, total) => this.sendProgress.set({ done, total }),
         }),
       );
 

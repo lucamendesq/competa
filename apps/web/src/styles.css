@@ -167,6 +167,20 @@
   body {
     @apply bg-background text-foreground;
   }
+  button,
+  [type='button'],
+  [type='reset'],
+  [type='submit'],
+  [role='button'] {
+    cursor: pointer;
+  }
+  button:disabled,
+  [type='button']:disabled,
+  [type='reset']:disabled,
+  [type='submit']:disabled,
+  [aria-disabled='true'] {
+    cursor: not-allowed;
+  }
 }
 
 /* O componente roteado é UM filho flex do conteúdo do painel: sem isto, o `gap` do

@@ -83,7 +83,16 @@
 
       <ul class="mt-3 flex flex-col gap-3" role="list">
         @for (row of group.items; track row.item.id) {
-          <li class="bg-card border-border rounded-xl border">
+          <li
+            class="rounded-xl border"
+            [class]="
+              needsResend(row.item)
+                ? 'border-danger-border bg-card'
+                : row.item.status === 'accepted'
+                  ? 'border-border/60 bg-card/60'
+                  : 'border-border bg-card'
+            "
+          >
             <button
               type="button"
               class="focus-visible:ring-ring flex min-h-16 w-full items-start gap-3 p-4 text-left focus-visible:ring-2 focus-visible:outline-none"
@@ -111,59 +120,95 @@
                   <span class="text-muted-foreground">
                     Aceita: {{ row.item.acceptedFormats.join(', ').toUpperCase() }}
                   </span>
-                  <app-due-date [dueDate]="row.item.dueDate" />
+                  <app-due-date
+                    [dueDate]="row.item.dueDate"
+                    [done]="row.item.status === 'accepted'"
+                  />
                 </span>
               </span>
 
-              <ng-icon
-                name="lucideUpload"
-                class="text-muted-foreground mt-1 shrink-0 text-base"
-                aria-hidden="true"
-              />
+              @if (row.item.status === 'accepted') {
+                <ng-icon
+                  name="lucideCircleCheck"
+                  class="text-success mt-1 shrink-0 text-base"
+                  aria-hidden="true"
+                />
+              } @else {
+                <ng-icon
+                  name="lucideUpload"
+                  class="text-muted-foreground mt-1 shrink-0 text-base"
+                  aria-hidden="true"
+                />
+              }
             </button>
 
             @if (expanded() === row.item.id) {
               <div [id]="'upload-' + row.item.id" class="border-border border-t p-4">
-                <label
-                  appDropZone
-                  [dropDisabled]="sending()"
-                  (dropped)="send($event, row.requestId, row.item.id)"
-                  class="border-border hover:bg-muted focus-within:ring-ring flex min-h-28 cursor-pointer flex-col items-center justify-center gap-2 rounded-lg border-2 border-dashed p-4 text-center focus-within:ring-2"
-                >
-                  <ng-icon
-                    name="lucideUpload"
-                    class="text-muted-foreground text-xl"
-                    aria-hidden="true"
-                  />
-                  <span class="text-sm font-medium"
-                    >Arraste os arquivos aqui ou toque para escolher</span
+                @if (row.item.status === 'accepted') {
+                  <p class="text-muted-foreground flex items-center gap-2 text-sm">
+                    <ng-icon
+                      name="lucideCircleCheck"
+                      class="text-success text-base"
+                      aria-hidden="true"
+                    />
+                    Este documento já foi conferido e aprovado pela contabilidade.
+                  </p>
+                } @else if (sending() && retryTarget()?.requestItemId === row.item.id) {
+                  <div
+                    class="border-border flex min-h-28 flex-col items-center justify-center gap-2 rounded-lg border-2 border-dashed p-4 text-center"
+                    role="status"
+                    aria-live="polite"
                   >
-                  <span class="text-muted-foreground text-xs">
-                    Pode enviar vários de uma vez, ou um .zip
-                  </span>
-                  <input
-                    type="file"
-                    multiple
-                    class="sr-only"
-                    [disabled]="sending()"
-                    (change)="pick($event, row.requestId, row.item.id)"
-                  />
-                </label>
+                    <ng-icon
+                      name="lucideUpload"
+                      class="text-primary animate-bounce text-xl"
+                      aria-hidden="true"
+                    />
+                    <span class="text-sm font-medium">Enviando arquivos…</span>
+                    <span class="text-muted-foreground text-xs">Aguarde a confirmação</span>
+                  </div>
+                } @else {
+                  <label
+                    appDropZone
+                    [dropDisabled]="sending()"
+                    (dropped)="send($event, row.requestId, row.item.id)"
+                    class="border-border hover:bg-muted focus-within:ring-ring flex min-h-28 cursor-pointer flex-col items-center justify-center gap-2 rounded-lg border-2 border-dashed p-4 text-center focus-within:ring-2"
+                  >
+                    <ng-icon
+                      name="lucideUpload"
+                      class="text-muted-foreground text-xl"
+                      aria-hidden="true"
+                    />
+                    <span class="text-sm font-medium"
+                      >Arraste os arquivos aqui ou toque para escolher</span
+                    >
+                    <span class="text-muted-foreground text-xs">
+                      Pode enviar vários de uma vez, ou um .zip
+                    </span>
+                    <input
+                      type="file"
+                      multiple
+                      class="sr-only"
+                      [disabled]="sending()"
+                      (change)="pick($event, row.requestId, row.item.id)"
+                    />
+                  </label>
 
-                <label
-                  class="border-border hover:bg-muted focus-within:ring-ring mt-2 flex min-h-12 cursor-pointer items-center justify-center gap-2 rounded-lg border p-3 text-sm font-medium focus-within:ring-2 sm:hidden"
-                >
-                  <ng-icon name="lucideCamera" class="text-base" aria-hidden="true" />
-                  Tirar foto do documento
-                  <input
-                    type="file"
-                    accept="image/*"
-                    capture="environment"
-                    class="sr-only"
-                    [disabled]="sending()"
-                    (change)="pick($event, row.requestId, row.item.id)"
-                  />
-                </label>
+                  <label
+                    class="border-border hover:bg-muted focus-within:ring-ring mt-2 flex min-h-12 cursor-pointer items-center justify-center gap-2 rounded-lg border p-3 text-sm font-medium focus-within:ring-2 sm:hidden"
+                  >
+                    <ng-icon name="lucideCamera" class="text-base" aria-hidden="true" />
+                    Tirar foto do documento
+                    <input
+                      type="file"
+                      accept="image/*"
+                      capture="environment"
+                      class="sr-only"
+                      [disabled]="sending()"
+                      (change)="pick($event, row.requestId, row.item.id)"
+                    />
+                  </label>
+                }
               </div>
             }
           </li>
@@ -174,8 +219,6 @@
 }
 
 <app-upload-feedback
-  [sending]="sending()"
-  [progress]="sendProgress()"
   [results]="results()"
   (dismiss)="results.set(null)"
   (retry)="retrySend($event)"
