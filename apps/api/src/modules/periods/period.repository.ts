@@ -1,6 +1,5 @@
 import { Injectable } from '@nestjs/common';
-import { and, asc, count, eq, ne, sql } from 'drizzle-orm';
-import { inArray } from 'drizzle-orm';
+import { and, asc, count, desc, eq, inArray, ne, sql } from 'drizzle-orm';
 import type { OpenPeriodBody } from '@competa/contracts';
 import { addDays } from 'date-fns';
 import env from '../../config/env.js';
@@ -15,7 +14,7 @@ import {
   requestItem,
   uploadLink,
 } from '../../infra/database/schema/index.js';
-import type { FirmScope } from '../auth/scope.js';
+import { companyIdsOf, type ContactScope, type FirmScope } from '../auth/scope.js';
 import { ChecklistRepository } from '../checklists/checklist.repository.js';
 import { summarizePending, type PanelRow } from '../requests/review-rules.js';
 import { PeriodAlreadyClosed, PeriodAlreadyOpen } from './errors.js';
@@ -300,8 +299,8 @@ export class PeriodRepository {
         status: request.status,
         itemCount: this.db.$count(requestItem, eq(requestItem.requestId, request.id)),
         pendingItemCount: this.db.$count(
-          requestItem,
-          and(eq(requestItem.requestId, request.id), eq(requestItem.status, 'pending')),
+           requestItem,
+           and(eq(requestItem.requestId, request.id), eq(requestItem.status, 'pending')),
         ),
       })
       .from(request)
@@ -309,5 +308,112 @@ export class PeriodRepository {
       .innerJoin(company, eq(company.id, request.companyId))
       .where(and(eq(request.periodId, periodId), eq(period.accountingFirmId, scope)))
       .orderBy(company.name);
+  }
+
+  async periods(scope: ContactScope, query: { page: number; perPage: number }) {
+    const where = inArray(request.companyId, companyIdsOf(scope));
+
+    const [rows, [total]] = await Promise.all([
+      this.db
+        .select({
+          requestId: request.id,
+          requestStatus: request.status,
+          periodId: period.id,
+          referenceMonth: period.referenceMonth,
+          periodStatus: period.status,
+          dueDate: period.dueDate,
+          companyId: company.id,
+          companyName: company.name,
+          itemCount: this.db.$count(requestItem, eq(requestItem.requestId, request.id)),
+          pendingCount: this.db.$count(
+            requestItem,
+            and(eq(requestItem.requestId, request.id), ne(requestItem.status, 'accepted')),
+          ),
+          deliveredCount: this.db.$count(
+            document,
+            and(eq(document.requestId, request.id), eq(document.uploadStatus, 'uploaded')),
+          ),
+        })
+        .from(request)
+        .innerJoin(period, eq(period.id, request.periodId))
+        .innerJoin(company, eq(company.id, request.companyId))
+        .where(where)
+        .orderBy(desc(period.referenceMonth), asc(company.name))
+        .limit(query.perPage)
+        .offset((query.page - 1) * query.perPage),
+      this.db.select({ value: count() }).from(request).where(where),
+    ]);
+
+    return { rows, total: total.value };
+  }
+
+  async periodDetail(scope: ContactScope, periodId: string, companyId?: string) {
+    const companyIds = companyIdsOf(scope);
+    if (companyId && !companyIds.includes(companyId)) return undefined;
+
+    const [head] = await this.db
+      .select({
+        requestId: request.id,
+        requestStatus: request.status,
+        periodId: period.id,
+        referenceMonth: period.referenceMonth,
+        periodStatus: period.status,
+        dueDate: period.dueDate,
+        companyId: company.id,
+        companyName: company.name,
+      })
+      .from(request)
+      .innerJoin(period, eq(period.id, request.periodId))
+      .innerJoin(company, eq(company.id, request.companyId))
+      .where(
+        and(
+          companyId ? eq(request.companyId, companyId) : inArray(request.companyId, companyIds),
+          eq(period.id, periodId),
+        ),
+      )
+      .orderBy(asc(company.name))
+      .limit(1);
+
+    if (!head) return undefined;
+
+    const [items, documents] = await Promise.all([
+      this.db
+        .select({
+          id: requestItem.id,
+          name: requestItem.name,
+          description: requestItem.description,
+          acceptedFormats: requestItem.acceptedFormats,
+          status: requestItem.status,
+          dueDate: requestItem.dueDate,
+        })
+        .from(requestItem)
+        .where(eq(requestItem.requestId, head.requestId))
+        .orderBy(asc(requestItem.name)),
+      this.db
+        .select({
+          id: document.id,
+          requestItemId: document.requestItemId,
+          fileName: document.fileName,
+          sizeBytes: document.sizeBytes,
+          uploadedAt: document.uploadedAt,
+          reviewStatus: document.reviewStatus,
+          rejectionReason: document.rejectionReason,
+          uploadedByName: contact.name,
+        })
+        .from(document)
+        .leftJoin(contact, eq(contact.id, document.uploadedByContactId))
+        .where(and(eq(document.requestId, head.requestId), eq(document.uploadStatus, 'uploaded')))
+        .orderBy(asc(document.uploadedAt)),
+    ]);
+
+    return {
+      ...head,
+      items: items.map((item) => ({
+        ...item,
+        dueDate: item.dueDate ?? head.dueDate,
+        documents: documents.filter((row) => row.requestItemId === item.id),
+      })),
+      extraDocuments: documents.filter((row) => !row.requestItemId),
+    };
   }
 }

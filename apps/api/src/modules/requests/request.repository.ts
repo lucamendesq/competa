@@ -15,7 +15,7 @@ import {
   user,
 } from '../../infra/database/schema/index.js';
 import { createToken } from '../../lib/token.js';
-import type { FirmScope } from '../auth/scope.js';
+import { companyIdsOf, type ContactScope, type FirmScope } from '../auth/scope.js';
 import { NotFound } from '../../lib/app-error.js';
 import { InvalidTransition } from './errors.js';
 import {
@@ -799,7 +799,8 @@ export class RequestRepository {
   /** Um documento para leitura no painel (preview/baixar avulso). Mesmo join de escopo do
    *  zip: documento de outra Contabilidade não é alcançado e a rota responde 404.
    *  `awaiting_upload` fica de fora — a linha existe, o objeto no storage não. */
-  async documentForRead(scope: FirmScope, documentId: string) {
+  async documentForRead(scope: FirmScope | ContactScope, documentId: string) {
+    const isFirm = typeof scope === 'string';
     const [row] = await this.db
       .select({
         storageKey: document.storageKey,
@@ -812,13 +813,73 @@ export class RequestRepository {
       .where(
         and(
           eq(document.id, documentId),
-          eq(period.accountingFirmId, scope),
+          isFirm
+            ? eq(period.accountingFirmId, scope)
+            : inArray(request.companyId, companyIdsOf(scope)),
           eq(document.uploadStatus, 'uploaded'),
         ),
       )
       .limit(1);
 
     return row;
+  }
+
+  async pending(scope: ContactScope) {
+    const items = await this.db
+      .select({
+        requestId: request.id,
+        requestStatus: request.status,
+        periodId: period.id,
+        referenceMonth: period.referenceMonth,
+        periodDueDate: period.dueDate,
+        companyId: company.id,
+        companyName: company.name,
+        itemId: requestItem.id,
+        itemName: requestItem.name,
+        description: requestItem.description,
+        acceptedFormats: requestItem.acceptedFormats,
+        itemStatus: requestItem.status,
+        itemDueDate: requestItem.dueDate,
+      })
+      .from(requestItem)
+      .innerJoin(request, eq(request.id, requestItem.requestId))
+      .innerJoin(period, eq(period.id, request.periodId))
+      .innerJoin(company, eq(company.id, request.companyId))
+      .where(
+        and(
+          inArray(request.companyId, companyIdsOf(scope)),
+          eq(period.status, 'open'),
+          ne(request.status, 'closed'),
+        ),
+      )
+      .orderBy(asc(requestItem.dueDate), asc(requestItem.name));
+
+    const itemIds = items.map((row) => row.itemId);
+
+    const rejections = itemIds.length
+      ? await this.db
+          .select({
+            requestItemId: document.requestItemId,
+            fileName: document.fileName,
+            rejectionReason: document.rejectionReason,
+          })
+          .from(document)
+          .where(
+            and(
+              inArray(document.requestItemId, itemIds),
+              eq(document.reviewStatus, 'rejected'),
+              eq(document.uploadStatus, 'uploaded'),
+            ),
+          )
+          .orderBy(asc(document.uploadedAt))
+      : [];
+
+    return items.map((item) => ({
+      ...item,
+      rejections: rejections
+        .filter((row) => row.requestItemId === item.itemId)
+        .map((row) => ({ fileName: row.fileName, rejectionReason: row.rejectionReason })),
+    }));
   }
 
   async documentsForPeriodZip(scope: FirmScope, periodId: string) {

@@ -36,17 +36,21 @@ import { servedContentType } from '../requests/file-rules.js';
 import { UploadService } from '../requests/upload.service.js';
 import { AuthProvider } from '../auth/auth-provider.js';
 import { ContactRepository } from './contact.repository.js';
+import { RequestRepository } from '../requests/request.repository.js';
+import { PeriodRepository } from '../periods/period.repository.js';
+import { MessageRepository } from '../messaging/message.repository.js';
 
 const PeriodDetailQuery = z.object({ companyId: z.uuid().optional() });
 type PeriodDetailQuery = z.infer<typeof PeriodDetailQuery>;
 
-/** Área logada do Responsável (Fase 10). Todas as rotas são `ContactScope`: as Empresas
- *  dele e mais nada. */
 @Controller('my')
 @ContactRoute()
 export class ContactsController {
   constructor(
     private readonly contacts: ContactRepository,
+    private readonly requests: RequestRepository,
+    private readonly periodRepo: PeriodRepository,
+    private readonly messages: MessageRepository,
     private readonly uploads: UploadService,
     private readonly storage: StorageProvider,
     private readonly auth: AuthProvider,
@@ -62,7 +66,7 @@ export class ContactsController {
 
   @Get('pending')
   async pending(@CurrentContactScope() scope: ContactScope) {
-    const rows = await this.contacts.pending(scope);
+    const rows = await this.requests.pending(scope);
 
     return rows.map((row) => ({
       requestId: row.requestId,
@@ -87,7 +91,7 @@ export class ContactsController {
     @CurrentContactScope() scope: ContactScope,
     @Query(zodPipe(PaginationQuery)) query: PaginationQuery,
   ) {
-    const { rows, total } = await this.contacts.periods(scope, query);
+    const { rows, total } = await this.periodRepo.periods(scope, query);
 
     return paginated(rows, { page: query.page, perPage: query.perPage, total });
   }
@@ -98,25 +102,20 @@ export class ContactsController {
     @Param(zodPipe(IdParam)) params: IdParam,
     @Query(zodPipe(PeriodDetailQuery)) query: PeriodDetailQuery,
   ) {
-    const row = await this.contacts.periodDetail(scope, params.id, query.companyId);
+    const row = await this.periodRepo.periodDetail(scope, params.id, query.companyId);
     if (!row) throw new NotFound('Competência não encontrada.');
 
     return row;
   }
 
-  /** Preview/baixar o próprio documento (espelho do `GET /documents/:id/content` do
-   *  Contador, com `ContactScope`): o Responsável confere o que mandou e revê o que foi
-   *  rejeitado sem depender de ninguém. */
   @Get('documents/:id/content')
   async documentContent(
     @CurrentContactScope() scope: ContactScope,
     @Param(zodPipe(IdParam)) params: IdParam,
   ) {
-    const found = await this.contacts.documentForRead(scope, params.id);
+    const found = await this.requests.documentForRead(scope, params.id);
     if (!found) throw new NotFound('Documento não encontrado.');
 
-    /* Mesma regra do painel: `content_type` é declarado no presign, não conferido —
-     * devolver cru com `inline` deixaria um HTML executar script na origem da API. */
     const { contentType, inline } = servedContentType(found.contentType);
 
     return new StreamableFile(await this.storage.openRead(found.storageKey), {
@@ -130,7 +129,7 @@ export class ContactsController {
     @CurrentContactScope() scope: ContactScope,
     @Body(zodPipe(PushSubscriptionBody)) body: PushSubscriptionBody,
   ) {
-    return this.contacts.savePushSubscription(scope, body);
+    return this.messages.savePushSubscription(scope, body);
   }
 
   @Delete('push/subscribe')
@@ -139,7 +138,7 @@ export class ContactsController {
     @CurrentContactScope() scope: ContactScope,
     @Body(zodPipe(PushSubscriptionBody.pick({ endpoint: true }))) body: { endpoint: string },
   ) {
-    const row = await this.contacts.deletePushSubscription(scope, body.endpoint);
+    const row = await this.messages.deletePushSubscription(scope, body.endpoint);
     if (!row) throw new NotFound('Inscrição não encontrada.');
   }
 

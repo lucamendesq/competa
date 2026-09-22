@@ -8,5 +8,6 @@ import { PeriodsController } from './periods.controller.js';
   imports: [ChecklistsModule, MessagingModule],
   controllers: [PeriodsController],
   providers: [PeriodRepository],
+  exports: [PeriodRepository],
 })
 export class PeriodsModule {}

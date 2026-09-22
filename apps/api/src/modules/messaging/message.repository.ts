@@ -13,12 +13,12 @@ import {
   message,
   MESSAGE_PURPOSES,
   period,
+  pushSubscription,
   request,
   requestItem,
   uploadLink,
 } from '../../infra/database/schema/index.js';
-import type { FirmScope } from '../auth/scope.js';
-import { ContactRepository } from '../contacts/contact.repository.js';
+import { contactIdsOf, type ContactScope, type FirmScope, type UploadScope } from '../auth/scope.js';
 import { RequestRepository } from '../requests/request.repository.js';
 import {
   asMonth,
@@ -60,9 +60,58 @@ export class MessageRepository {
     private readonly db: Database,
     private readonly provider: MessageProvider,
     private readonly requests: RequestRepository,
-    private readonly contacts: ContactRepository,
     private readonly push: WebPush,
   ) {}
+
+  async savePushSubscription(
+    scope: ContactScope | UploadScope,
+    input: { endpoint: string; keys: Record<string, string> },
+  ) {
+    const contactIds = 'memberships' in scope ? contactIdsOf(scope) : [scope.contactId];
+
+    const rows = await this.db
+      .insert(pushSubscription)
+      .values(contactIds.map((contactId) => ({ contactId, provider: 'web', ...input })))
+      .onConflictDoUpdate({
+        target: [pushSubscription.contactId, pushSubscription.endpoint],
+        set: { keys: input.keys },
+      })
+      .returning({ id: pushSubscription.id, endpoint: pushSubscription.endpoint });
+
+    return rows[0];
+  }
+
+  async deletePushSubscription(scope: ContactScope, endpoint: string) {
+    const [row] = await this.db
+      .delete(pushSubscription)
+      .where(
+        and(
+          inArray(pushSubscription.contactId, contactIdsOf(scope)),
+          eq(pushSubscription.endpoint, endpoint),
+        ),
+      )
+      .returning({ id: pushSubscription.id });
+
+    return row;
+  }
+
+  async deletePushSubscriptionByEndpoint(endpoint: string) {
+    await this.db.delete(pushSubscription).where(eq(pushSubscription.endpoint, endpoint));
+  }
+
+  async subscriptionsForRequest(requestId: string) {
+    return this.db
+      .select({
+        endpoint: pushSubscription.endpoint,
+        keys: pushSubscription.keys,
+        contactName: contact.name,
+      })
+      .from(pushSubscription)
+      .innerJoin(contact, eq(contact.id, pushSubscription.contactId))
+      .innerJoin(company, eq(company.id, contact.companyId))
+      .innerJoin(request, eq(request.companyId, company.id))
+      .where(eq(request.id, requestId));
+  }
 
   /** Sem `FirmScope`: quem chama é o listener do evento ou o cron — não há sessão, e o
    *  `request_id` já vem do fan-out/varredura, que nasceram dentro de um escopo.
@@ -261,7 +310,7 @@ export class MessageRepository {
     if (!row) return undefined;
 
     if (row.channel === 'push') {
-      const subscriptions = await this.contacts.subscriptionsForRequest(row.requestId);
+      const subscriptions = await this.subscriptionsForRequest(row.requestId);
       if (subscriptions.length === 0) {
         return { sent: false };
       }
@@ -312,7 +361,7 @@ export class MessageRepository {
       );
 
       for (const endpoint of result?.gone ?? []) {
-        await this.contacts.deletePushSubscriptionByEndpoint(endpoint);
+        await this.deletePushSubscriptionByEndpoint(endpoint);
       }
 
       return { sent: Boolean(result && result.sent > 0) };

@@ -24,20 +24,15 @@ import {
   requestCompletedEmail,
   reviewPublishedEmail,
 } from './email-body.js';
-import { ContactRepository } from '../contacts/contact.repository.js';
 import { MessageRepository } from './message.repository.js';
 import { WebPush } from './providers/web-push.provider.js';
 
-/** O que a revisão e o cron de prazo (collection) disparam. `deliver()` nunca lança:
- *  canal quebrado vira `status='failed'` + `error` e não volta para quem emitiu — falha de
- *  envio não pode desfazer uma rejeição já gravada. */
 @Injectable()
 export class CollectionEventsListener {
   private readonly logger = new Logger(CollectionEventsListener.name);
 
   constructor(
     private readonly messages: MessageRepository,
-    private readonly contacts: ContactRepository,
     private readonly push: WebPush,
   ) {}
 
@@ -55,7 +50,7 @@ export class CollectionEventsListener {
      * `emit` não tem quem pegue a rejeição — uma consulta que falha aqui vira
      * unhandled rejection e derruba o processo inteiro por causa de uma notificação. */
     try {
-      const subscriptions = await this.contacts.subscriptionsForRequest(requestId);
+      const subscriptions = await this.messages.subscriptionsForRequest(requestId);
       if (subscriptions.length === 0) return;
 
       const result = await this.messages.deliverPush(
@@ -74,9 +69,8 @@ export class CollectionEventsListener {
           }),
       );
 
-      // inscrição que o navegador descartou não serve mais: sai para não acumular lixo
       for (const endpoint of result?.gone ?? []) {
-        await this.contacts.deletePushSubscriptionByEndpoint(endpoint);
+        await this.messages.deletePushSubscriptionByEndpoint(endpoint);
       }
     } catch (error) {
       this.logger.error(`push ${purpose} da Solicitação ${requestId} falhou: ${String(error)}`);
