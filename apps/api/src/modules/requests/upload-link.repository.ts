@@ -30,10 +30,15 @@ export class UploadLinkRepository {
         revoked: uploadLink.revoked,
       })
       .from(uploadLink)
+      .innerJoin(request, eq(request.id, uploadLink.requestId))
+      .innerJoin(company, eq(company.id, request.companyId))
       .where(
-        or(
-          eq(uploadLink.tokenHash, tokenHash),
-          and(eq(uploadLink.previousTokenHash, tokenHash), gt(uploadLink.previousExpiresAt, now)),
+        and(
+          eq(company.active, true),
+          or(
+            eq(uploadLink.tokenHash, tokenHash),
+            and(eq(uploadLink.previousTokenHash, tokenHash), gt(uploadLink.previousExpiresAt, now)),
+          ),
         ),
       )
       .limit(1);

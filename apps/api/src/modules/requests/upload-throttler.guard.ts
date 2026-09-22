@@ -10,7 +10,8 @@ import type { Request } from 'express';
 export class UploadThrottlerGuard extends ThrottlerGuard {
   protected override async getTracker(req: Record<string, any>): Promise<string> {
     const request = req as Request;
-    return (request.params as Record<string, string>)['token'] ?? request.ip ?? 'unknown';
+    const token = (request.params as Record<string, string>)?.['token'] ?? '';
+    return `${request.ip}:${token}`;
   }
 
   protected override getRequestResponse(context: ExecutionContext): {
