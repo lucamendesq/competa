@@ -63,6 +63,7 @@ export const request = pgTable(
   (t) => [
     unique('request_period_company_uidx').on(t.periodId, t.companyId),
     check('request_status_chk', oneOf(sql`${t.status}`, REQUEST_STATUS)),
+    index('request_company_idx').on(t.companyId),
   ],
 ).enableRLS();
 
@@ -126,6 +127,8 @@ export const document = pgTable(
      * eles é seq scan em `document` — a tabela que mais cresce no produto. */
     index('document_request_idx').on(t.requestId),
     index('document_request_item_idx').on(t.requestItemId),
+    index('document_reviewed_by_idx').on(t.reviewedBy),
+    index('document_uploaded_by_contact_idx').on(t.uploadedByContactId),
   ],
 ).enableRLS();
 
@@ -149,7 +152,9 @@ export const uploadLink = pgTable(
   },
   // toda rotação e todo reenvio buscam por `request_id`; o índice do token não serve aqui
   (t) => [
+    unique('upload_link_request_uidx').on(t.requestId),
     index('upload_link_request_idx').on(t.requestId),
+    index('upload_link_contact_idx').on(t.contactId),
     index('upload_link_previous_token_idx').on(t.previousTokenHash),
   ],
 ).enableRLS();
