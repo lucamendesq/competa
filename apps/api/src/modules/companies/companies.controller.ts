@@ -144,6 +144,18 @@ export class CompaniesController {
     @CurrentScope() scope: FirmScope,
     @Body(zodPipe(ImportConfirmBody)) body: ImportConfirmBody,
   ) {
+    const templateIds = [
+      ...new Set(
+        body.pending
+          .map((row) => row.body.checklistTemplateId)
+          .filter((id): id is string => Boolean(id)),
+      ),
+    ];
+
+    for (const templateId of templateIds) {
+      await this.requireTemplate(scope, templateId);
+    }
+
     return this.companies.confirmImport(scope, body.pending);
   }
 
@@ -218,6 +230,26 @@ export class CompaniesController {
   ) {
     const row = await this.companies.deleteContact(scope, params.id, params.contactId);
     if (!row) throw new NotFound('Responsável não encontrado.');
+  }
+
+  @Get(':id/contacts/access')
+  async listContactAccess(@CurrentScope() scope: FirmScope, @Param(zodPipe(IdParam)) params: IdParam) {
+    if (!(await this.contacts.findOwnedCompany(scope, params.id))) {
+      throw new NotFound('Empresa não encontrada.');
+    }
+
+    return this.contacts.withAccess(scope, params.id);
+  }
+
+  @Delete(':id/contacts/:contactId/access')
+  async revokeContactAccess(
+    @CurrentScope() scope: FirmScope,
+    @Param(zodPipe(ContactParam)) params: ContactParam,
+  ) {
+    const result = await this.contacts.revokeAccess(scope, params.id, params.contactId);
+    if (!result) throw new NotFound('Responsável não encontrado.');
+
+    return result;
   }
 
   private async inviteToApp(

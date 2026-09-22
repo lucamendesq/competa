@@ -7,7 +7,6 @@ import { ContactGuard } from '../auth/contact.guard.js';
 import { ContactUploadGuard } from '../auth/contact-upload.guard.js';
 import { AccessRecoveryController } from './access-recovery.controller.js';
 import {
-  ContactAccessAdminController,
   ContactAccessController,
   ContactInviteAccountController,
 } from './contact-access.controller.js';
@@ -20,7 +19,6 @@ import { ContactUploadController, ContactsController } from './contacts.controll
     ContactsController,
     ContactUploadController,
     ContactAccessController,
-    ContactAccessAdminController,
     ContactInviteAccountController,
     AccessRecoveryController,
   ],
