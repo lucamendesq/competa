@@ -21,13 +21,11 @@ import { UploadTokenGuard } from '../auth/upload-token.guard.js';
 import { CurrentUploadScope } from '../auth/upload-scope.decorator.js';
 import { UploadLinkRepository } from '../requests/upload-link.repository.js';
 import { ContactRepository } from './contact.repository.js';
+import { MessageRepository } from '../messaging/message.repository.js';
 import { AccessAlreadyExists } from './errors.js';
 import { isFailure } from '../../lib/either.js';
 import { APIError } from 'better-auth/api';
 
-/** Ofertas da tela de sucesso do envio (D14): ativar avisos neste aparelho e ativar acesso.
- *  As duas ficam atrás do `UploadTokenGuard` — o token do Link já resolve o `contact`, e
- *  nenhuma delas é pré-requisito de enviar documento. */
 @Controller('upload/:token')
 @AllowAnonymous()
 @UseGuards(UploadTokenGuard)
@@ -36,6 +34,7 @@ export class ContactAccessController {
     private readonly contacts: ContactRepository,
     private readonly links: UploadLinkRepository,
     private readonly auth: AuthProvider,
+    private readonly messages: MessageRepository,
   ) {}
 
   /* Limite apertado: é rota pública que cria usuário. */
@@ -71,14 +70,12 @@ export class ContactAccessController {
     return { email: owner.email, name };
   }
 
-  /** Push não depende de conta: a subscription se liga ao `contact`, então sobrevive ao
-   *  fan-out do mês seguinte, que emite um `upload_link` novo (D14, item 3). */
   @Post('push')
   async subscribe(
     @CurrentUploadScope() scope: UploadScope,
     @Body(zodPipe(PushSubscriptionBody)) body: PushSubscriptionBody,
   ) {
-    return this.contacts.savePushSubscription(scope, body);
+    return this.messages.savePushSubscription(scope, body);
   }
 }
 

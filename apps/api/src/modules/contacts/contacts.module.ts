@@ -3,6 +3,8 @@ import { StorageModule } from '../../infra/storage/storage.module.js';
 import { AuthModule } from '../auth/auth.module.js';
 import { RequestsModule } from '../requests/requests.module.js';
 import { UploadModule } from '../requests/upload.module.js';
+import { PeriodsModule } from '../periods/periods.module.js';
+import { MessagingModule } from '../messaging/messaging.module.js';
 import { ContactGuard } from '../auth/contact.guard.js';
 import { ContactUploadGuard } from '../auth/contact-upload.guard.js';
 import { AccessRecoveryController } from './access-recovery.controller.js';
@@ -15,7 +17,7 @@ import { ContactRepository } from './contact.repository.js';
 import { ContactUploadController, ContactsController } from './contacts.controller.js';
 
 @Module({
-  imports: [AuthModule, UploadModule, RequestsModule, StorageModule],
+  imports: [AuthModule, UploadModule, RequestsModule, StorageModule, PeriodsModule, MessagingModule],
   controllers: [
     ContactsController,
     ContactUploadController,

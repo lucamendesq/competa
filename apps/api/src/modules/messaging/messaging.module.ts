@@ -1,7 +1,6 @@
 import { Logger, Module, type OnModuleInit } from '@nestjs/common';
 import env from '../../config/env.js';
 import { RequestsModule } from '../requests/requests.module.js';
-import { ContactsModule } from '../contacts/contacts.module.js';
 import { setMagicLinkSender, setResetPasswordSender } from '../../infra/auth/magic-link-sender.js';
 import { WebPush } from './providers/web-push.provider.js';
 import { magicLinkEmail, resetPasswordEmail } from './email-body.js';
@@ -19,9 +18,7 @@ const useResend = env.NODE_ENV === 'production';
 new Logger('MessagingModule').log(useResend ? 'ResendEmail' : 'LogEmail (console)');
 
 @Module({
-  // para rotacionar o Link no lembrete (o token em claro só existe na rotação).
-  // Sem ciclo: RequestsModule importa apenas StorageModule.
-  imports: [RequestsModule, ContactsModule],
+  imports: [RequestsModule],
   controllers: [MessagesController, PushKeyController],
   providers: [
     { provide: MessageProvider, useClass: useResend ? ResendEmail : LogEmail },
