@@ -52,6 +52,22 @@ export class AuthService {
     this.accountant.set(await this.api.get<Accountant>('/auth/me'));
   }
 
+  async signUpWithInvite(body: { name: string; email: string; password: string }, token: string) {
+    await this.api.post('/auth/sign-up', body, { token });
+  }
+
+  async acceptContactInvite(token: string, body: { name: string; password?: string }) {
+    await this.api.post(`/invites/${token}/contact-account`, body);
+  }
+
+  async recoverLink(email: string) {
+    await this.api.post('/access/recover', { email });
+  }
+
+  async confirmRecoverLink(token: string) {
+    await this.api.post('/access/recover/confirm', { token });
+  }
+
   async requestPasswordReset(email: string) {
     const { error } = await authClient.requestPasswordReset({
       email,

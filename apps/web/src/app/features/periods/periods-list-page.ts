@@ -18,7 +18,6 @@ import { HlmButtonImports } from '@spartan-ng/helm/button';
 import { HlmInputImports } from '@spartan-ng/helm/input';
 import { HlmLabel } from '@spartan-ng/helm/label';
 import { HlmTableImports } from '@spartan-ng/helm/table';
-import { Api } from '../../core/http/api';
 import { apiErrorMessage } from '../../core/http/api-error';
 import { Toaster } from '../../core/ui/toast';
 import { EmptyState } from '../../shared/empty-state';
@@ -75,7 +74,6 @@ import { PeriodOpening, PeriodsService, CreatedRequest } from './periods.service
 export class PeriodsListPage {
   private readonly service = inject(PeriodsService);
   private readonly companies = inject(CompaniesService);
-  private readonly api = inject(Api);
   private readonly toaster = inject(Toaster);
 
   protected readonly monthLabel = monthLabel;
@@ -271,10 +269,7 @@ export class PeriodsListPage {
 
   protected async downloadZip(id: string, referenceMonth: string) {
     try {
-      await this.api.download(
-        `/periods/${id}/zip`,
-        `competencia-${referenceMonth.slice(0, 7)}.zip`,
-      );
+      await this.service.downloadPeriodZip(id, referenceMonth);
     } catch (error) {
       this.toaster.error(apiErrorMessage(error, 'Não foi possível baixar o zip.'));
     }

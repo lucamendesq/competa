@@ -12,3 +12,4 @@ export * from './message.js';
 export * from './review.js';
 export * from './contact.js';
 export * from './device.js';
+export * from './responses.js';

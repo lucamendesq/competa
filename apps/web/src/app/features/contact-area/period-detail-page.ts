@@ -12,7 +12,6 @@ import {
   lucideX,
 } from '@ng-icons/lucide';
 import { HlmButtonImports } from '@spartan-ng/helm/button';
-import { Api } from '../../core/http/api';
 import { apiErrorMessage } from '../../core/http/api-error';
 import { Toaster } from '../../core/ui/toast';
 import { Modal } from '../../shared/modal';
@@ -64,7 +63,6 @@ export class PeriodDetailPage {
 
   private readonly service = inject(ContactAreaService);
   private readonly toaster = inject(Toaster);
-  private readonly api = inject(Api);
   private readonly sanitizer = inject(DomSanitizer);
 
   protected readonly monthLabel = monthLabel;
@@ -121,7 +119,7 @@ export class PeriodDetailPage {
     this.openingPreview.set(document.id);
 
     try {
-      const { objectUrl, type } = await this.api.blobUrl(`/my/documents/${document.id}/content`);
+      const { objectUrl, type } = await this.service.documentBlobUrl(document.id);
 
       this.preview.set({
         document,
@@ -158,7 +156,7 @@ export class PeriodDetailPage {
 
   protected async downloadDocument(document: MyFile) {
     try {
-      await this.api.download(`/my/documents/${document.id}/content`, document.fileName);
+      await this.service.downloadDocument(document.id, document.fileName);
     } catch (error) {
       this.toaster.error(apiErrorMessage(error, 'Não foi possível baixar o arquivo.'));
     }

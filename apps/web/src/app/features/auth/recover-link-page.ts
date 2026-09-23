@@ -6,7 +6,7 @@ import { lucideArrowRight, lucideMailCheck } from '@ng-icons/lucide';
 import { HlmButtonImports } from '@spartan-ng/helm/button';
 import { HlmInputImports } from '@spartan-ng/helm/input';
 import { HlmLabel } from '@spartan-ng/helm/label';
-import { Api } from '../../core/http/api';
+import { AuthService } from '../../core/auth/auth.service';
 import { Logo } from '../../shared/logo';
 
 /** "Perdi meu link" (D14, item 6). A tela mostra a MESMA confirmação em todos os casos —
@@ -19,7 +19,7 @@ import { Logo } from '../../shared/logo';
   templateUrl: './recover-link-page.html',
 })
 export class RecoverLinkPage {
-  private readonly api = inject(Api);
+  private readonly auth = inject(AuthService);
 
   protected readonly sent = signal(false);
   protected readonly error = signal<string | null>(null);
@@ -35,7 +35,7 @@ export class RecoverLinkPage {
 
     return submit(this.f, async (form) => {
       try {
-        await this.api.post('/access/recover', { email: form().value().email });
+        await this.auth.recoverLink(form().value().email);
         this.sent.set(true);
       } catch {
         this.error.set('Muitas tentativas. Espere um minuto e tente de novo.');

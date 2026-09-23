@@ -1,39 +1,19 @@
 import { Service, inject } from '@angular/core';
 import type {
+  CompanyDetailResponse,
   CompanyFlags,
+  CompanySummaryResponse,
   ContactBody,
+  ContactDetailResponse,
   CreateCompanyBody,
   CreateOverrideBody,
   UpdateCompanyBody,
 } from '@competa/contracts';
 import { Api, apiResource, pageResource } from '../../core/http/api';
 
-export type Company = {
-  id: string;
-  name: string;
-  cnpj: string | null;
-  flags: CompanyFlags;
-  active: boolean;
-  checklistTemplateId: string | null;
-  templateName: string | null;
-  contactCount: number;
-  /** Responsáveis que recebem o email da abertura (nome e email). */
-  contacts: { id: string; name: string; email: string }[];
-  /** Responsáveis que ativaram a conta. Opcional: a Empresa é cobrada pelo link sem ela. */
-  readyContactCount: number;
-};
-
-export type Contact = {
-  id: string;
-  name: string;
-  email: string;
-  phone: string | null;
-  hasAccess?: boolean;
-};
-
-export type CompanyDetail = Omit<Company, 'contactCount' | 'contacts'> & {
-  contacts: Contact[];
-};
+export type Company = CompanySummaryResponse;
+export type Contact = ContactDetailResponse;
+export type CompanyDetail = CompanyDetailResponse;
 
 export type ChecklistLine = {
   documentTypeId: string;

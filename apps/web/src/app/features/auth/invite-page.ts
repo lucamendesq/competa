@@ -13,7 +13,7 @@ import {
 import { HlmButtonImports } from '@spartan-ng/helm/button';
 import { HlmInputImports } from '@spartan-ng/helm/input';
 import { HlmLabel } from '@spartan-ng/helm/label';
-import { Api, apiResource } from '../../core/http/api';
+import { apiResource } from '../../core/http/api';
 import { apiErrorMessage } from '../../core/http/api-error';
 import { AuthService } from '../../core/auth/auth.service';
 import { Logo } from '../../shared/logo';
@@ -44,7 +44,6 @@ type Invite = {
 export class InvitePage {
   readonly token = input.required<string>();
 
-  private readonly api = inject(Api);
   private readonly auth = inject(AuthService);
   private readonly router = inject(Router);
 
@@ -83,7 +82,7 @@ export class InvitePage {
         const email = this.invite.value()?.email;
         if (!email) return undefined;
 
-        await this.api.post(`/invites/${this.token()}/contact-account`, tree().value());
+        await this.auth.acceptContactInvite(this.token(), tree().value());
         await this.auth.signInContact(email, tree.password().value());
         await this.router.navigate(['/minha-area/pendencias']);
       } catch (error) {
@@ -99,7 +98,7 @@ export class InvitePage {
       const { name, email, password } = formTree().value();
 
       try {
-        await this.api.post('/auth/sign-up', { name, email, password }, { token: this.token() });
+        await this.auth.signUpWithInvite({ name, email, password }, this.token());
         await this.auth.signInAccountant(email, password);
         await this.router.navigate(['/competencias']);
       } catch (error) {

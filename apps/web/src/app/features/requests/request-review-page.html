@@ -439,6 +439,7 @@
         @case ('pdf') {
           <iframe
             [src]="previewing.frameUrl"
+            sandbox="allow-forms"
             class="border-border h-[65vh] w-full rounded-lg border"
             [title]="'Pré-visualização de ' + previewing.document.fileName"
           ></iframe>

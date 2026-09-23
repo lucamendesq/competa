@@ -1,47 +1,18 @@
 import { Service, inject } from '@angular/core';
+import type {
+  ChannelFailureResponse,
+  MissingItemResponse,
+  PanelRowResponse,
+  PeriodDetailResponse,
+  PeriodSummaryResponse,
+} from '@competa/contracts';
 import { Api, apiResource, pageResource } from '../../core/http/api';
 
-export type Period = {
-  id: string;
-  referenceMonth: string;
-  status: 'open' | 'closed';
-  dueDate: string | null;
-  requestCount: number;
-  createdAt: string;
-};
-
-export type PeriodDetail = Period & {
-  completeRequestCount: number;
-  pendingItemCount: number;
-};
-
-export type MissingItem = {
-  id: string;
-  name: string;
-  status: 'pending' | 'submitted' | 'accepted' | 'rejected';
-  dueDate: string | null;
-  /** `submitted` com recusa no histórico: já reenviado, esperando nova conferência. */
-  resent: boolean;
-};
-
-export type ChannelFailure = {
-  requestId: string;
-  channel: string;
-  purpose: string;
-  recipient: string;
-  error: string | null;
-  createdAt: string;
-};
-
-export type PanelRow = {
-  companyId: string;
-  companyName: string;
-  requestId: string;
-  requestStatus: 'open' | 'complete' | 'closed';
-  counts: { pending: number; submitted: number; accepted: number; rejected: number };
-  missing: MissingItem[];
-  channelFailures: ChannelFailure[];
-};
+export type Period = PeriodSummaryResponse;
+export type PeriodDetail = PeriodDetailResponse;
+export type MissingItem = MissingItemResponse;
+export type ChannelFailure = ChannelFailureResponse;
+export type PanelRow = PanelRowResponse;
 
 export type CreatedRequest = {
   id: string;
@@ -106,5 +77,13 @@ export class PeriodsService {
 
   runReminders() {
     return this.api.post<unknown>('/messages/reminders/run');
+  }
+
+  downloadPeriodZip(id: string, referenceMonth: string) {
+    return this.api.download(`/periods/${id}/zip`, `competencia-${referenceMonth.slice(0, 7)}.zip`);
+  }
+
+  downloadRequestZip(requestId: string, filename: string) {
+    return this.api.download(`/requests/${requestId}/zip`, filename);
   }
 }

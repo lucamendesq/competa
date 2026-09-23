@@ -123,4 +123,12 @@ export class ContactAreaService {
   subscribePush(subscription: { endpoint: string; keys: { p256dh: string; auth: string } }) {
     return this.api.post<{ id: string; endpoint: string }>('/my/push/subscribe', subscription);
   }
+
+  documentBlobUrl(documentId: string) {
+    return this.api.blobUrl(`/my/documents/${documentId}/content`);
+  }
+
+  downloadDocument(documentId: string, fileName: string) {
+    return this.api.download(`/my/documents/${documentId}/content`, fileName);
+  }
 }

@@ -22,7 +22,6 @@ import {
 import { HlmButtonImports } from '@spartan-ng/helm/button';
 import { HlmLabel } from '@spartan-ng/helm/label';
 import { HlmTextarea } from '@spartan-ng/helm/textarea';
-import { Api } from '../../core/http/api';
 import { apiErrorMessage } from '../../core/http/api-error';
 import { Toaster } from '../../core/ui/toast';
 import { ErrorState } from '../../shared/error-state';
@@ -81,7 +80,6 @@ export class RequestReviewPage {
   readonly requestId = input.required<string>();
 
   private readonly service = inject(RequestsService);
-  private readonly api = inject(Api);
   private readonly sanitizer = inject(DomSanitizer);
   private readonly toaster = inject(Toaster);
 
@@ -311,7 +309,7 @@ export class RequestReviewPage {
     this.openingPreview.set(document.id);
 
     try {
-      const { objectUrl, type } = await this.api.blobUrl(`/documents/${document.id}/content`);
+      const { objectUrl, type } = await this.service.documentBlobUrl(document.id);
 
       this.preview.set({
         document,
@@ -350,7 +348,7 @@ export class RequestReviewPage {
 
   protected async downloadDocument(document: RequestDocument) {
     try {
-      await this.api.download(`/documents/${document.id}/content`, document.fileName);
+      await this.service.downloadDocument(document.id, document.fileName);
     } catch (error) {
       this.toaster.error(apiErrorMessage(error, 'Não foi possível baixar o arquivo.'));
     }
@@ -456,8 +454,8 @@ export class RequestReviewPage {
     if (!data) return;
 
     try {
-      await this.api.download(
-        `/requests/${data.id}/zip`,
+      await this.service.downloadZip(
+        data.id,
         `${slug(data.companyName)}-${data.referenceMonth.slice(0, 7)}.zip`,
       );
     } catch (error) {
