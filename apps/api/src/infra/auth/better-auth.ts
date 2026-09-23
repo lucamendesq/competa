@@ -12,29 +12,30 @@ import { db } from '../database/index.js';
 import * as schema from '../database/schema/auth.js';
 import { sendMagicLink, sendResetPassword } from './magic-link-sender.js';
 
-const sharedDomain = (a: string, b: string) => {
-  const left = a.split('.').reverse();
-  const right = b.split('.').reverse();
-  const common: string[] = [];
+import { getDomain } from 'tldts';
 
-  for (let i = 0; i < Math.min(left.length, right.length) && left[i] === right[i]; i++) {
-    common.push(left[i]);
-  }
-
-  return common.reverse().join('.');
+const registrableDomain = (hostname: string) => {
+  const domain = getDomain(hostname);
+  if (!domain) throw new Error(`Hostname "${hostname}" is a public suffix or has no registrable domain.`);
+  return domain;
 };
 
 const webHost = new URL(env.WEB_URL).hostname;
 const authHost = new URL(env.BETTER_AUTH_URL).hostname;
-const parentDomain = sharedDomain(webHost, authHost);
 
 const crossSubDomain = webHost !== authHost;
 
-if (crossSubDomain && parentDomain.split('.').length < 2) {
-  throw new Error(
-    `WEB_URL (${webHost}) e BETTER_AUTH_URL (${authHost}) não compartilham um domínio: ` +
-      'sirva os dois na mesma origem ou coloque-os sob o mesmo domínio.',
-  );
+let parentDomain: string | undefined;
+if (crossSubDomain) {
+  const webReg = registrableDomain(webHost);
+  const authReg = registrableDomain(authHost);
+  if (webReg !== authReg) {
+    throw new Error(
+      `WEB_URL (${webHost}) e BETTER_AUTH_URL (${authHost}) não compartilham um domínio registrável: ` +
+        'sirva os dois na mesma origem ou coloque-os sob o mesmo domínio.',
+    );
+  }
+  parentDomain = webReg;
 }
 
 const auth = betterAuth({
@@ -53,6 +54,7 @@ const auth = betterAuth({
   },
   plugins: [
     magicLink({
+      disableSignUp: true,
       sendMagicLink: async ({ email, url, token }) => {
         await sendMagicLink({ email, url, token });
       },
