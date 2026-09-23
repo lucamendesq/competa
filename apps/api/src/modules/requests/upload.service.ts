@@ -9,8 +9,10 @@ import {
   MAX_FILES_PER_UPLOAD,
   buildStorageKey,
   confirmationRefusal,
+  fileExtension,
   rejectionReason,
   requestCapRefusal,
+  validateMagicBytes,
 } from './file-rules.js';
 
 @Injectable()
@@ -100,11 +102,19 @@ export class UploadService {
 
     for (const row of pending) {
       const realBytes = await this.storage.statSize(row.storageKey);
-      const reason = confirmationRefusal({
+      let reason = confirmationRefusal({
         fileName: row.fileName,
         declaredBytes: row.declaredBytes,
         realBytes,
       });
+
+      if (!reason && realBytes && realBytes > 0) {
+        const ext = fileExtension({ fileName: row.fileName, contentType: row.contentType });
+        if (ext) {
+          const head = await this.storage.readHead(row.storageKey, 512);
+          reason = validateMagicBytes(head, ext);
+        }
+      }
 
       if (reason) {
         refused.push({ documentId: row.id, fileName: row.fileName, reason });

@@ -43,7 +43,7 @@ export const zipEntries = (documents: ZipDocument[], withCompany: boolean): ZipE
   const used = new Set<string>();
 
   return documents
-    .filter((document) => document.reviewStatus !== 'rejected')
+    .filter((document) => document.reviewStatus === 'accepted')
     .map((document) => {
       const path = dedupe(
         `${folderFor(document, withCompany)}/${sanitize(document.fileName)}`,

@@ -10,5 +10,6 @@ export abstract class StorageProvider {
   abstract presignPut(input: PresignPutInput): Promise<string>;
   abstract openRead(storageKey: string): Promise<Readable>;
   abstract statSize(storageKey: string): Promise<number | undefined>;
+  abstract readHead(storageKey: string, bytes?: number): Promise<Buffer>;
   abstract remove(storageKey: string): Promise<void>;
 }

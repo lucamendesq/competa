@@ -17,6 +17,7 @@ export type ConfirmedDocument = {
   id: string;
   storageKey: string;
   fileName: string;
+  contentType: string;
   requestItemId: string | null;
   declaredBytes: number;
 };
@@ -81,6 +82,7 @@ export class DocumentRepository {
         id: document.id,
         storageKey: document.storageKey,
         fileName: document.fileName,
+        contentType: document.contentType,
         requestItemId: document.requestItemId,
         declaredBytes: document.sizeBytes,
       })

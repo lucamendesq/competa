@@ -1,6 +1,6 @@
 import { createHmac, timingSafeEqual } from 'node:crypto';
 import { createReadStream, createWriteStream } from 'node:fs';
-import { mkdir, rm, stat } from 'node:fs/promises';
+import { mkdir, open, rm, stat } from 'node:fs/promises';
 import { dirname, join, resolve, sep } from 'node:path';
 import { Transform, type Readable } from 'node:stream';
 import { pipeline } from 'node:stream/promises';
@@ -36,6 +36,17 @@ export class LocalStorage extends StorageProvider {
       return (await stat(this.safePath(storageKey))).size;
     } catch {
       return undefined;
+    }
+  }
+
+  async readHead(storageKey: string, bytes = 512): Promise<Buffer> {
+    const handle = await open(this.safePath(storageKey), 'r');
+    try {
+      const buffer = Buffer.alloc(bytes);
+      const { bytesRead } = await handle.read(buffer, 0, bytes, 0);
+      return buffer.subarray(0, bytesRead);
+    } finally {
+      await handle.close();
     }
   }
 

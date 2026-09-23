@@ -166,64 +166,64 @@ export class CompanyFormPage {
     this.error.set(null);
     this.fieldErrors.set({});
 
-    if (this.f().invalid()) {
-      focusFirstInvalid(this.host.nativeElement);
-      return;
-    }
+    return submit(this.f, {
+      action: async (formTree) => {
+        const values = formTree().value();
+        const contact = values.contactEmail
+          ? {
+              name: values.contactName || values.name,
+              email: values.contactEmail,
+              phone: values.contactPhone || undefined,
+            }
+          : undefined;
 
-    return submit(this.f, async (formTree) => {
-      const values = formTree().value();
-      const contact = values.contactEmail
-        ? {
-            name: values.contactName || values.name,
-            email: values.contactEmail,
-            phone: values.contactPhone || undefined,
-          }
-        : undefined;
+        try {
+          const id = this.companyId();
 
-      try {
-        const id = this.companyId();
-
-        if (id) {
-          await this.service.update(id, {
-            name: values.name,
-            checklistTemplateId: values.checklistTemplateId || null,
-            cnpj: values.cnpj || null,
-            flags: this.flags(),
-          });
-
-          await this.syncContact(id, contact);
-          this.toaster.success('Empresa atualizada.');
-        } else {
-          const created = await this.service.create({
-            name: values.name,
-            checklistTemplateId: values.checklistTemplateId || undefined,
-            cnpj: values.cnpj || undefined,
-            flags: this.flags(),
-            contact: contact,
-          });
-          this.toaster.success('Empresa cadastrada.');
-
-          if (values.checklistTemplateId) {
-            /* Próximo passo em vez de voltar para a lista: o template é um ponto de partida,
-             * e é aqui que o Contador tira o documento que esta empresa não tem (antes ele
-             * precisava criar um template novo só para isso). Sem template não há nada a
-             * confirmar ainda, então cai direto para a lista. */
-            await this.router.navigate(['/empresas', created.id, 'checklist'], {
-              queryParams: { created: 1 },
+          if (id) {
+            await this.service.update(id, {
+              name: values.name,
+              checklistTemplateId: values.checklistTemplateId || null,
+              cnpj: values.cnpj || null,
+              flags: this.flags(),
             });
 
-            return undefined;
+            await this.syncContact(id, contact);
+            this.toaster.success('Empresa atualizada.');
+          } else {
+            const created = await this.service.create({
+              name: values.name,
+              checklistTemplateId: values.checklistTemplateId || undefined,
+              cnpj: values.cnpj || undefined,
+              flags: this.flags(),
+              contact: contact,
+            });
+            this.toaster.success('Empresa cadastrada.');
+
+            if (values.checklistTemplateId) {
+              /* Próximo passo em vez de voltar para a lista: o template é um ponto de partida,
+               * e é aqui que o Contador tira o documento que esta empresa não tem (antes ele
+               * precisava criar um template novo só para isso). Sem template não há nada a
+               * confirmar ainda, então cai direto para a lista. */
+              await this.router.navigate(['/empresas', created.id, 'checklist'], {
+                queryParams: { created: 1 },
+              });
+
+              return undefined;
+            }
           }
+
+          await this.router.navigate(['/empresas']);
+        } catch (error) {
+          this.error.set(apiErrorMessage(error, 'Não foi possível salvar a empresa.'));
+          this.fieldErrors.set(apiFieldErrors(error));
         }
 
-        await this.router.navigate(['/empresas']);
-      } catch (error) {
-        this.error.set(apiErrorMessage(error, 'Não foi possível salvar a empresa.'));
-        this.fieldErrors.set(apiFieldErrors(error));
-      }
-
-      return undefined;
+        return undefined;
+      },
+      onInvalid: () => {
+        focusFirstInvalid(this.host.nativeElement);
+      },
     });
   }
 

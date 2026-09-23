@@ -597,7 +597,12 @@ export class RequestRepository {
   /** Persiste um token já gerado. Existe separado do `rotateUploadToken` para quem precisa
    *  MONTAR a mensagem com o link novo e só oficializar a troca depois de o envio dar
    *  certo — rotacionar antes deixaria o Responsável sem link nenhum se o email falhasse. */
-  async applyUploadToken(requestId: string, tokenHash: string, contactId?: string) {
+  async applyUploadToken(
+    requestId: string,
+    tokenHash: string,
+    contactId?: string,
+    options?: { revokePrevious?: boolean },
+  ) {
     const [current] = await this.db
       .select({ tokenHash: uploadLink.tokenHash, expiresAt: uploadLink.expiresAt })
       .from(uploadLink)
@@ -605,21 +610,18 @@ export class RequestRepository {
       .limit(1);
 
     const now = new Date();
-    const graceExpiresAt = current
-      ? new Date(Math.min(current.expiresAt.getTime(), addHours(now, 48).getTime()))
-      : null;
+    const graceExpiresAt =
+      !options?.revokePrevious && current
+        ? new Date(Math.min(current.expiresAt.getTime(), addHours(now, 48).getTime()))
+        : null;
 
     const [row] = await this.db
       .update(uploadLink)
       .set({
         tokenHash,
         expiresAt: addDays(now, env.UPLOAD_LINK_TTL_DAYS),
-        ...(current
-          ? {
-              previousTokenHash: current.tokenHash,
-              previousExpiresAt: graceExpiresAt,
-            }
-          : {}),
+        previousTokenHash: options?.revokePrevious ? null : (current?.tokenHash ?? null),
+        previousExpiresAt: graceExpiresAt,
         // reaponta o Link para quem pediu — ver `rotateUploadToken`
         ...(contactId ? { contactId } : {}),
       })

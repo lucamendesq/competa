@@ -66,6 +66,28 @@ export class R2Storage extends StorageProvider {
     }
   }
 
+  async readHead(storageKey: string, bytes = 512): Promise<Buffer> {
+    try {
+      const { Body } = await this.client.send(
+        new GetObjectCommand({
+          Bucket: env.R2_BUCKET,
+          Key: storageKey,
+          Range: `bytes=0-${bytes - 1}`,
+        }),
+      );
+
+      if (!Body) return Buffer.alloc(0);
+
+      const chunks: Buffer[] = [];
+      for await (const chunk of Body as Readable) {
+        chunks.push(Buffer.isBuffer(chunk) ? chunk : Buffer.from(chunk));
+      }
+      return Buffer.concat(chunks);
+    } catch {
+      return Buffer.alloc(0);
+    }
+  }
+
   async remove(storageKey: string) {
     await this.client.send(new DeleteObjectCommand({ Bucket: env.R2_BUCKET, Key: storageKey }));
   }

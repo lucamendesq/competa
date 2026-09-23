@@ -83,7 +83,13 @@ export class AuthService {
 
   async reloadContact() {
     this.setSessionHint('contact');
-    this.contact.set(await this.api.get<Contact>('/my/profile'));
+    const data = await this.api.get<Contact | null>('/my/profile');
+    if (!data || !data.contactId) {
+      this.contact.set(null);
+      this.setSessionHint(null);
+      return;
+    }
+    this.contact.set(data);
     this.pending = Promise.resolve();
   }
 
@@ -93,7 +99,13 @@ export class AuthService {
 
   async reloadAccountant() {
     this.setSessionHint('accountant');
-    this.accountant.set(await this.api.get<Accountant>('/auth/me'));
+    const data = await this.api.get<Accountant | null>('/auth/me');
+    if (!data || !data.accountant) {
+      this.accountant.set(null);
+      this.setSessionHint(null);
+      return;
+    }
+    this.accountant.set(data);
     this.pending = Promise.resolve();
   }
 
@@ -110,7 +122,11 @@ export class AuthService {
 
   private async loadAccountant() {
     try {
-      const data = await this.api.get<Accountant>('/auth/me');
+      const data = await this.api.get<Accountant | null>('/auth/me');
+      if (!data || !data.accountant) {
+        this.accountant.set(null);
+        return false;
+      }
       this.accountant.set(data);
       this.setSessionHint('accountant');
       return true;
@@ -123,7 +139,11 @@ export class AuthService {
 
   private async loadContact() {
     try {
-      const data = await this.api.get<Contact>('/my/profile');
+      const data = await this.api.get<Contact | null>('/my/profile');
+      if (!data || !data.contactId) {
+        this.contact.set(null);
+        return false;
+      }
       this.contact.set(data);
       this.setSessionHint('contact');
       return true;

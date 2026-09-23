@@ -128,7 +128,12 @@ export class AccessRecoveryController {
       const delivered = await this.events.emitAsync(EVENTS.UploadLinkResent, resent);
       if (!delivered.includes(true)) continue;
 
-      const applied = await this.requests.applyUploadToken(row.requestId, tokenHash, row.contactId);
+      const applied = await this.requests.applyUploadToken(
+        row.requestId,
+        tokenHash,
+        row.contactId,
+        { revokePrevious: true },
+      );
 
       if (!applied) {
         this.logger.error(`Solicitação ${row.requestId} sem upload_link: link enviado morto.`);

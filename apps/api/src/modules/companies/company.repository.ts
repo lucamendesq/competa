@@ -301,14 +301,18 @@ export class CompanyRepository {
     for (const { line, values } of records) {
       const name = values.name ?? '';
 
+      const hasContact = Boolean(
+        values.contact_email !== undefined || values.contact_name || values.contact_phone,
+      );
+
       const parsed = CreateCompanyBody.safeParse({
         name,
         cnpj: values.cnpj || undefined,
         flags: parseFlags(values),
-        contact: values.contact_email
+        contact: hasContact
           ? {
               name: values.contact_name || name,
-              email: values.contact_email,
+              email: values.contact_email ?? '',
               phone: values.contact_phone || undefined,
             }
           : undefined,

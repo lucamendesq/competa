@@ -19,7 +19,7 @@ export class Api {
 
   get<T>(url: string, params?: Params) {
     return firstValueFrom(
-      this.http.get<Envelope<T>>(url, { params: clean(params) }).pipe(map((r) => r.data)),
+      this.http.get<Envelope<T>>(url, { params: clean(params) }).pipe(map((r) => r?.data)),
     );
   }
 

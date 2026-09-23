@@ -25,7 +25,7 @@ export type ReminderCandidate = {
   pendingItems: { name: string; dueDate: string | null }[];
   periodDueDate: string | null;
   reminderCount: number;
-  lastMessageAt: Date | null;
+  lastMessageAt: Date | string | null;
 };
 
 export const nextDueDate = (

@@ -1,5 +1,5 @@
 import { Component, computed, inject, signal } from '@angular/core';
-import { Router, RouterLink } from '@angular/router';
+import { RouterLink } from '@angular/router';
 import { NgIcon, provideIcons } from '@ng-icons/core';
 import {
   lucideCopy,
@@ -40,7 +40,6 @@ import { StatusPill } from '../../shared/status-pill';
 export class TemplatesListPage {
   private readonly service = inject(ChecklistsService);
   private readonly toaster = inject(Toaster);
-  private readonly router = inject(Router);
 
   protected readonly templates = this.service.templates();
   protected readonly duplicating = signal<string | null>(null);
@@ -59,10 +58,9 @@ export class TemplatesListPage {
     this.duplicating.set(id);
 
     try {
-      const derived = await this.service.derive(id, `${nome} (meu modelo)`);
+      await this.service.derive(id, `${nome} (meu modelo)`);
       this.toaster.success('Template duplicado. Agora ele é editável.');
       this.templates.reload();
-      await this.router.navigate(['/checklists', derived.id]);
     } catch (error) {
       this.toaster.error(apiErrorMessage(error, 'Não foi possível duplicar o template.'));
     } finally {

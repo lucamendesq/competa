@@ -67,6 +67,8 @@ const HEADER_ALIASES: Record<string, string> = {
   nome_do_responsavel: 'contact_name',
   email: 'contact_email',
   e_mail: 'contact_email',
+  email_responsavel: 'contact_email',
+  e_mail_responsavel: 'contact_email',
   email_do_responsavel: 'contact_email',
   e_mail_do_responsavel: 'contact_email',
   telefone: 'contact_phone',
@@ -90,7 +92,11 @@ export const parseCsvRecords = (text: string) => {
         .replace(/[^a-z0-9]+/g, '_')
         .replace(/^_|_$/g, ''),
     )
-    .map((key) => HEADER_ALIASES[key] ?? key);
+    .map((key) => {
+      if (HEADER_ALIASES[key]) return HEADER_ALIASES[key];
+      if (/e_?mail/.test(key)) return 'contact_email';
+      return key;
+    });
 
   return rows.map(({ line, cells }) => ({
     line,
