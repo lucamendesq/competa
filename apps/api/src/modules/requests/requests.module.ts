@@ -6,11 +6,12 @@ import { RequestRepository } from './request.repository.js';
 import { RequestsController } from './requests.controller.js';
 import { ReviewController } from './review.controller.js';
 import { ZipController } from './zip.controller.js';
+import { ZipFlightService } from './zip-flight.service.js';
 
 @Module({
   imports: [StorageModule],
   controllers: [RequestsController, ReviewController, ZipController],
-  providers: [RequestRepository, DocumentRepository, DeadlineCron],
+  providers: [RequestRepository, DocumentRepository, DeadlineCron, ZipFlightService],
   exports: [RequestRepository],
 })
 export class RequestsModule {}
