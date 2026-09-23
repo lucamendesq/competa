@@ -15,7 +15,6 @@ import {
 } from '@ng-icons/lucide';
 import { HlmButtonImports } from '@spartan-ng/helm/button';
 import { HlmInputImports } from '@spartan-ng/helm/input';
-import { Api } from '../../core/http/api';
 import { apiErrorMessage } from '../../core/http/api-error';
 import { Toaster } from '../../core/ui/toast';
 import { EmptyState } from '../../shared/empty-state';
@@ -69,7 +68,6 @@ export class PendingPanelPage {
   private readonly service = inject(PeriodsService);
   private readonly companies = inject(CompaniesService);
   private readonly requests = inject(RequestsService);
-  private readonly api = inject(Api);
   private readonly toaster = inject(Toaster);
 
   protected readonly monthLabel = monthLabel;
@@ -173,10 +171,7 @@ export class PendingPanelPage {
     const reference = this.period.value()?.referenceMonth ?? '';
 
     try {
-      await this.api.download(
-        `/periods/${this.periodId()}/zip`,
-        `competencia-${reference.slice(0, 7)}.zip`,
-      );
+      await this.service.downloadPeriodZip(this.periodId(), reference);
     } catch (error) {
       this.toaster.error(apiErrorMessage(error, 'Não foi possível baixar o zip.'));
     }
@@ -184,7 +179,7 @@ export class PendingPanelPage {
 
   protected async downloadCompanyZip(requestId: string, companyName: string) {
     try {
-      await this.api.download(`/requests/${requestId}/zip`, `${slug(companyName)}.zip`);
+      await this.requests.downloadZip(requestId, `${slug(companyName)}.zip`);
     } catch (error) {
       this.toaster.error(apiErrorMessage(error, 'Não foi possível baixar o zip.'));
     }

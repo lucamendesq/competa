@@ -1,44 +1,16 @@
 import { Service, inject } from '@angular/core';
+import type {
+  RequestDetailResponse,
+  RequestDocumentResponse,
+  RequestItemResponse,
+  UploadLinkResultResponse,
+} from '@competa/contracts';
 import { Api, apiResource } from '../../core/http/api';
 
-export type RequestDocument = {
-  id: string;
-  requestItemId: string | null;
-  fileName: string;
-  sizeBytes: number;
-  uploadedAt: string;
-  reviewStatus: 'pending' | 'accepted' | 'rejected';
-  rejectionReason: string | null;
-  uploadedByContactId: string | null;
-};
-
-export type RequestItem = {
-  id: string;
-  name: string;
-  description: string | null;
-  status: 'pending' | 'submitted' | 'accepted' | 'rejected';
-  dueDate: string | null;
-  acceptedFormats: string[];
-  documents: RequestDocument[];
-};
-
-export type RequestDetail = {
-  id: string;
-  status: 'open' | 'complete' | 'closed';
-  closedAt: string | null;
-  companyId: string;
-  companyName: string;
-  periodId: string;
-  referenceMonth: string;
-  periodDueDate: string | null;
-  items: RequestItem[];
-  extraDocuments: RequestDocument[];
-};
-
-export type UploadLinkResult = {
-  uploadUrl: string;
-  contactEmail: string;
-};
+export type RequestDocument = RequestDocumentResponse;
+export type RequestItem = RequestItemResponse;
+export type RequestDetail = RequestDetailResponse;
+export type UploadLinkResult = UploadLinkResultResponse;
 
 @Service()
 export class RequestsService {
@@ -70,8 +42,6 @@ export class RequestsService {
     return this.api.post<unknown>(`/documents/${documentId}/review-extra`, body);
   }
 
-  /** Revisão em lote: o painel marca as decisões e publica de uma vez — um email só sai
-   *  para o Responsável, em vez de um por rejeição. */
   publishReview(
     requestId: string,
     body: {
@@ -92,8 +62,6 @@ export class RequestsService {
     }>(`/requests/${requestId}/review`, body);
   }
 
-  /** Copiar e reenviar geram link NOVO: o token é guardado com hash, então o link atual
-   *  não pode ser lido de volta — o anterior deixa de valer. */
   uploadLink(id: string) {
     return this.api.post<UploadLinkResult>(`/requests/${id}/upload-link`);
   }
@@ -106,5 +74,17 @@ export class RequestsService {
     return this.api.post<{ pendingItemCount: number; warning: string | null }>(
       `/requests/${id}/close`,
     );
+  }
+
+  documentBlobUrl(documentId: string) {
+    return this.api.blobUrl(`/documents/${documentId}/content`);
+  }
+
+  downloadDocument(documentId: string, fileName: string) {
+    return this.api.download(`/documents/${documentId}/content`, fileName);
+  }
+
+  downloadZip(requestId: string, filename: string) {
+    return this.api.download(`/requests/${requestId}/zip`, filename);
   }
 }
