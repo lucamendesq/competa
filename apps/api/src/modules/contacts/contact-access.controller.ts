@@ -1,22 +1,19 @@
-import { Body, Controller, Delete, Get, Param, Post, Res, UseGuards } from '@nestjs/common';
+import { Body, Controller, Param, Post, Res, UseGuards } from '@nestjs/common';
 import { AllowAnonymous } from '@thallesp/nestjs-better-auth';
 import { Throttle, seconds } from '@nestjs/throttler';
 import {
   AcceptContactInviteBody,
   ActivateContactAccessBody,
-  IdParam,
   InviteTokenParam,
   PushSubscriptionBody,
 } from '@competa/contracts';
 import type { Response } from 'express';
-import * as z from 'zod';
 import { NotFound } from '../../lib/app-error.js';
 import { zodPipe } from '../../lib/zod-pipe.js';
 import { AuthProvider } from '../auth/auth-provider.js';
 import { EmailAlreadyRegistered, InviteTargetUnsupported } from '../auth/errors.js';
 import { InviteRepository } from '../auth/invite.repository.js';
-import { CurrentScope } from '../auth/current-scope.decorator.js';
-import type { FirmScope, UploadScope } from '../auth/scope.js';
+import type { UploadScope } from '../auth/scope.js';
 import { UploadTokenGuard } from '../auth/upload-token.guard.js';
 import { CurrentUploadScope } from '../auth/upload-scope.decorator.js';
 import { UploadLinkRepository } from '../requests/upload-link.repository.js';
@@ -124,33 +121,5 @@ export class ContactInviteAccountController {
     /* O front entra em seguida com o mesmo email e senha: a sessão não sai daqui para não
      * nascer de um link que circula por email. Da tela, é um passo só. */
     return { email: owner.email, name, nextStep: 'sign_in' as const };
-  }
-}
-
-const ContactAccessParam = z.object({ id: z.uuid(), contactId: z.uuid() });
-type ContactAccessParam = z.infer<typeof ContactAccessParam>;
-
-@Controller('companies/:id/contacts')
-export class ContactAccessAdminController {
-  constructor(private readonly contacts: ContactRepository) {}
-
-  @Get('access')
-  async list(@CurrentScope() scope: FirmScope, @Param(zodPipe(IdParam)) params: IdParam) {
-    if (!(await this.contacts.findOwnedCompany(scope, params.id))) {
-      throw new NotFound('Empresa não encontrada.');
-    }
-
-    return this.contacts.withAccess(scope, params.id);
-  }
-
-  @Delete(':contactId/access')
-  async revoke(
-    @CurrentScope() scope: FirmScope,
-    @Param(zodPipe(ContactAccessParam)) params: ContactAccessParam,
-  ) {
-    const result = await this.contacts.revokeAccess(scope, params.id, params.contactId);
-    if (!result) throw new NotFound('Responsável não encontrado.');
-
-    return result;
   }
 }

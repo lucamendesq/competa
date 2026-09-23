@@ -389,7 +389,7 @@ export class CompanyRepository {
                   flags: sql`excluded.flags`,
                 },
               })
-              .returning({ id: company.id, name: company.name })
+              .returning({ id: company.id, name: company.name, cnpj: company.cnpj })
           : [];
 
         const inserted = withoutCnpj.length
@@ -408,14 +408,43 @@ export class CompanyRepository {
           : [];
 
         const rowByLine = new Map<number, { id: string; name: string }>();
-        withCnpj.forEach(({ line }, index) => rowByLine.set(line, upserted[index]));
+        const companyByCnpj = new Map(upserted.map((row) => [row.cnpj!, row]));
+        withCnpj.forEach(({ line, body }) => {
+          const matched = companyByCnpj.get(body.cnpj!);
+          if (matched) rowByLine.set(line, matched);
+        });
         withoutCnpj.forEach(({ line }, index) => rowByLine.set(line, inserted[index]));
 
         const contacts = pending.flatMap(({ line, body }) =>
-          body.contact ? [{ ...body.contact, companyId: rowByLine.get(line)!.id }] : [],
+          body.contact && rowByLine.has(line)
+            ? [{ ...body.contact, companyId: rowByLine.get(line)!.id }]
+            : [],
         );
 
-        if (contacts.length) await tx.insert(contact).values(contacts);
+        if (contacts.length) {
+          const companyIds = [...new Set(contacts.map((c) => c.companyId))];
+          const existingContacts = await tx
+            .select({ id: contact.id, companyId: contact.companyId, email: contact.email })
+            .from(contact)
+            .where(inArray(contact.companyId, companyIds));
+
+          const existingByCompanyEmail = new Set(
+            existingContacts.map((c) => `${c.companyId}:${c.email.toLowerCase()}`),
+          );
+
+          for (const c of contacts) {
+            const key = `${c.companyId}:${c.email.toLowerCase()}`;
+            if (existingByCompanyEmail.has(key)) {
+              await tx
+                .update(contact)
+                .set({ name: c.name, phone: c.phone ?? null })
+                .where(and(eq(contact.companyId, c.companyId), eq(contact.email, c.email)));
+            } else {
+              await tx.insert(contact).values(c);
+              existingByCompanyEmail.add(key);
+            }
+          }
+        }
 
         return pending.map(({ line }) => {
           const row = rowByLine.get(line)!;
