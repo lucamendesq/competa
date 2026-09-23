@@ -147,47 +147,28 @@ export const servedContentType = (declared: string) => {
   };
 };
 
-export const validateMagicBytes = (header: Buffer, extension: string): string | null => {
-  if (header.length >= 2 && header[0] === 0x4d && header[1] === 0x5a) {
-    return 'Arquivo executável (PE/MZ) não é permitido.';
+export const isFormatCompatible = (
+  detectedExt: string | undefined,
+  fileName: string,
+  firstChunk?: Buffer,
+): boolean => {
+  const ext = fileExtension({ fileName, contentType: '' });
+  if (!ext) return false;
+
+  const normalized = ext.toLowerCase();
+
+  if (normalized === 'pdf') return detectedExt === 'pdf';
+  if (normalized === 'png') return detectedExt === 'png';
+  if (normalized === 'jpg' || normalized === 'jpeg') return detectedExt === 'jpg';
+  if (normalized === 'zip') return detectedExt === 'zip';
+  if (normalized === 'xlsx') return detectedExt === 'zip' || detectedExt === 'xlsx';
+  if (normalized === 'xls') return detectedExt === 'cfb' || detectedExt === 'xls';
+
+  if (['csv', 'xml', 'ofx'].includes(normalized)) {
+    if (detectedExt !== undefined) return false;
+    if (firstChunk && firstChunk.includes(0)) return false;
+    return true;
   }
 
-  if (
-    header.length >= 4 &&
-    header[0] === 0x7f &&
-    header[1] === 0x45 &&
-    header[2] === 0x4c &&
-    header[3] === 0x46
-  ) {
-    return 'Arquivo executável (ELF) não é permitido.';
-  }
-
-  const ext = extension.toLowerCase();
-
-  if (ext === 'pdf') {
-    if (header.length < 4 || header.toString('ascii', 0, 4) !== '%PDF') {
-      return 'Conteúdo do arquivo não corresponde a um documento PDF válido.';
-    }
-  }
-
-  if (ext === 'png') {
-    const pngMagic = [0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a];
-    if (header.length < 8 || !pngMagic.every((byte, idx) => header[idx] === byte)) {
-      return 'Conteúdo do arquivo não corresponde a uma imagem PNG válida.';
-    }
-  }
-
-  if (ext === 'jpg' || ext === 'jpeg') {
-    if (header.length < 3 || header[0] !== 0xff || header[1] !== 0xd8 || header[2] !== 0xff) {
-      return 'Conteúdo do arquivo não corresponde a uma imagem JPEG válida.';
-    }
-  }
-
-  if (ext === 'zip' || ext === 'xlsx') {
-    if (header.length < 2 || header[0] !== 0x50 || header[1] !== 0x4b) {
-      return 'Conteúdo do arquivo não corresponde a um arquivo compactado ou planilha válida.';
-    }
-  }
-
-  return null;
+  return true;
 };

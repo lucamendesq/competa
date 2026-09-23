@@ -36,7 +36,7 @@ export class R2Storage extends StorageProvider {
     return Body as Readable;
   }
 
-  presignPut({ storageKey, contentType, sizeBytes }: PresignPutInput) {
+  presignPut({ storageKey, contentType, sizeBytes, checksumSha256 }: PresignPutInput) {
     return getSignedUrl(
       this.client,
       new PutObjectCommand({
@@ -44,12 +44,15 @@ export class R2Storage extends StorageProvider {
         Key: storageKey,
         ContentType: contentType,
         ContentLength: sizeBytes,
+        ...(checksumSha256 ? { ChecksumSHA256: checksumSha256 } : {}),
       }),
-      /* content-type assinado (SSRF-1): o PUT só aceita o tipo declarado no presign — o
-       * mesmo que foi validado e gravado em `document.content_type`. */
       {
         expiresIn: PRESIGN_TTL_SECONDS,
-        signableHeaders: new Set(['content-length', 'content-type']),
+        signableHeaders: new Set([
+          'content-length',
+          'content-type',
+          ...(checksumSha256 ? ['x-amz-checksum-sha256'] : []),
+        ]),
       },
     );
   }
