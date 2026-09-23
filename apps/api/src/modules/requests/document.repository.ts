@@ -156,4 +156,17 @@ export class DocumentRepository {
       .from(document)
       .where(and(eq(document.uploadStatus, 'awaiting_upload'), lt(document.createdAt, olderThan)));
   }
+
+  async expiredFiscalDocuments(olderThan: Date, limit = 1000) {
+    return this.db
+      .select({ id: document.id, storageKey: document.storageKey })
+      .from(document)
+      .where(lt(document.createdAt, olderThan))
+      .limit(limit);
+  }
+
+  async purgeFiscalDocuments(documentIds: string[]) {
+    if (!documentIds.length) return;
+    await this.db.delete(document).where(inArray(document.id, documentIds));
+  }
 }

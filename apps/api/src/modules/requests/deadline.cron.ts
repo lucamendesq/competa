@@ -7,7 +7,7 @@ import { brazilDay } from '../../lib/brazil-time.js';
 import { EVENTS, type DeadlineMissedEvent } from '../../lib/events.js';
 import { createToken } from '../../lib/token.js';
 import type { FirmScope } from '../auth/scope.js';
-import { subHours } from 'date-fns';
+import { subHours, subYears } from 'date-fns';
 import { StorageProvider } from '../../infra/storage/storage.provider.js';
 import { DocumentRepository } from './document.repository.js';
 import { effectiveDueDate } from './review-rules.js';
@@ -49,6 +49,33 @@ export class DeadlineCron {
     if (discarded) this.logger.log(`Faxina: ${discarded} envio(s) não confirmado(s) removido(s).`);
   }
 
+  @Cron('0 3 1 * *', { timeZone: 'America/Sao_Paulo' })
+  @SentryCron('fiscal-retention-monthly', {
+    schedule: { type: 'crontab', value: '0 3 1 * *' },
+    checkinMargin: 5,
+    maxRuntime: 60,
+    timezone: 'America/Sao_Paulo',
+  })
+  async purgeExpiredFiscalDocuments() {
+    const fiveYearsAgo = subYears(new Date(), 5);
+    const expired = await this.documents.expiredFiscalDocuments(fiveYearsAgo, 1000);
+    if (!expired.length) return 0;
+
+    await Promise.all(
+      expired.map((row) =>
+        this.storage.remove(row.storageKey).catch((error) => {
+          this.logger.warn(
+            `Falha ao remover arquivo expirado ${row.storageKey} do storage: ${String(error)}`,
+          );
+        }),
+      ),
+    );
+
+    await this.documents.purgeFiscalDocuments(expired.map((row) => row.id));
+    this.logger.log(`Expurgo fiscal: ${expired.length} documento(s) com mais de 5 anos removido(s).`);
+    return expired.length;
+  }
+
   async discardStaleUploads() {
     const stale = await this.documents.staleAwaitingUpload(
       subHours(new Date(), STALE_UPLOAD_HOURS),
@@ -57,7 +84,13 @@ export class DeadlineCron {
 
     await this.documents.discard(stale.map((row) => row.id));
     await Promise.all(
-      stale.map((row) => this.storage.remove(row.storageKey).catch(() => undefined)),
+      stale.map((row) =>
+        this.storage.remove(row.storageKey).catch((error) => {
+          this.logger.warn(
+            `Falha ao remover arquivo órfão ${row.storageKey} do storage: ${String(error)}`,
+          );
+        }),
+      ),
     );
 
     return stale.length;

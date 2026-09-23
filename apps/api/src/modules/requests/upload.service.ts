@@ -1,4 +1,4 @@
-import { Injectable } from '@nestjs/common';
+import { Injectable, Logger } from '@nestjs/common';
 import type { PresignUploadBody } from '@competa/contracts';
 import { v7 as uuidv7 } from 'uuid';
 import { StorageProvider } from '../../infra/storage/storage.provider.js';
@@ -17,6 +17,8 @@ import {
 
 @Injectable()
 export class UploadService {
+  private readonly logger = new Logger(UploadService.name);
+
   constructor(
     private readonly documents: DocumentRepository,
     private readonly storage: StorageProvider,
@@ -129,7 +131,13 @@ export class UploadService {
       await Promise.all(
         pending
           .filter((row) => refused.some((bad) => bad.documentId === row.id))
-          .map((row) => this.storage.remove(row.storageKey).catch(() => undefined)),
+          .map((row) =>
+            this.storage.remove(row.storageKey).catch((error) => {
+              this.logger.warn(
+                `Falha ao remover arquivo recusado ${row.storageKey} do storage: ${String(error)}`,
+              );
+            }),
+          ),
       );
     }
 
