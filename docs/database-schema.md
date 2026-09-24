@@ -226,6 +226,7 @@ create table document (                   -- arquivo enviado (1 Item : N Documen
   review_status     text not null default 'pending'
                       check (review_status in ('pending','accepted','rejected')),
   rejection_reason  text,
+  checksum          text,                 -- SHA-256 do arquivo verificado na confirmação
   reviewed_by       uuid references accountant(id) on delete set null,
                                           -- autoria da decisão de revisão (OPS-1);
   reviewed_at       timestamptz           -- undo-accept limpa os dois

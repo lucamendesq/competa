@@ -4,7 +4,12 @@ export const PRESIGN_TTL_SECONDS = 900;
 
 /** `sizeBytes` entra na assinatura: sem isso o cliente declara 10 MB e sobe 2 GB — o
  *  limite de 100 MB viraria pedido, não regra. */
-export type PresignPutInput = { storageKey: string; contentType: string; sizeBytes: number };
+export type PresignPutInput = {
+  storageKey: string;
+  contentType: string;
+  sizeBytes: number;
+  checksumSha256?: string;
+};
 
 export abstract class StorageProvider {
   abstract presignPut(input: PresignPutInput): Promise<string>;

@@ -33,7 +33,7 @@ import * as z from 'zod';
 import { StorageProvider } from '../../infra/storage/storage.provider.js';
 import { effectiveDueDate } from '../requests/review-rules.js';
 import { servedContentType } from '../requests/file-rules.js';
-import { UploadService } from '../requests/upload.service.js';
+import { DocumentRepository } from '../requests/document.repository.js';
 import { AuthProvider } from '../auth/auth-provider.js';
 import { ContactRepository } from './contact.repository.js';
 import { RequestRepository } from '../requests/request.repository.js';
@@ -157,14 +157,14 @@ export class ContactsController {
 @ContactRoute()
 @UseGuards(ContactUploadGuard)
 export class ContactUploadController {
-  constructor(private readonly uploads: UploadService) {}
+  constructor(private readonly documents: DocumentRepository) {}
 
   @Post()
   async presign(
     @CurrentUploadScope() scope: UploadScope,
     @Body(zodPipe(MyPresignBody)) body: MyPresignBody,
   ) {
-    return this.uploads.presign(scope, body);
+    return this.documents.presign(scope, body);
   }
 
   @Post('confirm')
@@ -173,6 +173,6 @@ export class ContactUploadController {
     @Body(zodPipe(ConfirmUploadBody.extend({ requestId: MyPresignBody.shape.requestId })))
     body: ConfirmUploadBody,
   ) {
-    return this.uploads.confirm(scope, body.documentIds);
+    return this.documents.confirm(scope, body.documentIds);
   }
 }
