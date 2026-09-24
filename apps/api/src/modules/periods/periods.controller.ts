@@ -8,7 +8,6 @@ import { CurrentScope } from '../auth/current-scope.decorator.js';
 import type { FirmScope } from '../auth/scope.js';
 import env from '../../config/env.js';
 import { EVENTS, type RequestCreatedEvent } from '../../lib/events.js';
-import { MessageRepository } from '../messaging/message.repository.js';
 import { PeriodRepository } from './period.repository.js';
 
 @Controller('periods')
@@ -16,7 +15,6 @@ export class PeriodsController {
   constructor(
     private readonly periods: PeriodRepository,
     private readonly events: EventEmitter2,
-    private readonly messages: MessageRepository,
   ) {}
 
   @Post()
@@ -111,22 +109,11 @@ export class PeriodsController {
       throw new NotFound('Competência não encontrada.');
     }
 
-    const [companies, failures] = await Promise.all([
-      this.periods.pendingPanel(scope, params.id),
-      this.messages.failuresByPeriod(scope, params.id),
-    ]);
-
-    const failuresByRequest = new Map<string, typeof failures>();
-    for (const failure of failures) {
-      failuresByRequest.set(failure.requestId, [
-        ...(failuresByRequest.get(failure.requestId) ?? []),
-        failure,
-      ]);
-    }
+    const companies = await this.periods.pendingPanel(scope, params.id);
 
     return companies.map((company) => ({
       ...company,
-      channelFailures: failuresByRequest.get(company.requestId) ?? [],
+      channelFailures: [],
     }));
   }
 

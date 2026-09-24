@@ -1,6 +1,5 @@
 import { Logger, Module, type OnModuleInit } from '@nestjs/common';
 import env from '../../config/env.js';
-import { RequestsModule } from '../requests/requests.module.js';
 import { setMagicLinkSender, setResetPasswordSender } from '../../infra/auth/magic-link-sender.js';
 import { PushProvider } from './providers/push.provider.js';
 import { ConsolePushProvider, WebPushProvider } from './providers/web-push.provider.js';
@@ -10,7 +9,6 @@ import { MessagesController, PushKeyController } from './messages.controller.js'
 import { LogEmail } from './providers/log-email.provider.js';
 import { MessageProvider } from './providers/message.provider.js';
 import { ResendEmail } from './providers/resend-email.provider.js';
-import { RemindersCron } from './reminders.cron.js';
 import { RequestCreatedListener } from './request-created.listener.js';
 import { CollectionEventsListener } from './collection-events.listener.js';
 
@@ -21,13 +19,12 @@ new Logger('MessagingModule').log(useResend ? 'ResendEmail' : 'LogEmail (console
 new Logger('MessagingModule').log(useWebPush ? 'WebPushProvider' : 'ConsolePushProvider (console)');
 
 @Module({
-  imports: [RequestsModule],
+  imports: [],
   controllers: [MessagesController, PushKeyController],
   providers: [
     { provide: MessageProvider, useClass: useResend ? ResendEmail : LogEmail },
     { provide: PushProvider, useClass: useWebPush ? WebPushProvider : ConsolePushProvider },
     MessageRepository,
-    RemindersCron,
     RequestCreatedListener,
     CollectionEventsListener,
   ],

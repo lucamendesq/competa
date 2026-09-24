@@ -8,7 +8,7 @@ import type {
   RequestCreatedEvent,
   UploadLinkResentEvent,
 } from '../../lib/events.js';
-import { nextDueDate, type ReminderCandidate } from './reminder-rules.js';
+import { nextDueDate } from './reminder-rules.js';
 import { escape, linkButton } from './email-layout.js';
 
 export const asMonth = (referenceMonth: string) => {
@@ -55,11 +55,17 @@ ${linkButton(event.uploadUrl, 'Enviar documentos')}`,
 /** O lembrete leva link novo: o cron rotaciona o `upload_link` antes de enviar, então o
  *  token em claro existe aqui. Sem `uploadUrl` (rotação falhou) cai no texto genérico. */
 export const reminderEmail = (
-  candidate: ReminderCandidate & {
+  candidate: {
+    requestId?: string;
+    accountingFirmId?: string;
     companyName: string;
     contactName: string;
     referenceMonth: string;
+    pendingItems: { name: string; dueDate: string | null }[];
+    periodDueDate: string | null;
     uploadUrl?: string;
+    reminderCount?: number;
+    lastMessageAt?: Date | null;
   },
 ) => ({
   subject: `Lembrete: documentos pendentes de ${asMonth(candidate.referenceMonth)}`,
