@@ -2,46 +2,21 @@ import { Injectable, Logger } from '@nestjs/common';
 import webpush from 'web-push';
 import env from '../../../config/env.js';
 import { reportChannelFailure } from '../../../lib/observability.js';
+import { PushProvider, type PushMessage, type PushResult } from './push.provider.js';
 
-export type PushMessage = {
-  title: string;
-  body: string;
-  url?: string;
-  subscriptions: { endpoint: string; keys: Record<string, string> }[];
-};
+export { PushProvider, type PushMessage, type PushResult };
 
 @Injectable()
-export class WebPush {
-  private readonly logger = new Logger(WebPush.name);
-  private readonly enabled = Boolean(env.VAPID_PUBLIC_KEY && env.VAPID_PRIVATE_KEY);
+export class WebPushProvider extends PushProvider {
+  private readonly logger = new Logger(WebPushProvider.name);
 
   constructor() {
-    if (this.enabled) {
-      webpush.setVapidDetails(env.VAPID_SUBJECT, env.VAPID_PUBLIC_KEY!, env.VAPID_PRIVATE_KEY!);
-    }
+    super();
+    webpush.setVapidDetails(env.VAPID_SUBJECT, env.VAPID_PUBLIC_KEY!, env.VAPID_PRIVATE_KEY!);
   }
 
-  async send(message: PushMessage) {
-    if (message.subscriptions.length === 0) return { sent: 0, failed: 0, gone: [] as string[] };
-
-    if (!this.enabled) {
-      /* Em produção, "não habilitado" só acontece quando faltam as chaves VAPID — e aí
-       * nada foi entregue. Contar como enviado marcaria a linha em `message` como `sent`,
-       * e o Contador só descobriria pelo Responsável jurando que não recebeu. */
-      if (env.NODE_ENV === 'production') {
-        const missingVapidError = new Error('VAPID_PUBLIC_KEY/VAPID_PRIVATE_KEY ausentes.');
-        this.logger.error(`push não enviado: ${missingVapidError.message}`);
-        reportChannelFailure('push', 'vapid_missing', missingVapidError);
-
-        return { sent: 0, failed: message.subscriptions.length, gone: [] as string[] };
-      }
-
-      this.logger.log(
-        `push "${message.title}" → ${message.body} (${message.url ?? 'sem url'}) para ${message.subscriptions.length} inscrição(ões)`,
-      );
-
-      return { sent: message.subscriptions.length, failed: 0, gone: [] as string[] };
-    }
+  async send(message: PushMessage): Promise<PushResult> {
+    if (message.subscriptions.length === 0) return { sent: 0, failed: 0, gone: [] };
 
     const payload = JSON.stringify(notificationPayload(message));
 
@@ -71,16 +46,28 @@ export class WebPush {
   }
 }
 
-/** Formato do `@angular/service-worker`, não um objeto qualquer: o `ngsw-worker.js`
- *  descarta em silêncio todo push sem `notification.title` — o envio "dá certo", a linha
- *  em `message` vira `sent` e nada aparece na tela do Responsável.
- *  `data.onActionClick.default` é como o mesmo worker abre o link no clique. */
+export { WebPushProvider as WebPush };
+
+@Injectable()
+export class ConsolePushProvider extends PushProvider {
+  private readonly logger = new Logger(ConsolePushProvider.name);
+
+  async send(message: PushMessage): Promise<PushResult> {
+    if (message.subscriptions.length === 0) return { sent: 0, failed: 0, gone: [] };
+
+    this.logger.log(
+      `push "${message.title}" → ${message.body} (${message.url ?? 'sem url'}) para ${message.subscriptions.length} inscrição(ões)`,
+    );
+
+    return { sent: message.subscriptions.length, failed: 0, gone: [] };
+  }
+}
+
 export const notificationPayload = (message: Pick<PushMessage, 'title' | 'body' | 'url'>) => ({
   notification: {
     title: message.title,
     body: message.body,
     icon: '/icons/app-icon-192.png',
-    // um push novo do mesmo tipo substitui o anterior em vez de empilhar na bandeja
     tag: 'coleta',
     renotify: true,
     data: message.url
