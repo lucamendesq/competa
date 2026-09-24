@@ -55,26 +55,9 @@
       </button>
     </form>
 
-    <p class="text-muted-foreground mt-4 text-xs">
-      Sem senha? Se você criou seu acesso pela página de envio, entre por biometria ou receba um
-      link por e-mail.
-    </p>
-
-    <button
-      hlmBtn
-      variant="outline"
-      size="lg"
-      class="mt-4 w-full"
-      [disabled]="signingInWithPasskey()"
-      (click)="signInWithPasskey()"
-    >
-      <ng-icon name="lucideFingerprint" aria-hidden="true" />
-      {{ signingInWithPasskey() ? 'Aguardando o aparelho…' : 'Entrar com biometria' }}
-    </button>
-
     <div class="my-6 flex items-center gap-3">
       <span class="bg-border h-px flex-1"></span>
-      <span class="text-muted-foreground text-xs">ou</span>
+      <span class="text-muted-foreground text-xs">ou receba um link por e-mail</span>
       <span class="bg-border h-px flex-1"></span>
     </div>
 

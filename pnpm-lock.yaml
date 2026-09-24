@@ -55,9 +55,6 @@ importers:
       '@aws-sdk/s3-request-presigner':
         specifier: ^3.1125.0
         version: 3.1125.0
-      '@better-auth/passkey':
-        specifier: ^1.7.2
-        version: 1.7.2(@better-auth/core@1.7.2(@better-auth/utils@0.4.2)(@better-fetch/fetch@1.3.1)(@opentelemetry/api@1.9.1)(better-call@1.4.0(zod@4.4.3))(jose@6.2.10)(kysely@0.29.5)(nanostores@1.5.2))(@better-auth/utils@0.4.2)(@better-fetch/fetch@1.3.1)(better-auth@1.7.2(@opentelemetry/api@1.9.1)(drizzle-kit@1.0.0-rc.4)(drizzle-orm@1.0.0-rc.4(@opentelemetry/api@1.9.1)(@types/pg@8.23.1)(pg@8.23.0)(zod@4.4.3))(pg@8.23.0)(vitest@4.1.11))(better-call@1.4.0(zod@4.4.3))(nanostores@1.5.2)
       '@competa/contracts':
         specifier: workspace:*
         version: link:../../libs/contracts
@@ -85,9 +82,6 @@ importers:
       '@sentry/nestjs':
         specifier: ^10.74.0
         version: 10.74.0(@nestjs/common@12.0.1(reflect-metadata@0.2.2)(rxjs@7.8.2)(supports-color@7.2.0))(@nestjs/core@12.0.1)(@opentelemetry/core@2.11.0(@opentelemetry/api@1.9.1))(supports-color@10.2.2)
-      '@simplewebauthn/server':
-        specifier: ^13.3.3
-        version: 13.3.3
       '@thallesp/nestjs-better-auth':
         specifier: ^2.7.0
         version: 2.7.0(@nestjs/common@12.0.1(reflect-metadata@0.2.2)(rxjs@7.8.2)(supports-color@7.2.0))(@nestjs/core@12.0.1)(better-auth@1.7.2(@opentelemetry/api@1.9.1)(drizzle-kit@1.0.0-rc.4)(drizzle-orm@1.0.0-rc.4(@opentelemetry/api@1.9.1)(@types/pg@8.23.1)(pg@8.23.0)(zod@4.4.3))(pg@8.23.0)(vitest@4.1.11))(express@5.2.1(supports-color@10.2.2))(qs@6.16.0)(typescript@6.0.3)

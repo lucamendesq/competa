@@ -1,24 +1,30 @@
 <h1 class="text-xl font-semibold tracking-tight">O que falta enviar</h1>
 
-@if (passkey.available && !passkey.registered()) {
+@if (perfil() && perfil()?.hasPassword === false) {
   <div class="bg-card border-border mt-4 flex flex-wrap items-center gap-3 rounded-xl border p-4">
     <ng-icon
-      name="lucideFingerprint"
+      name="lucideLock"
       class="text-muted-foreground shrink-0 text-base"
       aria-hidden="true"
     />
     <p class="min-w-0 flex-1 text-sm">
-      Quer entrar por biometria na próxima vez, sem digitar a senha?
+      Você ainda não criou uma senha de acesso. Crie uma senha para entrar sempre que quiser.
     </p>
-    <button
-      hlmBtn
-      variant="outline"
-      size="sm"
-      [disabled]="passkey.registering()"
-      (click)="passkey.register()"
-    >
-      {{ passkey.registering() ? 'Aguardando o aparelho…' : 'Ativar biometria' }}
-    </button>
+    <a hlmBtn variant="outline" size="sm" routerLink="/minha-area/definir-senha"> Criar senha </a>
+  </div>
+}
+
+@if (!install.isStandalone()) {
+  <div class="bg-card border-border mt-4 flex flex-wrap items-center gap-3 rounded-xl border p-4">
+    <ng-icon
+      name="lucideSmartphone"
+      class="text-muted-foreground shrink-0 text-base"
+      aria-hidden="true"
+    />
+    <p class="min-w-0 flex-1 text-sm">
+      Instale o app na tela de início para abrir com um toque e acompanhar seus envios.
+    </p>
+    <app-install-button variant="card" />
   </div>
 }
 

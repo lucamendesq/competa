@@ -2,7 +2,6 @@ import {
   boolean,
   check,
   index,
-  integer,
   pgTable,
   text,
   timestamp,
@@ -87,26 +86,6 @@ export const verification = pgTable(
     ...timestamps,
   },
   (table) => [index('verification_identifier_idx').on(table.identifier)],
-).enableRLS();
-
-export const passkey = pgTable(
-  'passkey',
-  {
-    id: id(),
-    name: text('name'),
-    publicKey: text('public_key').notNull(),
-    userId: uuid('user_id')
-      .notNull()
-      .references(() => user.id, { onDelete: 'cascade' }),
-    credentialID: text('credential_i_d').notNull(),
-    counter: integer('counter').notNull(),
-    deviceType: text('device_type').notNull(),
-    backedUp: boolean('backed_up').notNull(),
-    transports: text('transports'),
-    aaguid: text('aaguid'),
-    createdAt: timestamp('created_at', { withTimezone: true }).defaultNow().notNull(),
-  },
-  (t) => [index('passkey_user_id_idx').on(t.userId)],
 ).enableRLS();
 
 export const userDevice = pgTable(

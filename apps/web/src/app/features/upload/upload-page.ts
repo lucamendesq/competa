@@ -92,7 +92,7 @@ export class UploadPage {
     try {
       await this.service.activateAccess(this.token());
       await this.auth.reloadContact();
-      await this.router.navigate(['/minha-area/pendencias']);
+      await this.router.navigate(['/minha-area/definir-senha']);
     } catch (error) {
       if (apiErrorCode(error) === 'EMAIL_ALREADY_REGISTERED') {
         this.accountExists.set(true);

@@ -4,13 +4,15 @@ import { NgIcon, provideIcons } from '@ng-icons/core';
 import {
   lucideBell,
   lucideCamera,
-  lucideFingerprint,
   lucideCircleCheck,
+  lucideLock,
   lucidePartyPopper,
+  lucideSmartphone,
   lucideUpload,
   lucideX,
 } from '@ng-icons/lucide';
 import { HlmButtonImports } from '@spartan-ng/helm/button';
+import { AuthService } from '../../core/auth/auth.service';
 import { apiErrorMessage } from '../../core/http/api-error';
 import { Toaster } from '../../core/ui/toast';
 import { EmptyState } from '../../shared/empty-state';
@@ -24,8 +26,9 @@ import { DueDate } from '../../shared/due-date';
 import { displayItemStatus, itemRejections, needsResend } from '../../shared/item-status';
 import { isOverdue, monthLabel, dateBr } from '../../shared/format';
 import { FileResult, uploadFiles } from '../../shared/upload';
-import { PasskeyService } from './passkey.service';
 import { PushService } from '../../shared/push.service';
+import { InstallService } from '../../shared/install.service';
+import { InstallButton } from '../../shared/install-button';
 import { ContactAreaService } from './contact-area.service';
 
 @Component({
@@ -42,14 +45,16 @@ import { ContactAreaService } from './contact-area.service';
     StatusPill,
     DueDate,
     ResendNotice,
+    InstallButton,
   ],
   providers: [
     provideIcons({
       lucideBell,
       lucideCamera,
-      lucideFingerprint,
       lucideCircleCheck,
+      lucideLock,
       lucidePartyPopper,
+      lucideSmartphone,
       lucideUpload,
       lucideX,
     }),
@@ -58,12 +63,14 @@ import { ContactAreaService } from './contact-area.service';
 })
 export class PendingPage {
   private readonly service = inject(ContactAreaService);
+  private readonly auth = inject(AuthService);
+  protected readonly install = inject(InstallService);
+  protected readonly perfil = computed(() => this.auth.contact());
   protected readonly push = inject(PushService);
 
   protected subscribeToPush() {
     return this.push.subscribe((payload) => this.service.subscribePush(payload));
   }
-  protected readonly passkey = inject(PasskeyService);
   private readonly toaster = inject(Toaster);
 
   protected readonly monthLabel = monthLabel;

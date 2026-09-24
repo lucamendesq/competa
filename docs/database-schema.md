@@ -353,8 +353,6 @@ valida `expires_at`/`revoked` e injeta `UploadScope`), `modules/requests/upload.
 ### Fase 10 — acesso do Responsável
 
 ```sql
--- tabela do plugin @better-auth/passkey (WebAuthn): a credencial que sobrevive à
--- reinstalação do app, porque vive no keychain sincronizado do aparelho
 create table user_device (               -- Dispositivo acessado por usuário (Contador ou Responsável)
   id           uuid primary key,
   user_id      uuid not null references "user"(id) on delete cascade,
@@ -368,19 +366,6 @@ create table user_device (               -- Dispositivo acessado por usuário (C
   constraint user_device_user_device_uidx unique (user_id, device_id)
 );
 create index user_device_user_id_idx on user_device (user_id);
-
-create table passkey (
-  id           uuid primary key,
-  name         text,
-  public_key   text not null,
-  user_id      uuid not null references "user"(id) on delete cascade,
-  credential_i_d text not null,
-  counter      integer not null,
-  device_type  text not null,
-  backed_up    boolean not null,
-  transports   text,
-  aaguid       text
-);
 
 create table push_subscription (          -- Web Push da PWA do Responsável
   id          uuid primary key,

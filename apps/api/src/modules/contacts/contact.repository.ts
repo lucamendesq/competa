@@ -2,6 +2,7 @@ import { Injectable } from '@nestjs/common';
 import { and, asc, desc, eq, inArray, isNotNull, isNull, sql } from 'drizzle-orm';
 import { Database } from '../../infra/database/database.js';
 import {
+  account,
   accountant,
   accountingFirm,
   company,
@@ -38,8 +39,13 @@ export class ContactRepository {
     const [first] = rows;
     if (!first) return undefined;
 
-    /* compat: `companyId`/`companyName`/`accountingFirmName` do primeiro vínculo seguem no
-     * topo (é o que o header do web mostra hoje); `companies` traz todos. */
+    const [pwdAccount] = await this.db
+      .select({ id: account.id })
+      .from(account)
+      .innerJoin(contact, eq(contact.authUserId, account.userId))
+      .where(and(eq(contact.id, first.contactId), isNotNull(account.password)))
+      .limit(1);
+
     return {
       contactId: first.contactId,
       name: first.name,
@@ -48,6 +54,7 @@ export class ContactRepository {
       companyId: first.companyId,
       companyName: first.companyName,
       accountingFirmName: first.accountingFirmName,
+      hasPassword: Boolean(pwdAccount),
       companies: rows.map((row) => ({
         companyId: row.companyId,
         companyName: row.companyName,

@@ -26,7 +26,6 @@
   "dependencies": {
     "@aws-sdk/client-s3": "^3.1125.0",
     "@aws-sdk/s3-request-presigner": "^3.1125.0",
-    "@better-auth/passkey": "^1.7.2",
     "@competa/contracts": "workspace:*",
     "@nestjs/common": "^12.0.1",
     "@nestjs/config": "^12.0.0",
@@ -36,7 +35,6 @@
     "@nestjs/schedule": "^12.0.1",
     "@nestjs/throttler": "^6.5.0",
     "@sentry/nestjs": "^10.74.0",
-    "@simplewebauthn/server": "^13.3.3",
     "@thallesp/nestjs-better-auth": "^2.7.0",
     "archiver": "^8.0.0",
     "better-auth": "^1.7.2",

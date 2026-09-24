@@ -101,6 +101,7 @@ export class SetPasswordPage {
     return submit(this.f, async (formTree) => {
       try {
         await this.auth.setContactPassword(formTree().value().password);
+        await this.auth.reloadContact();
         this.success.set(true);
       } catch (error) {
         this.failure.set(apiErrorMessage(error, 'Não foi possível criar a senha.'));

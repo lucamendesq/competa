@@ -2,10 +2,6 @@ import { APIError, createAuthMiddleware } from 'better-auth/api';
 import { betterAuth } from 'better-auth';
 import { drizzleAdapter } from 'better-auth/adapters/drizzle';
 import { magicLink } from 'better-auth/plugins';
-import { passkey } from '@better-auth/passkey';
-/* O plugin de passkey traz tipos do @simplewebauthn para dentro do tipo inferido daqui, e
- * o TS recusa exportar algo que cite dependência transitiva (TS2883). Importar o módulo
- * (mesmo sem usar nome nenhum) torna esses tipos nomeáveis. */
 import { v7 as uuidv7 } from 'uuid';
 import env, { allowedOrigins } from '../../config/env.js';
 import { db } from '../database/index.js';
@@ -16,7 +12,8 @@ import { getDomain } from 'tldts';
 
 const registrableDomain = (hostname: string) => {
   const domain = getDomain(hostname);
-  if (!domain) throw new Error(`Hostname "${hostname}" is a public suffix or has no registrable domain.`);
+  if (!domain)
+    throw new Error(`Hostname "${hostname}" is a public suffix or has no registrable domain.`);
   return domain;
 };
 
@@ -58,11 +55,6 @@ const auth = betterAuth({
       sendMagicLink: async ({ email, url, token }) => {
         await sendMagicLink({ email, url, token });
       },
-    }),
-    passkey({
-      rpID: new URL(env.WEB_URL).hostname,
-      rpName: 'Coleta de Documentos Contábeis',
-      origin: env.WEB_URL,
     }),
   ],
   advanced: {

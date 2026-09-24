@@ -21,6 +21,7 @@ export type Contact = {
   companyName: string;
   accountingFirmName: string;
   companies: { companyId: string; companyName: string; accountingFirmName: string }[];
+  hasPassword?: boolean;
 };
 
 const SESSION_HINT_KEY = 'competa_auth';
