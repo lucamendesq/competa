@@ -1,4 +1,3 @@
-/* eslint-disable @typescript-eslint/no-explicit-any */
 import assert from 'node:assert/strict';
 import { S3ServiceException } from '@aws-sdk/client-s3';
 import { v7 as uuidv7 } from 'uuid';
@@ -8,7 +7,6 @@ import { CompanyRepository } from '../modules/companies/company.repository.js';
 import { PeriodRepository } from '../modules/periods/period.repository.js';
 import { LocalStorage } from '../infra/storage/local.storage.js';
 import { R2Storage } from '../infra/storage/r2.storage.js';
-import { toFirmScope, toUploadScope } from '../modules/auth/scope.js';
 import { ServiceUnavailable } from '../lib/app-error.js';
 import { DocumentRepository } from '../modules/requests/document.repository.js';
 
@@ -26,7 +24,9 @@ async function run() {
 
   console.log('2. Testando COM-67: R2Storage.statSize tratamento de 404 vs 500...');
   const r2Storage = new R2Storage();
-  const r2Client = (r2Storage as any).client;
+  const r2Client = (
+    r2Storage as unknown as { client: { send: (cmd: unknown) => Promise<unknown> } }
+  ).client;
 
   // Mock send do client S3 para testar 404
   let sendCalls = 0;
@@ -71,16 +71,16 @@ async function run() {
 
   // Testando que DocumentRepository.confirm rethrow ServiceUnavailable
   console.log('3. Testando COM-67: DocumentRepository.confirm com falha de storage...');
-  const docRepo = new DocumentRepository(db as any, r2Storage);
+  const docRepo = new DocumentRepository(db as never, r2Storage);
   let documentDiscarded = false;
   let storageRemoved = false;
-  (docRepo as any).discard = async () => {
+  (docRepo as unknown as { discard: () => Promise<void> }).discard = async () => {
     documentDiscarded = true;
   };
-  (r2Storage as any).remove = async () => {
+  (r2Storage as unknown as { remove: () => Promise<void> }).remove = async () => {
     storageRemoved = true;
   };
-  (docRepo as any).pendingUpload = async () => [
+  (docRepo as unknown as { pendingUpload: () => Promise<unknown[]> }).pendingUpload = async () => [
     {
       id: uuidv7(),
       storageKey: 'fake-key',
@@ -91,7 +91,7 @@ async function run() {
 
   let confirmThrew503 = false;
   try {
-    await docRepo.confirm(toUploadScope('req-1', 'cont-1'), ['doc-1']);
+    await docRepo.confirm({ requestId: 'req-1', contactId: 'cont-1' } as never, ['doc-1']);
   } catch (error) {
     if (error instanceof ServiceUnavailable) {
       confirmThrew503 = true;
@@ -112,7 +112,7 @@ async function run() {
   console.log('\n4. Testando COM-25: Cadastro de empresa com contador responsável...');
   const firmId = uuidv7();
   await db.insert(accountingFirm).values({ id: firmId, name: 'Firma Teste Carteira' });
-  const firmScope = toFirmScope(firmId);
+  const firmScope = firmId as never;
 
   const user1Id = uuidv7();
   await db.insert(user).values({
@@ -144,7 +144,7 @@ async function run() {
     owner: false,
   });
 
-  const companyRepo = new CompanyRepository(db as any);
+  const companyRepo = new CompanyRepository(db as never);
   const createdCompany = await companyRepo.create(firmScope, {
     name: 'Empresa Carteira Ana',
     responsibleAccountantId: acc2Id,
@@ -179,7 +179,7 @@ async function run() {
   );
 
   console.log('5. Testando COM-25: Painel de pendências com contador responsável...');
-  const periodRepo = new PeriodRepository(db as any, null as any);
+  const periodRepo = new PeriodRepository(db as never, null as never);
   const { period: openedPeriod } = await periodRepo.openWithFanOut(
     firmScope,
     { referenceMonth: '2026-09-01' },
@@ -196,7 +196,7 @@ async function run() {
             dueDate: '2026-09-10',
           },
         ],
-      } as any,
+      } as unknown as Parameters<typeof periodRepo.openWithFanOut>[2][number],
     ],
   );
 

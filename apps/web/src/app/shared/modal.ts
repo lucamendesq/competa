@@ -9,6 +9,7 @@ import { lucideX } from '@ng-icons/lucide';
   imports: [NgIcon],
   providers: [provideIcons({ lucideX })],
   template: `
+    <!-- eslint-disable @angular-eslint/template/click-events-have-key-events, @angular-eslint/template/interactive-supports-focus -->
     <dialog
       #dialogo
       class="bg-card text-foreground border-border m-auto w-[calc(100vw-2rem)] rounded-xl border p-0 shadow-xl backdrop:bg-slate-900/40 backdrop:backdrop-blur-[2px]"
