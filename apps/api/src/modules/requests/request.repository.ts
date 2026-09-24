@@ -218,10 +218,10 @@ export class RequestRepository {
           reviewedBy,
           reviewedAt: new Date(),
         })
-        .where(and(eq(document.id, documentId), ne(document.reviewStatus, 'rejected')))
+        .where(and(eq(document.id, documentId), eq(document.reviewStatus, 'pending')))
         .returning({ id: document.id });
 
-      if (!rejected.length) throw new InvalidTransition('Este documento já foi rejeitado.');
+      if (!rejected.length) throw new InvalidTransition('Este documento já foi revisado ou não está pendente.');
 
       // limpa a marca do cron: prazo que estourar de novo neste Item volta a avisar
       await tx
@@ -431,7 +431,7 @@ export class RequestRepository {
       for (const row of input.rejectDocuments) {
         const found = documentById.get(row.documentId)!;
 
-        await tx
+        const rejected = await tx
           .update(document)
           .set({
             reviewStatus: 'rejected',
@@ -439,7 +439,10 @@ export class RequestRepository {
             reviewedBy,
             reviewedAt: new Date(),
           })
-          .where(eq(document.id, row.documentId));
+          .where(and(eq(document.id, row.documentId), eq(document.reviewStatus, 'pending')))
+          .returning({ id: document.id });
+
+        if (!rejected.length) throw new InvalidTransition('Este documento já foi revisado ou não está pendente.');
 
         // limpa a marca do cron: prazo que estourar de novo neste Item volta a avisar
         await tx
@@ -449,7 +452,7 @@ export class RequestRepository {
       }
 
       for (const row of input.reviewExtras) {
-        await tx
+        const updated = await tx
           .update(document)
           .set({
             reviewStatus: row.decision,
@@ -457,7 +460,10 @@ export class RequestRepository {
             reviewedBy,
             reviewedAt: new Date(),
           })
-          .where(eq(document.id, row.documentId));
+          .where(and(eq(document.id, row.documentId), eq(document.reviewStatus, 'pending')))
+          .returning({ id: document.id });
+
+        if (!updated.length) throw new InvalidTransition('Este documento já foi revisado ou não está pendente.');
       }
 
       if (rotated) {
@@ -606,75 +612,71 @@ export class RequestRepository {
     contactId?: string,
     options?: { revokePrevious?: boolean },
   ) {
-    const [current] = await this.db
-      .select({ tokenHash: uploadLink.tokenHash, expiresAt: uploadLink.expiresAt })
-      .from(uploadLink)
-      .where(eq(uploadLink.requestId, requestId))
-      .limit(1);
+    return this.db.transaction(async (tx) => {
+      const [current] = await tx
+        .select({ id: uploadLink.id, tokenHash: uploadLink.tokenHash, expiresAt: uploadLink.expiresAt })
+        .from(uploadLink)
+        .where(eq(uploadLink.requestId, requestId))
+        .for('update')
+        .limit(1);
 
-    const now = new Date();
-    const graceExpiresAt =
-      !options?.revokePrevious && current
-        ? new Date(Math.min(current.expiresAt.getTime(), addHours(now, 48).getTime()))
-        : null;
+      if (!current) return false;
 
-    const [row] = await this.db
-      .update(uploadLink)
-      .set({
-        tokenHash,
-        expiresAt: addDays(now, env.UPLOAD_LINK_TTL_DAYS),
-        previousTokenHash: options?.revokePrevious ? null : (current?.tokenHash ?? null),
-        previousExpiresAt: graceExpiresAt,
-        // reaponta o Link para quem pediu — ver `rotateUploadToken`
-        ...(contactId ? { contactId } : {}),
-      })
-      .where(eq(uploadLink.requestId, requestId))
-      .returning({ id: uploadLink.id });
+      const now = new Date();
+      const graceExpiresAt =
+        !options?.revokePrevious && current
+          ? new Date(Math.min(current.expiresAt.getTime(), addHours(now, 48).getTime()))
+          : null;
 
-    return Boolean(row);
+      const [row] = await tx
+        .update(uploadLink)
+        .set({
+          tokenHash,
+          expiresAt: addDays(now, env.UPLOAD_LINK_TTL_DAYS),
+          previousTokenHash: options?.revokePrevious ? null : (current.tokenHash ?? null),
+          previousExpiresAt: graceExpiresAt,
+          ...(contactId ? { contactId } : {}),
+        })
+        .where(eq(uploadLink.id, current.id))
+        .returning({ id: uploadLink.id });
+
+      return Boolean(row);
+    });
   }
 
-  /** `contactId` reaponta o Link para quem pediu. Sem isso, o segundo Responsável de uma
-   *  Empresa que usa o "perdi meu link" recebe um Link que continua sendo do primeiro, e
-   *  tudo que ele enviar entra no histórico com a autoria do outro
-   *  (`document.uploaded_by_contact_id` vem do `upload_link`). */
   async rotateUploadToken(requestId: string, contactId?: string) {
     const { token, tokenHash } = createToken();
 
-    const [current] = await this.db
-      .select({ tokenHash: uploadLink.tokenHash, expiresAt: uploadLink.expiresAt })
-      .from(uploadLink)
-      .where(eq(uploadLink.requestId, requestId))
-      .limit(1);
+    return this.db.transaction(async (tx) => {
+      const [current] = await tx
+        .select({ id: uploadLink.id, tokenHash: uploadLink.tokenHash, expiresAt: uploadLink.expiresAt })
+        .from(uploadLink)
+        .where(eq(uploadLink.requestId, requestId))
+        .for('update')
+        .limit(1);
 
-    const now = new Date();
-    const graceExpiresAt = current
-      ? new Date(Math.min(current.expiresAt.getTime(), addHours(now, 48).getTime()))
-      : null;
+      if (!current) return undefined;
 
-    const [row] = await this.db
-      .update(uploadLink)
-      .set({
-        tokenHash,
-        expiresAt: addDays(now, env.UPLOAD_LINK_TTL_DAYS),
-        ...(current
-          ? {
-              previousTokenHash: current.tokenHash,
-              previousExpiresAt: graceExpiresAt,
-            }
-          : {}),
-        ...(contactId ? { contactId } : {}),
-      })
-      .where(eq(uploadLink.requestId, requestId))
-      .returning({ id: uploadLink.id });
+      const now = new Date();
+      const graceExpiresAt = new Date(Math.min(current.expiresAt.getTime(), addHours(now, 48).getTime()));
 
-    return row ? token : undefined;
+      const [row] = await tx
+        .update(uploadLink)
+        .set({
+          tokenHash,
+          expiresAt: addDays(now, env.UPLOAD_LINK_TTL_DAYS),
+          previousTokenHash: current.tokenHash,
+          previousExpiresAt: graceExpiresAt,
+          ...(contactId ? { contactId } : {}),
+        })
+        .where(eq(uploadLink.id, current.id))
+        .returning({ id: uploadLink.id });
+
+      return row ? token : undefined;
+    });
   }
 
-  /** Reenvio/cópia pelo Contador: contexto e rotação juntos, com o escopo no join. O
-   *  `rotateUploadToken` cru não tem escopo — só serve à rota pública de recuperação, onde
-   *  a entrada é o email. Solicitação encerrada não recebe link novo. */
-  async rotateUploadLink(scope: FirmScope, requestId: string) {
+  async uploadLinkContext(scope: FirmScope, requestId: string) {
     const [row] = await this.db
       .select({
         requestStatus: request.status,
@@ -692,6 +694,11 @@ export class RequestRepository {
       .where(and(eq(request.id, requestId), eq(period.accountingFirmId, scope)))
       .limit(1);
 
+    return row;
+  }
+
+  async rotateUploadLink(scope: FirmScope, requestId: string) {
+    const row = await this.uploadLinkContext(scope, requestId);
     if (!row) return undefined;
     if (row.requestStatus === 'closed') {
       throw new InvalidTransition('Solicitação encerrada — não há mais link de envio.');

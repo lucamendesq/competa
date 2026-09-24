@@ -17,7 +17,7 @@ import { UploadLinkRepository } from './upload-link.repository.js';
  *  TenantGuard é global e este fluxo não passa pelo Better Auth. */
 @Controller('upload/:token')
 @AllowAnonymous()
-@UseGuards(UploadTokenGuard)
+@UseGuards(UploadThrottlerGuard, UploadTokenGuard)
 export class UploadController {
   constructor(
     private readonly links: UploadLinkRepository,
@@ -35,8 +35,6 @@ export class UploadController {
     return {
       company: checklist.companyName,
       accountingFirm: checklist.accountingFirmName,
-      /* A tela de sucesso não oferece "ativar acesso" a quem já tem — a rota responderia
-       * 409 e o Responsável veria um erro por clicar no que lhe foi oferecido. */
       hasAccess: Boolean(owner?.authUserId),
       referenceMonth: checklist.referenceMonth,
       dueDate: checklist.periodDueDate,
@@ -50,7 +48,6 @@ export class UploadController {
   }
 
   @SkipThrottle({ short: true, default: true })
-  @UseGuards(UploadThrottlerGuard)
   @Post('documents')
   async presign(
     @CurrentUploadScope() scope: UploadScope,
