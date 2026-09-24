@@ -95,6 +95,8 @@ export const missedDeadline = (
 export type PanelRow = {
   companyId: string;
   companyName: string;
+  responsibleAccountantId?: string | null;
+  responsibleAccountantName?: string | null;
   requestId: string;
   requestStatus: RequestStatus;
   itemId: string | null;
@@ -147,6 +149,8 @@ export const summarizePending = (rows: PanelRow[]) => {
 const emptyCompany = (row: PanelRow) => ({
   companyId: row.companyId,
   companyName: row.companyName,
+  responsibleAccountantId: row.responsibleAccountantId ?? null,
+  responsibleAccountantName: row.responsibleAccountantName ?? null,
   requestId: row.requestId,
   requestStatus: row.requestStatus,
   counts: { pending: 0, submitted: 0, accepted: 0, rejected: 0 },

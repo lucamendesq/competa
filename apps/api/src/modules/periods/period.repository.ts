@@ -6,6 +6,7 @@ import env from '../../config/env.js';
 import { createToken } from '../../lib/token.js';
 import { Database } from '../../infra/database/database.js';
 import {
+  accountant,
   company,
   contact,
   document,
@@ -13,6 +14,7 @@ import {
   request,
   requestItem,
   uploadLink,
+  user,
 } from '../../infra/database/schema/index.js';
 import { companyIdsOf, type ContactScope, type FirmScope } from '../auth/scope.js';
 import { ChecklistRepository } from '../checklists/checklist.repository.js';
@@ -258,6 +260,8 @@ export class PeriodRepository {
       .select({
         companyId: company.id,
         companyName: company.name,
+        responsibleAccountantId: company.responsibleAccountantId,
+        responsibleAccountantName: user.name,
         requestId: request.id,
         requestStatus: request.status,
         itemId: requestItem.id,
@@ -277,6 +281,8 @@ export class PeriodRepository {
       .from(request)
       .innerJoin(period, eq(period.id, request.periodId))
       .innerJoin(company, eq(company.id, request.companyId))
+      .leftJoin(accountant, eq(accountant.id, company.responsibleAccountantId))
+      .leftJoin(user, eq(user.id, accountant.authUserId))
       .leftJoin(requestItem, eq(requestItem.requestId, request.id))
       .where(and(eq(request.periodId, periodId), eq(period.accountingFirmId, scope)))
       .orderBy(asc(company.name), asc(requestItem.dueDate), asc(requestItem.name));

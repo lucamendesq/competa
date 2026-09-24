@@ -11,7 +11,13 @@ import {
 import * as z from 'zod';
 import { ValidationError } from '../../lib/app-error.js';
 import { Database } from '../../infra/database/database.js';
-import { checklistTemplate, company, contact } from '../../infra/database/schema/index.js';
+import {
+  accountant,
+  checklistTemplate,
+  company,
+  contact,
+  user,
+} from '../../infra/database/schema/index.js';
 import type { FirmScope } from '../auth/scope.js';
 
 import { parseCsvRecords } from './csv.js';
@@ -69,6 +75,7 @@ export class CompanyRepository {
         .values({
           accountingFirmId: scope,
           checklistTemplateId: body.checklistTemplateId ?? null,
+          responsibleAccountantId: body.responsibleAccountantId ?? null,
           name: body.name,
           cnpj: body.cnpj ?? null,
           flags: body.flags,
@@ -124,6 +131,8 @@ export class CompanyRepository {
           active: company.active,
           checklistTemplateId: company.checklistTemplateId,
           templateName: checklistTemplate.name,
+          responsibleAccountantId: company.responsibleAccountantId,
+          responsibleAccountantName: user.name,
           contactCount: this.db.$count(contact, eq(contact.companyId, company.id)),
           /** Responsáveis que ativaram a conta. Não é pré-requisito de nada (D14) — é o
            *  que a lista usa para oferecer "Convidar para o app" a quem ainda não usa. */
@@ -134,6 +143,8 @@ export class CompanyRepository {
         })
         .from(company)
         .leftJoin(checklistTemplate, eq(checklistTemplate.id, company.checklistTemplateId))
+        .leftJoin(accountant, eq(accountant.id, company.responsibleAccountantId))
+        .leftJoin(user, eq(user.id, accountant.authUserId))
         .where(where)
         .orderBy(company.name)
         .limit(query.perPage)
@@ -179,9 +190,13 @@ export class CompanyRepository {
         active: company.active,
         checklistTemplateId: company.checklistTemplateId,
         templateName: checklistTemplate.name,
+        responsibleAccountantId: company.responsibleAccountantId,
+        responsibleAccountantName: user.name,
       })
       .from(company)
       .leftJoin(checklistTemplate, eq(checklistTemplate.id, company.checklistTemplateId))
+      .leftJoin(accountant, eq(accountant.id, company.responsibleAccountantId))
+      .leftJoin(user, eq(user.id, accountant.authUserId))
       .where(and(eq(company.id, companyId), eq(company.accountingFirmId, scope)))
       .limit(1);
 

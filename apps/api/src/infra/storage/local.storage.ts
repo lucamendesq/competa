@@ -6,7 +6,7 @@ import { Transform, type Readable } from 'node:stream';
 import { pipeline } from 'node:stream/promises';
 import { Injectable } from '@nestjs/common';
 import env from '../../config/env.js';
-import { Forbidden } from '../../lib/app-error.js';
+import { Forbidden, ServiceUnavailable } from '../../lib/app-error.js';
 import { PayloadTooLarge } from './errors.js';
 import { PRESIGN_TTL_SECONDS, StorageProvider, type PresignPutInput } from './storage.provider.js';
 
@@ -34,8 +34,13 @@ export class LocalStorage extends StorageProvider {
   async statSize(storageKey: string) {
     try {
       return (await stat(this.safePath(storageKey))).size;
-    } catch {
-      return undefined;
+    } catch (error: unknown) {
+      if ((error as NodeJS.ErrnoException)?.code === 'ENOENT') {
+        return undefined;
+      }
+      throw new ServiceUnavailable(
+        'Armazenamento temporariamente inacessível. Tente novamente em instantes.',
+      );
     }
   }
 

@@ -56,6 +56,7 @@ export const CreateCompanyBody = z.object({
     .min(1, 'Informe o nome da Empresa.')
     .max(255, 'O nome da Empresa deve ter no máximo 255 caracteres.'),
   checklistTemplateId: z.uuid().optional(),
+  responsibleAccountantId: z.uuid().nullable().optional(),
   cnpj: Cnpj.optional(),
   flags: CompanyFlags.default({}),
   contact: ContactBody.optional(),
@@ -70,6 +71,7 @@ export const UpdateCompanyBody = z
       .min(1, 'Informe o nome da Empresa.')
       .max(255, 'O nome da Empresa deve ter no máximo 255 caracteres.'),
     checklistTemplateId: z.uuid().nullable(),
+    responsibleAccountantId: z.uuid().nullable(),
     cnpj: Cnpj.nullable(),
     flags: CompanyFlags,
     active: z.boolean(),

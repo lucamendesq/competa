@@ -32,12 +32,14 @@ import {
 } from '../../shared/format';
 import { focusFirstInvalid } from '../../shared/focus-first-invalid';
 import { ChecklistsService } from '../checklists/checklists.service';
+import { SettingsService } from '../settings/settings.service';
 import { CompaniesService } from './companies.service';
 
 const CompanyForm = z
   .object({
     name: z.string().trim().min(1, 'Informe o nome da empresa.'),
     checklistTemplateId: z.union([z.uuid(), z.literal('')]),
+    responsibleAccountantId: z.union([z.uuid(), z.literal('')]),
     cnpj: z.union([Cnpj, z.literal('')]),
     contactName: z.string().trim(),
     contactEmail: z.union([z.email('E-mail inválido.'), z.literal('')]),
@@ -70,6 +72,7 @@ export class CompanyFormPage {
 
   private readonly service = inject(CompaniesService);
   private readonly checklists = inject(ChecklistsService);
+  private readonly settings = inject(SettingsService);
   private readonly toaster = inject(Toaster);
   private readonly router = inject(Router);
   private readonly host = inject(ElementRef<HTMLElement>);
@@ -84,6 +87,7 @@ export class CompanyFormPage {
   protected readonly editing = computed(() => this.companyId() !== undefined);
   protected readonly company = this.service.detail(() => this.companyId());
   protected readonly templates = this.checklists.templates();
+  protected readonly teamAccountants = this.settings.accountants();
 
   protected readonly error = signal<string | null>(null);
   protected readonly fieldErrors = signal<Record<string, string>>({});
@@ -99,6 +103,7 @@ export class CompanyFormPage {
     return {
       name: loaded?.name ?? '',
       checklistTemplateId: loaded?.checklistTemplateId ?? '',
+      responsibleAccountantId: loaded?.responsibleAccountantId ?? '',
       cnpj: loaded?.cnpj ?? '',
       contactName: contact?.name ?? '',
       contactEmail: contact?.email ?? '',
@@ -184,6 +189,7 @@ export class CompanyFormPage {
             await this.service.update(id, {
               name: values.name,
               checklistTemplateId: values.checklistTemplateId || null,
+              responsibleAccountantId: values.responsibleAccountantId || null,
               cnpj: values.cnpj || null,
               flags: this.flags(),
             });
@@ -194,6 +200,7 @@ export class CompanyFormPage {
             const created = await this.service.create({
               name: values.name,
               checklistTemplateId: values.checklistTemplateId || undefined,
+              responsibleAccountantId: values.responsibleAccountantId || undefined,
               cnpj: values.cnpj || undefined,
               flags: this.flags(),
               contact: contact,

@@ -8,7 +8,7 @@ import type { PresignUploadBody } from '@competa/contracts';
 import { Database } from '../../infra/database/database.js';
 import { document, period, request, requestItem } from '../../infra/database/schema/index.js';
 import { StorageProvider } from '../../infra/storage/storage.provider.js';
-import { NotFound, ValidationError } from '../../lib/app-error.js';
+import { NotFound, ServiceUnavailable, ValidationError } from '../../lib/app-error.js';
 import type { UploadScope } from '../auth/scope.js';
 import {
   MAX_FILES_PER_UPLOAD,
@@ -167,7 +167,8 @@ export class DocumentRepository {
     if (!pending.length) throw new NotFound('Nenhum documento deste envio foi encontrado.');
 
     const accepted: { id: string; realBytes: number; checksum: string; storageKey: string }[] = [];
-    const refused: { documentId: string; fileName: string; reason: string; storageKey: string }[] = [];
+    const refused: { documentId: string; fileName: string; reason: string; storageKey: string }[] =
+      [];
 
     for (const row of pending) {
       const realBytes = await this.storage.statSize(row.storageKey);
@@ -194,7 +195,8 @@ export class DocumentRepository {
         const inspected = await inspectAndHashStream(stream);
         hash = inspected.hash;
         firstChunk = inspected.firstChunk;
-      } catch {
+      } catch (error) {
+        if (error instanceof ServiceUnavailable) throw error;
         refused.push({
           documentId: row.id,
           fileName: row.fileName,

@@ -9,6 +9,8 @@ export const CompanySummaryResponse = z.object({
   active: z.boolean(),
   checklistTemplateId: z.uuid().nullable(),
   templateName: z.string().nullable(),
+  responsibleAccountantId: z.uuid().nullable().optional(),
+  responsibleAccountantName: z.string().nullable().optional(),
   contactCount: z.number(),
   contacts: z.array(
     z.object({
@@ -38,6 +40,8 @@ export const CompanyDetailResponse = z.object({
   active: z.boolean(),
   checklistTemplateId: z.uuid().nullable(),
   templateName: z.string().nullable(),
+  responsibleAccountantId: z.uuid().nullable().optional(),
+  responsibleAccountantName: z.string().nullable().optional(),
   readyContactCount: z.number(),
   contacts: z.array(ContactDetailResponse),
 });
@@ -81,6 +85,8 @@ export type ChannelFailureResponse = z.infer<typeof ChannelFailureResponse>;
 export const PanelRowResponse = z.object({
   companyId: z.uuid(),
   companyName: z.string(),
+  responsibleAccountantId: z.uuid().nullable(),
+  responsibleAccountantName: z.string().nullable(),
   requestId: z.uuid(),
   requestStatus: z.enum(['open', 'complete', 'closed']),
   counts: z.object({

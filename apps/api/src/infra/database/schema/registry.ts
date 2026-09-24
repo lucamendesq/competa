@@ -137,6 +137,9 @@ export const company = pgTable(
       .notNull()
       .references(() => accountingFirm.id),
     checklistTemplateId: uuid('checklist_template_id').references(() => checklistTemplate.id),
+    responsibleAccountantId: uuid('responsible_accountant_id').references(() => accountant.id, {
+      onDelete: 'set null',
+    }),
     name: text().notNull(),
     cnpj: text(),
     flags: jsonb().$type<CompanyFlags>().notNull().default({}),
@@ -151,6 +154,7 @@ export const company = pgTable(
       .on(t.accountingFirmId, t.cnpj)
       .where(sql`${t.cnpj} is not null`),
     index('company_firm_active_idx').on(t.accountingFirmId, t.active),
+    index('company_responsible_accountant_idx').on(t.responsibleAccountantId),
   ],
 ).enableRLS();
 

@@ -86,6 +86,7 @@ export class PendingPanelPage {
 
   protected readonly search = signal('');
   protected readonly filter = signal<Filter>('all');
+  protected readonly selectedAccountant = signal<string>('all');
   protected readonly expanded = signal<ReadonlySet<string>>(new Set());
 
   protected readonly lines = computed(
@@ -116,16 +117,56 @@ export class PendingPanelPage {
     };
   });
 
+  protected readonly accountantChips = computed(() => {
+    const lines = this.lines();
+    const map = new Map<string, string>();
+    let hasUnassigned = false;
+
+    for (const line of lines) {
+      if (line.responsibleAccountantId && line.responsibleAccountantName) {
+        map.set(line.responsibleAccountantId, line.responsibleAccountantName);
+      } else {
+        hasUnassigned = true;
+      }
+    }
+
+    if (map.size === 0) return [];
+
+    const chips: { value: string; label: string }[] = [
+      { value: 'all', label: 'Todos os contadores' },
+    ];
+
+    for (const [id, name] of map.entries()) {
+      chips.push({ value: id, label: name });
+    }
+
+    if (hasUnassigned) {
+      chips.push({ value: 'unassigned', label: 'Sem responsável' });
+    }
+
+    return chips;
+  });
+
   protected readonly visible = computed(() => {
     const term = this.search().trim().toLowerCase();
     const filter = this.filter();
+    const accountant = this.selectedAccountant();
 
     return this.lines().filter((line) => {
       if (term && !line.companyName.toLowerCase().includes(term)) return false;
-      if (filter === 'pending') return line.requestStatus === 'open' && line.missing.length > 0;
-      if (filter === 'overdue') return line.overdue > 0;
-      if (filter === 'complete') return line.missing.length === 0;
-      if (filter === 'closed') return line.requestStatus === 'closed';
+      if (filter === 'pending' && !(line.requestStatus === 'open' && line.missing.length > 0))
+        return false;
+      if (filter === 'overdue' && !(line.overdue > 0)) return false;
+      if (filter === 'complete' && !(line.missing.length === 0)) return false;
+      if (filter === 'closed' && !(line.requestStatus === 'closed')) return false;
+
+      if (accountant !== 'all') {
+        if (accountant === 'unassigned') {
+          if (line.responsibleAccountantId !== null) return false;
+        } else if (line.responsibleAccountantId !== accountant) {
+          return false;
+        }
+      }
 
       return true;
     });

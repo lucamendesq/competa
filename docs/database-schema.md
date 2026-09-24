@@ -104,17 +104,20 @@ create table company (                    -- Empresa (cliente da Contabilidade)
   accounting_firm_id     uuid not null references accounting_firm(id),
                                           -- sem on delete: apagar uma Contabilidade com Empresas
                                           -- falha por FK — proteção intencional
-  checklist_template_id  uuid references checklist_template(id), -- opcional; NULL = sem template (empresa não entra no fan-out)
-  name                   text not null,
-  cnpj                   text,                 -- só dígitos; validado com DV (módulo 11)
-  flags                  jsonb not null default '{}',
+  checklist_template_id      uuid references checklist_template(id), -- opcional; NULL = sem template (empresa não entra no fan-out)
+  responsible_accountant_id  uuid references accountant(id) on delete set null,
+                                          -- opcional (COM-25): divisão de carteira; NULL = sem responsável atribuído
+  name                       text not null,
+  cnpj                       text,                 -- só dígitos; validado com DV (módulo 11)
+  flags                      jsonb not null default '{}',
                            -- {"has_employees": bool, "accepts_card_payments": bool, "has_inventory": bool}
                            -- PATCH /companies/:id MESCLA (jsonb ||): mandar uma flag não
                            -- apaga as outras. Trocar uma flag para false exige mandá-la
                            -- explicitamente — apagar por omissão faria o fan-out perder
                            -- itens de folha sem ninguém pedir
-  active                 boolean not null default true
+  active                     boolean not null default true
 );
+create index company_responsible_accountant_idx on company (responsible_accountant_id);
 
 create table contact (                    -- Responsável (recebe o link, envia documentos)
   id            uuid primary key,
