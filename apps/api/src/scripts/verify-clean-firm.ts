@@ -358,6 +358,7 @@ async function run() {
           name: 'A'.repeat(300),
           email: inviteEmail,
           password: 'password123',
+          token: 'some-token',
         }),
       /O nome deve ter no máximo 255 caracteres/,
     );

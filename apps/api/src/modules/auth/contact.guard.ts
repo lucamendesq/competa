@@ -1,10 +1,8 @@
 import { CanActivate, ExecutionContext, Injectable } from '@nestjs/common';
-import { asc, eq } from 'drizzle-orm';
-import { Database } from '../../infra/database/database.js';
-import { company, contact } from '../../infra/database/schema/index.js';
 import { Forbidden, Unauthenticated } from '../../lib/app-error.js';
 import { AuthProvider } from './auth-provider.js';
 import { toContactScope } from './scope.js';
+import { ContactRepository } from '../contacts/contact.repository.js';
 
 /** Resolve a sessão do Responsável em `ContactScope`. Sessão de Contador NÃO passa por
  *  aqui: `contact.auth_user_id` é o único vínculo aceito, então não há escalada de
@@ -14,7 +12,7 @@ import { toContactScope } from './scope.js';
 @Injectable()
 export class ContactGuard implements CanActivate {
   constructor(
-    private readonly db: Database,
+    private readonly contacts: ContactRepository,
     private readonly auth: AuthProvider,
   ) {}
 
@@ -25,13 +23,7 @@ export class ContactGuard implements CanActivate {
 
     request.session = session;
 
-    const rows = await this.db
-      .select({ contactId: contact.id, companyId: company.id, active: company.active })
-      .from(contact)
-      .innerJoin(company, eq(company.id, contact.companyId))
-      .where(eq(contact.authUserId, session.user.id))
-      // ordem estável: a "primeira" empresa (profile, desempates) não muda entre requests
-      .orderBy(asc(contact.createdAt), asc(contact.id));
+    const rows = await this.contacts.findMembershipsByAuthUser(session.user.id);
 
     if (!rows.length) throw new Forbidden('Esta conta não é de um Responsável de Empresa.');
 

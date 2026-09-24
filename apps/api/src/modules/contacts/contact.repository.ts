@@ -178,23 +178,24 @@ export class ContactRepository {
   /** Revogação pelo Contador (F10-7): tira o vínculo, as sessões e as passkeys. Conceder
    *  acesso sem poder revogar é defeito de segurança, não falta de feature. */
   async revokeAccess(scope: FirmScope, companyId: string, contactId: string) {
-    const [row] = await this.db
-      .select({ id: contact.id, authUserId: contact.authUserId })
-      .from(contact)
-      .innerJoin(company, eq(company.id, contact.companyId))
-      .where(
-        and(
-          eq(contact.id, contactId),
-          eq(contact.companyId, companyId),
-          eq(company.accountingFirmId, scope),
-        ),
-      )
-      .limit(1);
+    return this.db.transaction(async (tx) => {
+      const [row] = await tx
+        .select({ id: contact.id, authUserId: contact.authUserId })
+        .from(contact)
+        .innerJoin(company, eq(company.id, contact.companyId))
+        .where(
+          and(
+            eq(contact.id, contactId),
+            eq(contact.companyId, companyId),
+            eq(company.accountingFirmId, scope),
+          ),
+        )
+        .limit(1)
+        .for('update');
 
-    if (!row) return undefined;
-    if (!row.authUserId) return { revoked: false as const };
+      if (!row) return undefined;
+      if (!row.authUserId) return { revoked: false as const };
 
-    await this.db.transaction(async (tx) => {
       await tx.update(contact).set({ authUserId: null }).where(eq(contact.id, contactId));
       await tx.delete(pushSubscription).where(eq(pushSubscription.contactId, contactId));
 
@@ -210,9 +211,9 @@ export class ContactRepository {
         .limit(1);
 
       if (!still) await tx.delete(user).where(eq(user.id, row.authUserId!));
+      
+      return { revoked: true as const };
     });
-
-    return { revoked: true as const };
   }
 
   async findOwnedCompany(scope: FirmScope, companyId: string) {
@@ -246,5 +247,36 @@ export class ContactRepository {
       .select({ id: contact.id, companyId: contact.companyId, name: contact.name })
       .from(contact)
       .where(inArray(contact.companyId, companyIds));
+  }
+
+  async findMembershipsByAuthUser(authUserId: string) {
+    return this.db
+      .select({ contactId: contact.id, companyId: company.id, active: company.active })
+      .from(contact)
+      .innerJoin(company, eq(company.id, contact.companyId))
+      .where(eq(contact.authUserId, authUserId))
+      .orderBy(asc(contact.createdAt), asc(contact.id));
+  }
+
+  async findUploadOwnership(authUserId: string, requestId: string) {
+    const [row] = await this.db
+      .select({ requestId: request.id, contactId: contact.id, active: company.active })
+      .from(contact)
+      .innerJoin(company, eq(company.id, contact.companyId))
+      .innerJoin(request, eq(request.companyId, company.id))
+      .where(and(eq(contact.authUserId, authUserId), eq(request.id, requestId)))
+      .limit(1);
+
+    return row;
+  }
+
+  async existsByAuthUser(authUserId: string) {
+    const [row] = await this.db
+      .select({ id: contact.id })
+      .from(contact)
+      .where(eq(contact.authUserId, authUserId))
+      .limit(1);
+
+    return Boolean(row);
   }
 }

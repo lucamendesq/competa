@@ -54,7 +54,7 @@ export class AuthService {
   }
 
   async signUpWithInvite(body: { name: string; email: string; password: string }, token: string) {
-    await this.api.post('/auth/sign-up', body, { token });
+    await this.api.post('/auth/sign-up', { ...body, token });
   }
 
   async acceptContactInvite(token: string, body: { name: string; password?: string }) {

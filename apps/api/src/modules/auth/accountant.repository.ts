@@ -43,6 +43,16 @@ export class AccountantRepository {
     return row;
   }
 
+  async findByAuthUserId(authUserId: string) {
+    const [row] = await this.db
+      .select({ id: accountant.id, accountingFirmId: accountant.accountingFirmId })
+      .from(accountant)
+      .where(eq(accountant.authUserId, authUserId))
+      .limit(1);
+    
+    return row;
+  }
+
   async firm(scope: FirmScope) {
     const [row] = await this.db
       .select({

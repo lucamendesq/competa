@@ -12,6 +12,7 @@ export const SignUpBody = z.object({
     .max(255, 'O nome deve ter no máximo 255 caracteres.'),
   email: z.email('Informe um e-mail válido.'),
   password: z.string().min(8, 'A senha precisa de pelo menos 8 caracteres.'),
+  token: z.string().min(1, 'Token do convite é obrigatório.'),
 });
 export type SignUpBody = z.infer<typeof SignUpBody>;
 

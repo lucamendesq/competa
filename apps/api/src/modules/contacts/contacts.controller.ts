@@ -51,7 +51,6 @@ export class ContactsController {
     private readonly requests: RequestRepository,
     private readonly periodRepo: PeriodRepository,
     private readonly messages: MessageRepository,
-    private readonly uploads: UploadService,
     private readonly storage: StorageProvider,
     private readonly auth: AuthProvider,
   ) {}
