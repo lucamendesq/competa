@@ -81,9 +81,25 @@ export class PeriodsController {
   }
 
   @Get(':id/requests')
-  async listRequests(@CurrentScope() scope: FirmScope, @Param(zodPipe(IdParam)) params: IdParam) {
+  async listRequests(
+    @CurrentScope() scope: FirmScope,
+    @Param(zodPipe(IdParam)) params: IdParam,
+    @Query() rawQuery?: Record<string, string>,
+  ) {
     if (!(await this.periods.findOwnedId(scope, params.id))) {
       throw new NotFound('Competência não encontrada.');
+    }
+
+    if (rawQuery && (rawQuery['page'] !== undefined || rawQuery['perPage'] !== undefined)) {
+      const query = PaginationQuery.parse(rawQuery);
+      const result = await this.periods.listRequests(scope, params.id, query);
+      if ('rows' in result) {
+        return paginated(result.rows, {
+          page: query.page,
+          perPage: query.perPage,
+          total: result.total,
+        });
+      }
     }
 
     return this.periods.listRequests(scope, params.id);

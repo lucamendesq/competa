@@ -89,21 +89,29 @@ export class ChecklistRepository {
         name: checklistTemplate.name,
         derivedFrom: checklistTemplate.derivedFrom,
         isProduct: isNull(checklistTemplate.accountingFirmId),
-        itemCount: this.db.$count(
-          checklistTemplateItem,
-          eq(checklistTemplateItem.checklistTemplateId, checklistTemplate.id),
-        ),
-        companyCount: this.db.$count(
-          company,
-          and(
-            eq(company.checklistTemplateId, checklistTemplate.id),
-            eq(company.accountingFirmId, scope),
-            eq(company.active, true),
-          ),
-        ),
+        itemCount: sql<number>`cast(count(distinct ${checklistTemplateItem.id}) as int)`,
+        companyCount: sql<number>`cast(count(distinct ${company.id}) as int)`,
       })
       .from(checklistTemplate)
+      .leftJoin(
+        checklistTemplateItem,
+        eq(checklistTemplateItem.checklistTemplateId, checklistTemplate.id),
+      )
+      .leftJoin(
+        company,
+        and(
+          eq(company.checklistTemplateId, checklistTemplate.id),
+          eq(company.accountingFirmId, scope),
+          eq(company.active, true),
+        ),
+      )
       .where(visibleTo(scope, checklistTemplate.accountingFirmId))
+      .groupBy(
+        checklistTemplate.id,
+        checklistTemplate.name,
+        checklistTemplate.derivedFrom,
+        checklistTemplate.accountingFirmId,
+      )
       .orderBy(checklistTemplate.name);
   }
 
@@ -133,6 +141,20 @@ export class ChecklistRepository {
       .from(checklistTemplateItem)
       .innerJoin(documentType, eq(documentType.id, checklistTemplateItem.documentTypeId))
       .where(eq(checklistTemplateItem.checklistTemplateId, templateId))
+      .orderBy(documentType.category, documentType.name);
+  }
+
+  async listItemsForTemplates(templateIds: string[]) {
+    if (templateIds.length === 0) return [];
+
+    return this.db
+      .select({
+        ...itemColumns,
+        checklistTemplateId: checklistTemplateItem.checklistTemplateId,
+      })
+      .from(checklistTemplateItem)
+      .innerJoin(documentType, eq(documentType.id, checklistTemplateItem.documentTypeId))
+      .where(inArray(checklistTemplateItem.checklistTemplateId, templateIds))
       .orderBy(documentType.category, documentType.name);
   }
 
@@ -174,6 +196,33 @@ export class ChecklistRepository {
       .orderBy(documentType.category, documentType.name);
   }
 
+  async listOverridesForCompanies(scope: FirmScope, companyIds: string[]) {
+    if (companyIds.length === 0) return [];
+
+    return this.db
+      .select({
+        id: companyChecklistOverride.id,
+        companyId: companyChecklistOverride.companyId,
+        action: companyChecklistOverride.action,
+        documentTypeId: documentType.id,
+        name: documentType.name,
+        category: documentType.category,
+        description: documentType.description,
+        acceptedFormats: documentType.acceptedFormats,
+        periodicity: companyChecklistOverride.periodicity,
+        annualMonth: companyChecklistOverride.annualMonth,
+        dueDay: companyChecklistOverride.dueDay,
+        dueMonthOffset: companyChecklistOverride.dueMonthOffset,
+        conditionFlag: companyChecklistOverride.conditionFlag,
+        required: companyChecklistOverride.required,
+      })
+      .from(companyChecklistOverride)
+      .innerJoin(company, eq(company.id, companyChecklistOverride.companyId))
+      .innerJoin(documentType, eq(documentType.id, companyChecklistOverride.documentTypeId))
+      .where(and(inArray(company.id, companyIds), eq(company.accountingFirmId, scope)))
+      .orderBy(documentType.category, documentType.name);
+  }
+
   async createTemplate(
     scope: FirmScope,
     input: { name: string; derivedFrom: string },
@@ -188,36 +237,30 @@ export class ChecklistRepository {
   }
 
   async copyItems(fromTemplateId: string, toTemplateId: string, tx: Database = this.db) {
-    const source = await tx
-      .select()
-      .from(checklistTemplateItem)
-      .where(eq(checklistTemplateItem.checklistTemplateId, fromTemplateId));
+    const result = await tx.execute(sql`
+      insert into checklist_template_item (
+        id, checklist_template_id, document_type_id, periodicity,
+        annual_month, due_day, due_month_offset, condition_flag, required, created_at, updated_at
+      )
+      select
+        gen_random_uuid(), ${toTemplateId}, document_type_id, periodicity,
+        annual_month, due_day, due_month_offset, condition_flag, required, now(), now()
+      from checklist_template_item
+      where checklist_template_id = ${fromTemplateId}
+    `);
 
-    if (source.length === 0) return 0;
-
-    await tx.insert(checklistTemplateItem).values(
-      source.map((item) => ({
-        checklistTemplateId: toTemplateId,
-        documentTypeId: item.documentTypeId,
-        periodicity: item.periodicity,
-        annualMonth: item.annualMonth,
-        dueDay: item.dueDay,
-        dueMonthOffset: item.dueMonthOffset,
-        conditionFlag: item.conditionFlag,
-        required: item.required,
-      })),
-    );
-
-    return source.length;
+    return Number(result.rowCount ?? 0);
   }
 
   /** Só o modelo da própria Contabilidade (o controller garante com `requireOwned`): o do
    *  produto é compartilhado por todos os tenants. */
-  async renameTemplate(templateId: string, name: string) {
+  async renameTemplate(scope: FirmScope, templateId: string, name: string) {
     const [row] = await this.db
       .update(checklistTemplate)
       .set({ name })
-      .where(eq(checklistTemplate.id, templateId))
+      .where(
+        and(eq(checklistTemplate.id, templateId), eq(checklistTemplate.accountingFirmId, scope)),
+      )
       .returning({
         id: checklistTemplate.id,
         name: checklistTemplate.name,
@@ -242,7 +285,17 @@ export class ChecklistRepository {
     });
   }
 
-  async addTemplateItem(templateId: string, body: CreateTemplateItemBody) {
+  async addTemplateItem(scope: FirmScope, templateId: string, body: CreateTemplateItemBody) {
+    const [tpl] = await this.db
+      .select({ id: checklistTemplate.id })
+      .from(checklistTemplate)
+      .where(
+        and(eq(checklistTemplate.id, templateId), eq(checklistTemplate.accountingFirmId, scope)),
+      )
+      .limit(1);
+
+    if (!tpl) return undefined;
+
     const [row] = await this.db
       .insert(checklistTemplateItem)
       .values({ ...body, checklistTemplateId: templateId })
@@ -254,7 +307,22 @@ export class ChecklistRepository {
     return row;
   }
 
-  async updateTemplateItem(templateId: string, itemId: string, body: UpdateTemplateItemBody) {
+  async updateTemplateItem(
+    scope: FirmScope,
+    templateId: string,
+    itemId: string,
+    body: UpdateTemplateItemBody,
+  ) {
+    const ownedTemplate = inArray(
+      checklistTemplateItem.checklistTemplateId,
+      this.db
+        .select({ id: checklistTemplate.id })
+        .from(checklistTemplate)
+        .where(
+          and(eq(checklistTemplate.id, templateId), eq(checklistTemplate.accountingFirmId, scope)),
+        ),
+    );
+
     if (body.annualMonth === null && body.periodicity === undefined) {
       const [existing] = await this.db
         .select({ periodicity: checklistTemplateItem.periodicity })
@@ -263,6 +331,7 @@ export class ChecklistRepository {
           and(
             eq(checklistTemplateItem.id, itemId),
             eq(checklistTemplateItem.checklistTemplateId, templateId),
+            ownedTemplate,
           ),
         );
       if (existing?.periodicity === 'annual') {
@@ -277,6 +346,7 @@ export class ChecklistRepository {
         and(
           eq(checklistTemplateItem.id, itemId),
           eq(checklistTemplateItem.checklistTemplateId, templateId),
+          ownedTemplate,
         ),
       )
       .returning();
@@ -284,13 +354,25 @@ export class ChecklistRepository {
     return row;
   }
 
-  async deleteTemplateItem(templateId: string, itemId: string) {
+  async deleteTemplateItem(scope: FirmScope, templateId: string, itemId: string) {
     const [row] = await this.db
       .delete(checklistTemplateItem)
       .where(
         and(
           eq(checklistTemplateItem.id, itemId),
           eq(checklistTemplateItem.checklistTemplateId, templateId),
+          inArray(
+            checklistTemplateItem.checklistTemplateId,
+            this.db
+              .select({ id: checklistTemplate.id })
+              .from(checklistTemplate)
+              .where(
+                and(
+                  eq(checklistTemplate.id, templateId),
+                  eq(checklistTemplate.accountingFirmId, scope),
+                ),
+              ),
+          ),
         ),
       )
       .returning({ id: checklistTemplateItem.id });
@@ -298,7 +380,15 @@ export class ChecklistRepository {
     return row;
   }
 
-  async upsertOverride(companyId: string, body: CreateOverrideBody) {
+  async upsertOverride(scope: FirmScope, companyId: string, body: CreateOverrideBody) {
+    const [comp] = await this.db
+      .select({ id: company.id })
+      .from(company)
+      .where(and(eq(company.id, companyId), eq(company.accountingFirmId, scope)))
+      .limit(1);
+
+    if (!comp) return undefined;
+
     const values =
       body.action === 'remove'
         ? {
@@ -333,13 +423,20 @@ export class ChecklistRepository {
     return row;
   }
 
-  async deleteOverride(companyId: string, documentTypeId: string) {
+  async deleteOverride(scope: FirmScope, companyId: string, documentTypeId: string) {
     const [row] = await this.db
       .delete(companyChecklistOverride)
       .where(
         and(
           eq(companyChecklistOverride.companyId, companyId),
           eq(companyChecklistOverride.documentTypeId, documentTypeId),
+          inArray(
+            companyChecklistOverride.companyId,
+            this.db
+              .select({ id: company.id })
+              .from(company)
+              .where(and(eq(company.id, companyId), eq(company.accountingFirmId, scope))),
+          ),
         ),
       )
       .returning({ id: companyChecklistOverride.id });

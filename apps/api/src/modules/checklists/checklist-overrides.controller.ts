@@ -43,7 +43,7 @@ export class ChecklistOverridesController {
     const [visible] = await this.checklists.documentTypesVisible(scope, [body.documentTypeId]);
     if (!visible) throw new DocumentTypeNotVisible();
 
-    return this.checklists.upsertOverride(params.companyId, body);
+    return this.checklists.upsertOverride(scope, params.companyId, body);
   }
 
   @Delete('checklist-overrides/:documentTypeId')
@@ -54,7 +54,11 @@ export class ChecklistOverridesController {
   ) {
     await this.requireCompany(scope, params.companyId);
 
-    const row = await this.checklists.deleteOverride(params.companyId, params.documentTypeId);
+    const row = await this.checklists.deleteOverride(
+      scope,
+      params.companyId,
+      params.documentTypeId,
+    );
     if (!row) throw new NotFound('Override não encontrado.');
   }
 

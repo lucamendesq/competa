@@ -16,6 +16,11 @@ import {
 } from '../../infra/database/schema/index.js';
 import { companyIdsOf, type ContactScope, type FirmScope } from '../auth/scope.js';
 import { ChecklistRepository } from '../checklists/checklist.repository.js';
+import {
+  appliesToFlags,
+  mergeEffectiveChecklist,
+  type ChecklistLine,
+} from '../checklists/effective-checklist.js';
 import { summarizePending, type PanelRow } from '../requests/review-rules.js';
 import { PeriodAlreadyClosed, PeriodAlreadyOpen } from './errors.js';
 import { planFanOut, type RequestPlan } from './fan-out.js';
@@ -41,22 +46,49 @@ export class PeriodRepository {
 
   async openPeriod(scope: FirmScope, body: OpenPeriodBody) {
     const companies = await this.activeCompanies(scope);
+    const companyIds = companies.map((c) => c.id);
+    const templateIds = [
+      ...new Set(companies.map((c) => c.checklistTemplateId).filter(Boolean)),
+    ] as string[];
 
-    // ponytail: um effectiveChecklist por Empresa (3 queries cada) — carteira de escritório
-    // pequeno; virar consulta única só quando a carteira doer.
-    const checklists = new Map(
-      await Promise.all(
-        companies
-          .filter((row) => row.checklistTemplateId && row.contact?.email)
-          .map(
-            async (row) =>
-              [
-                row.id,
-                (await this.checklists.effectiveChecklist(scope, row.id))?.items ?? [],
-              ] as const,
-          ),
-      ),
-    );
+    const [templateItems, overrides] = await Promise.all([
+      templateIds.length ? this.checklists.listItemsForTemplates(templateIds) : [],
+      companyIds.length ? this.checklists.listOverridesForCompanies(scope, companyIds) : [],
+    ]);
+
+    type CompanyOverride = Awaited<
+      ReturnType<ChecklistRepository['listOverridesForCompanies']>
+    >[number];
+
+    const itemsByTemplate = new Map<string, ChecklistLine[]>();
+    for (const item of templateItems as (ChecklistLine & { checklistTemplateId: string })[]) {
+      const list = itemsByTemplate.get(item.checklistTemplateId);
+      if (list) list.push(item);
+      else itemsByTemplate.set(item.checklistTemplateId, [item]);
+    }
+
+    const overridesByCompany = new Map<string, CompanyOverride[]>();
+    for (const override of overrides) {
+      const list = overridesByCompany.get(override.companyId);
+      if (list) list.push(override);
+      else overridesByCompany.set(override.companyId, [override]);
+    }
+
+    const checklists = new Map<string, Array<ChecklistLine & { applies: boolean }>>();
+    for (const comp of companies) {
+      const tItems = comp.checklistTemplateId
+        ? (itemsByTemplate.get(comp.checklistTemplateId) ?? [])
+        : [];
+      const cOverrides = overridesByCompany.get(comp.id) ?? [];
+      const lines = mergeEffectiveChecklist(tItems, cOverrides);
+      checklists.set(
+        comp.id,
+        lines.map((line) => ({
+          ...line,
+          applies: appliesToFlags(line, comp.flags),
+        })),
+      );
+    }
 
     const { plans, warnings } = planFanOut({
       companies,
@@ -68,8 +100,6 @@ export class PeriodRepository {
 
     const { period: row, requestIdByCompany } = await this.openWithFanOut(scope, body, plans);
 
-    // ponytail: evento RequestCreated entra na Fase 5 (messaging), quando houver quem escute
-
     return { period: row, warnings, plans, requestIdByCompany };
   }
 
@@ -79,6 +109,7 @@ export class PeriodRepository {
         id: company.id,
         name: company.name,
         checklistTemplateId: company.checklistTemplateId,
+        flags: company.flags,
       })
       .from(company)
       .where(and(eq(company.accountingFirmId, scope), eq(company.active, true)))
@@ -290,24 +321,44 @@ export class PeriodRepository {
     });
   }
 
-  async listRequests(scope: FirmScope, periodId: string) {
-    return this.db
+  async listRequests(
+    scope: FirmScope,
+    periodId: string,
+    query?: { page: number; perPage: number },
+  ) {
+    const where = and(eq(request.periodId, periodId), eq(period.accountingFirmId, scope));
+
+    const baseQuery = this.db
       .select({
         id: request.id,
         companyId: company.id,
         companyName: company.name,
         status: request.status,
-        itemCount: this.db.$count(requestItem, eq(requestItem.requestId, request.id)),
-        pendingItemCount: this.db.$count(
-           requestItem,
-           and(eq(requestItem.requestId, request.id), eq(requestItem.status, 'pending')),
-        ),
+        itemCount: sql<number>`cast(count(${requestItem.id}) as int)`,
+        pendingItemCount: sql<number>`cast(count(${requestItem.id}) filter (where ${requestItem.status} = 'pending') as int)`,
       })
       .from(request)
       .innerJoin(period, eq(period.id, request.periodId))
       .innerJoin(company, eq(company.id, request.companyId))
-      .where(and(eq(request.periodId, periodId), eq(period.accountingFirmId, scope)))
+      .leftJoin(requestItem, eq(requestItem.requestId, request.id))
+      .where(where)
+      .groupBy(request.id, company.id, company.name, request.status)
       .orderBy(company.name);
+
+    if (query) {
+      const [rows, [total]] = await Promise.all([
+        baseQuery.limit(query.perPage).offset((query.page - 1) * query.perPage),
+        this.db
+          .select({ value: count() })
+          .from(request)
+          .innerJoin(period, eq(period.id, request.periodId))
+          .where(where),
+      ]);
+
+      return { rows, total: total.value };
+    }
+
+    return baseQuery;
   }
 
   async periods(scope: ContactScope, query: { page: number; perPage: number }) {
