@@ -71,6 +71,7 @@ export const accountant = pgTable(
     uniqueIndex('accountant_owner_uidx')
       .on(t.accountingFirmId)
       .where(sql`${t.owner}`),
+    index('accountant_firm_idx').on(t.accountingFirmId),
   ],
 ).enableRLS();
 
@@ -85,16 +86,23 @@ export const documentType = pgTable(
     description: text(),
     ...timestamps,
   },
-  (t) => [check('document_type_category_chk', oneOf(sql`${t.category}`, DOCUMENT_CATEGORIES))],
+  (t) => [
+    check('document_type_category_chk', oneOf(sql`${t.category}`, DOCUMENT_CATEGORIES)),
+    index('document_type_firm_idx').on(t.accountingFirmId),
+  ],
 ).enableRLS();
 
-export const checklistTemplate = pgTable('checklist_template', {
-  id: id(),
-  accountingFirmId: uuid('accounting_firm_id').references(() => accountingFirm.id),
-  name: text().notNull(),
-  derivedFrom: uuid('derived_from').references((): AnyPgColumn => checklistTemplate.id),
-  ...timestamps,
-}).enableRLS();
+export const checklistTemplate = pgTable(
+  'checklist_template',
+  {
+    id: id(),
+    accountingFirmId: uuid('accounting_firm_id').references(() => accountingFirm.id),
+    name: text().notNull(),
+    derivedFrom: uuid('derived_from').references((): AnyPgColumn => checklistTemplate.id),
+    ...timestamps,
+  },
+  (t) => [index('checklist_template_firm_idx').on(t.accountingFirmId)],
+).enableRLS();
 
 export const checklistTemplateItem = pgTable(
   'checklist_template_item',
@@ -117,6 +125,7 @@ export const checklistTemplateItem = pgTable(
   (t) => [
     unique('checklist_template_item_uidx').on(t.checklistTemplateId, t.documentTypeId),
     check('checklist_template_item_periodicity_chk', oneOf(sql`${t.periodicity}`, PERIODICITIES)),
+    index('checklist_template_item_doc_type_idx').on(t.documentTypeId),
   ],
 ).enableRLS();
 
@@ -141,6 +150,7 @@ export const company = pgTable(
     uniqueIndex('company_cnpj_uidx')
       .on(t.accountingFirmId, t.cnpj)
       .where(sql`${t.cnpj} is not null`),
+    index('company_firm_active_idx').on(t.accountingFirmId, t.active),
   ],
 ).enableRLS();
 
@@ -188,6 +198,8 @@ export const invite = pgTable(
   },
   (t) => [
     check('invite_has_one_origin', sql`num_nonnulls(${t.accountingFirmId}, ${t.companyId}) = 1`),
+    index('invite_firm_idx').on(t.accountingFirmId),
+    index('invite_company_idx').on(t.companyId),
   ],
 ).enableRLS();
 
