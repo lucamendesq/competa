@@ -18,29 +18,12 @@
     "prepare": "husky"
   },
   "devDependencies": {
-    "@playwright/test": "^1.63.0",
-    "@tailwindcss/vite": "^4.3.3",
-    "angular-eslint": "^20.0.0",
     "eslint": "^9.18.0",
     "eslint-config-prettier": "^10.0.0",
     "husky": "^9.1.7",
     "lint-staged": "^17.5.1",
-    "playwright": "^1.63.0",
     "prettier": "^3.8.1",
-    "tailwindcss": "^4.0.0",
-    "typescript-eslint": "^8.20.0",
-    "wrangler": "^4.134.0"
-  },
-  "dependencies": {
-    "@internationalized/date": "^3.12.4",
-    "@radix-icons/vue": "^1.0.0",
-    "better-auth": "^1.7.2",
-    "class-variance-authority": "^0.7.1",
-    "clsx": "^2.1.1",
-    "lucide-vue-next": "^1.0.0",
-    "tailwind-merge": "^3.6.0",
-    "tailwindcss-animate": "^1.0.7",
-    "zod": "^4.4.3"
+    "typescript-eslint": "^8.20.0"
   },
   "lint-staged": {
     "*.{ts,mts,cts}": [
