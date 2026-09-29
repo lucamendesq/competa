@@ -12,11 +12,13 @@ export class LogBilling implements BillingProvider {
   }
 
   async createSubscription(input: { customerId: string; planName: string; value: number }) {
-    this.logger.log(`Mock: Criando assinatura ${input.planName} para ${input.customerId} (R$ ${input.value})`);
-    
-    return { 
-      subscriptionId: `mock_sub_${randomUUID()}`, 
-      checkoutUrl: 'https://sandbox.asaas.com/checkout/mock_url' 
+    this.logger.log(
+      `Mock: Criando assinatura ${input.planName} para ${input.customerId} (R$ ${input.value})`,
+    );
+
+    return {
+      subscriptionId: `mock_sub_${randomUUID()}`,
+      checkoutUrl: 'https://sandbox.asaas.com/checkout/mock_url',
     };
   }
 }

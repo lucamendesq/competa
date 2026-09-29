@@ -1,6 +1,6 @@
-import { ref, type Ref } from 'vue'
-import { useDropZone, useFileDialog } from '@vueuse/core'
-import { apiErrorMessage } from '@/api/error'
+import { ref, type Ref } from 'vue';
+import { useDropZone, useFileDialog } from '@vueuse/core';
+import { apiErrorMessage } from '@/api/error';
 
 export type FileResult = {
   fileName: string;
@@ -24,36 +24,40 @@ type Dependencies = {
   }>;
 };
 
-export function useUpload(dropTarget: Ref<HTMLElement | null>, deps: Dependencies, options: { accept?: string, multiple?: boolean } = {}) {
-  const isUploading = ref(false)
-  const progressDone = ref(0)
-  const progressTotal = ref(0)
-  const results = ref<FileResult[]>([])
+export function useUpload(
+  dropTarget: Ref<HTMLElement | null>,
+  deps: Dependencies,
+  options: { accept?: string; multiple?: boolean } = {},
+) {
+  const isUploading = ref(false);
+  const progressDone = ref(0);
+  const progressTotal = ref(0);
+  const results = ref<FileResult[]>([]);
 
   const { isOverDropZone } = useDropZone(dropTarget, {
     onDrop: (files) => {
-      if (isUploading.value) return
+      if (isUploading.value) return;
       if (files?.length) {
         // filter if not multiple
-        const toUpload = options.multiple ? files : [files[0]]
-        void uploadFiles(toUpload)
+        const toUpload = options.multiple ? files : [files[0]];
+        void uploadFiles(toUpload);
       }
     },
-  })
+  });
 
   const { open } = useFileDialog({
     accept: options.accept,
     multiple: options.multiple !== false,
-  })
+  });
 
-  const selectFiles = () => open()
+  const selectFiles = () => open();
 
   const uploadFiles = async (files: File[] | FileList) => {
-    isUploading.value = true
-    const fileArray = Array.from(files)
-    progressTotal.value = fileArray.length
-    progressDone.value = 0
-    results.value = []
+    isUploading.value = true;
+    const fileArray = Array.from(files);
+    progressTotal.value = fileArray.length;
+    progressDone.value = 0;
+    results.value = [];
 
     try {
       const authorization = await deps.presign(
@@ -61,15 +65,19 @@ export function useUpload(dropTarget: Ref<HTMLElement | null>, deps: Dependencie
           fileName: file.name,
           contentType: file.type || 'application/octet-stream',
           sizeBytes: file.size,
-        }))
-      )
+        })),
+      );
 
-      const sent: string[] = []
-      
+      const sent: string[] = [];
+
       for (let i = 0; i < authorization.files.length; i++) {
         const authorized = authorization.files[i];
         if (!authorized.accepted) {
-          results.value.push({ fileName: authorized.fileName, ok: false, reason: authorized.reason });
+          results.value.push({
+            fileName: authorized.fileName,
+            ok: false,
+            reason: authorized.reason,
+          });
           progressDone.value += 1;
           continue;
         }
@@ -95,9 +103,7 @@ export function useUpload(dropTarget: Ref<HTMLElement | null>, deps: Dependencie
 
       if (sent.length) {
         const confirmation = await deps.confirm(sent);
-        const refused = new Map(
-          confirmation.refused.map((ref) => [ref.documentId, ref.reason]),
-        );
+        const refused = new Map(confirmation.refused.map((ref) => [ref.documentId, ref.reason]));
 
         for (const authorized of authorization.files) {
           if (!authorized.accepted) continue;
@@ -114,14 +120,14 @@ export function useUpload(dropTarget: Ref<HTMLElement | null>, deps: Dependencie
       results.value.push({
         fileName: 'Falha geral',
         ok: false,
-        reason: apiErrorMessage(e)
-      })
+        reason: apiErrorMessage(e),
+      });
     } finally {
-      isUploading.value = false
+      isUploading.value = false;
     }
-    
-    return results.value
-  }
+
+    return results.value;
+  };
 
   return {
     isUploading,
@@ -130,6 +136,6 @@ export function useUpload(dropTarget: Ref<HTMLElement | null>, deps: Dependencie
     results,
     isOverDropZone,
     selectFiles,
-    uploadFiles
-  }
+    uploadFiles,
+  };
 }

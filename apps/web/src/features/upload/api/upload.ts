@@ -1,5 +1,5 @@
-import { api } from '@/api/client'
-import type { PushSubscriptionPayload } from '@/composables/usePush' // Need to port PushService
+import { api } from '@/api/client';
+import type { PushSubscriptionPayload } from '@/composables/usePush'; // Need to port PushService
 
 export type UploadedFile = {
   fileName: string;
@@ -45,13 +45,15 @@ export type Confirmation = {
   refused: { documentId: string; fileName: string; reason: string }[];
 };
 
-export const getChecklist = (token: string) => 
-  api.get<Checklist>(`/upload/${token}`)
+export const getChecklist = (token: string) => api.get<Checklist>(`/upload/${token}`);
 
-export const presignFiles = (token: string, body: {
-  requestItemId?: string | null;
-  files: { fileName: string; contentType: string; sizeBytes: number }[];
-}) => api.post<Presign>(`/upload/${token}/documents`, body)
+export const presignFiles = (
+  token: string,
+  body: {
+    requestItemId?: string | null;
+    files: { fileName: string; contentType: string; sizeBytes: number }[];
+  },
+) => api.post<Presign>(`/upload/${token}/documents`, body);
 
 export const putFileToStorage = async (uploadUrl: string, file: File) => {
   const res = await fetch(uploadUrl, {
@@ -59,17 +61,17 @@ export const putFileToStorage = async (uploadUrl: string, file: File) => {
     body: file,
     headers: {
       'Content-Type': file.type || 'application/octet-stream',
-    }
-  })
-  if (!res.ok) throw new Error(`PUT falhou com ${res.status}`)
-  return res.text()
-}
+    },
+  });
+  if (!res.ok) throw new Error(`PUT falhou com ${res.status}`);
+  return res.text();
+};
 
 export const confirmFiles = (token: string, documentIds: string[]) =>
-  api.post<Confirmation>(`/upload/${token}/documents/confirm`, { documentIds })
+  api.post<Confirmation>(`/upload/${token}/documents/confirm`, { documentIds });
 
 export const subscribePush = (token: string, subscription: PushSubscriptionPayload) =>
-  api.post<{ id: string }>(`/upload/${token}/push`, subscription)
+  api.post<{ id: string }>(`/upload/${token}/push`, subscription);
 
 export const activateAccess = (token: string) =>
-  api.post<{ email: string; name: string }>(`/upload/${token}/access`, {})
+  api.post<{ email: string; name: string }>(`/upload/${token}/access`, {});

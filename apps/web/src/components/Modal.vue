@@ -1,22 +1,28 @@
 <script setup lang="ts">
-import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from '@/components/ui/dialog'
-import { computed } from 'vue'
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogHeader,
+  DialogTitle,
+} from '@/components/ui/dialog';
+import { computed } from 'vue';
 
 const props = defineProps<{
-  open: boolean
-  title: string
-  description?: string
-  wide?: boolean
-}>()
+  open: boolean;
+  title: string;
+  description?: string;
+  wide?: boolean;
+}>();
 
 const emit = defineEmits<{
-  'update:open': [value: boolean]
-}>()
+  'update:open': [value: boolean];
+}>();
 
 const internalOpen = computed({
   get: () => props.open,
-  set: (val) => emit('update:open', val)
-})
+  set: (val) => emit('update:open', val),
+});
 </script>
 
 <template>
@@ -28,7 +34,7 @@ const internalOpen = computed({
           {{ description }}
         </DialogDescription>
       </DialogHeader>
-      
+
       <!-- Max height container to match the angular layout -->
       <div class="max-h-[70vh] overflow-y-auto pr-2">
         <slot></slot>

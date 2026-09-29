@@ -2,7 +2,7 @@ export class ApiError extends Error {
   constructor(
     public readonly status: number,
     public readonly body: unknown,
-    message: string
+    message: string,
   ) {
     super(message);
     this.name = 'ApiError';
@@ -41,7 +41,7 @@ export type FailureKind = 'offline' | 'gone' | 'server' | 'other';
 export const failureKind = (error: unknown): FailureKind => {
   if (error instanceof TypeError && error.message.includes('Failed to fetch')) return 'offline';
   if (!(error instanceof ApiError)) return 'other';
-  
+
   if (error.status === 0) return 'offline';
   if (error.status === 404 || error.status === 410 || error.status === 403) return 'gone';
   if (error.status >= 500) return 'server';

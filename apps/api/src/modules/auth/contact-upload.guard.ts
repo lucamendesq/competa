@@ -46,4 +46,3 @@ export class ContactUploadGuard implements CanActivate {
     return true;
   }
 }
-

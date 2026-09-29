@@ -22,7 +22,7 @@ export class PublicSignupController {
   @AllowAnonymous()
   async signUp(
     @Body(zodPipe(PublicSignUpBody)) body: PublicSignUpBody,
-    @Res({ passthrough: true }) res: Response
+    @Res({ passthrough: true }) res: Response,
   ) {
     if (await this.accountants.userExistsByEmail(body.email)) {
       throw new EmailAlreadyRegistered();
@@ -34,7 +34,7 @@ export class PublicSignupController {
         email: body.email,
         password: body.password,
       },
-      new Headers()
+      new Headers(),
     );
 
     if (isFailure(signUp)) {

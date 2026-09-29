@@ -21,7 +21,7 @@ interface AsaasPaymentLinkResponse {
 @Injectable()
 export class AsaasBilling implements BillingProvider {
   private readonly logger = new Logger(AsaasBilling.name);
-  private readonly baseUrl = env.ASAAS_SANDBOX 
+  private readonly baseUrl = env.ASAAS_SANDBOX
     ? 'https://sandbox.asaas.com/api/v3'
     : 'https://api.asaas.com/v3';
 
@@ -32,9 +32,9 @@ export class AsaasBilling implements BillingProvider {
     else searchUrl.searchParams.append('email', input.email);
 
     const searchRes = await fetch(searchUrl.toString(), {
-      headers: { access_token: env.ASAAS_API_KEY! }
+      headers: { access_token: env.ASAAS_API_KEY! },
     });
-    
+
     const searchData = (await searchRes.json()) as AsaasCustomerListResponse;
 
     if (searchData.data && searchData.data.length > 0) {
@@ -46,17 +46,17 @@ export class AsaasBilling implements BillingProvider {
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',
-        access_token: env.ASAAS_API_KEY!
+        access_token: env.ASAAS_API_KEY!,
       },
       body: JSON.stringify({
         name: input.name,
         email: input.email,
-        cpfCnpj: input.cpfCnpj
-      })
+        cpfCnpj: input.cpfCnpj,
+      }),
     });
 
     const createData = (await createRes.json()) as AsaasCustomerResponse;
-    
+
     if (!createRes.ok) {
       this.logger.error('Falha ao criar cliente no Asaas:', createData);
       throw new Error('Falha na integração de pagamento');
@@ -73,16 +73,16 @@ export class AsaasBilling implements BillingProvider {
       value: input.value,
       nextDueDate: new Date(Date.now() + 1000 * 60 * 60 * 24 * 3).toISOString().split('T')[0], // Daqui a 3 dias
       cycle: 'MONTHLY',
-      description: `Plano ${input.planName} - Competa`
+      description: `Plano ${input.planName} - Competa`,
     };
 
     const res = await fetch(`${this.baseUrl}/subscriptions`, {
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',
-        access_token: env.ASAAS_API_KEY!
+        access_token: env.ASAAS_API_KEY!,
       },
-      body: JSON.stringify(payload)
+      body: JSON.stringify(payload),
     });
 
     const data = (await res.json()) as AsaasSubscriptionResponse;
@@ -92,13 +92,13 @@ export class AsaasBilling implements BillingProvider {
       throw new Error('Falha na integração de pagamento');
     }
 
-    // O Asaas geralmente retorna a URL da fatura (invoiceUrl) no webhook, 
+    // O Asaas geralmente retorna a URL da fatura (invoiceUrl) no webhook,
     // ou na assinatura podemos direcionar pro link de pagamento
     const checkoutUrl = await this.getPaymentLink(input.customerId, input.value, input.planName);
 
-    return { 
-      subscriptionId: data.id, 
-      checkoutUrl
+    return {
+      subscriptionId: data.id,
+      checkoutUrl,
     };
   }
 
@@ -108,7 +108,7 @@ export class AsaasBilling implements BillingProvider {
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',
-        access_token: env.ASAAS_API_KEY!
+        access_token: env.ASAAS_API_KEY!,
       },
       body: JSON.stringify({
         name: `Plano ${planName}`,
@@ -116,15 +116,15 @@ export class AsaasBilling implements BillingProvider {
         chargeType: 'RECURRENT',
         endDate: null,
         value,
-        billingType: 'UNDEFINED'
-      })
+        billingType: 'UNDEFINED',
+      }),
     });
 
     const data = (await res.json()) as AsaasPaymentLinkResponse;
     if (res.ok) {
       return data.url;
     }
-    
+
     this.logger.error('Falha ao criar link de checkout no Asaas', data);
     return 'https://asaas.com';
   }

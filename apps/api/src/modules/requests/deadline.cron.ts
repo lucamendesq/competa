@@ -50,7 +50,8 @@ export class DeadlineCron {
         this.logger.log(`Prazo estourado: ${notified.length} item(ns) avisado(s).`);
 
       const discarded = await this.discardStaleUploads();
-      if (discarded) this.logger.log(`Faxina: ${discarded} envio(s) não confirmado(s) removido(s).`);
+      if (discarded)
+        this.logger.log(`Faxina: ${discarded} envio(s) não confirmado(s) removido(s).`);
     });
   }
 
@@ -77,7 +78,9 @@ export class DeadlineCron {
     );
 
     await this.documents.purgeFiscalDocuments(expired.map((row) => row.id));
-    this.logger.log(`Expurgo fiscal: ${expired.length} documento(s) com mais de 5 anos removido(s).`);
+    this.logger.log(
+      `Expurgo fiscal: ${expired.length} documento(s) com mais de 5 anos removido(s).`,
+    );
     return expired.length;
   }
 

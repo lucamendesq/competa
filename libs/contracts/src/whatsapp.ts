@@ -7,7 +7,15 @@ export const whatsappOnboardSchema = z.object({
 export type WhatsappOnboardRequest = z.infer<typeof whatsappOnboardSchema>;
 
 export const whatsappStatusSchema = z.object({
-  status: z.enum(['not_connected', 'pending_phone', 'pending_payment', 'pending_template', 'active', 'suspended', 'error']),
+  status: z.enum([
+    'not_connected',
+    'pending_phone',
+    'pending_payment',
+    'pending_template',
+    'active',
+    'suspended',
+    'error',
+  ]),
   displayPhoneNumber: z.string().optional(),
   wabaId: z.string().optional(),
 });

@@ -220,7 +220,9 @@ export class CollectionEventsListener {
         });
       }
     } catch (error) {
-      this.logger.error(`Falha no evento DeadlineMissed da Solicitação ${event.requestId}: ${String(error)}`);
+      this.logger.error(
+        `Falha no evento DeadlineMissed da Solicitação ${event.requestId}: ${String(error)}`,
+      );
     }
   }
 
@@ -242,7 +244,9 @@ export class CollectionEventsListener {
         event.uploadUrl,
       );
     } catch (error) {
-      this.logger.error(`Falha no evento ReminderDue da Solicitação ${event.requestId}: ${String(error)}`);
+      this.logger.error(
+        `Falha no evento ReminderDue da Solicitação ${event.requestId}: ${String(error)}`,
+      );
     }
   }
 }

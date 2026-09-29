@@ -1,10 +1,8 @@
 <script setup lang="ts">
-import { ref } from 'vue'
-import { useRouter } from 'vue-router'
-import {
-  Plus,
-} from 'lucide-vue-next'
-import { Button } from '@/components/ui/button'
+import { ref } from 'vue';
+import { useRouter } from 'vue-router';
+import { Plus } from 'lucide-vue-next';
+import { Button } from '@/components/ui/button';
 import {
   Table,
   TableBody,
@@ -12,51 +10,54 @@ import {
   TableHead,
   TableHeader,
   TableRow,
-} from '@/components/ui/table'
-import PageHeader from '@/components/PageHeader.vue'
-import ErrorState from '@/components/ErrorState.vue'
-import LoadingRows from '@/components/LoadingRows.vue'
-import EmptyState from '@/components/ui/empty/EmptyState.vue'
-import Modal from '@/components/Modal.vue'
-import { Input } from '@/components/ui/input'
-import { Label } from '@/components/ui/label'
-import { useChecklistsFeature } from '@/features/checklists/composables/useChecklistsFeature'
-import { toast } from 'vue-sonner'
-import { apiErrorMessage } from '@/api/error'
+} from '@/components/ui/table';
+import PageHeader from '@/components/PageHeader.vue';
+import ErrorState from '@/components/ErrorState.vue';
+import LoadingRows from '@/components/LoadingRows.vue';
+import EmptyState from '@/components/ui/empty/EmptyState.vue';
+import Modal from '@/components/Modal.vue';
+import { Input } from '@/components/ui/input';
+import { Label } from '@/components/ui/label';
+import { useChecklistsFeature } from '@/features/checklists/composables/useChecklistsFeature';
+import { toast } from 'vue-sonner';
+import { apiErrorMessage } from '@/api/error';
 
-const router = useRouter()
-const { templatesQuery, deriveTemplateMutation } = useChecklistsFeature()
+const router = useRouter();
+const { templatesQuery, deriveTemplateMutation } = useChecklistsFeature();
 
-const deriveOpen = ref<any | null>(null)
-const newName = ref('')
-const acting = ref(false)
+const deriveOpen = ref<any | null>(null);
+const newName = ref('');
+const acting = ref(false);
 
 function openDerive(template: any) {
-  newName.value = template.name + ' (Cópia)'
-  deriveOpen.value = template
+  newName.value = template.name + ' (Cópia)';
+  deriveOpen.value = template;
 }
 
 async function derive() {
-  if (!newName.value.trim() || !deriveOpen.value) return
-  acting.value = true
+  if (!newName.value.trim() || !deriveOpen.value) return;
+  acting.value = true;
   try {
     const res = await deriveTemplateMutation.mutateAsync({
       id: deriveOpen.value.id,
-      name: newName.value.trim()
-    })
-    toast.success('Template criado com sucesso.')
-    router.push(`/templates/${res.id}`)
+      name: newName.value.trim(),
+    });
+    toast.success('Template criado com sucesso.');
+    router.push(`/templates/${res.id}`);
   } catch (error) {
-    toast.error(apiErrorMessage(error, 'Não foi possível duplicar o template.'))
+    toast.error(apiErrorMessage(error, 'Não foi possível duplicar o template.'));
   } finally {
-    acting.value = false
-    deriveOpen.value = null
+    acting.value = false;
+    deriveOpen.value = null;
   }
 }
 </script>
 
 <template>
-  <PageHeader title="Templates de Checklist" description="Modelos de solicitação reutilizáveis por segmento ou regime.">
+  <PageHeader
+    title="Templates de Checklist"
+    description="Modelos de solicitação reutilizáveis por segmento ou regime."
+  >
     <!-- Em Angular ele não tinha botão criar do zero facilmente, apenas derivava. Vamos deixar vazio ou adicionar um botão se tiver API. 
          Wait, derive endpoint can be used with a standard product template ID to create a blank one?
          Ah, in Angular there was no "Create blank template" button in `templates-list-page.html`. Wait, I will just provide what they had. -->
@@ -93,7 +94,10 @@ async function derive() {
                   <RouterLink :to="`/templates/${template.id}`" class="hover:underline">
                     {{ template.name }}
                   </RouterLink>
-                  <span v-if="template.isProduct" class="bg-primary/10 text-primary ml-2 inline-flex items-center rounded-full px-2 py-0.5 text-[10px] font-semibold">
+                  <span
+                    v-if="template.isProduct"
+                    class="bg-primary/10 text-primary ml-2 inline-flex items-center rounded-full px-2 py-0.5 text-[10px] font-semibold"
+                  >
                     Padrão Competa
                   </span>
                 </TableCell>
@@ -102,9 +106,7 @@ async function derive() {
                 <TableCell class="text-right">
                   <div class="flex items-center justify-end gap-2">
                     <Button variant="ghost" size="sm" as-child>
-                      <RouterLink :to="`/templates/${template.id}`">
-                        Editar
-                      </RouterLink>
+                      <RouterLink :to="`/templates/${template.id}`"> Editar </RouterLink>
                     </Button>
                     <Button variant="ghost" size="sm" @click="openDerive(template)">
                       <Plus class="mr-2 h-4 w-4" aria-hidden="true" /> Duplicar

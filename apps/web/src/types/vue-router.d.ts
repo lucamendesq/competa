@@ -1,8 +1,8 @@
-import 'vue-router'
+import 'vue-router';
 
 declare module 'vue-router' {
   interface RouteMeta {
-    requiresAuth?: 'accountant' | 'contact'
-    title?: string
+    requiresAuth?: 'accountant' | 'contact';
+    title?: string;
   }
 }

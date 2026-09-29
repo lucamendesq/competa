@@ -1,16 +1,18 @@
 <script setup lang="ts">
+const props = withDefaults(
+  defineProps<{
+    variant?: 'icon' | 'horizontal';
+    surface?: 'auto' | 'dark';
+    alt?: string;
+  }>(),
+  {
+    variant: 'horizontal',
+    surface: 'auto',
+    alt: 'Competa',
+  },
+);
 
-const props = withDefaults(defineProps<{
-  variant?: 'icon' | 'horizontal'
-  surface?: 'auto' | 'dark'
-  alt?: string
-}>(), {
-  variant: 'horizontal',
-  surface: 'auto',
-  alt: 'Competa'
-})
-
-const file = (tone: 'cobalt' | 'white') => `/brand/logo-${props.variant}-${tone}.svg`
+const file = (tone: 'cobalt' | 'white') => `/brand/logo-${props.variant}-${tone}.svg`;
 </script>
 
 <template>

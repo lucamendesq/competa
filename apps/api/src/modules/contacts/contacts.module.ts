@@ -16,7 +16,14 @@ import { ContactRepository } from './contact.repository.js';
 import { ContactUploadController, ContactsController } from './contacts.controller.js';
 
 @Module({
-  imports: [AuthModule, UploadModule, RequestsModule, StorageModule, PeriodsModule, MessagingModule],
+  imports: [
+    AuthModule,
+    UploadModule,
+    RequestsModule,
+    StorageModule,
+    PeriodsModule,
+    MessagingModule,
+  ],
   controllers: [
     ContactsController,
     ContactUploadController,

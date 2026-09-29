@@ -28,10 +28,7 @@ export class MessagesController {
   }
 
   @Get('failures')
-  async failures(
-    @CurrentScope() scope: FirmScope,
-    @Query('periodId') periodId?: string,
-  ) {
+  async failures(@CurrentScope() scope: FirmScope, @Query('periodId') periodId?: string) {
     if (!periodId) return [];
     return this.messages.failuresByPeriod(scope, periodId);
   }

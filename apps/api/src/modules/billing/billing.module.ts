@@ -16,8 +16,8 @@ new Logger('BillingModule').log(useAsaas ? 'AsaasBilling' : 'LogBilling (console
   controllers: [BillingController, AsaasWebhookController],
   providers: [
     SubscriptionRepository,
-    { provide: BillingProvider, useClass: useAsaas ? AsaasBilling : LogBilling }
+    { provide: BillingProvider, useClass: useAsaas ? AsaasBilling : LogBilling },
   ],
-  exports: [SubscriptionRepository]
+  exports: [SubscriptionRepository],
 })
 export class BillingModule {}

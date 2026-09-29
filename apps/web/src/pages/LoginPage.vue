@@ -1,38 +1,36 @@
 <script setup lang="ts">
-import { ref } from 'vue'
-import { useRouter } from 'vue-router'
-import { useForm, useField } from 'vee-validate'
-import * as z from 'zod'
-import { toTypedSchema } from '@vee-validate/zod'
-import {
-  ArrowRight,
-  CircleAlert,
-  Download,
-  Link,
-  Zap,
-} from 'lucide-vue-next'
-import { Button } from '@/components/ui/button'
-import { Input } from '@/components/ui/input'
-import { Label } from '@/components/ui/label'
-import Logo from '@/components/Logo.vue'
-import { useAuthStore } from '@/stores/auth'
+import { ref } from 'vue';
+import { useRouter } from 'vue-router';
+import { useForm, useField } from 'vee-validate';
+import * as z from 'zod';
+import { toTypedSchema } from '@vee-validate/zod';
+import { ArrowRight, CircleAlert, Download, Link, Zap } from 'lucide-vue-next';
+import { Button } from '@/components/ui/button';
+import { Input } from '@/components/ui/input';
+import { Label } from '@/components/ui/label';
+import Logo from '@/components/Logo.vue';
+import { useAuthStore } from '@/stores/auth';
 
-const authStore = useAuthStore()
-const router = useRouter()
+const authStore = useAuthStore();
+const router = useRouter();
 
-const error = ref<string | null>(null)
+const error = ref<string | null>(null);
 
 const LoginForm = z.object({
   email: z.string().trim().email('E-mail inválido.').min(1, 'Informe seu e-mail.'),
-  password: z.string().min(1, 'Informe sua senha.')
-})
+  password: z.string().min(1, 'Informe sua senha.'),
+});
 
 const { handleSubmit, isSubmitting } = useForm({
-  validationSchema: toTypedSchema(LoginForm)
-})
+  validationSchema: toTypedSchema(LoginForm),
+});
 
-const { value: email, errorMessage: emailError, meta: emailMeta } = useField<string>('email')
-const { value: password, errorMessage: passwordError, meta: passwordMeta } = useField<string>('password')
+const { value: email, errorMessage: emailError, meta: emailMeta } = useField<string>('email');
+const {
+  value: password,
+  errorMessage: passwordError,
+  meta: passwordMeta,
+} = useField<string>('password');
 
 const benefits = [
   {
@@ -50,17 +48,17 @@ const benefits = [
     title: 'Baixe tudo organizado em zip',
     text: 'Por empresa e competência, ou a competência inteira de uma vez.',
   },
-]
+];
 
 const onSubmit = handleSubmit(async (values) => {
-  error.value = null
+  error.value = null;
   try {
-    await authStore.signInAccountant(values.email, values.password)
-    router.push('/competencias')
+    await authStore.signInAccountant(values.email, values.password);
+    router.push('/competencias');
   } catch (err: any) {
-    error.value = err.message || 'E-mail ou senha inválidos.'
+    error.value = err.message || 'E-mail ou senha inválidos.';
   }
-})
+});
 </script>
 
 <template>
@@ -71,12 +69,16 @@ const onSubmit = handleSubmit(async (values) => {
         Pare de garimpar documento no WhatsApp.
       </p>
       <p class="mt-3 max-w-md text-sm opacity-80">
-        Defina o checklist mensal de cada empresa, abra a competência e receba tudo organizado — sem cobrar documento um por um.
+        Defina o checklist mensal de cada empresa, abra a competência e receba tudo organizado — sem
+        cobrar documento um por um.
       </p>
 
       <ul class="mt-10 flex max-w-md flex-col gap-6">
         <li v-for="item in benefits" :key="item.title" class="flex gap-4">
-          <span class="bg-sidebar-accent flex size-9 shrink-0 items-center justify-center rounded-lg" aria-hidden="true">
+          <span
+            class="bg-sidebar-accent flex size-9 shrink-0 items-center justify-center rounded-lg"
+            aria-hidden="true"
+          >
             <component :is="item.icon" class="text-base h-5 w-5" />
           </span>
           <span>
@@ -94,7 +96,11 @@ const onSubmit = handleSubmit(async (values) => {
           Informe suas credenciais para gerenciar suas competências.
         </p>
 
-        <div v-if="error" class="mt-6 flex gap-3 rounded-lg border border-danger-border bg-danger-surface p-3 text-sm text-danger-foreground" role="alert">
+        <div
+          v-if="error"
+          class="mt-6 flex gap-3 rounded-lg border border-danger-border bg-danger-surface p-3 text-sm text-danger-foreground"
+          role="alert"
+        >
           <CircleAlert class="mt-0.5 shrink-0 text-base h-4 w-4" aria-hidden="true" />
           <p>{{ error }}</p>
         </div>
@@ -114,7 +120,11 @@ const onSubmit = handleSubmit(async (values) => {
               v-model="email"
               :aria-describedby="emailError && emailMeta.touched ? 'email-error' : undefined"
             />
-            <p v-if="emailError && emailMeta.touched" id="email-error" class="text-destructive text-xs">
+            <p
+              v-if="emailError && emailMeta.touched"
+              id="email-error"
+              class="text-destructive text-xs"
+            >
               {{ emailError }}
             </p>
           </div>
@@ -129,9 +139,15 @@ const onSubmit = handleSubmit(async (values) => {
               type="password"
               autocomplete="current-password"
               v-model="password"
-              :aria-describedby="passwordError && passwordMeta.touched ? 'password-error' : undefined"
+              :aria-describedby="
+                passwordError && passwordMeta.touched ? 'password-error' : undefined
+              "
             />
-            <p v-if="passwordError && passwordMeta.touched" id="password-error" class="text-destructive text-xs">
+            <p
+              v-if="passwordError && passwordMeta.touched"
+              id="password-error"
+              class="text-destructive text-xs"
+            >
               {{ passwordError }}
             </p>
           </div>

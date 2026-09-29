@@ -1,7 +1,13 @@
 import { Injectable } from '@nestjs/common';
 import { eq } from 'drizzle-orm';
 import { Database } from '../../infra/database/database.js';
-import { whatsappIntegration, accountingFirm, period, request, message } from '../../infra/database/schema/index.js';
+import {
+  whatsappIntegration,
+  accountingFirm,
+  period,
+  request,
+  message,
+} from '../../infra/database/schema/index.js';
 import type { FirmScope } from '../auth/scope.js';
 
 @Injectable()
@@ -35,7 +41,12 @@ export class WhatsappRepository {
 
   async upsertIntegration(
     scope: FirmScope,
-    data: { wabaId: string; phoneNumberId: string; displayPhoneNumber: string; accessToken: string },
+    data: {
+      wabaId: string;
+      phoneNumberId: string;
+      displayPhoneNumber: string;
+      accessToken: string;
+    },
   ) {
     await this.db
       .insert(whatsappIntegration)
@@ -60,7 +71,9 @@ export class WhatsappRepository {
   }
 
   async deleteIntegration(scope: FirmScope) {
-    await this.db.delete(whatsappIntegration).where(eq(whatsappIntegration.accountingFirmId, scope));
+    await this.db
+      .delete(whatsappIntegration)
+      .where(eq(whatsappIntegration.accountingFirmId, scope));
   }
 
   async getIntegrationByTenantId(tenantId: string) {

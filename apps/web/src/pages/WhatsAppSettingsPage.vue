@@ -2,14 +2,28 @@
 import { ref, onMounted } from 'vue';
 import { useTitle } from '@vueuse/core';
 import { Button } from '@/components/ui/button';
-import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from '@/components/ui/card';
+import {
+  Card,
+  CardContent,
+  CardDescription,
+  CardFooter,
+  CardHeader,
+  CardTitle,
+} from '@/components/ui/card';
 import { api } from '@/api/client';
 import { toast } from 'vue-sonner';
 import { Loader2, MessageSquare, AlertCircle, CheckCircle2 } from 'lucide-vue-next';
 
 useTitle('Configurações do WhatsApp | Competa');
 
-type WhatsAppStatus = 'not_connected' | 'pending_phone' | 'pending_payment' | 'pending_template' | 'active' | 'suspended' | 'error';
+type WhatsAppStatus =
+  | 'not_connected'
+  | 'pending_phone'
+  | 'pending_payment'
+  | 'pending_template'
+  | 'active'
+  | 'suspended'
+  | 'error';
 
 interface WhatsAppStatusResponse {
   status: WhatsAppStatus;
@@ -51,7 +65,7 @@ const connectWhatsApp = async () => {
       displayPhoneNumber.value = res.displayPhoneNumber || '';
       wabaId.value = res.wabaId || '';
     }
-    
+
     toast({
       title: 'WhatsApp Conectado',
       description: 'A integração foi configurada com sucesso.',
@@ -83,17 +97,21 @@ const sendTestMessage = async () => {
 };
 
 const disconnectWhatsApp = async () => {
-  if (!confirm('Tem certeza que deseja desconectar o WhatsApp? Novas solicitações voltarão a ser enviadas apenas por e-mail.')) {
+  if (
+    !confirm(
+      'Tem certeza que deseja desconectar o WhatsApp? Novas solicitações voltarão a ser enviadas apenas por e-mail.',
+    )
+  ) {
     return;
   }
-  
+
   processing.value = true;
   try {
     await api.delete('/whatsapp');
     status.value = 'not_connected';
     displayPhoneNumber.value = '';
     wabaId.value = '';
-    
+
     toast({
       title: 'WhatsApp Desconectado',
       description: 'A integração foi removida com sucesso.',
@@ -113,7 +131,8 @@ onMounted(fetchStatus);
     <div>
       <h1 class="text-3xl font-bold tracking-tight">WhatsApp</h1>
       <p class="text-muted-foreground">
-        Conecte sua conta do WhatsApp Business para enviar lembretes e solicitações aos seus clientes.
+        Conecte sua conta do WhatsApp Business para enviar lembretes e solicitações aos seus
+        clientes.
       </p>
     </div>
 
@@ -129,19 +148,18 @@ onMounted(fetchStatus);
             Integrar WhatsApp
           </CardTitle>
           <CardDescription>
-            Conecte sua conta Meta (Facebook) para habilitar o envio oficial de mensagens de WhatsApp.
+            Conecte sua conta Meta (Facebook) para habilitar o envio oficial de mensagens de
+            WhatsApp.
           </CardDescription>
         </CardHeader>
         <CardContent class="space-y-4 text-sm text-muted-foreground">
-          <p>
-            O envio via WhatsApp aumenta em até 80% a taxa de entrega dos documentos no prazo.
-          </p>
+          <p>O envio via WhatsApp aumenta em até 80% a taxa de entrega dos documentos no prazo.</p>
           <div class="rounded-md bg-muted p-4">
             <p class="font-medium text-foreground mb-1">Atenção aos custos</p>
             <p>
-              O serviço de mensagens do WhatsApp / Meta Cloud API é cobrado diretamente pela Meta (Facebook) 
-              através do cartão de crédito cadastrado na sua conta empresarial. A assinatura do Competa cobre 
-              apenas a plataforma de software.
+              O serviço de mensagens do WhatsApp / Meta Cloud API é cobrado diretamente pela Meta
+              (Facebook) através do cartão de crédito cadastrado na sua conta empresarial. A
+              assinatura do Competa cobre apenas a plataforma de software.
             </p>
           </div>
         </CardContent>
@@ -160,9 +178,7 @@ onMounted(fetchStatus);
             <AlertCircle v-else class="h-5 w-5 text-amber-500" />
             Integração Ativa
           </CardTitle>
-          <CardDescription>
-            Gerencie sua conexão com o WhatsApp Business.
-          </CardDescription>
+          <CardDescription> Gerencie sua conexão com o WhatsApp Business. </CardDescription>
         </CardHeader>
         <CardContent class="space-y-6">
           <div class="grid gap-4 md:grid-cols-2">
@@ -193,17 +209,23 @@ onMounted(fetchStatus);
       <Card v-if="status === 'active'">
         <CardHeader>
           <CardTitle>Disparo de Teste</CardTitle>
-          <CardDescription>Envie uma mensagem para validar se sua integração está funcionando.</CardDescription>
+          <CardDescription
+            >Envie uma mensagem para validar se sua integração está funcionando.</CardDescription
+          >
         </CardHeader>
         <CardContent>
           <div class="flex max-w-sm items-center gap-2">
-            <input 
-              v-model="testPhone" 
-              type="text" 
-              placeholder="Ex: 5511999999999" 
+            <input
+              v-model="testPhone"
+              type="text"
+              placeholder="Ex: 5511999999999"
               class="flex h-10 w-full rounded-md border border-input bg-background px-3 py-2 text-sm ring-offset-background file:border-0 file:bg-transparent file:text-sm file:font-medium placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-50"
             />
-            <Button @click="sendTestMessage" :disabled="sendingTest || !testPhone" variant="secondary">
+            <Button
+              @click="sendTestMessage"
+              :disabled="sendingTest || !testPhone"
+              variant="secondary"
+            >
               <Loader2 v-if="sendingTest" class="mr-2 h-4 w-4 animate-spin" />
               Testar
             </Button>

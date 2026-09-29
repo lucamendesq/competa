@@ -1,7 +1,7 @@
-import { ref } from 'vue'
-import { defineStore } from 'pinia'
-import { api } from '../api/client'
-import { authClient } from '../api/auth-client'
+import { ref } from 'vue';
+import { defineStore } from 'pinia';
+import { api } from '../api/client';
+import { authClient } from '../api/auth-client';
 
 export type Accountant = {
   accountant: { id: string; name: string; email: string; owner: boolean };
@@ -114,7 +114,10 @@ export const useAuthStore = defineStore('auth', () => {
     accountant.value = await api.get<Accountant>('/auth/me');
   }
 
-  async function signUpWithInvite(body: { name: string; email: string; password: string }, token: string) {
+  async function signUpWithInvite(
+    body: { name: string; email: string; password: string },
+    token: string,
+  ) {
     await api.post('/auth/sign-up', { ...body, token });
   }
 
@@ -189,7 +192,7 @@ export const useAuthStore = defineStore('auth', () => {
 
   async function sendMagicLink(email: string, callbackURL: string) {
     const { error } = await authClient.signIn.magicLink({ email, callbackURL });
-    if (error) throw new Error("Não foi possível enviar o link. Confira o e-mail e tente de novo.");
+    if (error) throw new Error('Não foi possível enviar o link. Confira o e-mail e tente de novo.');
   }
 
   return {
@@ -208,7 +211,6 @@ export const useAuthStore = defineStore('auth', () => {
     reloadContact,
     setContactPassword,
     reloadAccountant,
-    sendMagicLink
+    sendMagicLink,
   };
-})
-
+});

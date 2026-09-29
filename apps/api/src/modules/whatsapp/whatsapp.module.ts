@@ -15,7 +15,10 @@ new Logger('WhatsappModule').log(useMockWhatsapp ? 'MockWhatsappProvider' : 'Wha
   providers: [
     WhatsappRepository,
     WhatsappCryptoService,
-    { provide: 'WHATSAPP_PROVIDER', useClass: useMockWhatsapp ? MockWhatsappProvider : WhatsappProvider },
+    {
+      provide: 'WHATSAPP_PROVIDER',
+      useClass: useMockWhatsapp ? MockWhatsappProvider : WhatsappProvider,
+    },
   ],
   exports: [WhatsappRepository, WhatsappCryptoService, 'WHATSAPP_PROVIDER'],
 })

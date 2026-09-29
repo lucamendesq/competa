@@ -20,8 +20,10 @@ export class AsaasWebhookController {
   async handleWebhook(@Body() payload: AsaasWebhookPayload) {
     // Validação básica do token do webhook (configurável no painel do Asaas)
     // if (token !== env.ASAAS_WEBHOOK_TOKEN) throw new UnauthorizedException();
-    
-    this.logger.log(`Webhook Asaas recebido: ${payload.event} para assinatura ${payload.payment?.subscription}`);
+
+    this.logger.log(
+      `Webhook Asaas recebido: ${payload.event} para assinatura ${payload.payment?.subscription}`,
+    );
 
     if (!payload.payment?.subscription) {
       return { received: true };
@@ -34,7 +36,7 @@ export class AsaasWebhookController {
     } else if (payload.event === 'PAYMENT_OVERDUE' || payload.event === 'PAYMENT_DELETED') {
       await this.subscriptions.updateStatus(subscriptionId, 'OVERDUE');
     }
-    
+
     return { received: true };
   }
 }

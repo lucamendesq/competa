@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { computed } from 'vue'
+import { computed } from 'vue';
 import {
   Check,
   Minus,
@@ -12,16 +12,16 @@ import {
   Lock,
   TriangleAlert,
   Upload,
-  X
-} from 'lucide-vue-next'
+  X,
+} from 'lucide-vue-next';
 
 const props = defineProps<{
-  status: string
-  text?: string
-  title?: string
-}>()
+  status: string;
+  text?: string;
+  title?: string;
+}>();
 
-type Tone = 'neutral' | 'info' | 'success' | 'danger' | 'warning' | 'closed'
+type Tone = 'neutral' | 'info' | 'success' | 'danger' | 'warning' | 'closed';
 
 const TONE_CLASS: Record<Tone, string> = {
   neutral: 'bg-muted text-muted-foreground border-border',
@@ -30,7 +30,7 @@ const TONE_CLASS: Record<Tone, string> = {
   danger: 'bg-danger-surface text-danger-foreground border-danger-border',
   warning: 'bg-warning-surface text-warning-foreground border-warning-border',
   closed: 'bg-muted text-muted-foreground border-border',
-}
+};
 
 const STATUS: Record<string, { label: string; tone: Tone; icon: any }> = {
   pending: { label: 'Pendente', tone: 'neutral', icon: Clock },
@@ -55,17 +55,20 @@ const STATUS: Record<string, { label: string; tone: Tone; icon: any }> = {
   own_template: { label: 'Meu modelo', tone: 'info', icon: SquareCheckBig },
   connected: { label: 'Ativo', tone: 'success', icon: CircleCheck },
   disconnected: { label: 'Não conectado', tone: 'closed', icon: CircleSlash },
-}
+};
 
-const entry = computed(() => STATUS[props.status] ?? {
-  label: props.status,
-  tone: 'neutral',
-  icon: Clock,
-})
+const entry = computed(
+  () =>
+    STATUS[props.status] ?? {
+      label: props.status,
+      tone: 'neutral',
+      icon: Clock,
+    },
+);
 
-const label = computed(() => props.text ?? entry.value.label)
-const toneClass = computed(() => TONE_CLASS[entry.value.tone])
-const iconComponent = computed(() => entry.value.icon)
+const label = computed(() => props.text ?? entry.value.label);
+const toneClass = computed(() => TONE_CLASS[entry.value.tone]);
+const iconComponent = computed(() => entry.value.icon);
 </script>
 
 <template>

@@ -92,4 +92,3 @@ jobs:
           accountId: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
           command: pages deploy apps/landing/dist --project-name=competa-landing
           gitHubToken: ${{ secrets.GITHUB_TOKEN }}
-

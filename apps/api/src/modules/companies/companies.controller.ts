@@ -233,7 +233,10 @@ export class CompaniesController {
   }
 
   @Get(':id/contacts/access')
-  async listContactAccess(@CurrentScope() scope: FirmScope, @Param(zodPipe(IdParam)) params: IdParam) {
+  async listContactAccess(
+    @CurrentScope() scope: FirmScope,
+    @Param(zodPipe(IdParam)) params: IdParam,
+  ) {
     if (!(await this.contacts.findOwnedCompany(scope, params.id))) {
       throw new NotFound('Empresa não encontrada.');
     }

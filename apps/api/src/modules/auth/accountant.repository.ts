@@ -2,7 +2,13 @@ import { Injectable } from '@nestjs/common';
 import { and, asc, eq, isNull, sql } from 'drizzle-orm';
 import { addDays } from 'date-fns';
 import { Database } from '../../infra/database/database.js';
-import { accountant, accountingFirm, invite, subscription, user } from '../../infra/database/schema/index.js';
+import {
+  accountant,
+  accountingFirm,
+  invite,
+  subscription,
+  user,
+} from '../../infra/database/schema/index.js';
 import { InviteNotFound } from './errors.js';
 import type { FirmScope } from './scope.js';
 
@@ -56,7 +62,7 @@ export class AccountantRepository {
       .leftJoin(subscription, eq(subscription.accountingFirmId, accountant.accountingFirmId))
       .where(eq(accountant.authUserId, authUserId))
       .limit(1);
-    
+
     return row;
   }
 
@@ -175,10 +181,7 @@ export class AccountantRepository {
     await this.db.delete(user).where(eq(user.id, authUserId));
   }
 
-  async provisionFirm(input: {
-    authUserId: string;
-    firmName: string;
-  }) {
+  async provisionFirm(input: { authUserId: string; firmName: string }) {
     await this.db.transaction(async (tx) => {
       const [firm] = await tx.insert(accountingFirm).values({ name: input.firmName }).returning();
 

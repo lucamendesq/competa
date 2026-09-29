@@ -29,7 +29,9 @@ export class WhatsappProvider extends MessageProvider {
     } else if (message.requestId) {
       integration = await this.repository.getIntegrationByRequestId(message.requestId);
     } else {
-      throw new Error('WhatsappProvider exige requestId ou tenantId para identificar a Contabilidade (tenant).');
+      throw new Error(
+        'WhatsappProvider exige requestId ou tenantId para identificar a Contabilidade (tenant).',
+      );
     }
 
     if (!integration || integration.status !== 'active') {

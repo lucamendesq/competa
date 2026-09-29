@@ -8,9 +8,9 @@ export class SubscriptionRepository {
   constructor(private readonly db: Database) {}
 
   async updateGatewayData(
-    firmId: string, 
-    gatewayCustomerId: string, 
-    gatewaySubscriptionId: string
+    firmId: string,
+    gatewayCustomerId: string,
+    gatewaySubscriptionId: string,
   ) {
     await this.db
       .update(subscription)
@@ -19,17 +19,17 @@ export class SubscriptionRepository {
   }
 
   async updateStatus(
-    gatewaySubscriptionId: string, 
+    gatewaySubscriptionId: string,
     status: string,
     currentPeriodStart?: Date,
-    currentPeriodEnd?: Date
+    currentPeriodEnd?: Date,
   ) {
     await this.db
       .update(subscription)
-      .set({ 
-        status, 
-        currentPeriodStart, 
-        currentPeriodEnd 
+      .set({
+        status,
+        currentPeriodStart,
+        currentPeriodEnd,
       })
       .where(eq(subscription.gatewaySubscriptionId, gatewaySubscriptionId));
   }

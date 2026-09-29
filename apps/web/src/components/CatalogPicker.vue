@@ -1,39 +1,42 @@
 <script setup lang="ts">
-import { Search } from 'lucide-vue-next'
-import { Button } from '@/components/ui/button'
-import { Input } from '@/components/ui/input'
-import { Label } from '@/components/ui/label'
+import { Search } from 'lucide-vue-next';
+import { Button } from '@/components/ui/button';
+import { Input } from '@/components/ui/input';
+import { Label } from '@/components/ui/label';
 
 export type CatalogDocument = {
   id: string;
   name: string;
   category: string;
   acceptedFormats: string[];
-}
+};
 
 const CATEGORY_LABEL: Record<string, string> = {
   fiscal: 'Fiscal / Impostos',
   accounting: 'Contábil / Financeiro',
   payroll: 'Folha de Pagamento',
   legal: 'Societário / Legal',
-}
+};
 
-withDefaults(defineProps<{
-  documents: CatalogDocument[]
-  search: string
-  searchId?: string
-  emptyLabel?: string
-  acting?: boolean
-}>(), {
-  searchId: 'search-catalog',
-  emptyLabel: 'Nenhum documento do catálogo fora desta lista.',
-  acting: false
-})
+withDefaults(
+  defineProps<{
+    documents: CatalogDocument[];
+    search: string;
+    searchId?: string;
+    emptyLabel?: string;
+    acting?: boolean;
+  }>(),
+  {
+    searchId: 'search-catalog',
+    emptyLabel: 'Nenhum documento do catálogo fora desta lista.',
+    acting: false,
+  },
+);
 
 const emit = defineEmits<{
-  'update:search': [value: string]
-  'add': [document: CatalogDocument]
-}>()
+  'update:search': [value: string];
+  add: [document: CatalogDocument];
+}>();
 </script>
 
 <template>
@@ -59,7 +62,11 @@ const emit = defineEmits<{
     </template>
     <template v-else>
       <ul class="divide-border mt-4 divide-y" role="list">
-        <li v-for="document in documents" :key="document.id" class="flex flex-wrap items-center justify-between gap-3 py-3">
+        <li
+          v-for="document in documents"
+          :key="document.id"
+          class="flex flex-wrap items-center justify-between gap-3 py-3"
+        >
           <div class="min-w-0">
             <p class="text-sm font-medium">{{ document.name }}</p>
             <p class="text-muted-foreground mt-0.5 text-xs">
@@ -67,12 +74,7 @@ const emit = defineEmits<{
               {{ document.acceptedFormats.join(', ') }}
             </p>
           </div>
-          <Button
-            variant="outline"
-            size="sm"
-            :disabled="acting"
-            @click="emit('add', document)"
-          >
+          <Button variant="outline" size="sm" :disabled="acting" @click="emit('add', document)">
             Adicionar
           </Button>
         </li>

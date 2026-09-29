@@ -1,13 +1,16 @@
 <script setup lang="ts">
-withDefaults(defineProps<{
-  message?: string
-}>(), {
-  message: 'Erro inesperado. Tente novamente.'
-})
+withDefaults(
+  defineProps<{
+    message?: string;
+  }>(),
+  {
+    message: 'Erro inesperado. Tente novamente.',
+  },
+);
 
 const emit = defineEmits<{
-  retry: []
-}>()
+  retry: [];
+}>();
 </script>
 
 <template>

@@ -47,9 +47,11 @@ export class TenantGuard implements CanActivate {
 
     // Defaulting Rule (COM-8)
     if (request.method !== 'GET') {
-      const isOverdue = row.subscriptionStatus === 'OVERDUE' || row.subscriptionStatus === 'CANCELED';
-      const isTrialExpired = row.subscriptionStatus === 'trialing' && row.trialEndsAt && isPast(row.trialEndsAt);
-      
+      const isOverdue =
+        row.subscriptionStatus === 'OVERDUE' || row.subscriptionStatus === 'CANCELED';
+      const isTrialExpired =
+        row.subscriptionStatus === 'trialing' && row.trialEndsAt && isPast(row.trialEndsAt);
+
       if (isOverdue || isTrialExpired) {
         throw new PaymentRequired();
       }

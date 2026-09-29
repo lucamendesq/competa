@@ -18,7 +18,12 @@ import {
   requestItem,
   uploadLink,
 } from '../../infra/database/schema/index.js';
-import { contactIdsOf, type ContactScope, type FirmScope, type UploadScope } from '../auth/scope.js';
+import {
+  contactIdsOf,
+  type ContactScope,
+  type FirmScope,
+  type UploadScope,
+} from '../auth/scope.js';
 import {
   asMonth,
   deadlineMissedAccountantEmail,

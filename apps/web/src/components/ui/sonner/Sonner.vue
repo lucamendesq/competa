@@ -1,10 +1,17 @@
 <script lang="ts" setup>
-import type { ToasterProps } from "vue-sonner"
-import { CheckCircledIcon, InfoCircledIcon, ReloadIcon, CrossCircledIcon, ExclamationTriangleIcon, Cross2Icon } from '@radix-icons/vue'
-import { Toaster as Sonner } from "vue-sonner"
-import { cn } from '@/utils/utils'
+import type { ToasterProps } from 'vue-sonner';
+import {
+  CheckCircledIcon,
+  InfoCircledIcon,
+  ReloadIcon,
+  CrossCircledIcon,
+  ExclamationTriangleIcon,
+  Cross2Icon,
+} from '@radix-icons/vue';
+import { Toaster as Sonner } from 'vue-sonner';
+import { cn } from '@/utils/utils';
 
-const props = defineProps<ToasterProps>()
+const props = defineProps<ToasterProps>();
 </script>
 
 <template>

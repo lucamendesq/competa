@@ -211,7 +211,7 @@ export class ContactRepository {
         .limit(1);
 
       if (!still) await tx.delete(user).where(eq(user.id, row.authUserId!));
-      
+
       return { revoked: true as const };
     });
   }

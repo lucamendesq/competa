@@ -24,7 +24,7 @@ export type PasswordlessSignInResponse = { userId: string; setCookie: string[] }
 export abstract class AuthProvider {
   abstract signUpEmail(
     input: SignUpEmailInput,
-    headers?: Headers
+    headers?: Headers,
   ): Promise<Result<SignUpEmailResponse, unknown>>;
   abstract getSession(headers: IncomingHttpHeaders): Promise<AuthSession | null>;
 

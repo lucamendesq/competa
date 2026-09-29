@@ -54,20 +54,18 @@ ${linkButton(event.uploadUrl, 'Enviar documentos')}`,
 
 /** O lembrete leva link novo: o cron rotaciona o `upload_link` antes de enviar, então o
  *  token em claro existe aqui. Sem `uploadUrl` (rotação falhou) cai no texto genérico. */
-export const reminderEmail = (
-  candidate: {
-    requestId?: string;
-    accountingFirmId?: string;
-    companyName: string;
-    contactName: string;
-    referenceMonth: string;
-    pendingItems: { name: string; dueDate: string | null }[];
-    periodDueDate: string | null;
-    uploadUrl?: string;
-    reminderCount?: number;
-    lastMessageAt?: Date | null;
-  },
-) => ({
+export const reminderEmail = (candidate: {
+  requestId?: string;
+  accountingFirmId?: string;
+  companyName: string;
+  contactName: string;
+  referenceMonth: string;
+  pendingItems: { name: string; dueDate: string | null }[];
+  periodDueDate: string | null;
+  uploadUrl?: string;
+  reminderCount?: number;
+  lastMessageAt?: Date | null;
+}) => ({
   subject: `Lembrete: documentos pendentes de ${asMonth(candidate.referenceMonth)}`,
   body: `<p>Olá, ${escape(candidate.contactName)}.</p>
 <p>Ainda faltam ${candidate.pendingItems.length} documento(s) da competência

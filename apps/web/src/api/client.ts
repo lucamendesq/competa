@@ -20,10 +20,14 @@ const cleanParams = (params?: Params): Record<string, string> => {
 const apiUrl = import.meta.env.VITE_API_URL || 'http://localhost:3000';
 
 class ApiClient {
-  private async request<T>(method: string, url: string, options?: { body?: unknown, params?: Params, responseType?: 'json' | 'blob' }): Promise<T> {
+  private async request<T>(
+    method: string,
+    url: string,
+    options?: { body?: unknown; params?: Params; responseType?: 'json' | 'blob' },
+  ): Promise<T> {
     const isAbsolute = /^https?:\/\//.test(url);
     let targetUrl = isAbsolute ? url : `${apiUrl}${url}`;
-    
+
     if (options?.params) {
       const searchParams = new URLSearchParams(cleanParams(options.params));
       const qs = searchParams.toString();
@@ -58,23 +62,23 @@ class ApiClient {
       if (response.status === 401 && (url === '/auth/me' || url === '/my/profile')) {
         return { data: null } as unknown as T;
       }
-      
+
       const text = await response.text().catch(() => '');
       let body: unknown = text;
       try {
         if (text) body = JSON.parse(text);
       } catch {}
-      
+
       throw new ApiError(response.status, body, `API Error ${response.status}`);
     }
 
     if (options?.responseType === 'blob') {
       return response.blob() as unknown as T;
     }
-    
+
     const text = await response.text();
     if (!text) return undefined as unknown as T;
-    
+
     return JSON.parse(text) as T;
   }
 

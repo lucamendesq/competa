@@ -221,7 +221,8 @@ export class RequestRepository {
         .where(and(eq(document.id, documentId), eq(document.reviewStatus, 'pending')))
         .returning({ id: document.id });
 
-      if (!rejected.length) throw new InvalidTransition('Este documento já foi revisado ou não está pendente.');
+      if (!rejected.length)
+        throw new InvalidTransition('Este documento já foi revisado ou não está pendente.');
 
       // limpa a marca do cron: prazo que estourar de novo neste Item volta a avisar
       await tx
@@ -442,7 +443,8 @@ export class RequestRepository {
           .where(and(eq(document.id, row.documentId), eq(document.reviewStatus, 'pending')))
           .returning({ id: document.id });
 
-        if (!rejected.length) throw new InvalidTransition('Este documento já foi revisado ou não está pendente.');
+        if (!rejected.length)
+          throw new InvalidTransition('Este documento já foi revisado ou não está pendente.');
 
         // limpa a marca do cron: prazo que estourar de novo neste Item volta a avisar
         await tx
@@ -463,7 +465,8 @@ export class RequestRepository {
           .where(and(eq(document.id, row.documentId), eq(document.reviewStatus, 'pending')))
           .returning({ id: document.id });
 
-        if (!updated.length) throw new InvalidTransition('Este documento já foi revisado ou não está pendente.');
+        if (!updated.length)
+          throw new InvalidTransition('Este documento já foi revisado ou não está pendente.');
       }
 
       if (rotated) {
@@ -614,7 +617,11 @@ export class RequestRepository {
   ) {
     return this.db.transaction(async (tx) => {
       const [current] = await tx
-        .select({ id: uploadLink.id, tokenHash: uploadLink.tokenHash, expiresAt: uploadLink.expiresAt })
+        .select({
+          id: uploadLink.id,
+          tokenHash: uploadLink.tokenHash,
+          expiresAt: uploadLink.expiresAt,
+        })
         .from(uploadLink)
         .where(eq(uploadLink.requestId, requestId))
         .for('update')
@@ -649,7 +656,11 @@ export class RequestRepository {
 
     return this.db.transaction(async (tx) => {
       const [current] = await tx
-        .select({ id: uploadLink.id, tokenHash: uploadLink.tokenHash, expiresAt: uploadLink.expiresAt })
+        .select({
+          id: uploadLink.id,
+          tokenHash: uploadLink.tokenHash,
+          expiresAt: uploadLink.expiresAt,
+        })
         .from(uploadLink)
         .where(eq(uploadLink.requestId, requestId))
         .for('update')
@@ -658,7 +669,9 @@ export class RequestRepository {
       if (!current) return undefined;
 
       const now = new Date();
-      const graceExpiresAt = new Date(Math.min(current.expiresAt.getTime(), addHours(now, 48).getTime()));
+      const graceExpiresAt = new Date(
+        Math.min(current.expiresAt.getTime(), addHours(now, 48).getTime()),
+      );
 
       const [row] = await tx
         .update(uploadLink)

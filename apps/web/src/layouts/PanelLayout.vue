@@ -1,41 +1,52 @@
 <script setup lang="ts">
-import { computed, ref } from 'vue'
-import { useRouter } from 'vue-router'
-import { Menu, X, CalendarRange, Building2, SquareCheckBig, Settings, ChevronDown, Sun, Moon, LogOut } from 'lucide-vue-next'
-import { useAuthStore } from '../stores/auth'
-import { useTheme } from '../composables/useTheme'
-import Logo from '../components/Logo.vue'
+import { computed, ref } from 'vue';
+import { useRouter } from 'vue-router';
+import {
+  Menu,
+  X,
+  CalendarRange,
+  Building2,
+  SquareCheckBig,
+  Settings,
+  ChevronDown,
+  Sun,
+  Moon,
+  LogOut,
+} from 'lucide-vue-next';
+import { useAuthStore } from '../stores/auth';
+import { useTheme } from '../composables/useTheme';
+import Logo from '../components/Logo.vue';
 
-const auth = useAuthStore()
-const router = useRouter()
-const theme = useTheme()
+const auth = useAuthStore();
+const router = useRouter();
+const theme = useTheme();
 
-const menuOpen = ref(false)
-const profileOpen = ref(false)
+const menuOpen = ref(false);
+const profileOpen = ref(false);
 
-const firmName = computed(() => auth.accountant?.accountingFirm.name ?? '')
-const isOwner = computed(() => auth.accountant?.accountant.owner === true)
-const accountantName = computed(() => auth.accountant?.accountant.name ?? '')
-const accountantEmail = computed(() => auth.accountant?.accountant.email ?? '')
+const firmName = computed(() => auth.accountant?.accountingFirm.name ?? '');
+const isOwner = computed(() => auth.accountant?.accountant.owner === true);
+const accountantName = computed(() => auth.accountant?.accountant.name ?? '');
+const accountantEmail = computed(() => auth.accountant?.accountant.email ?? '');
 const initials = computed(() =>
   accountantName.value
     .split(' ')
     .filter(Boolean)
     .slice(0, 2)
     .map((part) => part[0]?.toUpperCase() ?? '')
-    .join('')
-)
+    .join(''),
+);
 
 const nav = [
   { path: '/competencias', label: 'Competências', icon: CalendarRange },
   { path: '/empresas', label: 'Empresas', icon: Building2 },
   { path: '/templates', label: 'Checklists', icon: SquareCheckBig },
   { path: '/configuracoes/whatsapp', label: 'WhatsApp', icon: Settings },
-]
+];
 
 async function sair() {
-  await auth.signOut()
-  await router.push('/entrar')
+  await auth.signOut();
+  await router.push('/entrar');
 }
 </script>
 
@@ -48,7 +59,9 @@ async function sair() {
       Pular para o conteúdo
     </a>
 
-    <div class="bg-sidebar text-sidebar-foreground sticky top-0 z-40 flex h-14 items-center gap-3 px-4 lg:hidden">
+    <div
+      class="bg-sidebar text-sidebar-foreground sticky top-0 z-40 flex h-14 items-center gap-3 px-4 lg:hidden"
+    >
       <button
         type="button"
         class="focus-visible:ring-sidebar-ring inline-flex size-9 items-center justify-center rounded-lg focus-visible:ring-2 focus-visible:outline-none"
@@ -102,7 +115,10 @@ async function sair() {
           :aria-expanded="profileOpen"
           @click="profileOpen = !profileOpen"
         >
-          <span class="bg-sidebar-accent flex size-8 shrink-0 items-center justify-center rounded-full text-xs font-semibold" aria-hidden="true">
+          <span
+            class="bg-sidebar-accent flex size-8 shrink-0 items-center justify-center rounded-full text-xs font-semibold"
+            aria-hidden="true"
+          >
             {{ initials }}
           </span>
           <span class="min-w-0 flex-1">
@@ -112,12 +128,18 @@ async function sair() {
           <ChevronDown class="text-sm" aria-hidden="true" />
         </button>
 
-        <div v-if="profileOpen" class="bg-popover text-popover-foreground border-border absolute bottom-16 left-3 right-3 rounded-xl border p-1 shadow-lg">
+        <div
+          v-if="profileOpen"
+          class="bg-popover text-popover-foreground border-border absolute bottom-16 left-3 right-3 rounded-xl border p-1 shadow-lg"
+        >
           <RouterLink
             v-if="isOwner"
             to="/configuracoes/contadores"
             class="hover:bg-muted flex h-9 items-center rounded-lg px-3 text-sm"
-            @click="profileOpen = false; menuOpen = false"
+            @click="
+              profileOpen = false;
+              menuOpen = false;
+            "
           >
             Convidar contador
           </RouterLink>

@@ -367,15 +367,18 @@ dizer o que o `NODE_ENV` já diz).
 **Contexto:** O produto atinge a maturidade para cobrança (Fase 13 - TASK-047..050). Há a necessidade de escolher o gateway de pagamento (Stripe vs Asaas/Pagar.me) e o modelo de negócio base. O público contábil e B2B no Brasil utiliza fortemente Pix e Boleto.
 
 **Decisão:**
+
 1. **Gateway: Asaas.** É a plataforma com maior aderência para cobrança B2B (Pix/Boleto nativos) e no longo prazo permitirá inclusive automatizar a emissão de NF-e e split.
 2. **Modelo de Preços: Flat-rate (Tiers fixos).** Em vez de medir granularmente "empresas ativas em competência aberta" (metered billing/pay-as-you-go), o MVP usará a assinatura tradicional por pacotes (ex: plano Essencial).
 3. **Mecanismo:** A trava ocorrerá de forma preemptiva. Se a Contabilidade tentar abrir uma competência e exceder a cota do seu plano atual, o sistema bloqueia a ação exigindo upgrade, em vez de deixar ultrapassar para faturar no fim do ciclo.
 
-**Consequências:** 
+**Consequências:**
+
 - A integração com Asaas fornece um ecossistema mais local, apesar da documentação inicial exigir alguns tratamentos a mais que o Stripe.
 - O modelo flat-rate é muito mais fácil de implementar e dar manutenção inicial (dispensa a cron de medição e envio de métricas "usage events" pro gateway, bem como o tratamento complexo de proration num primeiro momento).
 - O produto precisará de uma "régua de inadimplência" que trava ações de escrita (`POST/PUT/DELETE/PATCH`) quando a assinatura (`subscription`) estiver em `OVERDUE` ou `CANCELED`. Leitura e exportação do que já é deles permanecem intactos.
 
-**Alternativas rejeitadas:** 
+**Alternativas rejeitadas:**
+
 - Stripe: descartado por priorizar o ecossistema brasileiro (Pix/Boleto mais nativo no Asaas e emissão fiscal futura).
 - Metered billing: descartado no MVP para reduzir a complexidade técnica e entregar a fatia de cobrança mais rapidamente.

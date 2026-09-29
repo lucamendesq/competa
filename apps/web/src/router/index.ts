@@ -1,23 +1,23 @@
-import { createRouter, createWebHistory, type RouteRecordRaw } from 'vue-router'
-import { useAuthStore } from '../stores/auth'
+import { createRouter, createWebHistory, type RouteRecordRaw } from 'vue-router';
+import { useAuthStore } from '../stores/auth';
 
 const routes: RouteRecordRaw[] = [
   {
     path: '/termos',
     name: 'Terms',
     meta: { title: 'Termos de Uso' },
-    component: () => import('../pages/TermsPage.vue')
+    component: () => import('../pages/TermsPage.vue'),
   },
   {
     path: '/privacidade',
     name: 'Privacy',
     meta: { title: 'Política de Privacidade' },
-    component: () => import('../pages/PrivacyPage.vue')
+    component: () => import('../pages/PrivacyPage.vue'),
   },
   {
     path: '/envio/:linkToken',
     name: 'Upload',
-    component: () => import('../pages/UploadPage.vue')
+    component: () => import('../pages/UploadPage.vue'),
   },
   {
     path: '/minha-area',
@@ -26,15 +26,15 @@ const routes: RouteRecordRaw[] = [
       {
         path: 'acesso',
         name: 'ContactSignIn',
-        component: () => import('../pages/ContactSignInPage.vue')
+        component: () => import('../pages/ContactSignInPage.vue'),
       },
       {
         path: 'pendencias',
         name: 'ContactPending',
         meta: { requiresAuth: 'contact' },
-        component: () => import('../pages/ContactPendingPage.vue')
-      }
-    ]
+        component: () => import('../pages/ContactPendingPage.vue'),
+      },
+    ],
   },
   {
     path: '/',
@@ -45,53 +45,93 @@ const routes: RouteRecordRaw[] = [
       {
         path: 'competencias',
         name: 'Periods',
-        component: () => import('../pages/PeriodsListPage.vue')
+        component: () => import('../pages/PeriodsListPage.vue'),
       },
-      { path: 'empresas', name: 'Companies', component: () => import('../pages/CompaniesListPage.vue') },
-      { path: 'empresas/nova', name: 'CompanyFormNew', component: () => import('../pages/CompanyFormPage.vue') },
-      { path: 'empresas/importar', name: 'ImportCompanies', component: () => import('../pages/ImportCompaniesPage.vue') },
-      { path: 'empresas/:id/editar', name: 'CompanyFormEdit', component: () => import('../pages/CompanyFormPage.vue'), props: true },
-      { path: 'empresas/:id/checklist', name: 'CompanyChecklist', component: () => import('../pages/CompanyChecklistPage.vue'), props: true },
-      { path: 'templates', name: 'Checklists', component: () => import('../pages/ChecklistsListPage.vue') },
-      { path: 'templates/:id', name: 'ChecklistForm', component: () => import('../pages/ChecklistFormPage.vue'), props: true },
-      { path: 'competencias/:id/pendencias', name: 'PendingPanel', component: () => import('../pages/PendingPanelPage.vue'), props: true },
-      { path: 'configuracoes/whatsapp', name: 'WhatsAppSettings', component: () => import('../pages/WhatsAppSettingsPage.vue') },
+      {
+        path: 'empresas',
+        name: 'Companies',
+        component: () => import('../pages/CompaniesListPage.vue'),
+      },
+      {
+        path: 'empresas/nova',
+        name: 'CompanyFormNew',
+        component: () => import('../pages/CompanyFormPage.vue'),
+      },
+      {
+        path: 'empresas/importar',
+        name: 'ImportCompanies',
+        component: () => import('../pages/ImportCompaniesPage.vue'),
+      },
+      {
+        path: 'empresas/:id/editar',
+        name: 'CompanyFormEdit',
+        component: () => import('../pages/CompanyFormPage.vue'),
+        props: true,
+      },
+      {
+        path: 'empresas/:id/checklist',
+        name: 'CompanyChecklist',
+        component: () => import('../pages/CompanyChecklistPage.vue'),
+        props: true,
+      },
+      {
+        path: 'templates',
+        name: 'Checklists',
+        component: () => import('../pages/ChecklistsListPage.vue'),
+      },
+      {
+        path: 'templates/:id',
+        name: 'ChecklistForm',
+        component: () => import('../pages/ChecklistFormPage.vue'),
+        props: true,
+      },
+      {
+        path: 'competencias/:id/pendencias',
+        name: 'PendingPanel',
+        component: () => import('../pages/PendingPanelPage.vue'),
+        props: true,
+      },
+      {
+        path: 'configuracoes/whatsapp',
+        name: 'WhatsAppSettings',
+        component: () => import('../pages/WhatsAppSettingsPage.vue'),
+      },
       // placeholder for others
-    ]
+    ],
   },
-  { path: '/entrar', name: 'Login', component: () => import('../pages/LoginPage.vue') }
-]
+  { path: '/entrar', name: 'Login', component: () => import('../pages/LoginPage.vue') },
+];
 
 const router = createRouter({
   history: createWebHistory(import.meta.env.BASE_URL),
-  routes
-})
+  routes,
+});
 
 router.beforeEach(async (to, _from, next) => {
-  const authStore = useAuthStore()
+  const authStore = useAuthStore();
 
   if (to.meta.requiresAuth === 'accountant') {
-    await authStore.ensureLoaded('accountant')
-    if (authStore.accountant) return next()
-    if (authStore.contact) return next('/minha-area/pendencias')
-    return next('/entrar')
+    await authStore.ensureLoaded('accountant');
+    if (authStore.accountant) return next();
+    if (authStore.contact) return next('/minha-area/pendencias');
+    return next('/entrar');
   }
 
   if (to.meta.requiresAuth === 'contact') {
-    await authStore.ensureLoaded('contact')
-    if (authStore.contact) return next()
-    return next('/minha-area/acesso')
+    await authStore.ensureLoaded('contact');
+    if (authStore.contact) return next();
+    return next('/minha-area/acesso');
   }
 
-  next()
-})
+  next();
+});
 
 router.afterEach((to) => {
   if (to.meta.title) {
-    document.title = `${to.meta.title} - Competa`
+    document.title = `${to.meta.title} - Competa`;
   } else {
-    document.title = 'Competa'
+    document.title = 'Competa';
   }
-})
+});
 
-export default router
+export default router;

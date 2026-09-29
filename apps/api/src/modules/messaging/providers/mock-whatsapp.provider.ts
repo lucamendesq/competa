@@ -8,11 +8,13 @@ export class MockWhatsappProvider extends MessageProvider {
 
   async send(message: MessageToSend): Promise<string | undefined | void> {
     if (!message.requestId && !message.tenantId) {
-      throw new Error('WhatsappProvider exige requestId ou tenantId para identificar a Contabilidade (tenant).');
+      throw new Error(
+        'WhatsappProvider exige requestId ou tenantId para identificar a Contabilidade (tenant).',
+      );
     }
 
     this.logger.log(`[MOCK WHATSAPP] Enviando ${message.purpose} para ${message.recipient}...`);
-    
+
     // Simulate API delay
     await new Promise((resolve) => setTimeout(resolve, 500));
 

@@ -1,15 +1,15 @@
 <script setup lang="ts">
-import type { HTMLAttributes } from "vue"
-import { ViewVerticalIcon } from '@radix-icons/vue'
-import { cn } from '@/utils/utils'
-import { Button } from '@/components/ui/button'
-import { useSidebar } from "./utils"
+import type { HTMLAttributes } from 'vue';
+import { ViewVerticalIcon } from '@radix-icons/vue';
+import { cn } from '@/utils/utils';
+import { Button } from '@/components/ui/button';
+import { useSidebar } from './utils';
 
 const props = defineProps<{
-  class?: HTMLAttributes["class"]
-}>()
+  class?: HTMLAttributes['class'];
+}>();
 
-const { toggleSidebar } = useSidebar()
+const { toggleSidebar } = useSidebar();
 </script>
 
 <template>

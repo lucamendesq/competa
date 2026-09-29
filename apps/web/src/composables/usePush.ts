@@ -1,7 +1,7 @@
-import { ref } from 'vue'
-import { api } from '@/api/client'
-import { apiErrorMessage } from '@/api/error'
-import { toast } from 'vue-sonner'
+import { ref } from 'vue';
+import { api } from '@/api/client';
+import { apiErrorMessage } from '@/api/error';
+import { toast } from 'vue-sonner';
 
 export type PushSubscriptionPayload = {
   endpoint: string;
@@ -18,13 +18,17 @@ const bytesFromBase64 = (base64: string) => {
 const toBase64 = (buffer: ArrayBuffer | null) =>
   buffer ? btoa(String.fromCharCode(...new Uint8Array(buffer))) : '';
 
-const supported = typeof Notification !== 'undefined' && typeof navigator !== 'undefined' && 'serviceWorker' in navigator && 'PushManager' in window;
+const supported =
+  typeof Notification !== 'undefined' &&
+  typeof navigator !== 'undefined' &&
+  'serviceWorker' in navigator &&
+  'PushManager' in window;
 
 export function usePush() {
-  const available = ref(false)
-  const subscribed = ref(false)
-  const subscribing = ref(false)
-  let key = ''
+  const available = ref(false);
+  const subscribed = ref(false);
+  const subscribing = ref(false);
+  let key = '';
 
   async function checkSubscription() {
     const registration = await navigator.serviceWorker.ready;
@@ -43,8 +47,8 @@ export function usePush() {
   }
 
   if (supported) {
-    void loadKey()
-    void checkSubscription()
+    void loadKey();
+    void checkSubscription();
   }
 
   async function subscribe(save: (payload: PushSubscriptionPayload) => Promise<unknown>) {
@@ -54,7 +58,7 @@ export function usePush() {
 
     try {
       if ((await Notification.requestPermission()) !== 'granted') {
-        toast.info('As notificações ficaram bloqueadas neste aparelho.')
+        toast.info('As notificações ficaram bloqueadas neste aparelho.');
         return;
       }
 
@@ -73,9 +77,9 @@ export function usePush() {
       });
 
       subscribed.value = true;
-      toast.success('Avisos ligados neste aparelho.')
+      toast.success('Avisos ligados neste aparelho.');
     } catch (error) {
-      toast.error(apiErrorMessage(error, 'Não foi possível ligar os avisos.'))
+      toast.error(apiErrorMessage(error, 'Não foi possível ligar os avisos.'));
     } finally {
       subscribing.value = false;
     }
@@ -85,6 +89,6 @@ export function usePush() {
     available,
     subscribed,
     subscribing,
-    subscribe
-  }
+    subscribe,
+  };
 }

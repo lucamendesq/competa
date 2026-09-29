@@ -1,26 +1,26 @@
 <script setup lang="ts">
-import { computed } from 'vue'
-import { useRouter } from 'vue-router'
-import { ClipboardList, History, LogOut, Sun, Moon } from 'lucide-vue-next'
-import { useAuthStore } from '../stores/auth'
-import { useTheme } from '../composables/useTheme'
-import Logo from '../components/Logo.vue'
-import InstallButton from '../components/InstallButton.vue'
+import { computed } from 'vue';
+import { useRouter } from 'vue-router';
+import { ClipboardList, History, LogOut, Sun, Moon } from 'lucide-vue-next';
+import { useAuthStore } from '../stores/auth';
+import { useTheme } from '../composables/useTheme';
+import Logo from '../components/Logo.vue';
+import InstallButton from '../components/InstallButton.vue';
 
-const auth = useAuthStore()
-const router = useRouter()
-const theme = useTheme()
+const auth = useAuthStore();
+const router = useRouter();
+const theme = useTheme();
 
-const perfil = computed(() => auth.contact)
+const perfil = computed(() => auth.contact);
 
 const nav = [
   { path: '/minha-area/pendencias', label: 'O que falta', icon: ClipboardList },
   { path: '/minha-area/competencias', label: 'Histórico', icon: History },
-]
+];
 
 async function sair() {
-  await auth.signOut()
-  await router.push('/minha-area/acesso')
+  await auth.signOut();
+  await router.push('/minha-area/acesso');
 }
 </script>
 
@@ -54,7 +54,9 @@ async function sair() {
           class="focus-visible:ring-sidebar-ring inline-flex size-9 items-center justify-center rounded-lg focus-visible:ring-2 focus-visible:outline-none"
           @click="theme.toggle"
         >
-          <span class="sr-only">{{ theme.dark.value ? 'Usar tema claro' : 'Usar tema escuro' }}</span>
+          <span class="sr-only">{{
+            theme.dark.value ? 'Usar tema claro' : 'Usar tema escuro'
+          }}</span>
           <component :is="theme.dark.value ? Sun : Moon" class="text-base" aria-hidden="true" />
         </button>
         <button

@@ -1,29 +1,31 @@
 @import 'tailwindcss';
 
 @theme {
-  --color-canvas: #FAFAFA;
-  --color-surface: #FFFFFF;
-  --color-surface-subtle: #F8FAFC;
-  --color-ink: #0A0F1D;
+  --color-canvas: #fafafa;
+  --color-surface: #ffffff;
+  --color-surface-subtle: #f8fafc;
+  --color-ink: #0a0f1d;
   --color-ink-muted: #475569;
-  --color-ink-subtle: #94A3B8;
-  --color-brand-primary: #2563EB;
-  --color-brand-action: #1D4ED8;
-  --color-brand-action-hover: #1E40AF;
-  --color-brand-subtle: #EFF6FF;
+  --color-ink-subtle: #94a3b8;
+  --color-brand-primary: #2563eb;
+  --color-brand-action: #1d4ed8;
+  --color-brand-action-hover: #1e40af;
+  --color-brand-subtle: #eff6ff;
   --color-border-hairline: rgba(15, 23, 42, 0.08);
   --color-border-strong: rgba(15, 23, 42, 0.16);
   --color-emerald-accent: #059669;
-  --color-emerald-surface: #ECFDF5;
-  --color-amber-accent: #D97706;
-  --color-amber-surface: #FFFBEB;
+  --color-emerald-surface: #ecfdf5;
+  --color-amber-accent: #d97706;
+  --color-amber-surface: #fffbeb;
 
   --font-sans: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
   --font-mono: 'JetBrains Mono', ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace;
 }
 
 @layer base {
-  *, *::before, *::after {
+  *,
+  *::before,
+  *::after {
     box-sizing: border-box;
   }
 
@@ -43,15 +45,15 @@
   }
 
   ::selection {
-    background-color: #DBEAFE;
-    color: #1E3A8A;
+    background-color: #dbeafe;
+    color: #1e3a8a;
   }
 }
 
 /* Micro hairline grid utility for subtle architectural structure */
 .editorial-grid {
   background-size: 32px 32px;
-  background-image: 
+  background-image:
     linear-gradient(to right, rgba(15, 23, 42, 0.03) 1px, transparent 1px),
     linear-gradient(to bottom, rgba(15, 23, 42, 0.03) 1px, transparent 1px);
 }

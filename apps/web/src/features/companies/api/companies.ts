@@ -1,4 +1,4 @@
-import { api } from '@/api/client'
+import { api } from '@/api/client';
 import type {
   CompanyDetailResponse,
   CompanyFlags,
@@ -8,7 +8,7 @@ import type {
   CreateCompanyBody,
   CreateOverrideBody,
   UpdateCompanyBody,
-} from '@competa/contracts'
+} from '@competa/contracts';
 
 export type Company = CompanySummaryResponse;
 export type Contact = ContactDetailResponse;
@@ -76,56 +76,57 @@ export type ImportPreviewResult = {
   lines: ImportPreviewLine[];
 };
 
-export const getCompaniesList = (params: { page: number; perPage: number; active?: string; search?: string }) =>
-  api.page<Company>('/companies', params)
+export const getCompaniesList = (params: {
+  page: number;
+  perPage: number;
+  active?: string;
+  search?: string;
+}) => api.page<Company>('/companies', params);
 
-export const getCompanyDetail = (id: string) =>
-  api.get<CompanyDetail>(`/companies/${id}`)
+export const getCompanyDetail = (id: string) => api.get<CompanyDetail>(`/companies/${id}`);
 
 export const getEffectiveChecklist = (id: string) =>
-  api.get<EffectiveChecklist>(`/companies/${id}/checklist`)
+  api.get<EffectiveChecklist>(`/companies/${id}/checklist`);
 
 export const getOverrides = (id: string) =>
-  api.get<Override[]>(`/companies/${id}/checklist-overrides`)
+  api.get<Override[]>(`/companies/${id}/checklist-overrides`);
 
-export const getAccesses = (id: string) =>
-  api.get<Contact[]>(`/companies/${id}/contacts/access`)
+export const getAccesses = (id: string) => api.get<Contact[]>(`/companies/${id}/contacts/access`);
 
 export const createCompany = (body: CreateCompanyBody) =>
-  api.post<CompanyDetail>('/companies', body)
+  api.post<CompanyDetail>('/companies', body);
 
 export const updateCompany = (id: string, body: UpdateCompanyBody) =>
-  api.patch<Company>(`/companies/${id}`, body)
+  api.patch<Company>(`/companies/${id}`, body);
 
-export const deactivateCompany = (id: string) =>
-  api.delete<Company>(`/companies/${id}`)
+export const deactivateCompany = (id: string) => api.delete<Company>(`/companies/${id}`);
 
 export const addContact = (companyId: string, body: ContactBody) =>
-  api.post<Contact>(`/companies/${companyId}/contacts`, body)
+  api.post<Contact>(`/companies/${companyId}/contacts`, body);
 
 export const updateContact = (companyId: string, contactId: string, body: Partial<ContactBody>) =>
-  api.patch<Contact>(`/companies/${companyId}/contacts/${contactId}`, body)
+  api.patch<Contact>(`/companies/${companyId}/contacts/${contactId}`, body);
 
 export const removeContact = (companyId: string, contactId: string) =>
-  api.delete<void>(`/companies/${companyId}/contacts/${contactId}`)
+  api.delete<void>(`/companies/${companyId}/contacts/${contactId}`);
 
 export const revokeAccess = (companyId: string, contactId: string) =>
-  api.delete<{ revoked: boolean }>(`/companies/${companyId}/contacts/${contactId}/access`)
+  api.delete<{ revoked: boolean }>(`/companies/${companyId}/contacts/${contactId}/access`);
 
 export const saveOverride = (companyId: string, body: CreateOverrideBody) =>
-  api.put<Override>(`/companies/${companyId}/checklist-overrides`, body)
+  api.put<Override>(`/companies/${companyId}/checklist-overrides`, body);
 
 export const removerOverride = (companyId: string, documentTypeId: string) =>
-  api.delete<void>(`/companies/${companyId}/checklist-overrides/${documentTypeId}`)
+  api.delete<void>(`/companies/${companyId}/checklist-overrides/${documentTypeId}`);
 
 export const sendAccessInvites = (companyIds: string[]) =>
-  api.post<{ invited: number; skipped: number }>('/companies/access-invites', { companyIds })
+  api.post<{ invited: number; skipped: number }>('/companies/access-invites', { companyIds });
 
 export const applyTemplate = (companyIds: string[], checklistTemplateId: string) =>
-  api.post<{ updated: number }>('/companies/apply-template', { companyIds, checklistTemplateId })
+  api.post<{ updated: number }>('/companies/apply-template', { companyIds, checklistTemplateId });
 
 export const importCsv = (csv: string) =>
-  api.post<ImportPreviewResult>('/companies/import', { csv })
+  api.post<ImportPreviewResult>('/companies/import', { csv });
 
 export const confirmImport = (pending: PendingImportRow[]) =>
-  api.post<ImportResult>('/companies/import/confirm', { pending })
+  api.post<ImportResult>('/companies/import/confirm', { pending });

@@ -64,9 +64,13 @@ const envSchema = z
     META_APP_SECRET: z.string().optional(),
     META_GRAPH_VERSION: z.string().default('v20.0'),
     WHATSAPP_ENCRYPTION_KEY: z.string().min(32).optional(),
-    
+
     ASAAS_API_KEY: blankAsMissing(z.string()),
-    ASAAS_SANDBOX: z.string().optional().transform((v) => v === 'true').default(false),
+    ASAAS_SANDBOX: z
+      .string()
+      .optional()
+      .transform((v) => v === 'true')
+      .default(false),
   })
   .superRefine((value, ctx) => {
     if (value.NODE_ENV !== 'production') return;

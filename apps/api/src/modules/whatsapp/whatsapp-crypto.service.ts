@@ -8,7 +8,7 @@ export class WhatsappCryptoService {
   private readonly key: Buffer;
 
   constructor() {
-    // Requires a 32-byte hex string (64 chars) or base64. 
+    // Requires a 32-byte hex string (64 chars) or base64.
     // Fallback to random if not set in dev, but it means tokens won't survive restarts if not set.
     const secret = env.WHATSAPP_ENCRYPTION_KEY || '0'.repeat(64);
     this.key = Buffer.from(secret, secret.length === 64 ? 'hex' : 'utf-8').subarray(0, 32);
