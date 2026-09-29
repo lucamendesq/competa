@@ -16,14 +16,14 @@ import { MagicLinkUnavailable } from '../../modules/auth/errors.js';
 export class BetterAuthAdapter implements AuthProvider {
   async signUpEmail(
     input: SignUpEmailInput,
-    reqHeaders?: Headers
+    reqHeaders?: Headers,
   ): Promise<Result<{ userId: string; setCookie?: string[] }, unknown>> {
-    const result = await tryCatchAsync(() => 
-      auth.api.signUpEmail({ 
+    const result = await tryCatchAsync(() =>
+      auth.api.signUpEmail({
         body: input,
         headers: reqHeaders,
-        asResponse: !!reqHeaders
-      })
+        asResponse: !!reqHeaders,
+      }),
     );
 
     if (isFailure(result)) {
@@ -32,13 +32,13 @@ export class BetterAuthAdapter implements AuthProvider {
 
     if (result.value instanceof Response) {
       const session = await auth.api.getSession({ headers: forwardCookies(result.value) });
-      return success({ 
-        userId: session?.user.id || '', 
-        setCookie: result.value.headers.getSetCookie() 
+      return success({
+        userId: session?.user.id || '',
+        setCookie: result.value.headers.getSetCookie(),
       });
     }
 
-    return success({ userId: (result.value as any).user.id });
+    return success({ userId: (result.value as { user: { id: string } }).user.id });
   }
 
   async signInPasswordless(input: PasswordlessSignInInput) {
