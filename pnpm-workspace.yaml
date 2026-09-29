@@ -11,7 +11,7 @@ allowBuilds:
   msgpackr-extract: true
   workerd: true
   sharp: true
-  vue-demi: set this to true or false
+  vue-demi: true
 minimumReleaseAgeExclude:
   - '@inquirer/checkbox@5.2.3'
   - '@inquirer/confirm@6.3.0'
