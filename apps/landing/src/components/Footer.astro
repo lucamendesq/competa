@@ -1,0 +1,76 @@
+---
+import Logo from './Logo.astro';
+---
+
+<footer class="border-t border-slate-200 bg-white py-12 text-slate-600 text-xs">
+  <div class="mx-auto max-w-7xl px-4 sm:px-6 lg:px-8">
+    
+    <div class="grid grid-cols-1 md:grid-cols-12 gap-8 items-start pb-8 border-b border-slate-100">
+      
+      <!-- Brand & Mission -->
+      <div class="md:col-span-6 space-y-3">
+        <Logo variant="horizontal" theme="dark" />
+        <p class="text-xs text-slate-500 max-w-md leading-relaxed">
+          Plataforma especializada na automação e coleta pontual de documentos contábeis para escritórios contábeis. Menos burocracia, checklists congelados e entregas sem senhas.
+        </p>
+      </div>
+
+      <!-- Quick Links -->
+      <div class="md:col-span-3 space-y-2">
+        <p class="font-mono text-xs font-semibold text-slate-900 uppercase">Navegação</p>
+        <ul class="space-y-1.5 text-xs text-slate-600">
+          <li>
+            <a href="#demonstracao" class="hover:text-slate-900 transition focus-visible:outline-none focus-visible:underline">
+              Demonstração do Fluxo
+            </a>
+          </li>
+          <li>
+            <a href="#como-funciona" class="hover:text-slate-900 transition focus-visible:outline-none focus-visible:underline">
+              Como funciona
+            </a>
+          </li>
+          <li>
+            <a href="#diferenciais" class="hover:text-slate-900 transition focus-visible:outline-none focus-visible:underline">
+              Diferenciais vs. Rotina Manual
+            </a>
+          </li>
+          <li>
+            <a href="#precos" class="hover:text-slate-900 transition focus-visible:outline-none focus-visible:underline">
+              Planos e Preços
+            </a>
+          </li>
+        </ul>
+      </div>
+
+      <!-- Security / Legal -->
+      <div class="md:col-span-3 space-y-2">
+        <p class="font-mono text-xs font-semibold text-slate-900 uppercase">Segurança & Legal</p>
+        <ul class="space-y-1.5 text-xs text-slate-600">
+          <li>
+            <a href="https://app.competa.com.br/termos" class="hover:text-slate-900 transition focus-visible:outline-none focus-visible:underline">
+              Termos de Uso
+            </a>
+          </li>
+          <li>
+            <a href="https://app.competa.com.br/privacidade" class="hover:text-slate-900 transition focus-visible:outline-none focus-visible:underline">
+              Política de Privacidade
+            </a>
+          </li>
+          <li>
+            <a href="https://app.competa.com.br" class="hover:text-slate-900 transition focus-visible:outline-none focus-visible:underline">
+              Acesso ao Sistema
+            </a>
+          </li>
+        </ul>
+      </div>
+
+    </div>
+
+    <!-- Bottom line -->
+    <div class="pt-6 flex flex-col sm:flex-row items-center justify-between gap-4 text-slate-400 font-mono text-[11px]">
+      <p>© {new Date().getFullYear()} Competa. Todos os direitos reservados.</p>
+      <p>Operador em conformidade com a LGPD · Criptografia em trânsito e em repouso</p>
+    </div>
+
+  </div>
+</footer>

@@ -7,7 +7,6 @@ import {
   AuthSession,
   PasswordlessSignInInput,
   SignUpEmailInput,
-  SignUpEmailResponse,
 } from '../../modules/auth/auth-provider.js';
 import { isFailure, Result, success, tryCatchAsync } from '../../lib/either.js';
 import { withoutSendingMagicLink } from './magic-link-sender.js';
@@ -15,14 +14,31 @@ import { MagicLinkUnavailable } from '../../modules/auth/errors.js';
 
 @Injectable()
 export class BetterAuthAdapter implements AuthProvider {
-  async signUpEmail(input: SignUpEmailInput): Promise<Result<SignUpEmailResponse, unknown>> {
-    const result = await tryCatchAsync(() => auth.api.signUpEmail({ body: input }));
+  async signUpEmail(
+    input: SignUpEmailInput,
+    reqHeaders?: Headers
+  ): Promise<Result<{ userId: string; setCookie?: string[] }, unknown>> {
+    const result = await tryCatchAsync(() => 
+      auth.api.signUpEmail({ 
+        body: input,
+        headers: reqHeaders,
+        asResponse: !!reqHeaders
+      })
+    );
 
     if (isFailure(result)) {
       return result;
     }
 
-    return success({ userId: result.value.user.id });
+    if (result.value instanceof Response) {
+      const session = await auth.api.getSession({ headers: forwardCookies(result.value) });
+      return success({ 
+        userId: session?.user.id || '', 
+        setCookie: result.value.headers.getSetCookie() 
+      });
+    }
+
+    return success({ userId: (result.value as any).user.id });
   }
 
   async signInPasswordless(input: PasswordlessSignInInput) {

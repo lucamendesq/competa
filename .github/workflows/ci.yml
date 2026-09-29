@@ -56,10 +56,40 @@ jobs:
       - run: pnpm --filter @competa/contracts build
       - run: pnpm --filter web build
 
-      - name: Deploy
+      - name: Deploy Web
         uses: cloudflare/wrangler-action@v4
         with:
           apiToken: ${{ secrets.CLOUDFLARE_API_TOKEN }}
           accountId: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
-          command: pages deploy apps/web/dist/web/browser --project-name=competa-web
+          command: pages deploy apps/web/dist --project-name=competa-web
           gitHubToken: ${{ secrets.GITHUB_TOKEN }}
+
+  deploy-landing:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      deployments: write
+    name: Deploy Landing to Cloudflare Pages
+    needs: build-lint
+    if: github.ref == 'refs/heads/main' && github.event_name == 'push'
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: pnpm/action-setup@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version-file: .nvmrc
+          cache: pnpm
+
+      - run: pnpm install --frozen-lockfile
+      - run: pnpm --filter landing build
+
+      - name: Deploy Landing
+        uses: cloudflare/wrangler-action@v4
+        with:
+          apiToken: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+          accountId: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
+          command: pages deploy apps/landing/dist --project-name=competa-landing
+          gitHubToken: ${{ secrets.GITHUB_TOKEN }}
+

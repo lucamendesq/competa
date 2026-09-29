@@ -34,3 +34,11 @@ export const UpdateFirmBody = z
   .partial()
   .refine((body) => Object.keys(body).length > 0, { message: 'Nada para atualizar.' });
 export type UpdateFirmBody = z.infer<typeof UpdateFirmBody>;
+
+export const PublicSignUpBody = z.object({
+  firmName: z.string().trim().min(1, 'Nome da contabilidade é obrigatório.'),
+  userName: z.string().trim().min(1, 'Seu nome é obrigatório.'),
+  email: z.string().trim().email('E-mail inválido.'),
+  password: z.string().min(8, 'A senha precisa ter no mínimo 8 caracteres.'),
+});
+export type PublicSignUpBody = z.infer<typeof PublicSignUpBody>;

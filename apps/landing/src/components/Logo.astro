@@ -1,0 +1,23 @@
+---
+interface Props {
+  variant?: 'horizontal' | 'icon';
+  theme?: 'dark' | 'light';
+  class?: string;
+}
+
+const { variant = 'horizontal', theme = 'dark', class: className = '' } = Astro.props;
+const src = variant === 'horizontal' 
+  ? (theme === 'dark' ? '/brand/logo-horizontal-cobalt.svg' : '/brand/logo-horizontal-white.svg')
+  : (theme === 'dark' ? '/brand/logo-icon-cobalt.svg' : '/brand/logo-icon-white.svg');
+---
+
+<a href="/" class={`inline-flex items-center gap-2 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-blue-600 rounded-sm ${className}`} aria-label="Competa — Página Inicial">
+  <img 
+    src={src} 
+    alt="Competa" 
+    class="h-8 w-auto object-contain" 
+    width="144" 
+    height="36" 
+    loading="eager"
+  />
+</a>

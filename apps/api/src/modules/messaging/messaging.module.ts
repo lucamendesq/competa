@@ -12,6 +12,9 @@ import { ResendEmail } from './providers/resend-email.provider.js';
 import { RequestCreatedListener } from './request-created.listener.js';
 import { CollectionEventsListener } from './collection-events.listener.js';
 
+import { RequestsModule } from '../requests/requests.module.js';
+import { WhatsappModule } from '../whatsapp/whatsapp.module.js';
+
 const useResend = env.NODE_ENV === 'production';
 const useWebPush = env.NODE_ENV === 'production';
 
@@ -19,7 +22,7 @@ new Logger('MessagingModule').log(useResend ? 'ResendEmail' : 'LogEmail (console
 new Logger('MessagingModule').log(useWebPush ? 'WebPushProvider' : 'ConsolePushProvider (console)');
 
 @Module({
-  imports: [],
+  imports: [RequestsModule, WhatsappModule],
   controllers: [MessagesController, PushKeyController],
   providers: [
     { provide: MessageProvider, useClass: useResend ? ResendEmail : LogEmail },

@@ -9,6 +9,8 @@ import { SessionGuard } from './session.guard.js';
 import { TeamController } from './team.controller.js';
 import { UserDeviceRepository } from './user-device.repository.js';
 
+import { PublicSignupController } from './public-signup.controller.js';
+
 @Module({
   providers: [
     { provide: AuthProvider, useClass: BetterAuthAdapter },
@@ -18,6 +20,6 @@ import { UserDeviceRepository } from './user-device.repository.js';
     SessionGuard,
   ],
   exports: [AuthProvider, InviteRepository, UserDeviceRepository, AccountantRepository],
-  controllers: [AuthController, InviteController, TeamController],
+  controllers: [AuthController, InviteController, TeamController, PublicSignupController],
 })
 export class AuthModule {}

@@ -56,18 +56,21 @@ flyctl certs add api.competa.com.br -a competa-api
 
 Token pro CI: `flyctl tokens create deploy -a competa-api` → secret `FLY_API_TOKEN` no GitHub.
 
-## 3. Cloudflare Pages (web)
+## 3. Cloudflare Pages (web e landing)
 
 ```bash
 ! wrangler login
 wrangler pages project create competa-web
+wrangler pages project create competa-landing
 ```
 
 - No painel Cloudflare → Pages → `competa-web` → Custom domains → adicionar `app.competa.com.br`.
+- No painel Cloudflare → Pages → `competa-landing` → Custom domains → adicionar `competa.com.br` e `www.competa.com.br`.
 - Token pro CI: My Profile → API Tokens → criar um com permissão **Pages:Edit** → secret
   `CLOUDFLARE_API_TOKEN`; o Account ID (barra lateral do dashboard) → `CLOUDFLARE_ACCOUNT_ID`.
 - Não precisa configurar build no painel — o `ci.yml` builda no CI e sobe via
   `npx wrangler pages deploy` (direct upload).
+- Para deploy manual local da landing page: `pnpm --filter landing deploy:pages` (ou `pnpm --filter landing run deploy`, já que `pnpm deploy` sem o `run` é um comando nativo do pnpm).
 
 ## 4. Secrets no GitHub
 

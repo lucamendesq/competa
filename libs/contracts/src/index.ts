@@ -13,3 +13,4 @@ export * from './review.js';
 export * from './contact.js';
 export * from './device.js';
 export * from './responses.js';
+export * from './whatsapp.js';

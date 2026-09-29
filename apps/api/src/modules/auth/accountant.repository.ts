@@ -1,7 +1,8 @@
 import { Injectable } from '@nestjs/common';
 import { and, asc, eq, isNull, sql } from 'drizzle-orm';
+import { addDays } from 'date-fns';
 import { Database } from '../../infra/database/database.js';
-import { accountant, accountingFirm, invite, user } from '../../infra/database/schema/index.js';
+import { accountant, accountingFirm, invite, subscription, user } from '../../infra/database/schema/index.js';
 import { InviteNotFound } from './errors.js';
 import type { FirmScope } from './scope.js';
 
@@ -45,8 +46,14 @@ export class AccountantRepository {
 
   async findByAuthUserId(authUserId: string) {
     const [row] = await this.db
-      .select({ id: accountant.id, accountingFirmId: accountant.accountingFirmId })
+      .select({
+        id: accountant.id,
+        accountingFirmId: accountant.accountingFirmId,
+        subscriptionStatus: subscription.status,
+        trialEndsAt: subscription.trialEndsAt,
+      })
       .from(accountant)
+      .leftJoin(subscription, eq(subscription.accountingFirmId, accountant.accountingFirmId))
       .where(eq(accountant.authUserId, authUserId))
       .limit(1);
     
@@ -63,8 +70,17 @@ export class AccountantRepository {
         reminderGapDays: accountingFirm.reminderGapDays,
         logoUrl: accountingFirm.logoUrl,
         contactEmail: accountingFirm.contactEmail,
+        subscription: {
+          id: subscription.id,
+          planName: subscription.planName,
+          status: subscription.status,
+          trialEndsAt: subscription.trialEndsAt,
+          currentPeriodStart: subscription.currentPeriodStart,
+          currentPeriodEnd: subscription.currentPeriodEnd,
+        },
       })
       .from(accountingFirm)
+      .leftJoin(subscription, eq(subscription.accountingFirmId, accountingFirm.id))
       .where(eq(accountingFirm.id, scope))
       .limit(1);
 
@@ -157,5 +173,32 @@ export class AccountantRepository {
 
   async deleteAuthUser(authUserId: string) {
     await this.db.delete(user).where(eq(user.id, authUserId));
+  }
+
+  async provisionFirm(input: {
+    authUserId: string;
+    firmName: string;
+  }) {
+    await this.db.transaction(async (tx) => {
+      const [firm] = await tx.insert(accountingFirm).values({ name: input.firmName }).returning();
+
+      await tx.insert(subscription).values({
+        accountingFirmId: firm.id,
+        planName: 'trial',
+        status: 'trialing',
+        trialEndsAt: addDays(new Date(), 14),
+      });
+
+      await tx.insert(accountant).values({
+        authUserId: input.authUserId,
+        accountingFirmId: firm.id,
+        owner: true,
+      });
+
+      await tx
+        .update(user)
+        .set({ emailVerified: true, termsAcceptedAt: new Date() })
+        .where(eq(user.id, input.authUserId));
+    });
   }
 }

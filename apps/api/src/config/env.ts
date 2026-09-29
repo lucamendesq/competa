@@ -11,6 +11,7 @@ const REQUIRED_IN_PRODUCTION = [
   'R2_SECRET_ACCESS_KEY',
   'R2_BUCKET',
   'RESEND_API_KEY',
+  'ASAAS_API_KEY',
   'EMAIL_FROM',
   'VAPID_PUBLIC_KEY',
   'VAPID_PRIVATE_KEY',
@@ -59,6 +60,13 @@ const envSchema = z
       .enum(['fatal', 'error', 'warn', 'info', 'debug', 'trace'])
       .optional()
       .default('info'),
+    META_APP_ID: z.string().optional(),
+    META_APP_SECRET: z.string().optional(),
+    META_GRAPH_VERSION: z.string().default('v20.0'),
+    WHATSAPP_ENCRYPTION_KEY: z.string().min(32).optional(),
+    
+    ASAAS_API_KEY: blankAsMissing(z.string()),
+    ASAAS_SANDBOX: z.string().optional().transform((v) => v === 'true').default(false),
   })
   .superRefine((value, ctx) => {
     if (value.NODE_ENV !== 'production') return;

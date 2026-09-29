@@ -42,6 +42,15 @@ export class Forbidden extends AppError {
   }
 }
 
+export class PaymentRequired extends AppError {
+  readonly code = 'PAYMENT_REQUIRED';
+  readonly status = 402;
+
+  constructor(message = 'Assinatura inativa. Regularize para continuar.') {
+    super(message);
+  }
+}
+
 /** Dependência fora do ar (banco, hoje). 503 e não 500: o orquestrador tira a instância
  *  do balanceador em vez de tratar como bug da aplicação. */
 export class ServiceUnavailable extends AppError {

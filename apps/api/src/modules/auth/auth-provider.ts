@@ -15,13 +15,17 @@ export type SignUpEmailInput = Credentials & {
 
 export type SignUpEmailResponse = {
   userId: string;
+  setCookie?: string[];
 };
 
 export type PasswordlessSignInInput = { name: string; email: string };
 export type PasswordlessSignInResponse = { userId: string; setCookie: string[] };
 
 export abstract class AuthProvider {
-  abstract signUpEmail(input: SignUpEmailInput): Promise<Result<SignUpEmailResponse, unknown>>;
+  abstract signUpEmail(
+    input: SignUpEmailInput,
+    headers?: Headers
+  ): Promise<Result<SignUpEmailResponse, unknown>>;
   abstract getSession(headers: IncomingHttpHeaders): Promise<AuthSession | null>;
 
   abstract signInPasswordless(input: PasswordlessSignInInput): Promise<PasswordlessSignInResponse>;

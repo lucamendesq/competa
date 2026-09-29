@@ -1,14 +1,15 @@
 import { defineRelations } from 'drizzle-orm';
 import { user } from './auth.js';
-import { accountant, accountingFirm, company, contact, invite } from './registry.js';
+import { accountant, accountingFirm, company, contact, invite, subscription } from './registry.js';
 
 export const relations = defineRelations(
-  { accountingFirm, accountant, company, contact, invite, user },
+  { accountingFirm, accountant, company, contact, invite, user, subscription },
   (r) => ({
     accountingFirm: {
       accountants: r.many.accountant(),
       companies: r.many.company(),
       invites: r.many.invite(),
+      subscription: r.one.subscription(),
     },
     accountant: {
       accountingFirm: r.one.accountingFirm({
@@ -35,6 +36,12 @@ export const relations = defineRelations(
         to: r.accountingFirm.id,
       }),
       company: r.one.company({ from: r.invite.companyId, to: r.company.id }),
+    },
+    subscription: {
+      accountingFirm: r.one.accountingFirm({
+        from: r.subscription.accountingFirmId,
+        to: r.accountingFirm.id,
+      }),
     },
   }),
 );

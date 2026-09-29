@@ -1,4 +1,7 @@
 export type MessageToSend = {
+  requestId?: string;
+  tenantId?: string;
+  purpose?: string;
   recipient: string;
   subject: string;
   body: string;
@@ -10,5 +13,5 @@ export type MessageToSend = {
 export abstract class MessageProvider {
   readonly channel: string = 'email';
 
-  abstract send(message: MessageToSend): Promise<void>;
+  abstract send(message: MessageToSend): Promise<string | undefined | void>;
 }

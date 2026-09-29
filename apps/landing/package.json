@@ -1,0 +1,23 @@
+{
+  "name": "landing",
+  "private": true,
+  "version": "0.0.0",
+  "type": "module",
+  "scripts": {
+    "dev": "astro dev --port 4321",
+    "start": "astro dev",
+    "build": "astro build",
+    "preview": "astro preview",
+    "deploy": "astro build && wrangler pages deploy dist --project-name=competa-landing",
+    "deploy:pages": "astro build && wrangler pages deploy dist --project-name=competa-landing",
+    "pages:deploy": "astro build && wrangler pages deploy dist --project-name=competa-landing"
+  },
+  "dependencies": {
+    "astro": "^5.4.2"
+  },
+  "devDependencies": {
+    "@tailwindcss/vite": "^4.0.9",
+    "tailwindcss": "^4.0.9",
+    "wrangler": "^4.134.0"
+  }
+}

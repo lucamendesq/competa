@@ -21,6 +21,7 @@ import { RequestsModule } from './modules/requests/requests.module.js';
 import { UploadModule } from './modules/requests/upload.module.js';
 import { MessagingModule } from './modules/messaging/messaging.module.js';
 import { ContactsModule } from './modules/contacts/contacts.module.js';
+import { BillingModule } from './modules/billing/billing.module.js';
 
 @Module({
   imports: [
@@ -59,6 +60,7 @@ import { ContactsModule } from './modules/contacts/contacts.module.js';
     UploadModule,
     MessagingModule,
     ContactsModule,
+    BillingModule,
   ],
   controllers: [HealthController],
   providers: [

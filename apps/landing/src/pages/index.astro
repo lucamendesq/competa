@@ -1,0 +1,29 @@
+---
+import Layout from '../layouts/Layout.astro';
+import Header from '../components/Header.astro';
+import Hero from '../components/Hero.astro';
+import ProductProof from '../components/ProductProof.astro';
+import Benefits from '../components/Benefits.astro';
+import HowItWorks from '../components/HowItWorks.astro';
+import Comparison from '../components/Comparison.astro';
+import Pricing from '../components/Pricing.astro';
+import FinalCta from '../components/FinalCta.astro';
+import Footer from '../components/Footer.astro';
+---
+
+<Layout 
+  title="Competa — Coleta de Documentos Contábeis sem Fricção"
+  description="Chega de garimpar documentos no WhatsApp. Abra a competência em 1 clique, receba os arquivos por link sem senha e baixe tudo pronto em zip por empresa."
+>
+  <Header slot="header" />
+  
+  <Hero />
+  <ProductProof />
+  <Benefits />
+  <HowItWorks />
+  <Comparison />
+  <Pricing />
+  <FinalCta />
+
+  <Footer slot="footer" />
+</Layout>

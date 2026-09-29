@@ -35,6 +35,10 @@ export const message = pgTable(
     status: text().notNull().default('queued'),
     sentAt: timestamp('sent_at', { withTimezone: true }),
     error: text(),
+    metaMessageId: text('meta_message_id'),
+    template: text('template'),
+    deliveredAt: timestamp('delivered_at', { withTimezone: true }),
+    readAt: timestamp('read_at', { withTimezone: true }),
     ...timestamps,
   },
   (t) => [
@@ -42,6 +46,7 @@ export const message = pgTable(
     check('message_purpose_chk', oneOf(sql`${t.purpose}`, MESSAGE_PURPOSES)),
     check('message_status_chk', oneOf(sql`${t.status}`, MESSAGE_STATUS)),
     index('message_reminder_idx').on(t.requestId, t.purpose),
+    index('message_meta_message_idx').on(t.metaMessageId),
   ],
 ).enableRLS();
 

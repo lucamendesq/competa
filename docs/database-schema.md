@@ -54,6 +54,18 @@ create table accounting_firm (            -- Contabilidade (tenant raiz)
     and reminder_gap_days between 1 and 31)
 );
 
+create table subscription (               -- Assinatura Asaas e Status (COM-6)
+  id                       uuid primary key,
+  accounting_firm_id       uuid not null unique references accounting_firm(id) on delete cascade,
+  gateway_customer_id      text,          -- cus_... (Asaas)
+  gateway_subscription_id  text,          -- sub_... (Asaas)
+  plan_name                text not null default 'trial',
+  status                   text not null default 'trialing', -- trialing, ACTIVE, OVERDUE, CANCELED
+  trial_ends_at            timestamptz,
+  current_period_start     timestamptz,
+  current_period_end       timestamptz
+);
+
 create table accountant (                 -- Contador (N por Contabilidade, via convite — D-01)
                                           -- name/email vivem em "user" (Better Auth); /me lê via join
                                           -- por auth_user_id — não duplicar aqui

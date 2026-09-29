@@ -235,3 +235,43 @@ export const companyChecklistOverride = pgTable(
     ),
   ],
 ).enableRLS();
+
+export const subscription = pgTable(
+  'subscription',
+  {
+    id: id(),
+    accountingFirmId: uuid('accounting_firm_id')
+      .notNull()
+      .unique()
+      .references(() => accountingFirm.id, { onDelete: 'cascade' }),
+    gatewayCustomerId: text('gateway_customer_id'),
+    gatewaySubscriptionId: text('gateway_subscription_id'),
+    planName: text('plan_name').notNull().default('trial'),
+    status: text('status').notNull().default('trialing'),
+    trialEndsAt: timestamp('trial_ends_at', { withTimezone: true }),
+    currentPeriodStart: timestamp('current_period_start', { withTimezone: true }),
+    currentPeriodEnd: timestamp('current_period_end', { withTimezone: true }),
+    ...timestamps,
+  },
+  (t) => [index('subscription_firm_idx').on(t.accountingFirmId)],
+).enableRLS();
+
+export const whatsappIntegration = pgTable(
+  'whatsapp_integration',
+  {
+    id: id(),
+    accountingFirmId: uuid('accounting_firm_id')
+      .notNull()
+      .unique()
+      .references(() => accountingFirm.id, { onDelete: 'cascade' }),
+    wabaId: text('waba_id').notNull(),
+    phoneNumberId: text('phone_number_id').notNull(),
+    displayPhoneNumber: text('display_phone_number').notNull(),
+    businessAccountId: text('business_account_id'),
+    accessToken: text('access_token').notNull(),
+    status: text('status').notNull().default('pending_phone'),
+    webhookStatus: text('webhook_status').notNull().default('inactive'),
+    ...timestamps,
+  },
+  (t) => [index('whatsapp_integration_firm_idx').on(t.accountingFirmId)],
+).enableRLS();

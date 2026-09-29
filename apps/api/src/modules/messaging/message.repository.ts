@@ -1,4 +1,4 @@
-import { Injectable, Logger } from '@nestjs/common';
+import { Inject, Injectable, Logger } from '@nestjs/common';
 import { and, count, desc, eq, inArray, sql } from 'drizzle-orm';
 import type { MessageListQuery } from '@competa/contracts';
 import env from '../../config/env.js';
@@ -63,14 +63,8 @@ export class MessageRepository {
     private readonly db: Database,
     private readonly provider: MessageProvider,
     private readonly push: PushProvider,
+    @Inject('WHATSAPP_PROVIDER') private readonly whatsappProvider: MessageProvider,
   ) {}
-
-  private readonly defaultWhatsAppProvider: MessageProvider = {
-    channel: 'whatsapp',
-    send: async () => {
-      throw new Error('WhatsApp provider não está configurado.');
-    },
-  };
 
   async savePushSubscription(
     scope: ContactScope | UploadScope,
@@ -126,6 +120,8 @@ export class MessageRepository {
    *  `request_id` já vem do fan-out/varredura, que nasceram dentro de um escopo.
    *  Nunca lança: falha de canal vira linha `failed` + log (regra 9/10). */
   async sendWithoutLog(input: {
+    requestId?: string;
+    purpose?: string;
     recipient: string;
     subject: string;
     body: string;
@@ -259,16 +255,20 @@ export class MessageRepository {
 
       messageId = row.id;
 
-      await input.provider.send({
+      const result = await input.provider.send({
+        requestId: input.requestId,
+        purpose: input.purpose,
         recipient: input.recipient,
         subject: input.subject,
         body: input.body,
         senderName: input.senderName,
       });
 
+      const metaMessageId = typeof result === 'string' ? result : undefined;
+
       await this.db
         .update(message)
-        .set({ status: 'sent', sentAt: new Date() })
+        .set({ status: 'sent', sentAt: new Date(), metaMessageId })
         .where(eq(message.id, row.id));
 
       return true;
@@ -300,7 +300,7 @@ export class MessageRepository {
     fallbackProvider,
   }: Delivery) {
     const primaryProvider =
-      provider ?? (channel === 'whatsapp' ? this.defaultWhatsAppProvider : this.provider);
+      provider ?? (channel === 'whatsapp' ? this.whatsappProvider : this.provider);
 
     const senderName = await this.firmNameOf(requestId);
 

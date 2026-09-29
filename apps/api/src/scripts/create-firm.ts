@@ -1,7 +1,7 @@
 import { parseArgs } from 'node:util';
 import { addDays } from 'date-fns';
 import { db } from '../infra/database/index.js';
-import { accountingFirm, invite } from '../infra/database/schema/index.js';
+import { accountingFirm, invite, subscription } from '../infra/database/schema/index.js';
 import { createToken } from '../lib/token.js';
 import env from '../config/env.js';
 
@@ -18,6 +18,13 @@ const { token, tokenHash } = createToken();
 
 await db.transaction(async (tx) => {
   const [firm] = await tx.insert(accountingFirm).values({ name: values.name! }).returning();
+
+  await tx.insert(subscription).values({
+    accountingFirmId: firm.id,
+    planName: 'trial',
+    status: 'trialing',
+    trialEndsAt: addDays(new Date(), 14),
+  });
 
   await tx.insert(invite).values({
     tokenHash,

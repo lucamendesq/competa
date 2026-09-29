@@ -3,7 +3,15 @@ import prettier from 'eslint-config-prettier';
 
 export default tseslint.config(
   {
-    ignores: ['**/dist', '**/node_modules', '**/.angular', '**/coverage'],
+    ignores: [
+      '**/dist',
+      '**/node_modules',
+      '**/.angular',
+      '**/coverage',
+      '**/.astro',
+      '**/.worktrees/**',
+      'qa-suite/**',
+    ],
   },
   {
     files: ['**/*.ts', '**/*.mts', '**/*.cts'],

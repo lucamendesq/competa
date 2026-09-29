@@ -1,6 +1,7 @@
 import { CanActivate, ExecutionContext, Injectable } from '@nestjs/common';
 import { Reflector } from '@nestjs/core';
-import { Forbidden, Unauthenticated } from '../../lib/app-error.js';
+import { isPast } from 'date-fns';
+import { Forbidden, PaymentRequired, Unauthenticated } from '../../lib/app-error.js';
 import { AuthProvider } from './auth-provider.js';
 import { CONTACT_ROUTE } from './contact-route.decorator.js';
 import { SESSION_ROUTE } from './session-route.decorator.js';
@@ -43,6 +44,16 @@ export class TenantGuard implements CanActivate {
     const row = await this.accountants.findByAuthUserId(session.user.id);
 
     if (!row) throw new Forbidden('Esta conta não pertence a uma Contabilidade.');
+
+    // Defaulting Rule (COM-8)
+    if (request.method !== 'GET') {
+      const isOverdue = row.subscriptionStatus === 'OVERDUE' || row.subscriptionStatus === 'CANCELED';
+      const isTrialExpired = row.subscriptionStatus === 'trialing' && row.trialEndsAt && isPast(row.trialEndsAt);
+      
+      if (isOverdue || isTrialExpired) {
+        throw new PaymentRequired();
+      }
+    }
 
     request.firmScope = toFirmScope(row.accountingFirmId);
     request.accountantId = row.id;
