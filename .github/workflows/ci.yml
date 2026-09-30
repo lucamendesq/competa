@@ -39,7 +39,6 @@ jobs:
     permissions:
       contents: read
       deployments: write
-    name: Deploy to Cloudflare Pages
     needs: build-lint
     if: github.ref == 'refs/heads/main' && github.event_name == 'push'
     steps:
@@ -70,7 +69,6 @@ jobs:
     permissions:
       contents: read
       deployments: write
-    name: Deploy Landing to Cloudflare Pages
     needs: build-lint
     if: github.ref == 'refs/heads/main' && github.event_name == 'push'
     steps:
