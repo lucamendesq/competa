@@ -63,6 +63,7 @@ jobs:
           accountId: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
           command: pages deploy apps/web/dist --project-name=competa-web
           gitHubToken: ${{ secrets.GITHUB_TOKEN }}
+          packageManager: npm
 
   deploy-landing:
     runs-on: ubuntu-latest
@@ -92,3 +93,4 @@ jobs:
           accountId: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
           command: pages deploy apps/landing/dist --project-name=competa-landing
           gitHubToken: ${{ secrets.GITHUB_TOKEN }}
+          packageManager: npm
