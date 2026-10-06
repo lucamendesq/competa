@@ -1,6 +1,8 @@
 packages:
   - 'apps/*'
   - 'libs/*'
+catalog:
+  zod: ^4.4.3
 overrides:
   qs: '>=6.16.0'
   multer: '>=2.3.0'
