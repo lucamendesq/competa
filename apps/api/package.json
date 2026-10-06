@@ -22,7 +22,8 @@
     "create-firm": "tsx src/scripts/create-firm.ts",
     "dev": "nest start --watch",
     "dev:lan": "node ../../scripts/lan-env.mjs nest start --watch",
-    "check:recovery-token": "tsx src/scripts/check-recovery-token.ts"
+    "check:recovery-token": "tsx src/scripts/check-recovery-token.ts",
+    "verify:com-148": "tsx src/scripts/verify-com-148.ts"
   },
   "dependencies": {
     "@aws-sdk/client-s3": "^3.1125.0",
