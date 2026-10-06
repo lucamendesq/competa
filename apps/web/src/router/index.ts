@@ -135,7 +135,12 @@ const routes: RouteRecordRaw[] = [
         component: () => import('../pages/PendingPanelPage.vue'),
         props: true,
       },
-      { path: 'configuracoes', redirect: '/configuracoes/contadores' },
+      { path: 'configuracoes', redirect: '/configuracoes/contabilidade' },
+      {
+        path: 'configuracoes/contabilidade',
+        name: 'FirmSettings',
+        component: () => import('../pages/FirmSettingsPage.vue'),
+      },
       {
         path: 'configuracoes/contadores',
         name: 'AccountantsSettings',

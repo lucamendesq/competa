@@ -41,6 +41,7 @@ const nav = [
   { path: '/competencias', label: 'Competências', icon: CalendarRange },
   { path: '/empresas', label: 'Empresas', icon: Building2 },
   { path: '/templates', label: 'Checklists', icon: SquareCheckBig },
+  { path: '/configuracoes/contabilidade', label: 'Contabilidade', icon: Settings },
   { path: '/configuracoes/whatsapp', label: 'WhatsApp', icon: Settings },
   { path: '/configuracoes/plano', label: 'Plano e Assinatura', icon: SquareCheckBig },
 ];
