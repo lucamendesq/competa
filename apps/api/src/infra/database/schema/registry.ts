@@ -101,7 +101,16 @@ export const checklistTemplate = pgTable(
     derivedFrom: uuid('derived_from').references((): AnyPgColumn => checklistTemplate.id),
     ...timestamps,
   },
-  (t) => [index('checklist_template_firm_idx').on(t.accountingFirmId)],
+  (t) => [
+    index('checklist_template_firm_idx').on(t.accountingFirmId),
+    /* Dois modelos com o mesmo nome na mesma Contabilidade são indistinguíveis na lista e
+     * no select de Empresa. Case-insensitive porque "Simples" e "simples" enganam igual.
+     * Parcial: os templates do produto (`accounting_firm_id is null`) são globais e não
+     * entram na regra. */
+    uniqueIndex('checklist_template_firm_name_uidx')
+      .on(t.accountingFirmId, sql`lower(${t.name})`)
+      .where(sql`${t.accountingFirmId} is not null`),
+  ],
 ).enableRLS();
 
 export const checklistTemplateItem = pgTable(

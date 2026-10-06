@@ -1,0 +1,1 @@
+CREATE UNIQUE INDEX "checklist_template_firm_name_uidx" ON "checklist_template" ("accounting_firm_id",lower("name")) WHERE "accounting_firm_id" is not null;

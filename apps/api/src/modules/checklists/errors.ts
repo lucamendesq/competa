@@ -55,3 +55,14 @@ export class OverrideRemovesNothing extends AppError {
     super('Este Tipo de Documento não está no checklist da Empresa: não há o que remover.');
   }
 }
+
+export class TemplateNameTaken extends AppError {
+  readonly code = 'TEMPLATE_NAME_TAKEN';
+  readonly status = 409;
+
+  constructor() {
+    super('Já existe um template com este nome. Escolha outro.', [
+      { path: ['name'], message: 'Já existe um template com este nome.' },
+    ]);
+  }
+}

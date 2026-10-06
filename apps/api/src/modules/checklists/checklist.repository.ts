@@ -21,6 +21,7 @@ import {
   type ChecklistLine,
 } from './effective-checklist.js';
 import { ValidationError } from '../../lib/app-error.js';
+import { TemplateNameTaken } from './errors.js';
 
 const visibleTo = (scope: FirmScope, column: PgColumn) => or(isNull(column), eq(column, scope))!;
 
@@ -37,6 +38,20 @@ const itemColumns = {
   dueMonthOffset: checklistTemplateItem.dueMonthOffset,
   conditionFlag: checklistTemplateItem.conditionFlag,
   required: checklistTemplateItem.required,
+};
+
+/** O driver embrulha o erro do Postgres; procuramos a constraint na cadeia de causas para
+ *  devolver 409 de negócio em vez de 500 (mesmo padrão de company.repository.ts). */
+const violatesTemplateNameUnique = (error: unknown): boolean => {
+  for (let cause: unknown = error; cause instanceof Error; cause = cause.cause) {
+    const pg = cause as { constraint?: string; code?: string };
+    if (pg.constraint === 'checklist_template_firm_name_uidx') return true;
+    if (pg.code === '23505' && cause.message.includes('checklist_template_firm_name_uidx')) {
+      return true;
+    }
+  }
+
+  return false;
 };
 
 @Injectable()
@@ -241,12 +256,17 @@ export class ChecklistRepository {
     input: { name: string; derivedFrom: string | null },
     tx: Database = this.db,
   ) {
-    const [row] = await tx
-      .insert(checklistTemplate)
-      .values({ ...input, accountingFirmId: scope })
-      .returning();
+    try {
+      const [row] = await tx
+        .insert(checklistTemplate)
+        .values({ ...input, accountingFirmId: scope })
+        .returning();
 
-    return row;
+      return row;
+    } catch (error) {
+      if (violatesTemplateNameUnique(error)) throw new TemplateNameTaken();
+      throw error;
+    }
   }
 
   async copyItems(fromTemplateId: string, toTemplateId: string, tx: Database = this.db) {
@@ -268,20 +288,25 @@ export class ChecklistRepository {
   /** Só o modelo da própria Contabilidade (o controller garante com `requireOwned`): o do
    *  produto é compartilhado por todos os tenants. */
   async renameTemplate(scope: FirmScope, templateId: string, name: string) {
-    const [row] = await this.db
-      .update(checklistTemplate)
-      .set({ name })
-      .where(
-        and(eq(checklistTemplate.id, templateId), eq(checklistTemplate.accountingFirmId, scope)),
-      )
-      .returning({
-        id: checklistTemplate.id,
-        name: checklistTemplate.name,
-        derivedFrom: checklistTemplate.derivedFrom,
-        accountingFirmId: checklistTemplate.accountingFirmId,
-      });
+    try {
+      const [row] = await this.db
+        .update(checklistTemplate)
+        .set({ name })
+        .where(
+          and(eq(checklistTemplate.id, templateId), eq(checklistTemplate.accountingFirmId, scope)),
+        )
+        .returning({
+          id: checklistTemplate.id,
+          name: checklistTemplate.name,
+          derivedFrom: checklistTemplate.derivedFrom,
+          accountingFirmId: checklistTemplate.accountingFirmId,
+        });
 
-    return row;
+      return row;
+    } catch (error) {
+      if (violatesTemplateNameUnique(error)) throw new TemplateNameTaken();
+      throw error;
+    }
   }
 
   async deriveTemplate(scope: FirmScope, source: { id: string; name: string }, name?: string) {
