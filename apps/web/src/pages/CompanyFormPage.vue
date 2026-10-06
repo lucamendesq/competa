@@ -10,8 +10,14 @@ import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import PageHeader from '@/components/PageHeader.vue';
 import Callout from '@/components/Callout.vue';
-import { useCompanyDetailFeature } from '@/features/companies/composables/useCompaniesFeature';
-import { useChecklistsFeature } from '@/features/checklists/composables/useChecklistsFeature';
+import {
+  useCompanyChecklistFeature,
+  useCompanyDetailFeature,
+} from '@/features/companies/composables/useCompaniesFeature';
+import {
+  useChecklistsFeature,
+  useTemplateDetailFeature,
+} from '@/features/checklists/composables/useChecklistsFeature';
 import { useSettingsStore } from '@/stores/settings';
 import { toast } from 'vue-sonner';
 import { apiErrorMessage, apiFieldErrors } from '@/api/error';
@@ -163,23 +169,70 @@ watch(
 
 const editing = computed(() => props.id !== undefined);
 
-// Wait, the template from the checklists list doesn't have `items`, only `TemplateDetail` does.
-// So the preview requires fetching `TemplateDetail` if we want to show items.
-// In Angular, `this.checklists.template(this.templateId)` fetches the detail.
-import { useTemplateDetailFeature } from '@/features/checklists/composables/useChecklistsFeature';
 const { detailQuery: templateDetailQuery } = useTemplateDetailFeature(checklistTemplateId);
+const { effectiveChecklistQuery } = useCompanyChecklistFeature(computed(() => props.id));
+
+/* O checklist efetivo (template + overrides da Empresa) só descreve o que está salvo.
+ * Trocar o template no formulário sem salvar invalida os overrides, então aí a prévia
+ * volta a ser o template cru. */
+const previewFromOverrides = computed(
+  () =>
+    Boolean(props.id) &&
+    checklistTemplateId.value === (detailQuery.data.value?.checklistTemplateId ?? ''),
+);
+
+type PreviewLine = {
+  key: string;
+  name: string;
+  category: string;
+  periodicity: string;
+  conditionFlag: string | null;
+  fromOverride: boolean;
+};
+
+const previewSource = computed<PreviewLine[]>(() => {
+  if (previewFromOverrides.value) {
+    return (effectiveChecklistQuery.data.value?.items ?? []).map((item) => ({
+      key: item.documentTypeId,
+      name: item.name,
+      category: item.category,
+      periodicity: item.periodicity,
+      conditionFlag: item.conditionFlag,
+      fromOverride: item.source === 'override',
+    }));
+  }
+
+  return (templateDetailQuery.data.value?.items ?? []).map((item) => ({
+    key: item.id,
+    name: item.name,
+    category: item.category,
+    periodicity: item.periodicity,
+    conditionFlag: item.conditionFlag,
+    fromOverride: false,
+  }));
+});
+
+const previewLoading = computed(() =>
+  previewFromOverrides.value
+    ? effectiveChecklistQuery.isLoading.value
+    : templateDetailQuery.isLoading.value,
+);
 
 const preview = computed(() => {
-  const items = (templateDetailQuery.data.value?.items ?? []).filter(
+  const items = previewSource.value.filter(
     (item) => item.conditionFlag === null || (flags.value as any)[item.conditionFlag] === true,
   );
 
-  const byCategory = new Map<string, typeof items>();
+  const byCategory = new Map<string, PreviewLine[]>();
   for (const item of items) {
     byCategory.set(item.category, [...(byCategory.get(item.category) ?? []), item]);
   }
 
-  return { total: items.length, groups: Array.from(byCategory.entries()) };
+  return {
+    total: items.length,
+    groups: Array.from(byCategory.entries()),
+    customized: items.some((item) => item.fromOverride),
+  };
 });
 
 const error = ref<string | null>(null);
@@ -379,11 +432,16 @@ const onSubmit = handleSubmit(async (values) => {
       </div>
 
       <div
-        v-if="checklistTemplateId && !templateDetailQuery.isLoading.value"
+        v-if="(checklistTemplateId || preview.total > 0) && !previewLoading"
         class="border-border border-t pt-6"
       >
         <div class="flex items-center justify-between gap-4">
-          <h3 class="text-sm font-semibold">Prévia do checklist</h3>
+          <h3 class="text-sm font-semibold">
+            Prévia do checklist
+            <span v-if="preview.customized" class="text-muted-foreground font-normal">
+              — inclui ajustes desta empresa
+            </span>
+          </h3>
           <span
             class="bg-muted text-muted-foreground inline-flex items-center rounded-full px-2 py-0.5 text-xs font-semibold"
           >
@@ -401,8 +459,13 @@ const onSubmit = handleSubmit(async (values) => {
               {{ CATEGORY_LABEL[category] ?? category }}
             </h4>
             <ul class="flex flex-col gap-3">
-              <li v-for="item in items" :key="item.id" class="text-sm flex flex-col">
-                <span class="font-medium text-foreground">{{ item.name }}</span>
+              <li v-for="item in items" :key="item.key" class="text-sm flex flex-col">
+                <span class="font-medium text-foreground">
+                  {{ item.name }}
+                  <span v-if="item.fromOverride" class="text-info-foreground ml-1 text-xs">
+                    (ajuste)
+                  </span>
+                </span>
                 <span class="text-muted-foreground mt-0.5 text-xs">
                   {{ PERIODICITY_LABEL[item.periodicity] ?? item.periodicity }}
                   <span v-if="item.conditionFlag" class="text-warning-foreground ml-2 font-medium">
