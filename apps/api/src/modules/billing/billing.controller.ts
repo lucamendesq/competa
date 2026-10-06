@@ -1,6 +1,6 @@
-import { Body } from "@nestjs/common";
-import * as z from "zod";
-import { zodPipe } from "../../lib/zod-pipe.js";
+import { Body } from '@nestjs/common';
+import * as z from 'zod';
+import { zodPipe } from '../../lib/zod-pipe.js';
 
 import { Controller, Post } from '@nestjs/common';
 import { CurrentScope } from '../auth/current-scope.decorator.js';
@@ -31,9 +31,9 @@ export class BillingController {
 
   @Post('checkout')
   async checkout(
-    @CurrentScope() scope: FirmScope, 
+    @CurrentScope() scope: FirmScope,
     @Session() session: AuthSession,
-    @Body(zodPipe(CheckoutBody)) body: z.infer<typeof CheckoutBody>
+    @Body(zodPipe(CheckoutBody)) body: z.infer<typeof CheckoutBody>,
   ) {
     if (!(await this.accountants.isOwner(scope, session.user.id))) {
       throw new OnlyOwnerCanManageTeam();
@@ -59,6 +59,6 @@ export class BillingController {
     // 3. Salva no banco os IDs do gateway
     await this.subscriptions.updateGatewayData(firm.id, customerId, subscriptionId);
 
-    return { checkoutUrl };
+    return { checkoutUrl, simulated: this.billing.simulated };
   }
 }

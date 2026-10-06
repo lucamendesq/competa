@@ -20,6 +20,7 @@ interface AsaasPaymentLinkResponse {
 
 @Injectable()
 export class AsaasBilling implements BillingProvider {
+  readonly simulated = false;
   private readonly logger = new Logger(AsaasBilling.name);
   private readonly baseUrl = env.ASAAS_SANDBOX
     ? 'https://sandbox.asaas.com/api/v3'

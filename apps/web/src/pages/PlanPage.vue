@@ -13,12 +13,14 @@ import {
 import { api } from '@/api/client';
 import { useAuthStore } from '@/stores/auth';
 import { toast } from 'vue-sonner';
+import { apiErrorMessage } from '@/api/error';
 import { Loader2, CreditCard, AlertTriangle, CheckCircle2 } from 'lucide-vue-next';
 
 useTitle('Plano e Assinatura | Competa');
 
 const auth = useAuthStore();
 const isLoading = ref(false);
+const simulatedCheckout = ref(false);
 
 const subscription = computed(() => auth.accountant?.accountingFirm.subscription);
 
@@ -48,13 +50,25 @@ const trialFormatted = computed(() => {
 
 async function goToCheckout(planName: string) {
   isLoading.value = true;
+  simulatedCheckout.value = false;
   try {
-    const { checkoutUrl } = await api.post<{ checkoutUrl: string }>('/billing/checkout', {
-      planName,
-    });
+    const { checkoutUrl, simulated } = await api.post<{
+      checkoutUrl: string;
+      simulated: boolean;
+    }>('/billing/checkout', { planName });
+
+    if (simulated || !checkoutUrl) {
+      simulatedCheckout.value = true;
+      toast.info('Pagamento simulado: nenhuma cobrança foi criada neste ambiente.');
+      return;
+    }
+
     window.location.href = checkoutUrl;
-  } catch (err: any) {
-    toast.error(err.message || 'Não foi possível gerar o link de pagamento. Tente novamente.');
+  } catch (error) {
+    toast.error(
+      apiErrorMessage(error, 'Não foi possível gerar o link de pagamento. Tente novamente.'),
+    );
+  } finally {
     isLoading.value = false;
   }
 }
@@ -110,6 +124,15 @@ async function goToCheckout(planName: string) {
             <p class="text-sm font-medium text-muted-foreground">Encerramento do Trial</p>
             <p class="text-lg font-semibold mt-1">{{ trialFormatted }}</p>
           </div>
+        </div>
+
+        <div
+          v-if="simulatedCheckout"
+          class="bg-warning-surface text-warning-foreground border border-warning-border rounded-lg p-4 text-sm font-medium"
+        >
+          Ambiente sem gateway de pagamento: a assinatura foi registrada apenas no log do servidor e
+          <strong>nenhuma cobrança real foi criada</strong>. Em produção este botão leva ao checkout
+          do Asaas.
         </div>
 
         <div

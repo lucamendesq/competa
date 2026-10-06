@@ -4,6 +4,7 @@ import { randomUUID } from 'node:crypto';
 
 @Injectable()
 export class LogBilling implements BillingProvider {
+  readonly simulated = true;
   private readonly logger = new Logger(LogBilling.name);
 
   async getOrCreateCustomer(input: { name: string; email: string; cpfCnpj?: string }) {
@@ -18,7 +19,7 @@ export class LogBilling implements BillingProvider {
 
     return {
       subscriptionId: `mock_sub_${randomUUID()}`,
-      checkoutUrl: '#assinado',
+      checkoutUrl: '',
     };
   }
 }
