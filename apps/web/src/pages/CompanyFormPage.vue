@@ -236,6 +236,7 @@ const preview = computed(() => {
 });
 
 const error = ref<string | null>(null);
+const saving = ref(false);
 
 async function syncContact(contact?: { name: string; email: string; phone?: string }) {
   const existing = detailQuery.data.value?.contacts[0];
@@ -253,6 +254,8 @@ async function syncContact(contact?: { name: string; email: string; phone?: stri
 }
 
 const onSubmit = handleSubmit(async (values) => {
+  if (saving.value) return;
+  saving.value = true;
   error.value = null;
   const contact = values.contactEmail
     ? {
@@ -294,6 +297,8 @@ const onSubmit = handleSubmit(async (values) => {
     error.value = apiErrorMessage(err, 'Não foi possível salvar a empresa.');
     const fieldErrs = apiFieldErrors(err);
     if (fieldErrs) setErrors(fieldErrs);
+  } finally {
+    saving.value = false;
   }
 });
 </script>
@@ -407,7 +412,9 @@ const onSubmit = handleSubmit(async (values) => {
 
       <div class="border-border flex gap-3 border-t pt-6">
         <Button variant="ghost" type="button" @click="router.back()">Cancelar</Button>
-        <Button type="submit">Salvar empresa</Button>
+        <Button type="submit" :disabled="saving">
+          {{ saving ? 'Salvando...' : 'Salvar empresa' }}
+        </Button>
       </div>
     </div>
 
