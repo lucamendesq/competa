@@ -4,6 +4,7 @@ import { useRouter } from 'vue-router';
 import { toTypedSchema } from '@vee-validate/zod';
 import { useForm, useField } from 'vee-validate';
 import * as z from 'zod';
+import { email as emailSchema } from '@competa/contracts';
 import {} from 'lucide-vue-next';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -79,7 +80,7 @@ const CompanyForm = z
     responsibleAccountantId: z.union([z.string().uuid(), z.literal('')]),
     cnpj: z.union([CnpjSchema, z.literal('')]),
     contactName: z.string().trim(),
-    contactEmail: z.union([z.string().email('E-mail inválido.'), z.literal('')]),
+    contactEmail: z.union([emailSchema(), z.literal('')]),
     contactPhone: z.string().trim(),
   })
   .refine((value) => !value.contactName || value.contactEmail !== '', {

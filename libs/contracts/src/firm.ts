@@ -1,4 +1,5 @@
 import * as z from 'zod';
+import { email } from './common.js';
 
 /** PATCH /accounting-firm — nome e preferências de lembrete (só o dono). Parcial: manda o
  *  que mudou. As faixas espelham o CHECK `accounting_firm_reminder_chk`. */
@@ -23,10 +24,7 @@ export const UpdateFirmBody = z
       .max(2048)
       .nullable()
       .or(z.literal('').transform(() => null)),
-    contactEmail: z
-      .string()
-      .trim()
-      .email()
+    contactEmail: email()
       .max(255)
       .nullable()
       .or(z.literal('').transform(() => null)),
@@ -38,7 +36,7 @@ export type UpdateFirmBody = z.infer<typeof UpdateFirmBody>;
 export const PublicSignUpBody = z.object({
   firmName: z.string().trim().min(1, 'Nome da contabilidade é obrigatório.'),
   userName: z.string().trim().min(1, 'Seu nome é obrigatório.'),
-  email: z.string().trim().email('E-mail inválido.'),
+  email: email(),
   password: z.string().min(8, 'A senha precisa ter no mínimo 8 caracteres.'),
 });
 export type PublicSignUpBody = z.infer<typeof PublicSignUpBody>;

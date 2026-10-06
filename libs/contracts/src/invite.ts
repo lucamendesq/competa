@@ -1,7 +1,7 @@
 import * as z from 'zod';
-import { optionalText } from './common.js';
+import { email, optionalText } from './common.js';
 
-export const CreateInviteBody = z.object({ email: z.email() });
+export const CreateInviteBody = z.object({ email: email() });
 export type CreateInviteBody = z.infer<typeof CreateInviteBody>;
 
 export const SignUpBody = z.object({
@@ -10,7 +10,7 @@ export const SignUpBody = z.object({
     .trim()
     .min(1, 'Informe seu nome.')
     .max(255, 'O nome deve ter no máximo 255 caracteres.'),
-  email: z.email('Informe um e-mail válido.'),
+  email: email('Informe um e-mail válido.'),
   password: z.string().min(8, 'A senha precisa de pelo menos 8 caracteres.'),
   token: z.string().min(1, 'Token do convite é obrigatório.'),
 });
@@ -38,7 +38,7 @@ export type SendAccessInvitesBody = z.infer<typeof SendAccessInvitesBody>;
 
 /** "Perdi meu link" na home. Resposta e tempo idênticos para email com acesso, email de
  *  Responsável sem acesso e email desconhecido — não revela se a conta existe (D14). */
-export const RecoverAccessBody = z.object({ email: z.email() });
+export const RecoverAccessBody = z.object({ email: email() });
 export type RecoverAccessBody = z.infer<typeof RecoverAccessBody>;
 
 /** Passo 2 do "perdi meu link": o token do email de confirmação. */

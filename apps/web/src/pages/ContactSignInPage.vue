@@ -3,6 +3,7 @@ import { ref } from 'vue';
 import { useRouter } from 'vue-router';
 import { useForm, useField } from 'vee-validate';
 import * as z from 'zod';
+import { email as emailSchema } from '@competa/contracts';
 import { toTypedSchema } from '@vee-validate/zod';
 import { Mail } from 'lucide-vue-next';
 import { Button } from '@/components/ui/button';
@@ -20,7 +21,7 @@ const linkSent = ref(false);
 
 // Form for Password Sign In
 const SignInForm = z.object({
-  email: z.string().trim().email('E-mail inválido.').min(1, 'Informe o seu e-mail.'),
+  email: emailSchema().min(1, 'Informe o seu e-mail.'),
   password: z.string().min(1, 'Informe sua senha.'),
 });
 const signInForm = useForm({ validationSchema: toTypedSchema(SignInForm) });
@@ -37,7 +38,7 @@ const {
 
 // Form for Magic Link
 const LinkForm = z.object({
-  linkEmail: z.string().trim().email('E-mail inválido.').min(1, 'Informe o seu e-mail.'),
+  linkEmail: emailSchema().min(1, 'Informe o seu e-mail.'),
 });
 const linkForm = useForm({ validationSchema: toTypedSchema(LinkForm) });
 const {

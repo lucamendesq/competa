@@ -3,6 +3,7 @@ import { ref } from 'vue';
 import { useRouter } from 'vue-router';
 import { useForm, useField } from 'vee-validate';
 import * as z from 'zod';
+import { email as emailSchema } from '@competa/contracts';
 import { toTypedSchema } from '@vee-validate/zod';
 import { ArrowRight, CircleAlert, Download, Link, Zap } from 'lucide-vue-next';
 import { Button } from '@/components/ui/button';
@@ -17,7 +18,7 @@ const router = useRouter();
 const error = ref<string | null>(null);
 
 const LoginForm = z.object({
-  email: z.string().trim().email('E-mail inválido.').min(1, 'Informe seu e-mail.'),
+  email: emailSchema().min(1, 'Informe seu e-mail.'),
   password: z.string().min(1, 'Informe sua senha.'),
 });
 

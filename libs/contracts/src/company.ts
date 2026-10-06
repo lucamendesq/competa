@@ -1,5 +1,6 @@
 import * as z from 'zod';
 import { CompanyFlags } from './registry.js';
+import { email } from './common.js';
 import { PaginationQuery } from './pagination.js';
 
 /** Dígitos verificadores do CNPJ (módulo 11). Sem isto, 14 dígitos inventados entram na
@@ -44,7 +45,7 @@ export const ContactBody = z.object({
     .trim()
     .min(1, 'Informe o nome do Responsável.')
     .max(255, 'O nome do Responsável deve ter no máximo 255 caracteres.'),
-  email: z.email('E-mail inválido.'),
+  email: email(),
   phone: Phone.optional(),
 });
 export type ContactBody = z.infer<typeof ContactBody>;

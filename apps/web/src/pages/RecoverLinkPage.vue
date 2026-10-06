@@ -3,6 +3,7 @@ import { ref } from 'vue';
 import { useRouter } from 'vue-router';
 import { useForm, useField } from 'vee-validate';
 import * as z from 'zod';
+import { email as emailSchema } from '@competa/contracts';
 import { toTypedSchema } from '@vee-validate/zod';
 import { ArrowRight, CircleAlert, MailCheck, ArrowLeft } from 'lucide-vue-next';
 import { Button } from '@/components/ui/button';
@@ -18,7 +19,7 @@ const submitError = ref<string | null>(null);
 const success = ref(false);
 
 const schema = z.object({
-  email: z.string().trim().email('E-mail inválido.').min(1, 'Informe seu e-mail.'),
+  email: emailSchema().min(1, 'Informe seu e-mail.'),
 });
 
 const { handleSubmit, isSubmitting } = useForm({
