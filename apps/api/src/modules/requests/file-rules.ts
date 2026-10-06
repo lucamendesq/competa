@@ -71,6 +71,11 @@ export const fileExtension = ({ fileName, contentType }: Omit<UploadedFile, 'siz
 
 const megabytes = (bytes: number) => Math.round(bytes / (1024 * 1024));
 
+/* Arredondar o tamanho recusado para cima: com `Math.round`, 100 MiB + 1 byte vira
+ * "Arquivo de 100 MB acima do limite de 100 MB", que o Responsável lê como erro do
+ * sistema. */
+const megabytesUp = (bytes: number) => Math.ceil(bytes / (1024 * 1024));
+
 export const rejectionReason = (file: UploadedFile, acceptedFormats: readonly string[] | null) => {
   if (!file.fileName || !file.fileName.trim()) {
     return 'Nome do arquivo não pode ser vazio.';
@@ -85,7 +90,7 @@ export const rejectionReason = (file: UploadedFile, acceptedFormats: readonly st
   }
 
   if (file.sizeBytes > MAX_FILE_BYTES) {
-    return `Arquivo de ${megabytes(file.sizeBytes)} MB acima do limite de ${megabytes(MAX_FILE_BYTES)} MB por arquivo.`;
+    return `Arquivo de ${megabytesUp(file.sizeBytes)} MB acima do limite de ${megabytes(MAX_FILE_BYTES)} MB por arquivo.`;
   }
 
   const formats = [
@@ -126,7 +131,7 @@ export const confirmationRefusal = (input: {
 }) => {
   if (input.realBytes === undefined) return 'Arquivo não chegou ao storage.';
   if (input.realBytes > MAX_FILE_BYTES) {
-    return `Arquivo de ${Math.round(input.realBytes / 1024 / 1024)} MB acima do limite de ${MAX_FILE_BYTES / 1024 / 1024} MB por arquivo.`;
+    return `Arquivo de ${megabytesUp(input.realBytes)} MB acima do limite de ${megabytes(MAX_FILE_BYTES)} MB por arquivo.`;
   }
   if (input.realBytes !== input.declaredBytes) {
     return `O arquivo enviado (${input.realBytes} bytes) não tem o tamanho declarado (${input.declaredBytes} bytes).`;

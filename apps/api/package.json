@@ -24,7 +24,8 @@
     "dev:lan": "node ../../scripts/lan-env.mjs nest start --watch",
     "check:recovery-token": "tsx src/scripts/check-recovery-token.ts",
     "verify:com-148": "tsx src/scripts/verify-com-148.ts",
-    "verify:com-150": "tsx src/scripts/verify-com-150.ts"
+    "verify:com-150": "tsx src/scripts/verify-com-150.ts",
+    "verify:com-151": "tsx src/scripts/verify-com-151.ts"
   },
   "dependencies": {
     "@aws-sdk/client-s3": "^3.1125.0",
