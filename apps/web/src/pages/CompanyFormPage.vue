@@ -4,7 +4,7 @@ import { useRouter } from 'vue-router';
 import { toTypedSchema } from '@vee-validate/zod';
 import { useForm, useField } from 'vee-validate';
 import * as z from 'zod';
-import { email as emailSchema } from '@competa/contracts';
+import { CreateCompanyBody, email as emailSchema } from '@competa/contracts';
 import {} from 'lucide-vue-next';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -75,7 +75,7 @@ const CnpjSchema = z.string().refine(
 
 const CompanyForm = z
   .object({
-    name: z.string().trim().min(1, 'Informe o nome da empresa.'),
+    name: CreateCompanyBody.shape.name,
     checklistTemplateId: z.union([z.string().uuid(), z.literal('')]),
     responsibleAccountantId: z.union([z.string().uuid(), z.literal('')]),
     cnpj: z.union([CnpjSchema, z.literal('')]),
@@ -239,6 +239,20 @@ const preview = computed(() => {
 const error = ref<string | null>(null);
 const saving = ref(false);
 
+const SERVER_FIELD_ALIAS: Record<string, string> = {
+  'contact.name': 'contactName',
+  'contact.email': 'contactEmail',
+  'contact.phone': 'contactPhone',
+};
+
+const toFormFields = (fieldErrors: Record<string, string>) =>
+  Object.fromEntries(
+    Object.entries(fieldErrors).map(([path, message]) => [
+      SERVER_FIELD_ALIAS[path] ?? path,
+      message,
+    ]),
+  );
+
 async function syncContact(contact?: { name: string; email: string; phone?: string }) {
   const existing = detailQuery.data.value?.contacts[0];
   if (contact && !existing) {
@@ -296,8 +310,7 @@ const onSubmit = handleSubmit(async (values) => {
     }
   } catch (err) {
     error.value = apiErrorMessage(err, 'Não foi possível salvar a empresa.');
-    const fieldErrs = apiFieldErrors(err);
-    if (fieldErrs) setErrors(fieldErrs);
+    setErrors(toFormFields(apiFieldErrors(err)));
   } finally {
     saving.value = false;
   }
