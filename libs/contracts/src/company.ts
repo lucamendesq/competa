@@ -1,6 +1,6 @@
 import * as z from 'zod';
 import { CompanyFlags } from './registry.js';
-import { email } from './common.js';
+import { email, plainName } from './common.js';
 import { PaginationQuery } from './pagination.js';
 
 /** Dígitos verificadores do CNPJ (módulo 11). Sem isto, 14 dígitos inventados entram na
@@ -40,22 +40,22 @@ export const Phone = z
   .refine((v) => v.length >= 8, 'Telefone incompleto.');
 
 export const ContactBody = z.object({
-  name: z
-    .string()
-    .trim()
-    .min(1, 'Informe o nome do Responsável.')
-    .max(255, 'O nome do Responsável deve ter no máximo 255 caracteres.'),
+  name: plainName(
+    255,
+    'Informe o nome do Responsável.',
+    'O nome do Responsável deve ter no máximo 255 caracteres.',
+  ),
   email: email(),
   phone: Phone.optional(),
 });
 export type ContactBody = z.infer<typeof ContactBody>;
 
 export const CreateCompanyBody = z.object({
-  name: z
-    .string()
-    .trim()
-    .min(1, 'Informe o nome da Empresa.')
-    .max(255, 'O nome da Empresa deve ter no máximo 255 caracteres.'),
+  name: plainName(
+    255,
+    'Informe o nome da Empresa.',
+    'O nome da Empresa deve ter no máximo 255 caracteres.',
+  ),
   checklistTemplateId: z.uuid().optional(),
   responsibleAccountantId: z.uuid().nullable().optional(),
   cnpj: Cnpj.optional(),
@@ -66,11 +66,11 @@ export type CreateCompanyBody = z.infer<typeof CreateCompanyBody>;
 
 export const UpdateCompanyBody = z
   .object({
-    name: z
-      .string()
-      .trim()
-      .min(1, 'Informe o nome da Empresa.')
-      .max(255, 'O nome da Empresa deve ter no máximo 255 caracteres.'),
+    name: plainName(
+      255,
+      'Informe o nome da Empresa.',
+      'O nome da Empresa deve ter no máximo 255 caracteres.',
+    ),
     checklistTemplateId: z.uuid().nullable(),
     responsibleAccountantId: z.uuid().nullable(),
     cnpj: Cnpj.nullable(),
