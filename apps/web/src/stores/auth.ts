@@ -163,7 +163,13 @@ export const useAuthStore = defineStore('auth', () => {
 
   async function signOut() {
     setSessionHint(null);
-    await authClient.signOut();
+    try {
+      await authClient.signOut();
+    } catch {
+      /* Sair é intenção do usuário, não um pedido que pode falhar pela metade: se a
+       * chamada cair, o estado local some do mesmo jeito e a navegação para a tela de
+       * entrada acontece. O cookie que sobrar morre no TTL da sessão. */
+    }
     accountant.value = null;
     contact.value = null;
     pending = undefined;
