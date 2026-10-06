@@ -1,5 +1,4 @@
-import { ref, type Ref } from 'vue';
-import { useDropZone, useFileDialog } from '@vueuse/core';
+import { ref } from 'vue';
 import { apiErrorMessage } from '@/api/error';
 
 export type FileResult = {
@@ -24,33 +23,11 @@ type Dependencies = {
   }>;
 };
 
-export function useUpload(
-  dropTarget: Ref<HTMLElement | null>,
-  deps: Dependencies,
-  options: { accept?: string; multiple?: boolean } = {},
-) {
+export function useUpload(deps: Dependencies) {
   const isUploading = ref(false);
   const progressDone = ref(0);
   const progressTotal = ref(0);
   const results = ref<FileResult[]>([]);
-
-  const { isOverDropZone } = useDropZone(dropTarget, {
-    onDrop: (files) => {
-      if (isUploading.value) return;
-      if (files?.length) {
-        // filter if not multiple
-        const toUpload = options.multiple ? files : [files[0]];
-        void uploadFiles(toUpload);
-      }
-    },
-  });
-
-  const { open } = useFileDialog({
-    accept: options.accept,
-    multiple: options.multiple !== false,
-  });
-
-  const selectFiles = () => open();
 
   const uploadFiles = async (files: File[] | FileList) => {
     isUploading.value = true;
@@ -134,8 +111,6 @@ export function useUpload(
     progressDone,
     progressTotal,
     results,
-    isOverDropZone,
-    selectFiles,
     uploadFiles,
   };
 }

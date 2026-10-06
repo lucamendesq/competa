@@ -9,7 +9,6 @@ import {
 } from '../api/upload';
 import type { PushSubscriptionPayload } from '@/composables/usePush';
 import { useUpload } from '@/composables/useUpload';
-import { ref } from 'vue';
 
 export function useUploadFeature(token: string) {
   const queryClient = useQueryClient();
@@ -28,24 +27,8 @@ export function useUploadFeature(token: string) {
     mutationFn: () => activateAccess(token),
   });
 
-  // To wire up the upload composable
-  const dropTarget = ref<HTMLElement | null>(null);
-
-  useUpload(dropTarget, {
-    presign: async (files) => {
-      const res = await presignFiles(token, { files });
-      return res ?? { files: [] };
-    },
-    send: (url, file) => putFileToStorage(url, file),
-    confirm: async (docIds) => {
-      const res = await confirmFiles(token, docIds);
-      return res ?? { refused: [] };
-    },
-  });
-
   const sendFiles = async (files: File[], requestItemId: string | null) => {
-    // Override presign to include requestItemId
-    const tempDeps = {
+    const { uploadFiles } = useUpload({
       presign: async (fs: { fileName: string; contentType: string; sizeBytes: number }[]) => {
         const res = await presignFiles(token, { requestItemId, files: fs });
         return res ?? { files: [] };
@@ -55,17 +38,9 @@ export function useUploadFeature(token: string) {
         const res = await confirmFiles(token, docIds);
         return res ?? { refused: [] };
       },
-    };
+    });
 
-    // We create a temporary uploader logic or just use the composable's uploadFiles function mapped properly
-    // It's cleaner to just call the logic since we already built it generic.
-
-    // But `useUpload` takes `deps` in its constructor. We can just use it directly:
-    // Wait, `useUpload` is bound to the `dropTarget` and deps on init.
-    // We can just expose `uploadFiles` that takes files and requestItemId.
-
-    const { uploadFiles: runUpload } = useUpload(dropTarget, tempDeps);
-    const results = await runUpload(files);
+    const results = await uploadFiles(files);
 
     // reload query
     queryClient.invalidateQueries({ queryKey });
@@ -78,6 +53,5 @@ export function useUploadFeature(token: string) {
     subscribePushMutation,
     activateAccessMutation,
     sendFiles,
-    dropTarget,
   };
 }

@@ -4,6 +4,7 @@ import { useRoute } from 'vue-router';
 import {
   Bell,
   Camera,
+  CircleCheck,
   File as FileIcon,
   Link2Off,
   Lock,
@@ -28,8 +29,7 @@ const route = useRoute();
 const token = computed(() => route.params.linkToken as string);
 
 const feature = useUploadFeature(token.value);
-const { checklistQuery, subscribePushMutation, activateAccessMutation, sendFiles, dropTarget } =
-  feature;
+const { checklistQuery, subscribePushMutation, activateAccessMutation, sendFiles } = feature;
 
 const push = usePush();
 const activatingAccess = ref(false);
@@ -100,6 +100,11 @@ async function pick(event: Event, requestItemId: string | null) {
   const input = event.target as HTMLInputElement;
   const files = [...(input.files ?? [])];
   input.value = '';
+  if (files.length) await send(files, requestItemId);
+}
+
+async function drop(event: DragEvent, requestItemId: string | null) {
+  const files = [...(event.dataTransfer?.files ?? [])];
   if (files.length) await send(files, requestItemId);
 }
 
@@ -319,9 +324,10 @@ async function send(files: File[], requestItemId: string | null) {
             </div>
             <div v-else>
               <label
-                ref="dropTarget"
                 class="border-border hover:bg-muted focus-within:ring-ring flex min-h-28 cursor-pointer flex-col items-center justify-center gap-2 rounded-lg border-2 border-dashed p-4 text-center focus-within:ring-2"
                 :class="{ 'opacity-50 pointer-events-none': sending }"
+                @dragover.prevent
+                @drop.prevent="drop($event, item.id)"
               >
                 <Upload class="text-muted-foreground text-xl" aria-hidden="true" />
                 <span class="text-sm font-medium"
@@ -376,6 +382,8 @@ async function send(files: File[], requestItemId: string | null) {
           v-else
           class="border-border hover:bg-muted focus-within:ring-ring mt-3 flex min-h-20 cursor-pointer flex-col items-center justify-center gap-1 rounded-lg border-2 border-dashed p-4 text-center focus-within:ring-2"
           :class="{ 'opacity-50 pointer-events-none': sending }"
+          @dragover.prevent
+          @drop.prevent="drop($event, null)"
         >
           <span class="text-sm font-medium">Arraste os arquivos aqui ou toque para escolher</span>
           <span class="text-muted-foreground text-xs"

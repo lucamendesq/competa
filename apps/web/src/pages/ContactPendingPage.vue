@@ -9,7 +9,7 @@ import { dateBr, monthLabel } from '@/utils/format';
 import { isOverdue } from '@/utils/format';
 import UploadFeedback from '@/components/UploadFeedback.vue';
 
-const { pendingQuery, sendFiles, dropTarget } = useContactPending();
+const { pendingQuery, sendFiles } = useContactPending();
 
 // Upload state per item
 const uploadingItemId = ref<string | null>(null);
@@ -60,7 +60,7 @@ const groupedItems = computed(() => {
 </script>
 
 <template>
-  <div ref="dropTarget">
+  <div>
     <div v-if="pendingQuery.isLoading.value" class="text-center py-12 text-muted-foreground">
       Carregando pendências...
     </div>
