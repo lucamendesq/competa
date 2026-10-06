@@ -48,6 +48,7 @@ const routes: RouteRecordRaw[] = [
     path: '/minha-area',
     component: () => import('../layouts/ContactLayout.vue'),
     children: [
+      { path: '', redirect: '/minha-area/pendencias' },
       {
         path: 'acesso',
         name: 'ContactSignIn',
@@ -134,6 +135,7 @@ const routes: RouteRecordRaw[] = [
         component: () => import('../pages/PendingPanelPage.vue'),
         props: true,
       },
+      { path: 'configuracoes', redirect: '/configuracoes/contadores' },
       {
         path: 'configuracoes/contadores',
         name: 'AccountantsSettings',
