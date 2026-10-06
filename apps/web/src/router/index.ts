@@ -151,6 +151,14 @@ const routes: RouteRecordRaw[] = [
     ],
   },
   { path: '/entrar', name: 'Login', component: () => import('../pages/LoginPage.vue') },
+  /* Catch-all explícito: sem ele uma URL com typo casava com nada e o `<RouterView>`
+   * ficava vazio — tela branca sem erro, sem 404 e sem cair no guard de login. */
+  {
+    path: '/:pathMatch(.*)*',
+    name: 'NotFound',
+    meta: { title: 'Página não encontrada' },
+    component: () => import('../pages/NotFoundPage.vue'),
+  },
 ];
 
 const router = createRouter({
