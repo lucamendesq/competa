@@ -231,7 +231,7 @@ async function downloadZip(id: string, refMonth: string) {
             </RouterLink>
           </Button>
           <Button as-child>
-            <RouterLink :to="`/competencias/${current.id}`">
+            <RouterLink :to="`/competencias/${current.id}/pendencias`">
               <ArrowRight class="mr-2 h-4 w-4" /> Ver painel
             </RouterLink>
           </Button>
@@ -272,7 +272,7 @@ async function downloadZip(id: string, refMonth: string) {
             <TableBody>
               <TableRow v-for="row in visible" :key="row.id">
                 <TableCell class="font-medium">
-                  <RouterLink :to="`/competencias/${row.id}`" class="hover:underline">
+                  <RouterLink :to="`/competencias/${row.id}/pendencias`" class="hover:underline">
                     {{ monthLabel(row.referenceMonth) }}
                   </RouterLink>
                 </TableCell>

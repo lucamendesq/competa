@@ -4,6 +4,7 @@ import {
   BellRing,
   ChevronDown,
   CircleCheck,
+  ClipboardCheck,
   FileArchive,
   Lock,
   Mail,
@@ -408,6 +409,16 @@ function maskedCnpj(cnpj: string | null) {
                 <span>{{ line.counts.accepted }} de {{ line.total }}</span>
                 <span class="text-[11px]">{{ line.percent }}% completo</span>
               </div>
+              <Button
+                :variant="line.counts.submitted > 0 ? 'default' : 'outline'"
+                size="sm"
+                as-child
+              >
+                <RouterLink :to="`/solicitacoes/${line.requestId}`">
+                  <ClipboardCheck class="mr-2 h-4 w-4" />
+                  {{ line.counts.submitted > 0 ? `Conferir (${line.counts.submitted})` : 'Envios' }}
+                </RouterLink>
+              </Button>
               <Button
                 variant="outline"
                 size="sm"

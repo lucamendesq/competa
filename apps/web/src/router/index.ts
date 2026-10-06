@@ -122,6 +122,12 @@ const routes: RouteRecordRaw[] = [
         props: true,
       },
       {
+        path: 'solicitacoes/:id',
+        name: 'RequestReview',
+        component: () => import('../pages/RequestReviewPage.vue'),
+        props: true,
+      },
+      {
         path: 'competencias/:id/pendencias',
         name: 'PendingPanel',
         component: () => import('../pages/PendingPanelPage.vue'),
