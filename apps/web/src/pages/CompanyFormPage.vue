@@ -321,6 +321,7 @@ const onSubmit = handleSubmit(async (values) => {
   <PageHeader :title="editing ? 'Editar empresa' : 'Nova empresa'" />
 
   <form
+    novalidate
     class="mx-auto mt-8 flex max-w-4xl flex-col items-start gap-12 lg:flex-row"
     @submit="onSubmit"
   >

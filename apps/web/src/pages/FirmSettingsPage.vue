@@ -101,7 +101,7 @@ async function save() {
     <template v-else-if="firmQuery.isError.value">
       <ErrorState title="Não foi possível carregar." @retry="firmQuery.refetch()" />
     </template>
-    <form v-else class="flex flex-col gap-8" @submit.prevent="save">
+    <form novalidate v-else class="flex flex-col gap-8" @submit.prevent="save">
       <Callout v-if="!isOwner" tone="info" heading="Somente leitura">
         Apenas o dono da Contabilidade pode alterar estas configurações.
       </Callout>

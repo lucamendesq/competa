@@ -28,6 +28,7 @@ import {
   type TeamAccountant,
 } from '@/features/team/api/team';
 import { useAuthStore } from '@/stores/auth';
+import { CreateInviteBody } from '@competa/contracts';
 import { toast } from 'vue-sonner';
 import { apiErrorMessage } from '@/api/error';
 import { dateTimeBr } from '@/utils/format';
@@ -43,6 +44,7 @@ const invitesQuery = useQuery({ queryKey: ['invites'], queryFn: getPendingInvite
 const inviteOpen = ref(false);
 const inviteEmail = ref('');
 const inviteUrl = ref<string | null>(null);
+const inviteError = ref<string | null>(null);
 const confirmRemoval = ref<TeamAccountant | null>(null);
 const confirmRevoke = ref<PendingInvite | null>(null);
 
@@ -64,18 +66,25 @@ const revokeMutation = useMutation({
 function openInvite() {
   inviteEmail.value = '';
   inviteUrl.value = null;
+  inviteError.value = null;
   inviteOpen.value = true;
 }
 
 async function sendInvite() {
-  const email = inviteEmail.value.trim();
-  if (!email) return;
+  inviteError.value = null;
+
+  const parsed = CreateInviteBody.safeParse({ email: inviteEmail.value });
+  if (!parsed.success) {
+    inviteError.value = parsed.error.issues[0].message;
+    return;
+  }
+
   try {
-    const created = await inviteMutation.mutateAsync(email);
+    const created = await inviteMutation.mutateAsync(parsed.data.email);
     inviteUrl.value = created.url;
     toast.success(`Convite enviado para ${created.email}.`);
   } catch (error) {
-    toast.error(apiErrorMessage(error, 'Não foi possível enviar o convite.'));
+    inviteError.value = apiErrorMessage(error, 'Não foi possível enviar o convite.');
   }
 }
 
@@ -230,10 +239,16 @@ async function doRevoke() {
     title="Convidar contador"
     description="O convidado recebe um e-mail com o link para criar a conta."
   >
-    <form v-if="!inviteUrl" class="mt-4 flex flex-col gap-4" @submit.prevent="sendInvite">
+    <form
+      novalidate
+      v-if="!inviteUrl"
+      class="mt-4 flex flex-col gap-4"
+      @submit.prevent="sendInvite"
+    >
       <div class="flex flex-col gap-1.5">
         <Label for="inviteEmail">E-mail</Label>
-        <Input id="inviteEmail" v-model="inviteEmail" type="email" autofocus required />
+        <Input id="inviteEmail" v-model="inviteEmail" type="email" autofocus />
+        <p v-if="inviteError" class="text-danger text-xs">{{ inviteError }}</p>
       </div>
       <div class="border-border bg-muted/40 -mx-6 -mb-6 mt-5 flex justify-end gap-2 border-t p-4">
         <Button variant="ghost" type="button" @click="inviteOpen = false">Cancelar</Button>

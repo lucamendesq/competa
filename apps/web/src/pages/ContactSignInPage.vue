@@ -91,7 +91,7 @@ const onRequestLink = linkForm.handleSubmit(async (values) => {
         {{ error }}
       </div>
 
-      <form class="mt-6 flex flex-col gap-4" @submit="onSignIn">
+      <form novalidate class="mt-6 flex flex-col gap-4" @submit="onSignIn">
         <div class="flex flex-col gap-1.5">
           <Label for="email-password">
             Seu e-mail <span class="text-destructive" aria-hidden="true">*</span>
@@ -146,7 +146,7 @@ const onRequestLink = linkForm.handleSubmit(async (values) => {
         </p>
       </template>
       <template v-else>
-        <form class="flex flex-col gap-3" @submit="onRequestLink">
+        <form novalidate class="flex flex-col gap-3" @submit="onRequestLink">
           <div class="flex flex-col gap-1.5">
             <Label for="link-email">
               Seu e-mail <span class="text-destructive" aria-hidden="true">*</span>

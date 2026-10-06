@@ -97,7 +97,7 @@ const onSubmit = handleSubmit(async (values) => {
           <p>{{ submitError }}</p>
         </div>
 
-        <form class="flex flex-col gap-4" @submit="onSubmit">
+        <form novalidate class="flex flex-col gap-4" @submit="onSubmit">
           <div class="flex flex-col gap-1.5">
             <Label for="password">
               Nova senha <span class="text-destructive" aria-hidden="true">*</span>

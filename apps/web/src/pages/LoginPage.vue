@@ -106,7 +106,7 @@ const onSubmit = handleSubmit(async (values) => {
           <p>{{ error }}</p>
         </div>
 
-        <form class="mt-6 flex flex-col gap-4" @submit="onSubmit">
+        <form novalidate class="mt-6 flex flex-col gap-4" @submit="onSubmit">
           <div class="flex flex-col gap-1.5">
             <Label for="email">
               E-mail <span class="text-destructive" aria-hidden="true">*</span>
