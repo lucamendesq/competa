@@ -1,7 +1,7 @@
 <script setup lang="ts">
 import { computed, ref, watch } from 'vue';
 import { useRouter, onBeforeRouteLeave } from 'vue-router';
-import { Plus, Trash2 } from 'lucide-vue-next';
+import { Copy, Plus, Trash2 } from 'lucide-vue-next';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import PageHeader from '@/components/PageHeader.vue';
@@ -23,7 +23,10 @@ const router = useRouter();
 const { detailQuery, addItemMutation, updateItemMutation, removeItemMutation } =
   useTemplateDetailFeature(computed(() => props.id));
 const { documentTypesQuery } = useDocumentTypesFeature(ref(1), ref(100));
-const { renameTemplateMutation, deleteTemplateMutation } = useChecklistsFeature();
+const { renameTemplateMutation, deleteTemplateMutation, deriveTemplateMutation } =
+  useChecklistsFeature();
+
+const isProductTemplate = computed(() => detailQuery.data.value?.accountingFirmId === null);
 
 const CATEGORY_LABEL: Record<string, string> = {
   fiscal: 'Fiscal / Impostos',
@@ -227,6 +230,21 @@ async function save() {
   }
 }
 
+async function deriveAndEdit() {
+  acting.value = true;
+  try {
+    const copy = await deriveTemplateMutation.mutateAsync({
+      id: props.id,
+      name: `${draftName.value} (Cópia)`,
+    });
+    router.push(`/templates/${copy.id}`);
+  } catch (error) {
+    toast.error(apiErrorMessage(error, 'Não foi possível duplicar o template.'));
+  } finally {
+    acting.value = false;
+  }
+}
+
 async function doDeleteTemplate() {
   acting.value = true;
   try {
@@ -272,7 +290,10 @@ function resolveLeave(leave: boolean) {
     "
   >
     <Button variant="outline" class="mr-2" @click="router.back()">Voltar</Button>
-    <Button @click="catalogOpen = true">
+    <Button v-if="isProductTemplate" :disabled="acting" @click="deriveAndEdit">
+      <Copy class="mr-2 h-4 w-4" aria-hidden="true" /> Duplicar para editar
+    </Button>
+    <Button v-else @click="catalogOpen = true">
       <Plus class="mr-2 h-4 w-4" aria-hidden="true" /> Adicionar documento
     </Button>
   </PageHeader>
@@ -291,13 +312,10 @@ function resolveLeave(leave: boolean) {
           id="templateName"
           v-model="draftName"
           class="max-w-md"
-          :disabled="detailQuery.data.value?.accountingFirmId === null"
+          :disabled="isProductTemplate"
         />
-        <p
-          v-if="detailQuery.data.value?.accountingFirmId === null"
-          class="text-muted-foreground text-xs"
-        >
-          Templates padrão não podem ser renomeados.
+        <p v-if="isProductTemplate" class="text-muted-foreground text-xs">
+          Templates padrão são somente leitura. Duplique para ajustar ao seu uso.
         </p>
       </div>
 
@@ -318,6 +336,7 @@ function resolveLeave(leave: boolean) {
               </p>
             </div>
             <Button
+              v-if="!isProductTemplate"
               variant="ghost"
               size="icon"
               class="text-danger hover:text-danger hover:bg-danger/10"
@@ -332,6 +351,7 @@ function resolveLeave(leave: boolean) {
               <label class="text-xs font-medium">Frequência</label>
               <select
                 class="flex h-9 w-full rounded-md border border-input bg-background px-3 py-1 text-sm shadow-sm transition-colors focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring disabled:cursor-not-allowed disabled:opacity-50"
+                :disabled="isProductTemplate"
                 :value="item.periodicity"
                 @change="changePeriodicity(item, ($event.target as HTMLSelectElement).value)"
               >
@@ -350,6 +370,7 @@ function resolveLeave(leave: boolean) {
                   max="31"
                   class="h-9 w-24"
                   placeholder="Livre"
+                  :disabled="isProductTemplate"
                   :value="item.dueDay ?? ''"
                   @input="changeDay(item, ($event.target as HTMLInputElement).value)"
                 />
@@ -361,6 +382,7 @@ function resolveLeave(leave: boolean) {
                 <label class="text-xs font-medium">Mês do envio</label>
                 <select
                   class="flex h-9 w-32 rounded-md border border-input bg-background px-3 py-1 text-sm shadow-sm transition-colors focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring disabled:cursor-not-allowed disabled:opacity-50"
+                  :disabled="isProductTemplate"
                   :value="item.annualMonth"
                   @change="changeAnnualMonth(item, ($event.target as HTMLSelectElement).value)"
                 >
@@ -384,6 +406,7 @@ function resolveLeave(leave: boolean) {
               <label class="text-xs font-medium">Condição (Opcional)</label>
               <select
                 class="flex h-9 w-full rounded-md border border-input bg-background px-3 py-1 text-sm shadow-sm transition-colors focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring disabled:cursor-not-allowed disabled:opacity-50"
+                :disabled="isProductTemplate"
                 :value="item.conditionFlag ?? ''"
                 @change="changeCondition(item, ($event.target as HTMLSelectElement).value)"
               >
@@ -398,6 +421,7 @@ function resolveLeave(leave: boolean) {
               <input
                 type="checkbox"
                 class="size-4"
+                :disabled="isProductTemplate"
                 :checked="item.required"
                 @change="toggleRequired(item)"
               />
@@ -413,10 +437,7 @@ function resolveLeave(leave: boolean) {
           <p class="text-muted-foreground text-sm">Este template não possui documentos.</p>
         </div>
 
-        <div
-          v-if="!detailQuery.data.value?.accountingFirmId === null"
-          class="mt-8 flex justify-end"
-        >
+        <div v-if="!isProductTemplate" class="mt-8 flex justify-end">
           <Button
             variant="ghost"
             class="text-danger hover:text-danger hover:bg-danger/10"
