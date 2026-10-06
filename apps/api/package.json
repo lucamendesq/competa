@@ -21,7 +21,8 @@
     "db:seed": "tsx src/infra/database/seeds/index.ts",
     "create-firm": "tsx src/scripts/create-firm.ts",
     "dev": "nest start --watch",
-    "dev:lan": "node ../../scripts/lan-env.mjs nest start --watch"
+    "dev:lan": "node ../../scripts/lan-env.mjs nest start --watch",
+    "check:recovery-token": "tsx src/scripts/check-recovery-token.ts"
   },
   "dependencies": {
     "@aws-sdk/client-s3": "^3.1125.0",

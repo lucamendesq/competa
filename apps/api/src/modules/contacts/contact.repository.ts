@@ -94,6 +94,7 @@ export class ContactRepository {
         referenceMonth: period.referenceMonth,
         periodDueDate: period.dueDate,
         hasAccess: contact.authUserId,
+        uploadLinkTokenHash: uploadLink.tokenHash,
         /* Última entrega de link para esta Solicitação — é o que segura o cooldown do
          * "perdi meu link". Falhada não conta: se o email não saiu, o Responsável ainda
          * está sem link e precisa poder pedir de novo. */
@@ -108,6 +109,7 @@ export class ContactRepository {
       .innerJoin(company, eq(company.id, contact.companyId))
       .innerJoin(request, eq(request.companyId, company.id))
       .innerJoin(period, eq(period.id, request.periodId))
+      .leftJoin(uploadLink, eq(uploadLink.requestId, request.id))
       .where(
         and(
           eq(contact.email, email),

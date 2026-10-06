@@ -10,7 +10,12 @@ import {
   type AccessRecoveryRequestedEvent,
   type UploadLinkResentEvent,
 } from '../../lib/events.js';
-import { createToken, signRecoveryToken, verifyRecoveryToken } from '../../lib/token.js';
+import {
+  createToken,
+  recoveryFingerprint,
+  signRecoveryToken,
+  verifyRecoveryToken,
+} from '../../lib/token.js';
 import { zodPipe } from '../../lib/zod-pipe.js';
 import { AuthProvider } from '../auth/auth-provider.js';
 import { RequestRepository } from '../requests/request.repository.js';
@@ -70,8 +75,17 @@ export class AccessRecoveryController {
   async confirm(@Body(zodPipe(RecoverAccessConfirmBody)) body: RecoverAccessConfirmBody) {
     const startedAt = Date.now();
 
-    const email = verifyRecoveryToken(body.token);
-    if (email) await this.rotateAndSend(email);
+    const confirmed = verifyRecoveryToken(body.token);
+    if (confirmed) {
+      const openRequests = await this.contacts.openRequestsForEmail(confirmed.email);
+
+      /* Uso único sem tabela: o token foi assinado sobre os Links vigentes naquele
+       * momento. A rotação troca esses hashes, então o mesmo token não confirma duas
+       * vezes — e se nada rotacionou (cooldown), não houve invalidação para repetir. */
+      if (recoveryFingerprint(openRequests) === confirmed.fingerprint) {
+        await this.rotateAndSend(openRequests);
+      }
+    }
 
     await pauseUntil(startedAt + MINIMUM_DURATION_MS);
 
@@ -89,7 +103,7 @@ export class AccessRecoveryController {
       return;
     }
 
-    const token = signRecoveryToken(email, CONFIRM_TTL_MS);
+    const token = signRecoveryToken(email, recoveryFingerprint(openRequests), CONFIRM_TTL_MS);
     const requested: AccessRecoveryRequestedEvent = {
       email,
       contactName: openRequests[0].contactName,
@@ -99,8 +113,9 @@ export class AccessRecoveryController {
     await this.events.emitAsync(EVENTS.AccessRecoveryRequested, requested);
   }
 
-  private async rotateAndSend(email: string) {
-    const openRequests = await this.contacts.openRequestsForEmail(email);
+  private async rotateAndSend(
+    openRequests: Awaited<ReturnType<ContactRepository['openRequestsForEmail']>>,
+  ) {
     const cooldownStart = subMinutes(new Date(), RESEND_COOLDOWN_MINUTES);
 
     for (const row of openRequests) {
