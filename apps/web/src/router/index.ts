@@ -51,6 +51,7 @@ const routes: RouteRecordRaw[] = [
       {
         path: 'acesso',
         name: 'ContactSignIn',
+        meta: { guestOnly: true },
         component: () => import('../pages/ContactSignInPage.vue'),
       },
       {
@@ -150,7 +151,12 @@ const routes: RouteRecordRaw[] = [
       },
     ],
   },
-  { path: '/entrar', name: 'Login', component: () => import('../pages/LoginPage.vue') },
+  {
+    path: '/entrar',
+    name: 'Login',
+    meta: { guestOnly: true },
+    component: () => import('../pages/LoginPage.vue'),
+  },
   /* Catch-all explícito: sem ele uma URL com typo casava com nada e o `<RouterView>`
    * ficava vazio — tela branca sem erro, sem 404 e sem cair no guard de login. */
   {
@@ -166,8 +172,23 @@ const router = createRouter({
   routes,
 });
 
+/** Para onde uma sessão viva pertence. */
+const homeFor = (authStore: ReturnType<typeof useAuthStore>) => {
+  if (authStore.accountant) return '/competencias';
+  if (authStore.contact) return '/minha-area/pendencias';
+  return null;
+};
+
 router.beforeEach(async (to, _from, next) => {
   const authStore = useAuthStore();
+
+  /* Tela de entrada com sessão viva é beco sem saída: o Responsável logado que caísse em
+   * `/entrar` via o formulário do Contador e concluía que tinha sido deslogado. */
+  if (to.meta.guestOnly) {
+    await authStore.ensureLoaded();
+    const home = homeFor(authStore);
+    return home ? next(home) : next();
+  }
 
   if (to.meta.requiresAuth === 'accountant') {
     await authStore.ensureLoaded('accountant');
