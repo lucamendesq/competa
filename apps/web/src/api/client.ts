@@ -122,14 +122,27 @@ class ApiClient {
 
   async download(url: string, fileName: string) {
     const blob = await this.request<Blob>('GET', url, { responseType: 'blob' });
+
+    if (blob.size === 0) {
+      throw new ApiError(
+        404,
+        { error: { code: 'EMPTY_DOWNLOAD', message: 'Nenhum documento para baixar.' } },
+        'EMPTY_DOWNLOAD',
+      );
+    }
+
     const objectUrl = URL.createObjectURL(blob);
     const anchor = document.createElement('a');
 
     anchor.href = objectUrl;
     anchor.download = fileName;
+    document.body.appendChild(anchor);
     anchor.click();
+    anchor.remove();
 
-    URL.revokeObjectURL(objectUrl);
+    /* Revogar no mesmo tick cancela o download que o navegador ainda não começou
+     * (Firefox/Safari): o clique só agenda a gravação. */
+    setTimeout(() => URL.revokeObjectURL(objectUrl), 60_000);
   }
 }
 
