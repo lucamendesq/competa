@@ -91,4 +91,15 @@ export default tseslint.config(
       'no-restricted-syntax': 'off',
     },
   },
+
+  /* Script de verificação monta fixture própria no banco: não há request nem guard de onde
+   * o escopo possa nascer. Mesmo caso de `test/**`. A exceção vive aqui e não numa
+   * diretiva `eslint-disable` no arquivo porque o `--fix` do lint-staged roda com a config
+   * da raiz, que não tem este bloco, e apaga a diretiva por achá-la inútil. */
+  {
+    files: ['src/scripts/verify-com-148.ts'],
+    rules: {
+      'no-restricted-syntax': 'off',
+    },
+  },
 );
