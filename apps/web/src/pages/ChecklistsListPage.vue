@@ -19,18 +19,19 @@ import Modal from '@/components/Modal.vue';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { useChecklistsFeature } from '@/features/checklists/composables/useChecklistsFeature';
+import type { Template } from '@/features/checklists/api/checklists';
 import { toast } from 'vue-sonner';
 import { apiErrorMessage } from '@/api/error';
 
 const router = useRouter();
 const { templatesQuery, deriveTemplateMutation, createTemplateMutation } = useChecklistsFeature();
 
-const deriveOpen = ref<any | null>(null);
+const deriveOpen = ref<Template | null>(null);
 const blankOpen = ref(false);
 const newName = ref('');
 const acting = ref(false);
 
-function openDerive(template: any) {
+function openDerive(template: Template) {
   newName.value = template.name + ' (Cópia)';
   deriveOpen.value = template;
 }
@@ -57,7 +58,7 @@ async function createBlank() {
   if (!newName.value.trim()) return;
   acting.value = true;
   try {
-    const res = (await createTemplateMutation.mutateAsync(newName.value.trim())) as any;
+    const res = await createTemplateMutation.mutateAsync(newName.value.trim());
     toast.success('Template criado com sucesso.');
     router.push(`/templates/${res.id}`);
   } catch (error) {

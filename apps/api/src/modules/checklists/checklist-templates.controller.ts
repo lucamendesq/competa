@@ -1,5 +1,6 @@
 import { Body, Controller, Delete, Get, HttpCode, Param, Patch, Post } from '@nestjs/common';
 import {
+  CreateTemplateBody,
   CreateTemplateItemBody,
   DeriveTemplateBody,
   IdParam,
@@ -39,9 +40,14 @@ export class ChecklistTemplatesController {
   @Post()
   async create(
     @CurrentScope() scope: FirmScope,
-    @Body(zodPipe(DeriveTemplateBody)) body: DeriveTemplateBody,
+    @Body(zodPipe(CreateTemplateBody)) body: CreateTemplateBody,
   ) {
-    if (!body.name) throw new Error("Nome é obrigatório"); return this.checklists.createTemplate(scope, { name: body.name, derivedFrom: null as any });
+    const row = await this.checklists.createTemplate(scope, {
+      name: body.name,
+      derivedFrom: null,
+    });
+
+    return { ...row, itemCount: 0 };
   }
 
   @Post(':id/derive')

@@ -14,7 +14,17 @@ const annualNeedsMonth = <T extends { periodicity?: string; annualMonth?: number
   v.periodicity !== 'annual' || v.annualMonth != null;
 const annualMessage = { message: 'Item anual exige annualMonth.', path: ['annualMonth'] };
 
-export const DeriveTemplateBody = z.object({ name: z.string().trim().min(1).optional() });
+/** Criar do zero: nome é obrigatório — não há template de origem de onde herdá-lo. */
+export const CreateTemplateBody = z.object({
+  name: z
+    .string()
+    .trim()
+    .min(1, 'Informe o nome do template.')
+    .max(120, 'O nome do template deve ter no máximo 120 caracteres.'),
+});
+export type CreateTemplateBody = z.infer<typeof CreateTemplateBody>;
+
+export const DeriveTemplateBody = z.object({ name: z.string().trim().min(1).max(120).optional() });
 export type DeriveTemplateBody = z.infer<typeof DeriveTemplateBody>;
 
 /** Renomear o modelo próprio: o nome era escolhido só na duplicação e não havia como

@@ -238,7 +238,7 @@ export class ChecklistRepository {
 
   async createTemplate(
     scope: FirmScope,
-    input: { name: string; derivedFrom: string },
+    input: { name: string; derivedFrom: string | null },
     tx: Database = this.db,
   ) {
     const [row] = await tx
