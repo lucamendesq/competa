@@ -11,6 +11,16 @@ export class ApiError extends Error {
 
 type ApiErrorBody = { error?: { code?: string; message?: string; details?: unknown } };
 
+/** Mensagens das issues do zod, na ordem em que o servidor mandou. */
+const validationMessages = (body: ApiErrorBody): string[] => {
+  const details = body.error?.details;
+  if (!Array.isArray(details)) return [];
+
+  return details
+    .map((issue) => (issue as { message?: string }).message)
+    .filter((message): message is string => Boolean(message));
+};
+
 export const apiErrorMessage = (
   error: unknown,
   fallback = 'Não foi possível concluir. Tente novamente.',
@@ -23,8 +33,14 @@ export const apiErrorMessage = (
 
   const body = error.body as ApiErrorBody | string | null;
   if (typeof body === 'string') return body || fallback;
+  if (!body) return fallback;
 
-  return body?.error?.message ?? fallback;
+  /* `VALIDATION_ERROR` traz "Dados inválidos." no envelope e o motivo de verdade nas
+   * issues: sem olhar para elas, todo 422 do app vira a mesma frase vazia. */
+  const [first] = validationMessages(body);
+  if (first) return first;
+
+  return body.error?.message ?? fallback;
 };
 
 export const apiErrorCode = (error: unknown): string | undefined => {

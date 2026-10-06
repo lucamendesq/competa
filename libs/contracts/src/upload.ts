@@ -17,7 +17,10 @@ export type UploadFile = z.infer<typeof UploadFile>;
  * pelo limite de 2 MB de JSON do body parser. */
 export const PresignUploadBody = z.object({
   requestItemId: z.uuid().nullish(),
-  files: z.array(UploadFile).min(1).max(500),
+  files: z
+    .array(UploadFile)
+    .min(1, 'Selecione ao menos um arquivo.')
+    .max(500, 'Envie no máximo 500 arquivos por vez.'),
 });
 export type PresignUploadBody = z.infer<typeof PresignUploadBody>;
 
