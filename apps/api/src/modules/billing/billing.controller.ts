@@ -1,5 +1,12 @@
+import { Body } from "@nestjs/common";
+import * as z from "zod";
+import { zodPipe } from "../../lib/zod-pipe.js";
+
 import { Controller, Post } from '@nestjs/common';
 import { CurrentScope } from '../auth/current-scope.decorator.js';
+import { Session } from '../auth/session.decorator.js';
+import type { AuthSession } from '../auth/auth-provider.js';
+import { OnlyOwnerCanManageTeam } from '../auth/errors.js';
 import type { FirmScope } from '../auth/scope.js';
 import { BillingProvider } from './providers/billing.provider.js';
 import { AccountantRepository } from '../auth/accountant.repository.js';
@@ -10,6 +17,10 @@ const PLAN_RATES = {
   profissional: 147.0,
 };
 
+const CheckoutBody = z.object({
+  planName: z.enum(['essencial', 'profissional']),
+});
+
 @Controller('billing')
 export class BillingController {
   constructor(
@@ -19,7 +30,15 @@ export class BillingController {
   ) {}
 
   @Post('checkout')
-  async checkout(@CurrentScope() scope: FirmScope) {
+  async checkout(
+    @CurrentScope() scope: FirmScope, 
+    @Session() session: AuthSession,
+    @Body(zodPipe(CheckoutBody)) body: z.infer<typeof CheckoutBody>
+  ) {
+    if (!(await this.accountants.isOwner(scope, session.user.id))) {
+      throw new OnlyOwnerCanManageTeam();
+    }
+
     const firm = await this.accountants.firm(scope);
     if (!firm) throw new Error('Contabilidade não encontrada');
 
@@ -29,8 +48,8 @@ export class BillingController {
       email: firm.contactEmail || 'faturamento@competa.com.br',
     });
 
-    // 2. Define o plano e cria a assinatura (vamos usar "essencial" como default no MVP)
-    const planName = 'essencial';
+    // 2. Define o plano e cria a assinatura
+    const planName = body.planName;
     const { subscriptionId, checkoutUrl } = await this.billing.createSubscription({
       customerId,
       planName,

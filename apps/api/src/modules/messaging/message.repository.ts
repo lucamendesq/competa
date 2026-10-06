@@ -1,5 +1,5 @@
 import { Inject, Injectable, Logger } from '@nestjs/common';
-import { and, count, desc, eq, inArray, sql } from 'drizzle-orm';
+import { and, count, desc, eq, gt, inArray, isNull, or, sql } from 'drizzle-orm';
 import type { MessageListQuery } from '@competa/contracts';
 import env from '../../config/env.js';
 import { InvalidTransition } from '../requests/errors.js';
@@ -75,18 +75,34 @@ export class MessageRepository {
     scope: ContactScope | UploadScope,
     input: { endpoint: string; keys: Record<string, string> },
   ) {
-    const contactIds = 'memberships' in scope ? contactIdsOf(scope) : [scope.contactId];
+    const fromSession = 'memberships' in scope;
+    const contactIds = fromSession ? contactIdsOf(scope) : [scope.contactId];
+
+    /* Inscrição criada pelo Link de Upload (rota anônima) herda a validade do link: sem
+     * isto ela sobrevivia à expiração e à rotação, e quem teve o link seguia recebendo
+     * nome da Empresa e pendências para sempre. */
+    const expiresAt = fromSession ? null : await this.uploadLinkExpiry(scope.requestId);
 
     const rows = await this.db
       .insert(pushSubscription)
-      .values(contactIds.map((contactId) => ({ contactId, provider: 'web', ...input })))
+      .values(contactIds.map((contactId) => ({ contactId, provider: 'web', expiresAt, ...input })))
       .onConflictDoUpdate({
         target: [pushSubscription.contactId, pushSubscription.endpoint],
-        set: { keys: input.keys },
+        set: { keys: input.keys, expiresAt },
       })
       .returning({ id: pushSubscription.id, endpoint: pushSubscription.endpoint });
 
     return rows[0];
+  }
+
+  private async uploadLinkExpiry(requestId: string) {
+    const [row] = await this.db
+      .select({ expiresAt: uploadLink.expiresAt })
+      .from(uploadLink)
+      .where(eq(uploadLink.requestId, requestId))
+      .limit(1);
+
+    return row?.expiresAt ?? null;
   }
 
   async deletePushSubscription(scope: ContactScope, endpoint: string) {
@@ -108,8 +124,10 @@ export class MessageRepository {
   }
 
   async subscriptionsForRequest(requestId: string) {
+    /* `selectDistinctOn(endpoint)`: o mesmo aparelho tem uma linha por contato (user
+     * multi-empresa), e sem isto a mesma Empresa notificava o aparelho N vezes. */
     return this.db
-      .select({
+      .selectDistinctOn([pushSubscription.endpoint], {
         endpoint: pushSubscription.endpoint,
         keys: pushSubscription.keys,
         contactName: contact.name,
@@ -118,7 +136,12 @@ export class MessageRepository {
       .innerJoin(contact, eq(contact.id, pushSubscription.contactId))
       .innerJoin(company, eq(company.id, contact.companyId))
       .innerJoin(request, eq(request.companyId, company.id))
-      .where(eq(request.id, requestId));
+      .where(
+        and(
+          eq(request.id, requestId),
+          or(isNull(pushSubscription.expiresAt), gt(pushSubscription.expiresAt, new Date())),
+        ),
+      );
   }
 
   /** Sem `FirmScope`: quem chama é o listener do evento ou o cron — não há sessão, e o
@@ -582,7 +605,6 @@ export class MessageRepository {
     if (row.purpose === 'rejection') {
       const rejectedDocs = await this.db
         .select({
-          fileName: document.fileName,
           itemName: requestItem.name,
           rejectionReason: document.rejectionReason,
         })
@@ -604,7 +626,6 @@ export class MessageRepository {
             contactEmail: row.recipient,
             uploadUrl,
             rejected: rejectedDocs.map((doc) => ({
-              fileName: doc.fileName,
               itemName: doc.itemName,
               rejectionReason: doc.rejectionReason ?? '',
             })),

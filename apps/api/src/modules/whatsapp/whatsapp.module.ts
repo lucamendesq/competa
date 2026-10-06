@@ -1,4 +1,5 @@
 import { Logger, Module } from '@nestjs/common';
+import { AuthModule } from '../auth/auth.module.js';
 import { WhatsappCryptoService } from './whatsapp-crypto.service.js';
 import { WhatsappSettingsController } from './whatsapp-settings.controller.js';
 import { WhatsappWebhookController } from './whatsapp-webhook.controller.js';
@@ -11,6 +12,7 @@ const useMockWhatsapp = env.NODE_ENV !== 'production';
 new Logger('WhatsappModule').log(useMockWhatsapp ? 'MockWhatsappProvider' : 'WhatsappProvider');
 
 @Module({
+  imports: [AuthModule],
   controllers: [WhatsappSettingsController, WhatsappWebhookController],
   providers: [
     WhatsappRepository,

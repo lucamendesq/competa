@@ -1,9 +1,15 @@
-export type Rejection = { fileName: string; rejectionReason: string | null };
+/** `fileName` opcional: a página pública do Link de Upload não recebe nome de arquivo
+ *  (é conteúdo de documento, e quem tem o link não é necessariamente quem enviou). */
+export type Rejection = { fileName?: string; rejectionReason: string | null };
 
 type ItemWithRejections = {
   status: string;
   /** telas que carregam os arquivos do Item (revisão, detalhe da competência, link) */
-  documents?: readonly { fileName: string; reviewStatus: string; rejectionReason: string | null }[];
+  documents?: readonly {
+    fileName?: string;
+    reviewStatus: string;
+    rejectionReason: string | null;
+  }[];
   /** o Painel de Pendências não carrega arquivos: a API manda só as recusas */
   rejections?: readonly Rejection[];
 };

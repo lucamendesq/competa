@@ -1,6 +1,6 @@
 <script setup lang="ts">
 import { computed, ref } from 'vue';
-import { useRoute, useRouter } from 'vue-router';
+import { useRoute } from 'vue-router';
 import {
   Bell,
   Camera,
@@ -25,7 +25,6 @@ import { toast } from 'vue-sonner';
 import { apiErrorCode, apiErrorMessage } from '@/api/error';
 
 const route = useRoute();
-const router = useRouter();
 const token = computed(() => route.params.linkToken as string);
 
 const feature = useUploadFeature(token.value);
@@ -35,6 +34,7 @@ const { checklistQuery, subscribePushMutation, activateAccessMutation, sendFiles
 const push = usePush();
 const activatingAccess = ref(false);
 const accountExists = ref(false);
+const accessEmailSent = ref<string | null>(null);
 
 async function subscribeToPush() {
   await push.subscribe((payload) => subscribePushMutation.mutateAsync(payload));
@@ -43,8 +43,8 @@ async function subscribeToPush() {
 async function activateAccess() {
   activatingAccess.value = true;
   try {
-    await activateAccessMutation.mutateAsync();
-    await router.push('/minha-area/definir-senha');
+    const { email } = await activateAccessMutation.mutateAsync();
+    accessEmailSent.value = email;
   } catch (error) {
     if (apiErrorCode(error) === 'EMAIL_ALREADY_REGISTERED') {
       accountExists.value = true;
@@ -213,12 +213,15 @@ async function send(files: File[], requestItemId: string | null) {
                 Quer ser lembrado mês que vem e não depender do WhatsApp?
               </p>
               <div class="mt-4 flex flex-wrap gap-2">
-                <Button v-if="accountExists" variant="default" as-child>
+                <p v-if="accessEmailSent" class="mt-3 text-sm font-medium text-foreground">
+                  Enviamos um link de acesso para {{ accessEmailSent }}. Abra seu email para entrar.
+                </p>
+                <Button v-else-if="accountExists" variant="default" as-child>
                   <RouterLink to="/minha-area/acesso">
                     <LogIn class="mr-2 h-4 w-4" /> Entre na sua conta
                   </RouterLink>
                 </Button>
-                <template v-else>
+                <template v-else-if="!accessEmailSent">
                   <Button
                     v-if="push.available.value"
                     variant="default"
@@ -230,7 +233,7 @@ async function send(files: File[], requestItemId: string | null) {
                   </Button>
                   <Button variant="outline" @click="activateAccess" :disabled="activatingAccess">
                     <Lock class="mr-2 h-4 w-4" />
-                    {{ activatingAccess ? 'Criando...' : 'Criar senha de acesso' }}
+                    {{ activatingAccess ? 'Enviando...' : 'Criar acesso fixo' }}
                   </Button>
                 </template>
               </div>
@@ -284,7 +287,7 @@ async function send(files: File[], requestItemId: string | null) {
               class="flex items-center gap-2 p-3"
             >
               <FileIcon class="text-muted-foreground shrink-0 text-base" aria-hidden="true" />
-              <span class="min-w-0 flex-1 truncate text-sm">{{ file.fileName }}</span>
+              <span class="min-w-0 flex-1 truncate text-sm">Arquivo {{ index + 1 }}</span>
               <StatusPill :status="file.reviewStatus" />
             </li>
           </ul>
@@ -398,7 +401,7 @@ async function send(files: File[], requestItemId: string | null) {
             class="flex items-center gap-2 p-3"
           >
             <FileIcon class="text-muted-foreground shrink-0 text-base" aria-hidden="true" />
-            <span class="min-w-0 flex-1 truncate text-sm">{{ file.fileName }}</span>
+            <span class="min-w-0 flex-1 truncate text-sm">Documento extra {{ index + 1 }}</span>
             <StatusPill :status="file.reviewStatus" />
           </li>
         </ul>

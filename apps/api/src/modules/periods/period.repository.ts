@@ -10,6 +10,7 @@ import {
   company,
   contact,
   document,
+  message,
   period,
   request,
   requestItem,
@@ -136,10 +137,11 @@ export class PeriodRepository {
       )
       .orderBy(contact.createdAt);
 
-    return companies.map((row) => ({
-      ...row,
-      contact: contacts.find((c) => c.companyId === row.id),
-    }));
+    return companies.map((row) => {
+      const own = contacts.filter((c) => c.companyId === row.id);
+
+      return { ...row, contactCount: own.length, contact: own[0] };
+    });
   }
 
   async openWithFanOut(
@@ -281,13 +283,39 @@ export class PeriodRepository {
       .from(request)
       .innerJoin(period, eq(period.id, request.periodId))
       .innerJoin(company, eq(company.id, request.companyId))
-      .leftJoin(accountant, eq(accountant.id, company.responsibleAccountantId))
+      .leftJoin(
+        accountant,
+        and(
+          eq(accountant.id, company.responsibleAccountantId),
+          eq(accountant.accountingFirmId, company.accountingFirmId),
+        ),
+      )
       .leftJoin(user, eq(user.id, accountant.authUserId))
       .leftJoin(requestItem, eq(requestItem.requestId, request.id))
       .where(and(eq(request.periodId, periodId), eq(period.accountingFirmId, scope)))
       .orderBy(asc(company.name), asc(requestItem.dueDate), asc(requestItem.name));
 
-    return summarizePending(rows as PanelRow[]);
+    /* O painel "quem faltou" existe para o Contador saber a quem cobrar — e email que
+     * nunca chegou é exatamente o caso em que cobrar de novo. Antes o controller devolvia
+     * `channelFailures: []` fixo e a falha era invisível aqui. */
+    const failures = await this.db
+      .select({
+        requestId: message.requestId,
+        channel: message.channel,
+        purpose: message.purpose,
+        recipient: message.recipient,
+        error: message.error,
+        createdAt: message.createdAt,
+      })
+      .from(message)
+      .innerJoin(request, eq(request.id, message.requestId))
+      .where(and(eq(request.periodId, periodId), eq(message.status, 'failed')))
+      .orderBy(desc(message.createdAt), desc(message.id));
+
+    return summarizePending(rows as PanelRow[]).map((company) => ({
+      ...company,
+      channelFailures: failures.filter((row) => row.requestId === company.requestId),
+    }));
   }
 
   async closePeriod(scope: FirmScope, periodId: string) {
@@ -313,11 +341,15 @@ export class PeriodRepository {
         .where(and(eq(request.periodId, periodId), ne(request.status, 'closed')))
         .returning({ id: request.id });
 
+      /* `ne(status, 'closed')` no WHERE: a leitura acima é check-then-update e dois cliques
+       * simultâneos passavam os dois. */
       const [closed] = await tx
         .update(period)
         .set({ status: 'closed' })
-        .where(eq(period.id, periodId))
+        .where(and(eq(period.id, periodId), ne(period.status, 'closed')))
         .returning({ id: period.id, referenceMonth: period.referenceMonth, status: period.status });
+
+      if (!closed) throw new PeriodAlreadyClosed();
 
       return {
         ...closed,
@@ -433,6 +465,15 @@ export class PeriodRepository {
 
     if (!head) return undefined;
 
+    /* Multi-vínculo: sem `companyId` a consulta devolvia a primeira Empresa em ordem
+     * alfabética e calava as outras. A lista vai junto para a tela poder trocar. */
+    const companies = await this.db
+      .select({ id: company.id, name: company.name })
+      .from(request)
+      .innerJoin(company, eq(company.id, request.companyId))
+      .where(and(eq(request.periodId, periodId), inArray(request.companyId, companyIds)))
+      .orderBy(asc(company.name));
+
     const [items, documents] = await Promise.all([
       this.db
         .select({
@@ -465,6 +506,7 @@ export class PeriodRepository {
 
     return {
       ...head,
+      companies,
       items: items.map((item) => ({
         ...item,
         dueDate: item.dueDate ?? head.dueDate,

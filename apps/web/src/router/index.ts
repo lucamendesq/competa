@@ -20,6 +20,31 @@ const routes: RouteRecordRaw[] = [
     component: () => import('../pages/UploadPage.vue'),
   },
   {
+    path: '/convite/:linkToken',
+    name: 'Invite',
+    component: () => import('../pages/InvitePage.vue'),
+  },
+  {
+    path: '/perdi-meu-link',
+    name: 'RecoverLink',
+    component: () => import('../pages/RecoverLinkPage.vue'),
+  },
+  {
+    path: '/perdi-meu-link/confirmar',
+    name: 'RecoverLinkConfirm',
+    component: () => import('../pages/RecoverLinkConfirmPage.vue'),
+  },
+  {
+    path: '/esqueci-senha',
+    name: 'ForgotPassword',
+    component: () => import('../pages/ForgotPasswordPage.vue'),
+  },
+  {
+    path: '/redefinir-senha',
+    name: 'ResetPassword',
+    component: () => import('../pages/ResetPasswordPage.vue'),
+  },
+  {
     path: '/minha-area',
     component: () => import('../layouts/ContactLayout.vue'),
     children: [
@@ -29,10 +54,21 @@ const routes: RouteRecordRaw[] = [
         component: () => import('../pages/ContactSignInPage.vue'),
       },
       {
+        path: 'definir-senha',
+        name: 'ContactSetPassword',
+        component: () => import('../pages/ContactSetPasswordPage.vue'),
+      },
+      {
         path: 'pendencias',
         name: 'ContactPending',
         meta: { requiresAuth: 'contact' },
         component: () => import('../pages/ContactPendingPage.vue'),
+      },
+      {
+        path: 'competencias',
+        name: 'ContactHistory',
+        meta: { requiresAuth: 'contact' },
+        component: () => import('../pages/ContactHistoryPage.vue'),
       },
     ],
   },
@@ -92,11 +128,20 @@ const routes: RouteRecordRaw[] = [
         props: true,
       },
       {
+        path: 'configuracoes/contadores',
+        name: 'AccountantsSettings',
+        component: () => import('../pages/AccountantsSettingsPage.vue'),
+      },
+      {
         path: 'configuracoes/whatsapp',
         name: 'WhatsAppSettings',
         component: () => import('../pages/WhatsAppSettingsPage.vue'),
       },
-      // placeholder for others
+      {
+        path: 'configuracoes/plano',
+        name: 'Plan',
+        component: () => import('../pages/PlanPage.vue'),
+      },
     ],
   },
   { path: '/entrar', name: 'Login', component: () => import('../pages/LoginPage.vue') },

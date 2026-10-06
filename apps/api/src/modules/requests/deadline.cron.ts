@@ -44,24 +44,21 @@ export class DeadlineCron {
     timezone: 'America/Sao_Paulo',
   })
   async daily() {
-    await this.requests.withAdvisoryLock(DEADLINE_CRON_LOCK_ID, async () => {
-      const { notified } = await this.scan(null);
-      if (notified.length)
-        this.logger.log(`Prazo estourado: ${notified.length} item(ns) avisado(s).`);
-
+    const ran = await this.requests.withAdvisoryLock(DEADLINE_CRON_LOCK_ID, async () => {
+      const { overdue, notified } = await this.scan(null);
       const discarded = await this.discardStaleUploads();
-      if (discarded)
-        this.logger.log(`Faxina: ${discarded} envio(s) não confirmado(s) removido(s).`);
+
+      this.logger.log(
+        `prazos: ${notified.length} de ${overdue} item(ns) vencido(s) avisado(s); faxina: ${discarded} envio(s) não confirmado(s) removido(s)`,
+      );
+      return true;
     });
+
+    if (!ran) this.logger.warn('prazos: varredura pulada — lock tomado por outra instância');
   }
 
-  @Cron('0 3 1 * *', { timeZone: 'America/Sao_Paulo' })
-  @SentryCron('fiscal-retention-monthly', {
-    schedule: { type: 'crontab', value: '0 3 1 * *' },
-    checkinMargin: 5,
-    maxRuntime: 60,
-    timezone: 'America/Sao_Paulo',
-  })
+  /** Sem agendamento de propósito: nada no produto tem 5 anos ainda. Chamada manual até
+   *  o primeiro documento se aproximar do prazo — ver `retention.md`. */
   async purgeExpiredFiscalDocuments() {
     const fiveYearsAgo = subYears(new Date(), 5);
     const expired = await this.documents.expiredFiscalDocuments(fiveYearsAgo, 1000);

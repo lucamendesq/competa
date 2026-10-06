@@ -11,6 +11,7 @@ import {
   period,
   pushSubscription,
   request,
+  uploadLink,
   user,
 } from '../../infra/database/schema/index.js';
 import { contactIdsOf, type ContactScope, type FirmScope } from '../auth/scope.js';
@@ -198,6 +199,11 @@ export class ContactRepository {
 
       await tx.update(contact).set({ authUserId: null }).where(eq(contact.id, contactId));
       await tx.delete(pushSubscription).where(eq(pushSubscription.contactId, contactId));
+
+      /* O Link de Upload é credencial separada da sessão e sobrevivia à revogação — e por
+       * `POST /upload/:token/access` o revogado reativava a conta. Revogar de verdade
+       * precisa matar os dois. */
+      await tx.update(uploadLink).set({ revoked: true }).where(eq(uploadLink.contactId, contactId));
 
       /* Multi-empresa: o `user` só morre quando este era o ÚLTIMO vínculo — apagá-lo com
        * outro vínculo vivo derrubaria o acesso das outras Empresas. Com vínculo restante,

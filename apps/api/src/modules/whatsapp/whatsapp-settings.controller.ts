@@ -1,6 +1,10 @@
 import { Body, Controller, Delete, Get, Post, Inject } from '@nestjs/common';
 import { zodPipe } from '../../lib/zod-pipe.js';
 import { CurrentScope } from '../auth/current-scope.decorator.js';
+import { Session } from '../auth/session.decorator.js';
+import type { AuthSession } from '../auth/auth-provider.js';
+import { AccountantRepository } from '../auth/accountant.repository.js';
+import { OnlyOwnerCanManageTeam } from '../auth/errors.js';
 import type { FirmScope } from '../auth/scope.js';
 import {
   whatsappOnboardSchema,
@@ -18,8 +22,15 @@ export class WhatsappSettingsController {
   constructor(
     private readonly repository: WhatsappRepository,
     private readonly crypto: WhatsappCryptoService,
+    private readonly accountants: AccountantRepository,
     @Inject('WHATSAPP_PROVIDER') private readonly whatsapp: MessageProvider,
   ) {}
+
+  private async requireOwner(scope: FirmScope, session: AuthSession) {
+    if (!(await this.accountants.isOwner(scope, session.user.id))) {
+      throw new OnlyOwnerCanManageTeam();
+    }
+  }
 
   @Get('status')
   async getStatus(@CurrentScope() scope: FirmScope) {
@@ -38,8 +49,11 @@ export class WhatsappSettingsController {
   @Post('onboard')
   async onboard(
     @CurrentScope() scope: FirmScope,
+    @Session() session: AuthSession,
     @Body(zodPipe(whatsappOnboardSchema)) body: WhatsappOnboardRequest,
   ) {
+    await this.requireOwner(scope, session);
+
     // 1. Exchanging auth code for long-lived token (Meta Embedded Signup)
     void body.code;
     const accessToken = 'mock_long_lived_token';
@@ -92,7 +106,9 @@ export class WhatsappSettingsController {
   }
 
   @Delete()
-  async disconnect(@CurrentScope() scope: FirmScope) {
+  async disconnect(@CurrentScope() scope: FirmScope, @Session() session: AuthSession) {
+    await this.requireOwner(scope, session);
+
     await this.repository.deleteIntegration(scope);
     return { success: true };
   }

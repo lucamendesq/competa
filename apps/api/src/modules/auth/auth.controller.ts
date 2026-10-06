@@ -92,6 +92,13 @@ export class AuthController {
         name: me.firmName,
         logoUrl: me.firmLogoUrl,
         contactEmail: me.firmContactEmail,
+        subscription: me.subscriptionStatus
+          ? {
+              status: me.subscriptionStatus,
+              planName: me.subscriptionPlanName,
+              trialEndsAt: me.subscriptionTrialEndsAt,
+            }
+          : undefined,
       },
     };
   }

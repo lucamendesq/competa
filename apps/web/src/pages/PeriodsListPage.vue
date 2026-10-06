@@ -344,7 +344,7 @@ async function downloadZip(id: string, refMonth: string) {
         </li>
       </ul>
 
-      <div class="border-border bg-muted/40 -mx-5 -mb-5 mt-5 flex justify-end border-t p-4">
+      <div class="border-border bg-muted/40 -mx-6 -mb-6 mt-5 flex justify-end border-t p-4">
         <Button @click="closeResult">Entendi</Button>
       </div>
     </template>
@@ -459,7 +459,7 @@ async function downloadZip(id: string, refMonth: string) {
       </div>
 
       <div
-        class="border-border bg-muted/40 -mx-5 -mb-5 mt-5 flex flex-wrap justify-end gap-2 border-t p-4"
+        class="border-border bg-muted/40 -mx-6 -mb-6 mt-5 flex flex-wrap justify-end gap-2 border-t p-4"
       >
         <template v-if="step === 'confirm'">
           <Button variant="ghost" type="button" @click="step = 'form'">Voltar</Button>
@@ -491,7 +491,7 @@ async function downloadZip(id: string, refMonth: string) {
       Os Responsáveis não poderão mais enviar documentos nos itens — apenas documentos extras.
     </p>
     <div
-      class="border-border bg-muted/40 -mx-5 -mb-5 mt-5 flex flex-wrap justify-end gap-2 border-t p-4"
+      class="border-border bg-muted/40 -mx-6 -mb-6 mt-5 flex flex-wrap justify-end gap-2 border-t p-4"
     >
       <Button variant="ghost" @click="confirmClose = null">Cancelar</Button>
       <Button

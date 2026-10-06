@@ -1,6 +1,6 @@
-// ponytail: `sizeBytes` é o que o cliente declara — a URL pré-assinada não assina
-// Content-Length, então um arquivo maior passaria pelo storage. Assinar Content-Length
-// (ou conferir com HeadObject na confirmação) quando isso virar problema real.
+/* O teto de 100 MB é imposto em três pontos: o `sizeBytes` declarado no presign, o
+ * `ContentLength` assinado na URL do R2 (`r2.storage.ts`) e o `HeadObject` da confirmação,
+ * que compara o tamanho real com o declarado. A URL pré-assinada NÃO fura o limite. */
 export const MAX_FILE_BYTES = 100 * 1024 * 1024;
 export const MAX_FILES_PER_UPLOAD = 500;
 /* Teto por Solicitação (AVAIL-2): o link vive 30 dias e sem teto o acúmulo vira zip
@@ -56,6 +56,10 @@ export const DEFAULT_EXTRA_ACCEPTED_FORMATS = [
   'png',
 ] as const;
 
+/** Foto do documento resolve o caso do cliente que só tem o papel na mão, então imagem
+ *  entra em qualquer item — mesmo que o template peça só .pdf/.xml. */
+export const ALWAYS_ACCEPTED_FORMATS = ['jpg', 'jpeg', 'png'] as const;
+
 export type UploadedFile = { fileName: string; contentType: string; sizeBytes: number };
 
 export const fileExtension = ({ fileName, contentType }: Omit<UploadedFile, 'sizeBytes'>) => {
@@ -84,14 +88,17 @@ export const rejectionReason = (file: UploadedFile, acceptedFormats: readonly st
     return `Arquivo de ${megabytes(file.sizeBytes)} MB acima do limite de ${megabytes(MAX_FILE_BYTES)} MB por arquivo.`;
   }
 
-  const formats = acceptedFormats ?? DEFAULT_EXTRA_ACCEPTED_FORMATS;
+  const formats = [
+    ...(acceptedFormats ?? DEFAULT_EXTRA_ACCEPTED_FORMATS),
+    ...ALWAYS_ACCEPTED_FORMATS,
+  ];
 
   const extension = fileExtension(file);
   if (!extension) return 'Não foi possível identificar o formato do arquivo.';
 
   if (!formats.includes(extension)) {
     return acceptedFormats
-      ? `Formato .${extension} não aceito neste item (aceitos: ${acceptedFormats.join(', ')}).`
+      ? `Formato .${extension} não aceito neste item (aceitos: ${[...acceptedFormats, ...ALWAYS_ACCEPTED_FORMATS].join(', ')}).`
       : `Formato .${extension} não aceito para documento extra (aceitos: ${DEFAULT_EXTRA_ACCEPTED_FORMATS.join(', ')}).`;
   }
 

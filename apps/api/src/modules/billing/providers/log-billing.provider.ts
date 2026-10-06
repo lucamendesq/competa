@@ -18,7 +18,7 @@ export class LogBilling implements BillingProvider {
 
     return {
       subscriptionId: `mock_sub_${randomUUID()}`,
-      checkoutUrl: 'https://sandbox.asaas.com/checkout/mock_url',
+      checkoutUrl: '#assinado',
     };
   }
 }

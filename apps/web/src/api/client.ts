@@ -69,6 +69,10 @@ class ApiClient {
         if (text) body = JSON.parse(text);
       } catch {}
 
+      if (import.meta.env.DEV && response.status >= 500) {
+        console.error(`API ${response.status} ${method} ${url}`, body);
+      }
+
       throw new ApiError(response.status, body, `API Error ${response.status}`);
     }
 

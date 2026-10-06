@@ -56,10 +56,11 @@ export class UploadLinkRepository {
     };
   }
 
-  /** O que a página pública mostra. Só METADADOS de documento entram aqui — nome, status
-   *  da revisão e motivo da rejeição —, nunca `storage_key` nem conteúdo: o Responsável
-   *  precisa saber o que ele já mandou, mas o escopo do Link segue sendo só-escrita e não
-   *  existe rota de leitura/download por token. */
+  /** O que a página pública mostra. O Link é só-escrita: nem conteúdo, nem `storage_key`,
+   *  nem NOME de arquivo — nome de arquivo contábil costuma carregar CNPJ, razão social de
+   *  terceiros e valores, e quem tem o link não é necessariamente quem enviou. Sobra o que
+   *  o Responsável precisa para saber o que falta: ordem do envio, status e motivo da
+   *  recusa. */
   async findChecklist(scope: UploadScope) {
     const [row] = await this.db
       .select({
@@ -94,7 +95,6 @@ export class UploadLinkRepository {
       this.db
         .select({
           requestItemId: document.requestItemId,
-          fileName: document.fileName,
           reviewStatus: document.reviewStatus,
           rejectionReason: document.rejectionReason,
         })

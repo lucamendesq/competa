@@ -23,9 +23,10 @@ import { toast } from 'vue-sonner';
 import { apiErrorMessage } from '@/api/error';
 
 const router = useRouter();
-const { templatesQuery, deriveTemplateMutation } = useChecklistsFeature();
+const { templatesQuery, deriveTemplateMutation, createTemplateMutation } = useChecklistsFeature();
 
 const deriveOpen = ref<any | null>(null);
+const blankOpen = ref(false);
 const newName = ref('');
 const acting = ref(false);
 
@@ -42,13 +43,28 @@ async function derive() {
       id: deriveOpen.value.id,
       name: newName.value.trim(),
     });
-    toast.success('Template criado com sucesso.');
+    toast.success('Template copiado com sucesso.');
     router.push(`/templates/${res.id}`);
   } catch (error) {
     toast.error(apiErrorMessage(error, 'Não foi possível duplicar o template.'));
   } finally {
     acting.value = false;
     deriveOpen.value = null;
+  }
+}
+
+async function createBlank() {
+  if (!newName.value.trim()) return;
+  acting.value = true;
+  try {
+    const res = (await createTemplateMutation.mutateAsync(newName.value.trim())) as any;
+    toast.success('Template criado com sucesso.');
+    router.push(`/templates/${res.id}`);
+  } catch (error) {
+    toast.error(apiErrorMessage(error, 'Não foi possível criar o template.'));
+  } finally {
+    acting.value = false;
+    blankOpen.value = false;
   }
 }
 </script>
@@ -58,9 +74,12 @@ async function derive() {
     title="Templates de Checklist"
     description="Modelos de solicitação reutilizáveis por segmento ou regime."
   >
-    <!-- Em Angular ele não tinha botão criar do zero facilmente, apenas derivava. Vamos deixar vazio ou adicionar um botão se tiver API. 
-         Wait, derive endpoint can be used with a standard product template ID to create a blank one?
-         Ah, in Angular there was no "Create blank template" button in `templates-list-page.html`. Wait, I will just provide what they had. -->
+    <template #actions>
+      <Button @click="blankOpen = true">
+        <Plus class="mr-2 h-4 w-4" aria-hidden="true" />
+        Criar em branco
+      </Button>
+    </template>
   </PageHeader>
 
   <main class="mt-8">
@@ -129,13 +148,41 @@ async function derive() {
   >
     <form @submit.prevent="derive" class="mt-4 flex flex-col gap-4">
       <div class="flex flex-col gap-1.5">
-        <Label for="newName">Nome do novo template</Label>
-        <Input id="newName" v-model="newName" autofocus />
+        <Label for="deriveName">Nome do novo template</Label>
+        <Input id="deriveName" v-model="newName" autofocus />
       </div>
-      <div class="border-border bg-muted/40 -mx-5 -mb-5 mt-5 flex justify-end gap-2 border-t p-4">
+      <div class="border-border bg-muted/40 -mx-6 -mb-6 mt-5 flex justify-end gap-2 border-t p-4">
         <Button variant="ghost" type="button" @click="deriveOpen = null">Cancelar</Button>
         <Button type="submit" :disabled="acting || !newName.trim()">
           {{ acting ? 'Duplicando...' : 'Criar cópia' }}
+        </Button>
+      </div>
+    </form>
+  </Modal>
+
+  <Modal
+    :open="blankOpen"
+    @update:open="$event ? null : ((blankOpen = false), (newName = ''))"
+    title="Criar template em branco"
+    description="Crie um novo template de documentos do zero."
+  >
+    <form @submit.prevent="createBlank" class="mt-4 flex flex-col gap-4">
+      <div class="flex flex-col gap-1.5">
+        <Label for="blankName">Nome do template</Label>
+        <Input id="blankName" v-model="newName" autofocus />
+      </div>
+      <div class="border-border bg-muted/40 -mx-6 -mb-6 mt-5 flex justify-end gap-2 border-t p-4">
+        <Button
+          variant="ghost"
+          type="button"
+          @click="
+            blankOpen = false;
+            newName = '';
+          "
+          >Cancelar</Button
+        >
+        <Button type="submit" :disabled="acting || !newName.trim()">
+          {{ acting ? 'Criando...' : 'Criar template' }}
         </Button>
       </div>
     </form>

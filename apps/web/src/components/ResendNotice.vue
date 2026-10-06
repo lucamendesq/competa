@@ -20,7 +20,8 @@ const rejections = computed(() => itemRejections(props.item));
       :key="index"
       class="text-danger-foreground mt-1 block text-xs"
     >
-      {{ rejection.fileName }}: {{ rejection.rejectionReason }}
+      <template v-if="rejection.fileName">{{ rejection.fileName }}: </template
+      >{{ rejection.rejectionReason }}
     </span>
     <span v-if="hint" class="text-danger-foreground mt-2 block text-xs">{{ hint }}</span>
   </span>

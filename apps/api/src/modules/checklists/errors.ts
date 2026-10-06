@@ -46,3 +46,12 @@ export class TemplateInUse extends AppError {
     );
   }
 }
+
+export class OverrideRemovesNothing extends AppError {
+  readonly code = 'OVERRIDE_REMOVES_NOTHING';
+  readonly status = 422;
+
+  constructor() {
+    super('Este Tipo de Documento não está no checklist da Empresa: não há o que remover.');
+  }
+}

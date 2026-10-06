@@ -4,7 +4,7 @@ import {
   getTemplateDetail,
   getDocumentTypes,
   renameTemplate,
-  deriveTemplate,
+  deriveTemplate, createTemplate,
   addItemToTemplate,
   updateTemplateItem,
   removeTemplateItem,
@@ -26,6 +26,11 @@ export function useChecklistsFeature() {
     onSuccess: () => queryClient.invalidateQueries({ queryKey: ['templates'] }),
   });
 
+  const createTemplateMutation = useMutation({
+    mutationFn: (name: string) => createTemplate(name),
+    onSuccess: () => queryClient.invalidateQueries({ queryKey: ["templates"] }),
+  });
+
   const deriveTemplateMutation = useMutation({
     mutationFn: (params: { id: string; name?: string }) => deriveTemplate(params.id, params.name),
     onSuccess: () => queryClient.invalidateQueries({ queryKey: ['templates'] }),
@@ -39,6 +44,7 @@ export function useChecklistsFeature() {
   return {
     templatesQuery,
     renameTemplateMutation,
+    createTemplateMutation,
     deriveTemplateMutation,
     deleteTemplateMutation,
   };

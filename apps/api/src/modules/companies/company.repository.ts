@@ -143,7 +143,13 @@ export class CompanyRepository {
         })
         .from(company)
         .leftJoin(checklistTemplate, eq(checklistTemplate.id, company.checklistTemplateId))
-        .leftJoin(accountant, eq(accountant.id, company.responsibleAccountantId))
+        .leftJoin(
+          accountant,
+          and(
+            eq(accountant.id, company.responsibleAccountantId),
+            eq(accountant.accountingFirmId, company.accountingFirmId),
+          ),
+        )
         .leftJoin(user, eq(user.id, accountant.authUserId))
         .where(where)
         .orderBy(company.name)
@@ -195,7 +201,13 @@ export class CompanyRepository {
       })
       .from(company)
       .leftJoin(checklistTemplate, eq(checklistTemplate.id, company.checklistTemplateId))
-      .leftJoin(accountant, eq(accountant.id, company.responsibleAccountantId))
+      .leftJoin(
+        accountant,
+        and(
+          eq(accountant.id, company.responsibleAccountantId),
+          eq(accountant.accountingFirmId, company.accountingFirmId),
+        ),
+      )
       .leftJoin(user, eq(user.id, accountant.authUserId))
       .where(and(eq(company.id, companyId), eq(company.accountingFirmId, scope)))
       .limit(1);
@@ -312,12 +324,18 @@ export class CompanyRepository {
     }
 
     const lines: ImportPreviewLine[] = [];
+    /* CNPJ repetido DENTRO do mesmo lote batia duas vezes no `onConflictDoUpdate` da mesma
+     * statement — Postgres 21000, planilha inteira abortada e mensagem que não dizia qual
+     * linha. Reprovar a segunda ocorrência aqui dá o número da linha ao Contador. */
+    const seenCnpj = new Map<string, number>();
 
     for (const { line, values } of records) {
       const name = values.name ?? '';
 
+      /* `!== undefined` pegava a coluna existir, não ela ter valor: planilha com coluna de
+       * email vazia transformava TODA linha em erro "E-mail inválido". */
       const hasContact = Boolean(
-        values.contact_email !== undefined || values.contact_name || values.contact_phone,
+        values.contact_email || values.contact_name || values.contact_phone,
       );
 
       const parsed = CreateCompanyBody.safeParse({
@@ -336,6 +354,21 @@ export class CompanyRepository {
       if (!parsed.success) {
         lines.push({ line, status: 'error', name, error: firstIssue(parsed.error) });
         continue;
+      }
+
+      const cnpj = parsed.data.cnpj;
+      if (cnpj) {
+        const first = seenCnpj.get(cnpj);
+        if (first !== undefined) {
+          lines.push({
+            line,
+            status: 'error',
+            name,
+            error: `CNPJ repetido na planilha (já aparece na linha ${first}).`,
+          });
+          continue;
+        }
+        seenCnpj.set(cnpj, line);
       }
 
       lines.push({ line, status: 'pending', name, body: parsed.data });
@@ -357,6 +390,13 @@ export class CompanyRepository {
   async confirmImport(scope: FirmScope, pending: PendingImportRow[]) {
     if (pending.length > MAX_IMPORT_ROWS) {
       throw new ValidationError(`Limite de ${MAX_IMPORT_ROWS} linhas por importação.`);
+    }
+
+    /* `pending` é corpo do cliente: a prévia pode ser pulada, então o lote chega aqui sem
+     * ter passado por `validateCsv`. */
+    const cnpjs = pending.map(({ body }) => body.cnpj).filter(Boolean);
+    if (new Set(cnpjs).size !== cnpjs.length) {
+      throw new ValidationError('A planilha tem o mesmo CNPJ em mais de uma linha.');
     }
 
     const created = pending.length ? await this.insertBatch(scope, pending) : [];

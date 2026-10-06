@@ -36,6 +36,14 @@ export class ChecklistTemplatesController {
     return { ...template, items: await this.checklists.listTemplateItems(template.id) };
   }
 
+  @Post()
+  async create(
+    @CurrentScope() scope: FirmScope,
+    @Body(zodPipe(DeriveTemplateBody)) body: DeriveTemplateBody,
+  ) {
+    if (!body.name) throw new Error("Nome é obrigatório"); return this.checklists.createTemplate(scope, { name: body.name, derivedFrom: null as any });
+  }
+
   @Post(':id/derive')
   async derive(
     @CurrentScope() scope: FirmScope,

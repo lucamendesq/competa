@@ -327,7 +327,7 @@ async function restoreDefault() {
       @add="add"
     />
     <div
-      class="border-border bg-muted/40 -mx-5 -mb-5 mt-5 flex flex-wrap justify-end gap-2 border-t p-4"
+      class="border-border bg-muted/40 -mx-6 -mb-6 mt-5 flex flex-wrap justify-end gap-2 border-t p-4"
     >
       <Button variant="ghost" @click="catalogOpen = false">Fechar</Button>
     </div>
@@ -345,7 +345,7 @@ async function restoreDefault() {
     </p>
 
     <div
-      class="border-border bg-muted/40 -mx-5 -mb-5 mt-5 flex flex-wrap justify-end gap-2 border-t p-4"
+      class="border-border bg-muted/40 -mx-6 -mb-6 mt-5 flex flex-wrap justify-end gap-2 border-t p-4"
     >
       <Button variant="ghost" @click="confirmRestore = false">Cancelar</Button>
       <Button variant="destructive" :disabled="acting" @click="restoreDefault">

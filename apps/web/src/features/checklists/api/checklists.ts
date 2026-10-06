@@ -59,6 +59,9 @@ export const getDocumentTypes = (params: { page: number; perPage: number; catego
 export const renameTemplate = (id: string, name: string) =>
   api.patch<TemplateDetail>(`/checklist-templates/${id}`, { name });
 
+export const createTemplate = (name: string) =>
+  api.post<Template & { itemCount: number }>(`/checklist-templates`, { name });
+
 export const deriveTemplate = (id: string, name?: string) =>
   api.post<Template & { itemCount: number }>(
     `/checklist-templates/${id}/derive`,

@@ -13,9 +13,11 @@ export const UploadFile = z
   .strict();
 export type UploadFile = z.infer<typeof UploadFile>;
 
+/* O teto de 500 também aqui, e não só no repositório: sem `.max()` a lista só era contida
+ * pelo limite de 2 MB de JSON do body parser. */
 export const PresignUploadBody = z.object({
   requestItemId: z.uuid().nullish(),
-  files: z.array(UploadFile).min(1),
+  files: z.array(UploadFile).min(1).max(500),
 });
 export type PresignUploadBody = z.infer<typeof PresignUploadBody>;
 
@@ -24,9 +26,10 @@ export const ConfirmUploadBody = z.object({
 });
 export type ConfirmUploadBody = z.infer<typeof ConfirmUploadBody>;
 
-/** Ativar acesso a partir do Link de Upload: um toque, SEM senha. O token já provou posse
- *  da caixa e o fan-out manda um link novo todo mês (e o "perdi meu link" reenvia), então
- *  esta porta nunca fecha — não há por que cobrar uma credencial que se usa 1×/mês. */
+/** Ativar acesso a partir do Link de Upload: um toque, SEM senha. A sessão NÃO nasce aqui
+ *  — o Link circula por email encaminhado, histórico e log de proxy, e trocá-lo por cookie
+ *  daria o acervo inteiro da Empresa a quem o tivesse. A ativação vincula a conta e manda
+ *  um magic link para a caixa do Responsável; o acesso se completa de lá. */
 export const ActivateContactAccessBody = z.object({
   name: optionalText(),
 });

@@ -62,6 +62,10 @@ export const pushSubscription = pgTable(
     provider: text().notNull().default('web'),
     endpoint: text().notNull(),
     keys: jsonb().notNull(),
+    /** Inscrição nascida de um Link de Upload morre com o link: quem teve o link uma vez
+     *  não fica recebendo o nome da Empresa e as pendências dela para sempre. NULL = veio
+     *  da área logada e vale enquanto o vínculo existir. */
+    expiresAt: timestamp('expires_at', { withTimezone: true }),
     ...timestamps,
   },
   (t) => [

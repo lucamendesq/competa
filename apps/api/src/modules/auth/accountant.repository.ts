@@ -114,10 +114,14 @@ export class AccountantRepository {
         firmLogoUrl: accountingFirm.logoUrl,
         firmContactEmail: accountingFirm.contactEmail,
         owner: accountant.owner,
+        subscriptionStatus: subscription.status,
+        subscriptionTrialEndsAt: subscription.trialEndsAt,
+        subscriptionPlanName: subscription.planName,
       })
       .from(accountant)
       .innerJoin(user, eq(user.id, accountant.authUserId))
       .innerJoin(accountingFirm, eq(accountingFirm.id, accountant.accountingFirmId))
+      .leftJoin(subscription, eq(subscription.accountingFirmId, accountingFirm.id))
       .where(and(eq(accountant.authUserId, authUserId), eq(accountant.accountingFirmId, scope)))
       .limit(1);
 

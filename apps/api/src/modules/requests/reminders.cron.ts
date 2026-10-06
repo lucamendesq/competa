@@ -29,9 +29,12 @@ export class RemindersCron {
     timezone: 'America/Sao_Paulo',
   })
   async scheduled() {
-    await this.requests.withAdvisoryLock(REMINDERS_CRON_LOCK_ID, async () => {
+    const ran = await this.requests.withAdvisoryLock(REMINDERS_CRON_LOCK_ID, async () => {
       await this.run();
+      return true;
     });
+
+    if (!ran) this.logger.warn('lembretes: varredura pulada — lock tomado por outra instância');
   }
 
   async run(scope?: FirmScope) {

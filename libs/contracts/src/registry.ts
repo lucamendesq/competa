@@ -31,5 +31,8 @@ export type CompanyFlags = z.infer<typeof CompanyFlags>;
 export const IdParam = z.object({ id: z.uuid() });
 export type IdParam = z.infer<typeof IdParam>;
 
+export const PeriodIdQuery = z.object({ periodId: z.uuid() });
+export type PeriodIdQuery = z.infer<typeof PeriodIdQuery>;
+
 export const CompanyIdParam = z.object({ companyId: z.uuid() });
 export type CompanyIdParam = z.infer<typeof CompanyIdParam>;

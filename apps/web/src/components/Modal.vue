@@ -35,8 +35,7 @@ const internalOpen = computed({
         </DialogDescription>
       </DialogHeader>
 
-      <!-- Max height container to match the angular layout -->
-      <div class="max-h-[70vh] overflow-y-auto pr-2">
+      <div class="-mx-6 -mb-6 max-h-[70vh] overflow-x-hidden overflow-y-auto px-6 pb-6">
         <slot></slot>
       </div>
     </DialogContent>

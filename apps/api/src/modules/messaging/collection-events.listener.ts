@@ -166,7 +166,7 @@ export class CollectionEventsListener {
       event.requestId,
       'rejection',
       event.rejected.length === 1
-        ? `Reenvio necessário: ${first.itemName ?? first.fileName}`
+        ? `Reenvio necessário: ${first.itemName ?? 'Documento extra'}`
         : `${event.rejected.length} documentos precisam ser reenviados`,
       `${event.companyName}: a contabilidade conferiu e alguns arquivos precisam voltar.`,
       event.uploadUrl ?? undefined,

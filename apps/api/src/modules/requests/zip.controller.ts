@@ -5,6 +5,7 @@ import { IdParam } from '@competa/contracts';
 import { ZipArchive } from 'archiver';
 import { StorageProvider } from '../../infra/storage/storage.provider.js';
 import { NotFound } from '../../lib/app-error.js';
+import { ZipTooLarge } from './errors.js';
 import { zodPipe } from '../../lib/zod-pipe.js';
 import { CurrentScope } from '../auth/current-scope.decorator.js';
 import type { FirmScope } from '../auth/scope.js';
@@ -12,6 +13,9 @@ import { servedContentType } from './file-rules.js';
 import { RequestRepository } from './request.repository.js';
 import { zipEntries, zipFileName, type ZipEntry } from './zip.js';
 import { ZipFlightService } from './zip-flight.service.js';
+
+/** Teto do pacote da competência inteira. */
+const MAX_PERIOD_ZIP_ENTRIES = 2000;
 
 @Controller()
 export class ZipController {
@@ -52,8 +56,15 @@ export class ZipController {
       const found = await this.requests.documentsForPeriodZip(scope, params.id);
       if (!found) throw new NotFound('Competência não encontrada.');
 
+      /* Competência inteira de um escritório grande é uma requisição de horas segurando
+       * conexões de storage. Acima do teto, o caminho é o zip por Empresa. */
+      const entries = zipEntries(found.documents, true);
+      if (entries.length > MAX_PERIOD_ZIP_ENTRIES) {
+        throw new ZipTooLarge(entries.length, MAX_PERIOD_ZIP_ENTRIES);
+      }
+
       return this.stream(
-        zipEntries(found.documents, true),
+        entries,
         zipFileName(`competencia ${found.referenceMonth.slice(0, 7)}`, found.referenceMonth),
         res,
         params.id,

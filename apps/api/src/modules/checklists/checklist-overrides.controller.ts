@@ -5,7 +5,7 @@ import { zodPipe } from '../../lib/zod-pipe.js';
 import { CurrentScope } from '../auth/current-scope.decorator.js';
 import type { FirmScope } from '../auth/scope.js';
 import { ChecklistRepository } from './checklist.repository.js';
-import { DocumentTypeNotVisible } from './errors.js';
+import { DocumentTypeNotVisible, OverrideRemovesNothing } from './errors.js';
 
 @Controller('companies/:companyId')
 export class ChecklistOverridesController {
@@ -42,6 +42,15 @@ export class ChecklistOverridesController {
 
     const [visible] = await this.checklists.documentTypesVisible(scope, [body.documentTypeId]);
     if (!visible) throw new DocumentTypeNotVisible();
+
+    /* Remover o que não está no template gravava uma linha morta e o Contador saía da tela
+     * achando que tinha tirado algo do checklist. */
+    if (body.action === 'remove') {
+      const inTemplate = await this.checklists.templateItemsForCompany(scope, params.companyId);
+      if (!inTemplate.some((line) => line.documentTypeId === body.documentTypeId)) {
+        throw new OverrideRemovesNothing();
+      }
+    }
 
     return this.checklists.upsertOverride(scope, params.companyId, body);
   }

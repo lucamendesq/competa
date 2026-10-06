@@ -39,3 +39,11 @@ export const verifyRecoveryToken = (token: string): string | null => {
     return null;
   }
 };
+
+/** Comparação de segredo em tempo constante, tolerante a tamanhos diferentes. */
+export const secretEquals = (given: string | undefined, expected: string | undefined) => {
+  if (!given || !expected) return false;
+  const a = createHash('sha256').update(given).digest();
+  const b = createHash('sha256').update(expected).digest();
+  return timingSafeEqual(a, b);
+};

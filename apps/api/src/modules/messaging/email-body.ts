@@ -89,7 +89,7 @@ ${
  *  funciona a partir de agora — por isso a reabertura é entregue SÓ por email
  *  (invariante do domínio), nunca por WhatsApp. */
 export const itemReopenedEmail = (event: ItemReopenedEvent) => ({
-  subject: `Reenvio necessário: ${escape(event.itemName)}`,
+  subject: `Reenvio necessário: ${event.itemName}`,
   body: `<p>Olá, ${escape(event.contactName)}.</p>
 <p>O documento <b>${escape(event.itemName)}</b> da empresa <b>${escape(event.companyName)}</b> precisa ser
 enviado novamente.</p>
@@ -98,13 +98,18 @@ ${event.rejectionReason ? `<p>Motivo: ${escape(event.rejectionReason ?? '')}</p>
 ${linkButton(event.uploadUrl, 'Enviar documento')}`,
 });
 
+/** Nome de arquivo nunca sai no email nem no push: arquivo contábil costuma carregar CNPJ,
+ *  razão social de terceiros e valores no próprio nome, e email/notificação estão fora do
+ *  perímetro autenticado. O que identifica a pendência é o nome do Item. */
+const EXTRA_DOCUMENT_LABEL = 'Documento extra';
+
 /** Revisão em lote: UM email para a conferência inteira. O que foi aceito entra só como
  *  tranquilidade ("não precisa mexer"); o que decide o assunto é a lista de reenvio, e o
  *  link rotacionado é a única forma de reenviar — por isso, email, nunca WhatsApp. */
 export const reviewPublishedEmail = (event: ReviewPublishedEvent) => ({
   subject:
     event.rejected.length === 1
-      ? `Reenvio necessário: ${escape(event.rejected[0].itemName ?? event.rejected[0].fileName)}`
+      ? `Reenvio necessário: ${event.rejected[0].itemName ?? EXTRA_DOCUMENT_LABEL}`
       : `${event.rejected.length} documentos precisam ser reenviados`,
   body: `<p>Olá, ${escape(event.contactName)}.</p>
 <p>Conferimos os documentos de <b>${escape(event.companyName)}</b>.</p>
@@ -112,7 +117,7 @@ export const reviewPublishedEmail = (event: ReviewPublishedEvent) => ({
 <ul>${event.rejected
     .map(
       (row) =>
-        `<li><b>${escape(row.itemName ?? row.fileName)}</b> (${escape(row.fileName)}) — ${escape(row.rejectionReason)}</li>`,
+        `<li><b>${escape(row.itemName ?? EXTRA_DOCUMENT_LABEL)}</b> — ${escape(row.rejectionReason)}</li>`,
     )
     .join('')}</ul>
 ${
@@ -138,7 +143,7 @@ Nada mais é necessário por agora. Obrigado!</p>`,
 });
 
 export const deadlineMissedContactEmail = (event: DeadlineMissedEvent) => ({
-  subject: `Prazo vencido: ${escape(event.itemName)}`,
+  subject: `Prazo vencido: ${event.itemName}`,
   body: `<p>Olá, ${escape(event.contactName)}.</p>
 <p>O documento <b>${escape(event.itemName)}</b> venceu em <b>${asDate(event.dueDate)}</b> e ainda não
 foi recebido.</p>
@@ -146,7 +151,7 @@ ${linkButton(event.uploadUrl, 'Enviar agora')}`,
 });
 
 export const deadlineMissedAccountantEmail = (event: DeadlineMissedEvent) => ({
-  subject: `Prazo vencido: ${escape(event.companyName)} — ${escape(event.itemName)}`,
+  subject: `Prazo vencido: ${event.companyName} — ${event.itemName}`,
   body: `<p>A empresa <b>${escape(event.companyName)}</b> não enviou <b>${escape(event.itemName)}</b>, com prazo
 em <b>${asDate(event.dueDate)}</b>. O Responsável (${escape(event.contactEmail)}) foi avisado.</p>`,
 });
@@ -154,7 +159,7 @@ em <b>${asDate(event.dueDate)}</b>. O Responsável (${escape(event.contactEmail)
 /** Convite de Contador: não passa por `message` (não há Solicitação a que amarrar a
  *  linha — `message.request_id` é not null), então o envio é logado só no Logger. */
 export const inviteEmail = (event: InviteCreatedEvent) => ({
-  subject: `Você foi convidado para ${escape(event.firmName)}`,
+  subject: `Você foi convidado para ${event.firmName}`,
   body: `<p>Olá.</p>
 <p>Você foi convidado para acessar o sistema de coleta de documentos de
 <b>${escape(event.firmName)}</b>.</p>

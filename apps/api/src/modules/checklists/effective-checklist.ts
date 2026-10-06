@@ -43,22 +43,31 @@ export const mergeEffectiveChecklist = (
     .filter((line) => !removed.has(line.documentTypeId))
     .map((line) => ({ ...line, source: 'template' }));
 
+  /* `add` sobre um tipo que JÁ está no template substitui a linha dele. Nesse caso o que o
+   * override não preenche herda do template, não do default global: senão um item anual
+   * com `dueDay` virava mensal sem prazo só porque o override veio parcial. */
+  const templateByType = new Map(templateLines.map((line) => [line.documentTypeId, line]));
+
   const added: EffectiveLine[] = overrides
     .filter((o) => o.action === 'add')
-    .map((o) => ({
-      documentTypeId: o.documentTypeId,
-      name: o.name,
-      category: o.category,
-      description: o.description,
-      acceptedFormats: o.acceptedFormats,
-      periodicity: (o.periodicity ?? 'monthly') as Periodicity,
-      annualMonth: o.annualMonth ?? null,
-      dueDay: o.dueDay ?? null,
-      dueMonthOffset: o.dueMonthOffset ?? 1,
-      conditionFlag: o.conditionFlag ?? null,
-      required: o.required ?? true,
-      source: 'override',
-    }));
+    .map((o) => {
+      const base = templateByType.get(o.documentTypeId);
+
+      return {
+        documentTypeId: o.documentTypeId,
+        name: o.name,
+        category: o.category,
+        description: o.description,
+        acceptedFormats: o.acceptedFormats,
+        periodicity: (o.periodicity ?? base?.periodicity ?? 'monthly') as Periodicity,
+        annualMonth: o.annualMonth ?? base?.annualMonth ?? null,
+        dueDay: o.dueDay ?? base?.dueDay ?? null,
+        dueMonthOffset: o.dueMonthOffset ?? base?.dueMonthOffset ?? 1,
+        conditionFlag: o.conditionFlag ?? base?.conditionFlag ?? null,
+        required: o.required ?? base?.required ?? true,
+        source: 'override' as const,
+      };
+    });
 
   const overridden = new Set(added.map((line) => line.documentTypeId));
 

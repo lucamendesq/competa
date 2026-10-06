@@ -458,7 +458,7 @@ function resolveLeave(leave: boolean) {
       @add="add"
     />
     <div
-      class="border-border bg-muted/40 -mx-5 -mb-5 mt-5 flex flex-wrap justify-end gap-2 border-t p-4"
+      class="border-border bg-muted/40 -mx-6 -mb-6 mt-5 flex flex-wrap justify-end gap-2 border-t p-4"
     >
       <Button variant="ghost" @click="catalogOpen = false">Fechar</Button>
     </div>
@@ -471,7 +471,7 @@ function resolveLeave(leave: boolean) {
     description="O documento deixará de ser exigido de todas as empresas que usam este template."
   >
     <div
-      class="border-border bg-muted/40 -mx-5 -mb-5 mt-5 flex flex-wrap justify-end gap-2 border-t p-4"
+      class="border-border bg-muted/40 -mx-6 -mb-6 mt-5 flex flex-wrap justify-end gap-2 border-t p-4"
     >
       <Button variant="ghost" @click="confirmRemoval = null">Cancelar</Button>
       <Button variant="destructive" @click="remove(confirmRemoval!)">Remover</Button>
@@ -484,7 +484,7 @@ function resolveLeave(leave: boolean) {
     description="Isto deixará as empresas deste template sem checklist nas próximas competências."
   >
     <div
-      class="border-border bg-muted/40 -mx-5 -mb-5 mt-5 flex flex-wrap justify-end gap-2 border-t p-4"
+      class="border-border bg-muted/40 -mx-6 -mb-6 mt-5 flex flex-wrap justify-end gap-2 border-t p-4"
     >
       <Button variant="ghost" @click="confirmDelete = false">Cancelar</Button>
       <Button variant="destructive" :disabled="acting" @click="doDeleteTemplate">Excluir</Button>
@@ -497,7 +497,7 @@ function resolveLeave(leave: boolean) {
     description="Você possui alterações no template que não foram salvas."
   >
     <div
-      class="border-border bg-muted/40 -mx-5 -mb-5 mt-5 flex flex-wrap justify-end gap-2 border-t p-4"
+      class="border-border bg-muted/40 -mx-6 -mb-6 mt-5 flex flex-wrap justify-end gap-2 border-t p-4"
     >
       <Button variant="ghost" @click="resolveLeave(false)">Ficar</Button>
       <Button variant="destructive" @click="resolveLeave(true)">Sair e descartar</Button>

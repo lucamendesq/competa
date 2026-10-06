@@ -159,17 +159,30 @@ export class ChecklistRepository {
   }
 
   async templateItemsForCompany(scope: FirmScope, companyId: string) {
-    return this.db
-      .select(itemColumns)
-      .from(company)
-      .leftJoin(checklistTemplate, eq(checklistTemplate.id, company.checklistTemplateId))
-      .leftJoin(
-        checklistTemplateItem,
-        eq(checklistTemplateItem.checklistTemplateId, checklistTemplate.id),
-      )
-      .innerJoin(documentType, eq(documentType.id, checklistTemplateItem.documentTypeId))
-      .where(and(eq(company.id, companyId), eq(company.accountingFirmId, scope)))
-      .orderBy(documentType.category, documentType.name);
+    return (
+      this.db
+        .select(itemColumns)
+        .from(company)
+        .leftJoin(checklistTemplate, eq(checklistTemplate.id, company.checklistTemplateId))
+        .leftJoin(
+          checklistTemplateItem,
+          eq(checklistTemplateItem.checklistTemplateId, checklistTemplate.id),
+        )
+        .innerJoin(documentType, eq(documentType.id, checklistTemplateItem.documentTypeId))
+        /* O predicado sobre o template, e não só sobre a empresa: um vínculo inconsistente
+         * vindo de script ou migração vazaria itens de template de outro tenant. */
+        .where(
+          and(
+            eq(company.id, companyId),
+            eq(company.accountingFirmId, scope),
+            or(
+              isNull(checklistTemplate.accountingFirmId),
+              eq(checklistTemplate.accountingFirmId, scope),
+            ),
+          ),
+        )
+        .orderBy(documentType.category, documentType.name)
+    );
   }
 
   async listOverrides(scope: FirmScope, companyId: string) {
@@ -495,20 +508,16 @@ export class ChecklistRepository {
     return Number(row?.count ?? 0);
   }
 
+  /* Os itens caem por `onDelete: 'cascade'` na FK. Apagá-los antes, numa query sem filtro
+   * de firm, commitava a perda mesmo quando o delete escopado do template não casava. */
   async deleteTemplate(scope: FirmScope, templateId: string) {
-    return this.db.transaction(async (tx) => {
-      await tx
-        .delete(checklistTemplateItem)
-        .where(eq(checklistTemplateItem.checklistTemplateId, templateId));
+    const [row] = await this.db
+      .delete(checklistTemplate)
+      .where(
+        and(eq(checklistTemplate.id, templateId), eq(checklistTemplate.accountingFirmId, scope)),
+      )
+      .returning({ id: checklistTemplate.id });
 
-      const [row] = await tx
-        .delete(checklistTemplate)
-        .where(
-          and(eq(checklistTemplate.id, templateId), eq(checklistTemplate.accountingFirmId, scope)),
-        )
-        .returning({ id: checklistTemplate.id });
-
-      return row;
-    });
+    return row;
   }
 }

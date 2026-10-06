@@ -1,4 +1,4 @@
-import { ref } from 'vue';
+import { ref, computed } from 'vue';
 import { defineStore } from 'pinia';
 import { api } from '../api/client';
 import { authClient } from '../api/auth-client';
@@ -10,6 +10,11 @@ export type Accountant = {
     name: string;
     logoUrl?: string | null;
     contactEmail?: string | null;
+    subscription?: {
+      status: string;
+      planName: string;
+      trialEndsAt: string | null;
+    };
   };
 };
 
@@ -32,6 +37,16 @@ export const useAuthStore = defineStore('auth', () => {
   const contact = ref<Contact | null>(null);
 
   let pending: Promise<void> | undefined;
+
+  const isOverdue = computed(() => {
+    const sub = accountant.value?.accountingFirm.subscription;
+    if (!sub) return false;
+    if (sub.status === 'OVERDUE' || sub.status === 'CANCELED') return true;
+    if (sub.status === 'trialing' && sub.trialEndsAt && new Date(sub.trialEndsAt) < new Date()) {
+      return true;
+    }
+    return false;
+  });
 
   function setSessionHint(role: 'accountant' | 'contact' | null) {
     try {
@@ -212,5 +227,6 @@ export const useAuthStore = defineStore('auth', () => {
     setContactPassword,
     reloadAccountant,
     sendMagicLink,
+    isOverdue,
   };
 });

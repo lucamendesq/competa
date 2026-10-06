@@ -1,6 +1,6 @@
 import { Controller, Get, Param, Post, Query } from '@nestjs/common';
 import { AllowAnonymous } from '@thallesp/nestjs-better-auth';
-import { IdParam, MessageListQuery } from '@competa/contracts';
+import { IdParam, MessageListQuery, PeriodIdQuery } from '@competa/contracts';
 import env from '../../config/env.js';
 import { NotFound } from '../../lib/app-error.js';
 import { paginated } from '../../lib/response.interceptor.js';
@@ -27,10 +27,14 @@ export class MessagesController {
     return paginated(rows, { page: query.page, perPage: query.perPage, total });
   }
 
+  /* `periodId` obrigatório e validado: ausente devolvia `[]` silencioso, e um valor que
+   * não fosse UUID virava 500 do Postgres em vez de 400. */
   @Get('failures')
-  async failures(@CurrentScope() scope: FirmScope, @Query('periodId') periodId?: string) {
-    if (!periodId) return [];
-    return this.messages.failuresByPeriod(scope, periodId);
+  async failures(
+    @CurrentScope() scope: FirmScope,
+    @Query(zodPipe(PeriodIdQuery)) query: PeriodIdQuery,
+  ) {
+    return this.messages.failuresByPeriod(scope, query.periodId);
   }
 
   @Post(':id/resend')

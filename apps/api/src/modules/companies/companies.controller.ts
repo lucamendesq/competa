@@ -18,6 +18,7 @@ import { type ContactInvitedEvent, EVENTS } from '../../lib/events.js';
 import { createToken } from '../../lib/token.js';
 import { CurrentAccountantId } from '../auth/current-accountant.decorator.js';
 import { InviteRepository } from '../auth/invite.repository.js';
+import { AccountantRepository } from '../auth/accountant.repository.js';
 import { NotFound, ValidationError } from '../../lib/app-error.js';
 import { paginated } from '../../lib/response.interceptor.js';
 import { zodPipe } from '../../lib/zod-pipe.js';
@@ -34,6 +35,7 @@ export class CompaniesController {
   constructor(
     private readonly companies: CompanyRepository,
     private readonly invites: InviteRepository,
+    private readonly accountants: AccountantRepository,
     private readonly contacts: ContactRepository,
     private readonly events: EventEmitter2,
   ) {}
@@ -51,6 +53,9 @@ export class CompaniesController {
     @Body(zodPipe(CreateCompanyBody)) body: CreateCompanyBody,
   ) {
     if (body.checklistTemplateId) await this.requireTemplate(scope, body.checklistTemplateId);
+    if (body.responsibleAccountantId) {
+      await this.requireAccountant(scope, body.responsibleAccountantId);
+    }
 
     return this.companies.create(scope, body);
   }
@@ -156,6 +161,18 @@ export class CompaniesController {
       await this.requireTemplate(scope, templateId);
     }
 
+    const accountantIds = [
+      ...new Set(
+        body.pending
+          .map((row) => row.body.responsibleAccountantId)
+          .filter((id): id is string => Boolean(id)),
+      ),
+    ];
+
+    for (const accountantId of accountantIds) {
+      await this.requireAccountant(scope, accountantId);
+    }
+
     return this.companies.confirmImport(scope, body.pending);
   }
 
@@ -174,6 +191,9 @@ export class CompaniesController {
     @Body(zodPipe(UpdateCompanyBody)) body: UpdateCompanyBody,
   ) {
     if (body.checklistTemplateId) await this.requireTemplate(scope, body.checklistTemplateId);
+    if (body.responsibleAccountantId) {
+      await this.requireAccountant(scope, body.responsibleAccountantId);
+    }
 
     const row = await this.companies.update(scope, params.id, body);
     if (!row) throw new NotFound('Empresa não encontrada.');
@@ -296,6 +316,15 @@ export class CompaniesController {
     this.events.emit(EVENTS.ContactInvited, invited);
 
     return { sent: true };
+  }
+
+  /* `responsibleAccountantId` vem do corpo. Sem este filtro, um id de outra Contabilidade
+   * é gravado e o `leftJoin` da listagem passa a devolver o NOME do funcionário dela —
+   * enumeração de equipe alheia. */
+  private async requireAccountant(scope: FirmScope, accountantId: string) {
+    if (!(await this.accountants.findInFirm(scope, accountantId))) {
+      throw new ValidationError('Contador responsável inexistente ou de outra Contabilidade.');
+    }
   }
 
   private async requireTemplate(scope: FirmScope, templateId: string) {

@@ -12,14 +12,7 @@ export default defineConfig({
     VitePWA({
       registerType: 'prompt',
       includeAssets: ['favicon.svg', 'robots.txt'],
-      manifest: {
-        name: 'Application',
-        short_name: 'Application',
-        start_url: '/',
-        display: 'standalone',
-        theme_color: '#ffffff',
-        icons: [],
-      },
+      manifest: false,
       workbox: {
         globPatterns: ['**/*.{js,css,html,ico,png,svg,woff2}'],
         runtimeCaching: [

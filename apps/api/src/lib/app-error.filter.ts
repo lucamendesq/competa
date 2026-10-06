@@ -4,6 +4,17 @@ import { ThrottlerException } from '@nestjs/throttler';
 import * as Sentry from '@sentry/nestjs';
 import { AppError } from './app-error.js';
 import { APIError } from 'better-auth/api';
+import env from '../config/env.js';
+
+/** O erro do driver vem embrulhado (DrizzleQueryError > PostgresError): sem a cadeia de
+ *  `cause` o log mostra a query e esconde o motivo. */
+const describeError = (error: unknown, depth = 0): string => {
+  if (!(error instanceof Error)) return String(error);
+  const cause =
+    error.cause && depth < 3 ? `\ncaused by: ${describeError(error.cause, depth + 1)}` : '';
+
+  return `${error.stack ?? `${error.name}: ${error.message}`}${cause}`;
+};
 
 @Catch()
 export class AppErrorFilter implements ExceptionFilter {
@@ -99,10 +110,26 @@ export class AppErrorFilter implements ExceptionFilter {
       }
     }
 
-    this.logger.error(exception);
+    const request = host.switchToHttp().getRequest<Request>();
+    this.logger.error(
+      `500 ${request.method} ${request.originalUrl ?? request.url}`,
+      describeError(exception),
+    );
     Sentry.captureException(exception);
-    return response
-      .status(500)
-      .json({ error: { code: 'INTERNAL_ERROR', message: 'Erro interno. Tente novamente.' } });
+    return response.status(500).json({
+      error: {
+        code: 'INTERNAL_ERROR',
+        message: 'Erro interno. Tente novamente.',
+        ...(env.NODE_ENV === 'production'
+          ? {}
+          : {
+              details: {
+                name: exception instanceof Error ? exception.name : typeof exception,
+                message: exception instanceof Error ? exception.message : String(exception),
+                stack: describeError(exception),
+              },
+            }),
+      },
+    });
   }
 }

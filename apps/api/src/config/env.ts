@@ -12,6 +12,7 @@ const REQUIRED_IN_PRODUCTION = [
   'R2_BUCKET',
   'RESEND_API_KEY',
   'ASAAS_API_KEY',
+  'ASAAS_WEBHOOK_TOKEN',
   'EMAIL_FROM',
   'VAPID_PUBLIC_KEY',
   'VAPID_PRIVATE_KEY',
@@ -66,6 +67,10 @@ const envSchema = z
     WHATSAPP_ENCRYPTION_KEY: z.string().min(32).optional(),
 
     ASAAS_API_KEY: blankAsMissing(z.string()),
+    /* Token que o Asaas devolve no header `asaas-access-token`. Sem ele o webhook aceita
+     * qualquer POST da internet e vira chave de assinatura grátis / DoS por tenant. */
+    ASAAS_WEBHOOK_TOKEN: blankAsMissing(z.string()),
+    WHATSAPP_VERIFY_TOKEN: blankAsMissing(z.string()),
     ASAAS_SANDBOX: z
       .string()
       .optional()

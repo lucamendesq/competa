@@ -2,7 +2,6 @@ import { api } from '@/api/client';
 import type { PushSubscriptionPayload } from '@/composables/usePush'; // Need to port PushService
 
 export type UploadedFile = {
-  fileName: string;
   reviewStatus: 'pending' | 'accepted' | 'rejected';
   rejectionReason: string | null;
 };
@@ -74,4 +73,4 @@ export const subscribePush = (token: string, subscription: PushSubscriptionPaylo
   api.post<{ id: string }>(`/upload/${token}/push`, subscription);
 
 export const activateAccess = (token: string) =>
-  api.post<{ email: string; name: string }>(`/upload/${token}/access`, {});
+  api.post<{ email: string; name: string; nextStep: 'check_email' }>(`/upload/${token}/access`, {});

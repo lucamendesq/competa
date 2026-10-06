@@ -504,14 +504,12 @@ export class RequestRepository {
       rejected: [
         ...input.rejectDocuments.map((row) => ({
           itemName: documentById.get(row.documentId)!.itemName,
-          fileName: documentById.get(row.documentId)!.fileName,
           rejectionReason: row.rejectionReason,
         })),
         ...input.reviewExtras
           .filter((row) => row.decision === 'rejected')
           .map((row) => ({
             itemName: null,
-            fileName: documentById.get(row.documentId)!.fileName,
             rejectionReason: row.rejectionReason!,
           })),
       ],
@@ -758,7 +756,7 @@ export class RequestRepository {
    *  dentro da mesma transação da revisão para não existir estado intermediário. */
   private async syncRequestStatus(tx: Tx, requestId: string) {
     const items = await tx
-      .select({ status: requestItem.status })
+      .select({ status: requestItem.status, required: requestItem.required })
       .from(requestItem)
       .where(eq(requestItem.requestId, requestId));
 
@@ -770,7 +768,7 @@ export class RequestRepository {
 
     const next = requestStatusAfterReview(
       current.status as RequestStatus,
-      items.map((item) => item.status as ItemStatus),
+      items.map((item) => ({ status: item.status as ItemStatus, required: item.required })),
     );
 
     if (next !== current.status) {

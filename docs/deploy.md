@@ -95,6 +95,37 @@ Settings → Secrets and variables → Actions:
 - Trocar a chave VAPID **não** exige rebuild do Angular (`GET /push/vapid-key` serve a
   pública); só atualizar o secret no Fly.
 
+## 6. No primeiro cliente pagante (go-live)
+
+Enquanto não há cliente, a API roda **scale-to-zero** (`min_machines_running = 0`) e os
+crons **não disparam** — máquina parada não executa `@nestjs/schedule`. Com nenhuma
+Contabilidade cadastrada os jobs não teriam trabalho, então a economia é de graça. Isso
+deixa de valer no momento em que a primeira firm entra.
+
+Antes de o primeiro Responsável receber um Link de Upload:
+
+1. **Ligar a máquina always-on** em `apps/api/fly.toml` e fazer deploy:
+
+   ```toml
+   [http_service]
+     auto_stop_machines = false
+     auto_start_machines = true
+     min_machines_running = 1
+   ```
+
+   Custo: ~US$2/mês (1 × `shared-cpu-1x` 256MB em `gru`). Também elimina o cold start
+   do NestJS na primeira requisição do dia — que hoje cairia justamente em cima do
+   Responsável clicando no link do email.
+
+2. **Conferir no Sentry** que `reminders-daily` e `deadline-daily` passam a fazer check-in
+   (Crons). Antes disso os monitores nem existem: o `@SentryCron` só cria o monitor no
+   primeiro check-in.
+
+3. **Exercitar os dois jobs antes**, logado como Contador, com dados de teste:
+   `POST /reminders/run` e `POST /deadlines/scan` (ambos escopados à própria firm).
+   `discardStaleUploads()` e `purgeExpiredFiscalDocuments()` **não** têm gatilho manual —
+   só rodam pelo cron.
+
 ## Fora deste runbook
 
 - **Backup** (dump diário + bucket dedicado + restore): [`backup.md`](./backup.md).

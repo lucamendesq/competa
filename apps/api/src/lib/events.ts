@@ -45,7 +45,9 @@ export type ReviewPublishedEvent = {
   contactName: string;
   contactEmail: string;
   acceptedItemNames: string[];
-  rejected: { itemName: string | null; fileName: string; rejectionReason: string }[];
+  /* Sem `fileName`: nome de arquivo é conteúdo de documento e não sai do perímetro
+   * autenticado (email e push são canais abertos). */
+  rejected: { itemName: string | null; rejectionReason: string }[];
   uploadUrl: string | null;
 };
 

@@ -78,6 +78,9 @@ export const requestItem = pgTable(
     name: text().notNull(),
     description: text(),
     acceptedFormats: text('accepted_formats').array().notNull(),
+    /** congelado junto do resto do snapshot. Item não obrigatório aparece no checklist mas
+     *  não segura o `complete` da Solicitação. */
+    required: boolean().notNull().default(true),
     /** congelado: reference_month + due_month_offset + due_day;
      *  NULL → herda period.due_date → sem prazo */
     dueDate: date('due_date'),

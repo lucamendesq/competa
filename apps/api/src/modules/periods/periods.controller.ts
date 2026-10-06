@@ -109,12 +109,7 @@ export class PeriodsController {
       throw new NotFound('Competência não encontrada.');
     }
 
-    const companies = await this.periods.pendingPanel(scope, params.id);
-
-    return companies.map((company) => ({
-      ...company,
-      channelFailures: [],
-    }));
+    return this.periods.pendingPanel(scope, params.id);
   }
 
   @Post(':id/close')

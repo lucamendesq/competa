@@ -1,4 +1,3 @@
-import { AsyncLocalStorage } from 'node:async_hooks';
 import { Logger } from '@nestjs/common';
 import env from '../../config/env.js';
 
@@ -18,32 +17,12 @@ export const setMagicLinkSender = (fn: Sender) => {
   sender = fn;
 };
 
-/** Contexto assíncrono, não variável de módulo: dois "ativar acesso" simultâneos rodam na
- *  mesma instância, e um flag global entregaria o token de um ao outro — sessão da pessoa
- *  errada. O `AsyncLocalStorage` isola por cadeia de chamada. */
-const interception = new AsyncLocalStorage<{ link?: MagicLink }>();
-
-/** Gera o magic link SEM enviá-lo: a ativação de acesso pelo Link de Upload cria a sessão
- *  na mesma requisição (D14 — um toque, nenhum segundo email). */
-export const withoutSendingMagicLink = async (run: () => Promise<unknown>) => {
-  const intercepted: { link?: MagicLink } = {};
-  await interception.run(intercepted, run);
-
-  return intercepted.link;
-};
-
 /** Quem escolhe é o `NODE_ENV`, não se um provedor foi registrado (mesma regra do D15 nos
  *  outros provedores externos): fora de produção o link sempre vai para o terminal, puro e
  *  sem depender do `MessagingModule` já ter inicializado. Em produção, sim, passa pelo
  *  provedor real (Resend) — via o sender que o `MessagingModule` registra, que também
  *  aplica remetente/rodapé e nunca lança. */
 export const sendMagicLink = async (link: MagicLink) => {
-  const intercepted = interception.getStore();
-  if (intercepted) {
-    intercepted.link = link;
-    return;
-  }
-
   if (env.NODE_ENV !== 'production') {
     logger.log(`magic link para ${link.email}: ${link.url}`);
     return;
@@ -58,8 +37,7 @@ export const sendMagicLink = async (link: MagicLink) => {
   await sender(link);
 };
 
-/** Mesma costura do magic link, para o reset de senha do Contador — sem o
- *  AsyncLocalStorage, que só o passwordless usa. */
+/** Mesma costura do magic link, para o reset de senha do Contador. */
 let resetSender: Sender | undefined;
 
 export const setResetPasswordSender = (fn: Sender) => {

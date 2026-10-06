@@ -42,6 +42,7 @@ const nav = [
   { path: '/empresas', label: 'Empresas', icon: Building2 },
   { path: '/templates', label: 'Checklists', icon: SquareCheckBig },
   { path: '/configuracoes/whatsapp', label: 'WhatsApp', icon: Settings },
+  { path: '/configuracoes/plano', label: 'Plano e Assinatura', icon: SquareCheckBig },
 ];
 
 async function sair() {
@@ -163,8 +164,17 @@ async function sair() {
       </div>
     </nav>
 
-    <main id="conteudo" class="min-w-0 flex-1">
-      <div class="mx-auto flex max-w-[1600px] flex-col gap-6 p-4 sm:p-6">
+    <main id="conteudo" class="min-w-0 flex-1 flex flex-col">
+      <div
+        v-if="auth.isOverdue"
+        class="bg-destructive/10 text-destructive border-b border-destructive/20 px-4 py-3 text-sm text-center font-medium"
+      >
+        Sua assinatura está pendente e o acesso de escrita foi bloqueado.
+        <RouterLink to="/configuracoes/plano" class="underline underline-offset-2 ml-1"
+          >Regularizar agora</RouterLink
+        >.
+      </div>
+      <div class="mx-auto flex max-w-[1600px] flex-col gap-6 w-full p-4 sm:p-6">
         <RouterView />
       </div>
     </main>
