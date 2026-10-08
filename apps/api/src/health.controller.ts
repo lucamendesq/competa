@@ -2,6 +2,7 @@ import { Controller, Get } from '@nestjs/common';
 import { AllowAnonymous } from '@thallesp/nestjs-better-auth';
 import { SkipThrottle } from '@nestjs/throttler';
 import { HealthRepository } from './health.repository.js';
+import { buildInfo } from './build-info.js';
 import { ServiceUnavailable } from './lib/app-error.js';
 
 /** O que um balanceador/orquestrador consulta antes de mandar tráfego. Toca o banco de
@@ -22,6 +23,6 @@ export class HealthController {
       throw new ServiceUnavailable('Banco indisponível.');
     }
 
-    return { status: 'ok' as const };
+    return { status: 'ok' as const, ...buildInfo };
   }
 }

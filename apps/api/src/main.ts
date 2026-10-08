@@ -5,6 +5,7 @@ import { NestFactory } from '@nestjs/core';
 import { Logger } from 'nestjs-pino';
 import helmet from 'helmet';
 import { AppModule } from './app.module.js';
+import { buildInfo } from './build-info.js';
 import env, { allowedOrigins } from './config/env.js';
 import { AppErrorFilter } from './lib/app-error.filter.js';
 import { originCheck } from './lib/origin-check.js';
@@ -15,7 +16,8 @@ async function bootstrap() {
     bodyParser: false,
     bufferLogs: true,
   });
-  app.useLogger(app.get(Logger));
+  const logger = app.get(Logger);
+  app.useLogger(logger);
 
   /* Atrás de um reverse proxy o Express vê o IP DELE em `req.ip`, e todo @Throttle vira um
    * balde único para o mundo inteiro — um cliente barulhento 429a a base. Só em produção:
@@ -38,5 +40,8 @@ async function bootstrap() {
   app.enableShutdownHooks();
 
   await app.listen(env.PORT);
+  logger.log(
+    `API na porta ${env.PORT} — compilada em ${buildInfo.compiledAt}, processo iniciado em ${buildInfo.startedAt}`,
+  );
 }
 await bootstrap();

@@ -24,6 +24,14 @@ pnpm --filter api start:dev
 
 A API sobe em `http://localhost:{PORT}` (padrão `3000`). Rotas do Better Auth ficam em `/api/auth/*`; as demais (nossas) não têm prefixo `/api`.
 
+## "o servidor está rodando o que acabei de escrever?"
+
+`GET /health` responde `startedAt` (quando o processo subiu) e `compiledAt` (mtime do arquivo compilado que ele carregou), e a mesma linha sai no log do boot. Se `startedAt` for anterior à sua última edição, o `nest start --watch` recompilou mas não respawnou: mate o processo e suba de novo.
+
+```bash
+curl -s http://localhost:3000/health
+```
+
 ## Fluxo de ponta a ponta
 
 Não há cadastro público — a primeira Contabilidade e o primeiro convite nascem por script.
