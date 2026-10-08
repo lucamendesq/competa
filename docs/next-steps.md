@@ -34,10 +34,10 @@ Legenda de peso: 🔴 impede cobrar/operar · 🟠 queima na primeira semana de 
 
 ## 2. Autenticação e conta
 
-| Falta                                            | Peso | Detalhe                                                                                                                                    |
-| ------------------------------------------------ | ---- | ------------------------------------------------------------------------------------------------------------------------------------------ |
-| ~~Reset de senha do Contador~~                   | ✅   | 2026-09-11: `sendResetPassword` configurado (token 1h, sessões revogadas), telas /esqueci-senha e /redefinir-senha, link no login.         |
-| ~~Confirmar posse do email no "perdi meu link"~~ | ✅   | 2026-09-11: fluxo em 2 passos — email de confirmação (token HMAC, 30min) antes de rotacionar; cooldown de 15min preservado (e consertado). |
+| Falta                                            | Peso | Detalhe                                                                                                                                                                                                              |
+| ------------------------------------------------ | ---- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| ~~Reset de senha do Contador~~                   | ✅   | 2026-09-11: `sendResetPassword` configurado (token 1h, sessões revogadas), telas /esqueci-senha e /redefinir-senha, link no login.                                                                                   |
+| ~~Confirmar posse do email no "perdi meu link"~~ | ✅   | 2026-09-11: fluxo em 2 passos — email de confirmação (token HMAC, 30min) antes de rotacionar. O cooldown de 15min saiu no COM-153: medido pelo último email de link, ele transformava o passo 2 confirmado em no-op. |
 
 ## 3. Deploy, CI e infraestrutura
 

@@ -3,7 +3,6 @@ import { AllowAnonymous } from '@thallesp/nestjs-better-auth';
 import { EventEmitter2 } from '@nestjs/event-emitter';
 import { Throttle, seconds } from '@nestjs/throttler';
 import { RecoverAccessBody, RecoverAccessConfirmBody } from '@competa/contracts';
-import { subMinutes } from 'date-fns';
 import env from '../../config/env.js';
 import {
   EVENTS,
@@ -31,10 +30,6 @@ const SAME_ANSWER = {
  *  nenhum email) responde em milissegundos e os outros dois em centenas — o relógio
  *  contaria o que a mensagem esconde. */
 const MINIMUM_DURATION_MS = 700;
-
-/** Janela em que uma confirmação nova NÃO gera link novo. Junto com a confirmação em dois
- *  passos, é a segunda barreira: mesmo o dono do email não rotaciona em loop. */
-const RESEND_COOLDOWN_MINUTES = 15;
 
 /** Validade do link de confirmação (passo 1 → passo 2). */
 const CONFIRM_TTL_MS = 30 * 60 * 1000;
@@ -81,7 +76,7 @@ export class AccessRecoveryController {
 
       /* Uso único sem tabela: o token foi assinado sobre os Links vigentes naquele
        * momento. A rotação troca esses hashes, então o mesmo token não confirma duas
-       * vezes — e se nada rotacionou (cooldown), não houve invalidação para repetir. */
+       * vezes. */
       if (recoveryFingerprint(openRequests) === confirmed.fingerprint) {
         await this.rotateAndSend(openRequests);
       }
@@ -113,16 +108,17 @@ export class AccessRecoveryController {
     await this.events.emitAsync(EVENTS.AccessRecoveryRequested, requested);
   }
 
+  /** Rotação sem janela de tempo, de propósito: a posse do email já está provada pelo
+   *  token HMAC do passo 2, que é de uso único (a rotação troca os hashes e o fingerprint
+   *  deixa de bater). Gatear isto pelo último `link_delivery` era o COM-153 — esse relógio
+   *  é o email que o Contador mandou, não a tentativa do Responsável: quem perde o link na
+   *  primeira hora da competência recebia "o link chega em instantes" e nada acontecia,
+   *  sem retentativa possível. O freio contra pedir em loop é o passo 1, anônimo e com
+   *  limite por IP, somado ao uso único do token. */
   private async rotateAndSend(
     openRequests: Awaited<ReturnType<ContactRepository['openRequestsForEmail']>>,
   ) {
-    const cooldownStart = subMinutes(new Date(), RESEND_COOLDOWN_MINUTES);
-
     for (const row of openRequests) {
-      /* new Date(): o subquery cru devolve string, e `string > Date` é sempre false — o
-       * cooldown nunca segurava. */
-      if (row.lastLinkSentAt && new Date(row.lastLinkSentAt) > cooldownStart) continue;
-
       /* O token vai para o email ANTES de virar o token oficial: `applyUploadToken` só
        * grava depois que a entrega confirma. Rotacionar primeiro deixaria o Responsável
        * sem link nenhum toda vez que o provedor de email falhasse. */
