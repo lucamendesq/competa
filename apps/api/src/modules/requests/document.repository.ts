@@ -1,5 +1,5 @@
 import { Injectable } from '@nestjs/common';
-import { and, eq, inArray, lt, sql } from 'drizzle-orm';
+import { and, eq, gt, inArray, lt, sql } from 'drizzle-orm';
 import { createHash } from 'node:crypto';
 import type { Readable } from 'node:stream';
 import { fileTypeFromBuffer } from 'file-type';
@@ -7,10 +7,11 @@ import { v7 as uuidv7 } from 'uuid';
 import type { PresignUploadBody } from '@competa/contracts';
 import { Database } from '../../infra/database/database.js';
 import { document, period, request, requestItem } from '../../infra/database/schema/index.js';
-import { StorageProvider } from '../../infra/storage/storage.provider.js';
+import { PRESIGN_TTL_SECONDS, StorageProvider } from '../../infra/storage/storage.provider.js';
 import { NotFound, ServiceUnavailable, ValidationError } from '../../lib/app-error.js';
 import type { UploadScope } from '../auth/scope.js';
 import {
+  MAX_DOCS_PER_REQUEST,
   MAX_FILES_PER_UPLOAD,
   buildStorageKey,
   confirmationRefusal,
@@ -87,6 +88,17 @@ export class DocumentRepository {
             'Esta solicitação foi encerrada: os itens não aceitam mais envios. Envie como Documento Extra.',
           );
         }
+      }
+
+      /* Reserva não ocupa cota da Solicitação, mas ocupa uma URL assinada de escrita no
+       * storage: sem teto próprio, o presign viraria autorização ilimitada de escrita para
+       * quem tem o link. Só contam as reservas ainda utilizáveis — a URL vence em
+       * PRESIGN_TTL_SECONDS e o que venceu não escreve mais nada. */
+      const reserved = await this.liveReservationsTx(tx, scope.requestId);
+      if (reserved + body.files.length > MAX_DOCS_PER_REQUEST) {
+        throw new ValidationError(
+          'Há envios em andamento nesta solicitação. Aguarde alguns minutos e tente de novo.',
+        );
       }
 
       const usage = await this.usageForRequestTx(tx, scope.requestId);
@@ -166,7 +178,13 @@ export class DocumentRepository {
     const pending = await this.pendingUpload(scope, documentIds);
     if (!pending.length) throw new NotFound('Nenhum documento deste envio foi encontrado.');
 
-    const accepted: { id: string; realBytes: number; checksum: string; storageKey: string }[] = [];
+    const accepted: {
+      id: string;
+      fileName: string;
+      realBytes: number;
+      checksum: string;
+      storageKey: string;
+    }[] = [];
     const refused: { documentId: string; fileName: string; reason: string; storageKey: string }[] =
       [];
 
@@ -219,6 +237,7 @@ export class DocumentRepository {
 
       accepted.push({
         id: row.id,
+        fileName: row.fileName,
         realBytes: realBytes!,
         checksum: hash,
         storageKey: row.storageKey,
@@ -233,7 +252,39 @@ export class DocumentRepository {
     }
 
     try {
-      const { confirmed, submittedItemIds } = await this.db.transaction(async (tx) => {
+      const { confirmed, submittedItemIds, overflow } = await this.db.transaction(async (tx) => {
+        /* Mesmo lock do presign: dois lotes confirmando em paralelo leriam o mesmo `usage`
+         * e cada um caberia no teto — juntos, não. */
+        await tx
+          .select({ id: request.id })
+          .from(request)
+          .where(eq(request.id, scope.requestId))
+          .for('update')
+          .limit(1);
+
+        const usage = await this.usageForRequestTx(tx, scope.requestId);
+        const within: typeof accepted = [];
+        const overflow: typeof refused = [];
+
+        for (const row of accepted) {
+          const reason = requestCapRefusal(usage, { sizeBytes: row.realBytes });
+          if (reason) {
+            overflow.push({
+              documentId: row.id,
+              fileName: row.fileName,
+              reason,
+              storageKey: row.storageKey,
+            });
+            continue;
+          }
+
+          usage.count += 1;
+          usage.bytes += row.realBytes;
+          within.push(row);
+        }
+
+        if (!within.length) return { confirmed: [], submittedItemIds: [], overflow };
+
         const rows = await tx
           .select({ id: document.id, requestItemId: document.requestItemId })
           .from(document)
@@ -242,12 +293,12 @@ export class DocumentRepository {
               eq(document.requestId, scope.requestId),
               inArray(
                 document.id,
-                accepted.map((row) => row.id),
+                within.map((row) => row.id),
               ),
             ),
           );
 
-        for (const row of accepted) {
+        for (const row of within) {
           await tx
             .update(document)
             .set({
@@ -276,13 +327,20 @@ export class DocumentRepository {
             );
         }
 
-        return { confirmed: rows.map((row) => row.id), submittedItemIds: itemIds };
+        return { confirmed: rows.map((row) => row.id), submittedItemIds: itemIds, overflow };
       });
+
+      if (overflow.length) {
+        await this.discard(overflow.map((row) => row.documentId));
+        await Promise.all(
+          overflow.map((row) => this.storage.remove(row.storageKey).catch(() => undefined)),
+        );
+      }
 
       return {
         confirmed: confirmed.length,
         submittedItemIds,
-        refused: refused.map(({ documentId, fileName, reason }) => ({
+        refused: [...refused, ...overflow].map(({ documentId, fileName, reason }) => ({
           documentId,
           fileName,
           reason,
@@ -328,10 +386,6 @@ export class DocumentRepository {
     return { ...context, item };
   }
 
-  async usageForRequest(requestId: string) {
-    return this.usageForRequestTx(this.db, requestId);
-  }
-
   private async usageForRequestTx(executor: Database | Tx, requestId: string) {
     const [row] = await executor
       .select({
@@ -339,9 +393,24 @@ export class DocumentRepository {
         bytes: sql<number>`coalesce(sum(${document.sizeBytes}), 0)::bigint`,
       })
       .from(document)
-      .where(eq(document.requestId, requestId));
+      .where(and(eq(document.requestId, requestId), eq(document.uploadStatus, 'uploaded')));
 
     return { count: row?.count ?? 0, bytes: Number(row?.bytes ?? 0) };
+  }
+
+  private async liveReservationsTx(executor: Database | Tx, requestId: string) {
+    const [row] = await executor
+      .select({ count: sql<number>`count(*)::int` })
+      .from(document)
+      .where(
+        and(
+          eq(document.requestId, requestId),
+          eq(document.uploadStatus, 'awaiting_upload'),
+          gt(document.createdAt, new Date(Date.now() - PRESIGN_TTL_SECONDS * 1000)),
+        ),
+      );
+
+    return row?.count ?? 0;
   }
 
   async createMany(

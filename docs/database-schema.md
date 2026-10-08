@@ -349,8 +349,12 @@ valida `expires_at`/`revoked` e injeta `UploadScope`), `modules/requests/upload.
 - Valida `token_hash` + `expires_at` + `revoked` e injeta `UploadScope` limitado àquela `request`; escopo **só-upload** (a página exibe nomes/status dos itens; NUNCA lista/baixa conteúdo de documentos).
 - Upload direto ao R2 via URL pré-assinada (4–6 concorrentes); backend só emite URLs e insere `document`.
 - Limites: 100 MB/arquivo; 500 arquivos/envio; teto por Solicitação de 1000 documentos /
-  500 MB acumulados (AVAIL-2 — `awaiting_upload` reserva cota até a faxina). Zip aceito
-  como formato, **sem extração**.
+  500 MB acumulados (AVAIL-2). O teto conta só `uploaded` — `awaiting_upload` é reserva,
+  não documento, e não consome cota (COM-154); é conferido no presign (recusa cedo) e de
+  novo na confirmação, que é onde o arquivo aterrissa. Reserva viva (presign cujo
+  `created_at` ainda está dentro do TTL da URL assinada) tem teto próprio e separado de
+  1000 por Solicitação, só para o presign não virar autorização ilimitada de escrita no
+  storage. Zip aceito como formato, **sem extração**.
   O limite é **imposto**, não pedido: o presign assina o tamanho (`ContentLength` no R2,
   HMAC + corte de stream no storage local) e a confirmação confere o objeto real — arquivo
   ausente, maior que o limite ou diferente do declarado é descartado (linha e objeto).
