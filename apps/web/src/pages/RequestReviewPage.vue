@@ -9,6 +9,7 @@ import PageHeader from '@/components/PageHeader.vue';
 import ErrorState from '@/components/ErrorState.vue';
 import LoadingRows from '@/components/LoadingRows.vue';
 import StatusPill from '@/components/StatusPill.vue';
+import ResendNotice from '@/components/ResendNotice.vue';
 import DueDate from '@/components/DueDate.vue';
 import {
   getRequestDetail,
@@ -20,6 +21,7 @@ import {
 import { toast } from 'vue-sonner';
 import { apiErrorMessage } from '@/api/error';
 import { dateTimeBr, fileSize, monthLabel } from '@/utils/format';
+import { displayItemStatus, needsResend, wasResent } from '@/utils/item-status';
 
 const props = defineProps<{ id: string }>();
 const router = useRouter();
@@ -195,7 +197,10 @@ async function publish() {
         >
           <div class="flex flex-wrap items-start justify-between gap-3">
             <div class="min-w-0">
-              <h3 class="text-base font-semibold">{{ item.name }}</h3>
+              <h3 class="flex flex-wrap items-center gap-2 text-base font-semibold">
+                {{ item.name }}
+                <StatusPill v-if="wasResent(item)" status="resent" />
+              </h3>
               <DueDate :date="item.dueDate" class="text-xs" />
             </div>
             <Button
@@ -312,13 +317,12 @@ async function publish() {
           Demais itens ({{ settledItems.length }})
         </h2>
         <ul class="bg-card border-border divide-border divide-y rounded-xl border shadow-sm">
-          <li
-            v-for="item in settledItems"
-            :key="item.id"
-            class="flex flex-wrap items-center justify-between gap-2 p-3"
-          >
-            <span class="text-sm font-medium">{{ item.name }}</span>
-            <StatusPill :status="item.status" />
+          <li v-for="item in settledItems" :key="item.id" class="flex flex-col gap-2 p-3">
+            <div class="flex flex-wrap items-center justify-between gap-2">
+              <span class="text-sm font-medium">{{ item.name }}</span>
+              <StatusPill :status="displayItemStatus(item)" />
+            </div>
+            <ResendNotice v-if="needsResend(item)" :item="item" />
           </li>
         </ul>
       </section>
