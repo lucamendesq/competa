@@ -14,19 +14,19 @@ Contexto completo: [`docs/product.md`](./docs/product.md).
 
 - **Menos código é melhor.** YAGNI. A solução mais simples que funciona vence. Não abstraia por antecipação, não crie interface com uma implementação, não adicione dependência para o que cabe em poucas linhas.
 - **Fatias verticais finas.** Cada mudança entrega algo demonstrável rodando localmente (ver [`docs/roadmap.md`](./docs/roadmap.md)). O banco cresce **uma tabela por vez**, conforme a feature precisa — nunca as 14 de uma vez.
-- **Um paradigma só, do front ao back:** módulos, DI, decorators (Angular + NestJS). É deliberado — não introduza estilos concorrentes.
+- **Um paradigma por app, do front ao back:** no `apps/web`, Composition API (`<script setup>`) e composables; no `apps/api`, módulos, DI e decorators do NestJS. É deliberado — não introduza estilos concorrentes.
 - **Entenda antes de mexer.** Trace o fluxo inteiro que a mudança toca; corrija na raiz (na função compartilhada), não no sintoma de um caller só.
 - Comunicação/docs em **PT-BR**; identificadores de código/banco em **inglês** (ver glossário abaixo).
 
 ## Stack
 
-TypeScript · **pnpm workspaces** (monorepo) · **Angular SPA (CSR, sem SSR)** + **Tailwind CSS + Spartan UI** · **NestJS** (todo o backend) · Drizzle ORM · Postgres · **Better Auth** (na API) · Cloudflare R2 · `@nestjs/event-emitter` · zod (`libs/contracts`). Mobile futuro: {a decidir — React Native vs Flutter}.
+TypeScript · **pnpm workspaces** (monorepo) · **Vue 3 SPA (Vite, CSR, sem SSR)** + **Tailwind CSS + reka-ui** + Pinia + `@tanstack/vue-query` + vee-validate · **NestJS** (todo o backend) · Drizzle ORM · Postgres · **Better Auth** (na API) · Cloudflare R2 · `@nestjs/event-emitter` · zod (`libs/contracts`). Mobile futuro: {a decidir — React Native vs Flutter}.
 
 ## Estrutura alvo do monorepo
 
 ```
 apps/
-  web/          # Angular SPA — SÓ frontend (painel do Contador + página pública de upload)
+  web/          # Vue 3 SPA — SÓ frontend (painel do Contador + página pública de upload)
   api/          # NestJS — TODO o backend (REST, auth, eventos, cron, zip, webhooks)
   mobile/       # futuro — consome a MESMA API
 libs/
@@ -40,14 +40,14 @@ docs/           # documentação viva (comece por docs/README.md)
 
 1. **Nomenclatura EN/PT.** Identificadores em inglês pelo glossário **normativo** ([`docs/domain.md`](./docs/domain.md#glossário-linguagem-ubíqua-pten)); nunca EN fora do mapa. **Proibidos soltos:** `client`, `user`, `month` → use `company`/`accounting_firm`, `accountant`/`contact`, `period`/`reference_month`. (Exceção: tabela `user` do Better Auth.)
 2. **`FirmScope`/`UploadScope`/`ContactScope` em todo repositório.** Tipos branded criados só pelos guards de `auth/`. Query sem escopo **não compila**; contornar o tipo é **bug de segurança**. Contabilidade A nunca vê dados da B (LGPD/sigilo).
-3. **Fluxo de upload é só-escrita.** As rotas com `UploadTokenGuard` exibem nome/status/prazo dos Itens e o **nome** dos arquivos já enviados (com status da revisão e motivo da rejeição — o Responsável precisa saber o que mandou), mas **NUNCA devolvem conteúdo, `storage_key` ou rota de download** de documentos. O Link de Upload é token próprio — não passa pelo Better Auth.
+3. **Fluxo de upload é só-escrita.** As rotas com `UploadTokenGuard` exibem nome/status/prazo dos Itens e, de cada arquivo já enviado, **só** o Item a que pertence, o status da revisão e o motivo da rejeição — o bastante para o Responsável saber o que falta. **NUNCA devolvem o nome do arquivo** (nome de arquivo contábil carrega CNPJ, razão social de terceiros e valores, e quem tem o link não é necessariamente quem enviou), **nem conteúdo, `storage_key` ou rota de download**. O Link de Upload é token próprio — não passa pelo Better Auth.
 4. **Snapshot congelado na abertura.** Ao "abrir a competência", os itens são copiados (nome/formatos/`due_date`) para `request_item`; mudança posterior no template não afeta solicitações abertas.
 5. **Código sem comentários.** O nome da função/variável explica o quê; o `git log` e os `docs/` explicam o porquê. Comentário só quando o código, mesmo bem escrito, não consegue dizer sozinho: bug/limitação de biblioteca externa, workaround não óbvio, invariante de segurança que um refactor inocente quebraria, ou `ponytail:` marcando um atalho deliberado. Na dúvida, **não comente** — renomeie ou extraia. Nunca comentário que repete a linha seguinte, cabeçalho de arquivo, JSDoc de tipo já tipado, ou comentário de "seção".
 6. **Duas camadas, só (Nest): controller → repositório.** Não existe pasta `usecases/`. Regra de negócio com lógica real (derivar template, importar CSV, checklist efetivo) vira **método do repositório do módulo**; o controller valida, orquestra e traduz erro em HTTP. Sem `entities/`/`vo/` (tipo = `$inferSelect` do Drizzle). Lógica pura sem banco (merge, parser) fica em módulo solto (`effective-checklist.ts`, `csv.ts`).
 7. **Comunicação entre módulos = eventos síncronos** via `@nestjs/event-emitter` (direção: companies/checklists → periods/requests → messaging). **Sem CQRS, sem microservices, sem fila/outbox na v1.**
-8. **Nomes de pasta/arquivo do `apps/web` também são inglês** (`features/companies/`, `layouts/panel-layout.ts`). PT-BR fica no **path da URL** e no texto de tela.
-9. **Styling = Tailwind + Spartan UI.** Utilities por padrão; Spartan em `shared/ui/`. **Angular Material está fora.** `.scss` de componente é exceção rara.
-10. **`libs/contracts` (zod) é a única fonte de validação** — mesmos schemas no form do Angular e no pipe do Nest. Componente nunca chama `HttpClient` direto (sempre via service da feature).
+8. **Nomes de pasta/arquivo do `apps/web` também são inglês** (`features/companies/`, `layouts/PanelLayout.vue`). PT-BR fica no **path da URL** e no texto de tela.
+9. **Styling = Tailwind.** Utilities por padrão; os primitivos de UI (reka-ui) ficam em `components/ui/`. **Nenhuma outra biblioteca de componentes.** `.css` de componente é exceção rara.
+10. **`libs/contracts` (zod) é a única fonte de validação** — mesmos schemas no form do `web` (vee-validate) e no pipe do Nest. Componente nunca chama `fetch`/`api` direto (sempre via o módulo `api/` da feature).
 11. **Provedores externos** (Resend, R2, Meta, FCM) só atrás de interface em `modules/messaging/providers/` e `infra/storage/`. Falha de canal nunca bloqueia o fluxo (degrada WhatsApp → email). **Quem escolhe a implementação é o `NODE_ENV`** (D15): fora de produção nenhum provedor real é usado — disco, console, console — e em produção a subida falha nomeando a credencial que falta. Não volte a chavear por "a variável existe".
 12. **Conta do Responsável é opcional e nunca pré-requisito** (D14). O Link de Upload é a única porta obrigatória do produto. Qualquer ideia sobre acesso que crie trabalho ou espera para o Contador está errada.
 13. **`docs/database-schema.md` é canônico.** O schema Drizzle deve espelhá-lo; divergência exige atualizar o doc na mesma PR. Sem extração de zip nem parsing de XML de NF na v1.
@@ -58,7 +58,7 @@ Lista completa de anti-patterns: [`docs/conventions.md`](./docs/conventions.md#o
 
 Os apps importam `@competa/contracts` do `dist`, não do `src`. Editar um schema e não
 recompilar deixa o app validando contra o schema **antigo** — e o sintoma não é um erro, é
-**um botão que não faz nada**: o formulário do Angular fica inválido e o `submit()` não
+**um botão que não faz nada**: o formulário do `web` fica inválido e o `submit()` não
 chama a ação, em silêncio. Já custou duas sessões de caça.
 
 Use `pnpm dev` na raiz (compila e fica em watch). Se subir os apps na mão, rode
