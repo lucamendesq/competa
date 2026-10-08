@@ -12,6 +12,7 @@ import {
   TableRow,
 } from '@/components/ui/table';
 import PageHeader from '@/components/PageHeader.vue';
+import Modal from '@/components/Modal.vue';
 import Callout from '@/components/Callout.vue';
 import { COMPANY_FLAGS, type CompanyFlag } from '@competa/contracts';
 import {
@@ -83,6 +84,14 @@ const displayLines = computed(() => {
 
 const actionableCount = computed(() => confirmed.value?.created ?? pendingRows.value.length);
 
+const finishLabel = computed(() => {
+  if (confirming.value) return 'Importando…';
+  if (confirmed.value || !actionableCount.value) return 'Concluir';
+  return actionableCount.value === 1
+    ? 'Importar 1 empresa'
+    : `Importar ${actionableCount.value} empresas`;
+});
+
 async function read(f: File) {
   error.value = null;
 
@@ -135,6 +144,7 @@ async function importCsv() {
   }
 }
 
+const confirmRestart = ref(false);
 const inviting = ref(false);
 const invitesSent = ref<number | null>(null);
 
@@ -191,6 +201,12 @@ async function finish() {
 }
 
 function restart() {
+  if (confirmed.value) discard();
+  else confirmRestart.value = true;
+}
+
+function discard() {
+  confirmRestart.value = false;
   file.value = null;
   preview.value = null;
   confirmed.value = null;
@@ -250,9 +266,7 @@ function downloadTemplate() {
         </div>
         <div class="flex gap-2">
           <Button variant="outline" @click="restart">Importar outra planilha</Button>
-          <Button variant="outline" :disabled="confirming" @click="finish">
-            {{ confirming ? 'Concluindo…' : 'Concluir' }}
-          </Button>
+          <Button :disabled="confirming" @click="finish">{{ finishLabel }}</Button>
         </div>
       </div>
 
@@ -262,10 +276,13 @@ function downloadTemplate() {
       >
         <template v-if="invitesSent === null">
           <p class="text-muted-foreground min-w-0 flex-1 text-xs">
-            A importação não avisa ninguém por e-mail — confira o relatório antes. Quando estiver
-            certo, envie o convite de acesso para os Responsáveis cadastrados.
+            A importação não avisa ninguém por e-mail — confira o relatório antes.
+            <template v-if="confirmed"
+              >Envie o convite de acesso para os Responsáveis cadastrados.</template
+            >
+            <template v-else>Enviar os convites agora também importa as empresas.</template>
           </p>
-          <Button :disabled="inviting" @click="doSendInvites">
+          <Button variant="outline" :disabled="inviting" @click="doSendInvites">
             <Mail class="mr-2 h-4 w-4" aria-hidden="true" />
             {{ inviting ? 'Enviando…' : 'Enviar convites de acesso (' + actionableCount + ')' }}
           </Button>
@@ -407,4 +424,16 @@ function downloadTemplate() {
       </aside>
     </div>
   </main>
+
+  <Modal
+    :open="confirmRestart"
+    @update:open="$event ? null : (confirmRestart = false)"
+    title="Descartar esta planilha?"
+    description="As empresas lidas ainda não foram criadas. Ao trocar de planilha você perde o que foi lido e precisa enviar tudo de novo."
+  >
+    <div class="border-border bg-muted/40 -mx-6 -mb-6 mt-5 flex justify-end gap-2 border-t p-4">
+      <Button variant="ghost" @click="confirmRestart = false">Cancelar</Button>
+      <Button variant="destructive" @click="discard">Descartar</Button>
+    </div>
+  </Modal>
 </template>
