@@ -190,13 +190,14 @@ export class CollectionEventsListener {
     );
   }
 
-  /** Devolve se o email do RESPONSÁVEL saiu. O cron só marca `deadline_notified_at` com
-   *  isso: marcar antes de confirmar a entrega significa que um provedor de email fora do
-   *  ar faz o contato nunca ser avisado — e a marca impede a próxima varredura de tentar. */
+  /** Uma entrega por destinatário para todos os Itens vencidos da Solicitação. Devolve se o
+   *  email do RESPONSÁVEL saiu. O cron só marca `deadline_notified_at` com isso: marcar
+   *  antes de confirmar a entrega significa que um provedor de email fora do ar faz o
+   *  contato nunca ser avisado — e a marca impede a próxima varredura de tentar. */
   @OnEvent(EVENTS.DeadlineMissed)
   async onDeadlineMissed(event: DeadlineMissedEvent) {
     try {
-      await this.messages.deliver({
+      const delivered = await this.messages.deliver({
         requestId: event.requestId,
         purpose: 'deadline_missed',
         recipient: event.contactEmail,
@@ -206,8 +207,10 @@ export class CollectionEventsListener {
       await this.notify(
         event.requestId,
         'deadline_missed',
-        `Prazo vencido: ${event.itemName}`,
-        `${event.companyName}: o prazo era ${event.dueDate} e o documento ainda não chegou.`,
+        event.overdueItems.length === 1
+          ? `Prazo vencido: ${event.overdueItems[0].name}`
+          : `${event.overdueItems.length} documentos com prazo vencido`,
+        `${event.companyName}: ${event.overdueItems.length} documento(s) com prazo vencido ainda não chegaram.`,
         event.uploadUrl,
       );
 
@@ -219,10 +222,13 @@ export class CollectionEventsListener {
           ...deadlineMissedAccountantEmail(event),
         });
       }
+
+      return delivered;
     } catch (error) {
       this.logger.error(
         `Falha no evento DeadlineMissed da Solicitação ${event.requestId}: ${String(error)}`,
       );
+      return false;
     }
   }
 

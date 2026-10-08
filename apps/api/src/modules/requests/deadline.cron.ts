@@ -20,7 +20,8 @@ const STALE_UPLOAD_HOURS = 24;
 
 const DEADLINE_CRON_LOCK_ID = 42002;
 
-/** Varredura de prazo estourado: emite `DeadlineMissed` (avisa Responsável E Contador).
+/** Varredura de prazo estourado: emite UM `DeadlineMissed` por Solicitação, com todos os
+ *  Itens vencidos dela (avisa Responsável E Contador).
  *
  *  "Já avisei este item" é `request_item.deadline_notified_at` (e não estado em memória):
  *  reiniciar a API não pode reavisar o cliente. A reabertura do Item limpa a marca, então
@@ -110,12 +111,11 @@ export class DeadlineCron {
       ...new Set(pendingNotice.map((row) => row.accountingFirmId)),
     ]);
 
-    /* Um token por Solicitação por varredura: rotacionar por item deixaria o email do item
-     * anterior com um link já morto. E o token só passa a valer (`applyUploadToken`) depois
-     * que a primeira entrega confirma — rotacionar antes deixaria o Responsável sem link
-     * nenhum quando o provedor de email estivesse fora do ar. */
-    const linkByRequest = new Map<string, { token: string; tokenHash: string }>();
-    const applied = new Set<string>();
+    const byRequest = pendingNotice.reduce((groups, row) => {
+      groups.set(row.requestId, [...(groups.get(row.requestId) ?? []), row]);
+      return groups;
+    }, new Map<string, typeof pendingNotice>());
+
     const notified: {
       requestItemId: string;
       itemName: string;
@@ -123,44 +123,52 @@ export class DeadlineCron {
       dueDate: string;
     }[] = [];
 
-    for (const row of pendingNotice) {
+    for (const [requestId, rows] of byRequest) {
       try {
-        const link = linkByRequest.get(row.requestId) ?? createToken();
-        linkByRequest.set(row.requestId, link);
+        const link = createToken();
+        const head = rows[0];
 
         const missed: DeadlineMissedEvent = {
-          requestId: row.requestId,
-          requestItemId: row.requestItemId,
-          itemName: row.itemName,
-          dueDate: effectiveDueDate(row)!,
-          companyName: row.companyName,
-          contactName: row.contactName,
-          contactEmail: row.contactEmail,
+          requestId,
+          companyName: head.companyName,
+          contactName: head.contactName,
+          contactEmail: head.contactEmail,
           uploadUrl: `${env.WEB_URL}/envio/${link.token}`,
-          accountantEmails: emailsByFirm.get(row.accountingFirmId) ?? [],
+          accountantEmails: emailsByFirm.get(head.accountingFirmId) ?? [],
+          overdueItems: rows.map((row) => ({
+            name: row.itemName,
+            dueDate: effectiveDueDate(row)!,
+          })),
         };
 
-        await this.events.emitAsync(EVENTS.DeadlineMissed, missed);
+        /* O token só passa a valer (`applyUploadToken`) depois que a entrega confirma, e a
+         * marca de "já avisei" vem junto: rotacionar ou marcar antes deixaria o Responsável
+         * sem link nenhum — e sem nova tentativa — quando o provedor de email estivesse fora
+         * do ar. */
+        const [delivered] = await this.events.emitAsync(EVENTS.DeadlineMissed, missed);
 
-        if (!applied.has(row.requestId)) {
-          if (!(await this.requests.applyUploadToken(row.requestId, link.tokenHash))) {
-            this.logger.error(`Solicitação ${row.requestId} sem upload_link: link enviado morto.`);
-            continue;
-          }
-
-          applied.add(row.requestId);
+        if (!delivered) {
+          this.logger.warn(`Solicitação ${requestId}: aviso de prazo não entregue ao Responsável.`);
+          continue;
         }
 
-        await this.requests.markDeadlineNotified([row.requestItemId]);
+        if (!(await this.requests.applyUploadToken(requestId, link.tokenHash))) {
+          this.logger.error(`Solicitação ${requestId} sem upload_link: link enviado morto.`);
+          continue;
+        }
 
-        notified.push({
-          requestItemId: row.requestItemId,
-          itemName: row.itemName,
-          companyName: row.companyName,
-          dueDate: missed.dueDate,
-        });
+        await this.requests.markDeadlineNotified(rows.map((row) => row.requestItemId));
+
+        notified.push(
+          ...rows.map((row, index) => ({
+            requestItemId: row.requestItemId,
+            itemName: row.itemName,
+            companyName: row.companyName,
+            dueDate: missed.overdueItems[index].dueDate,
+          })),
+        );
       } catch (error) {
-        this.logger.error(`Erro ao processar item vencido ${row.requestItemId}`, error);
+        this.logger.error(`Erro ao processar a Solicitação vencida ${requestId}`, error);
         Sentry.captureException(error);
       }
     }

@@ -58,7 +58,7 @@ Os 3 contexts são um **mapa conceitual** (vocabulário, invariantes, direção 
 - Revisão em lote: aceitar um Item aceita todos os seus Documentos.
 - Limites de upload: 100 MB/arquivo, 500/envio; zip armazenado sem extração.
 
-**Eventos:** `PeriodOpened`, `RequestCreated`, `DocumentSubmitted`, `ExtraDocumentSubmitted`, `DocumentAccepted`, `DocumentRejected`, `ItemReopened`, `DeadlineMissed` (por item), `RequestCompleted`, `RequestClosed`, `PeriodClosed`, `ZipGenerated`.
+**Eventos:** `PeriodOpened`, `RequestCreated`, `DocumentSubmitted`, `ExtraDocumentSubmitted`, `DocumentAccepted`, `DocumentRejected`, `ItemReopened`, `DeadlineMissed` (por Solicitação, lista os Itens vencidos), `RequestCompleted`, `RequestClosed`, `PeriodClosed`, `ZipGenerated`.
 
 ### messaging (Comunicação)
 

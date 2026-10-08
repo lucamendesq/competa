@@ -651,42 +651,38 @@ export class MessageRepository {
     }
 
     if (row.purpose === 'deadline_missed') {
-      const [overdueItem] = await this.db
-        .select({ id: requestItem.id, name: requestItem.name, dueDate: requestItem.dueDate })
+      const overdue = await this.db
+        .select({ name: requestItem.name, dueDate: requestItem.dueDate })
         .from(requestItem)
         .where(
           and(
             eq(requestItem.requestId, row.requestId),
             inArray(requestItem.status, PENDING_ITEM_STATUS),
           ),
-        )
-        .limit(1);
+        );
 
-      const requestItemId = overdueItem?.id ?? '';
-      const itemName = overdueItem?.name ?? 'documentos';
-      const dueDate = overdueItem?.dueDate ?? row.periodDueDate ?? '';
+      const overdueItems = overdue.map((item) => ({
+        name: item.name,
+        dueDate: item.dueDate ?? row.periodDueDate ?? '',
+      }));
 
       const isContact = row.recipient === contactEmail;
       const emailData = isContact
         ? deadlineMissedContactEmail({
             requestId: row.requestId,
-            requestItemId,
             companyName: row.companyName,
             contactName,
             contactEmail: row.recipient,
-            itemName,
-            dueDate,
+            overdueItems,
             uploadUrl,
             accountantEmails: [],
           })
         : deadlineMissedAccountantEmail({
             requestId: row.requestId,
-            requestItemId,
             companyName: row.companyName,
             contactName,
             contactEmail,
-            itemName,
-            dueDate,
+            overdueItems,
             uploadUrl,
             accountantEmails: [row.recipient],
           });

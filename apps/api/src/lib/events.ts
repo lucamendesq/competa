@@ -58,16 +58,17 @@ export type RequestCompletedEvent = {
   contactEmail: string;
 };
 
+/** Prazo estourado, agrupado por Solicitação: uma varredura manda UM email ao Responsável
+ *  e um por Contador, listando todos os Itens vencidos. Por item eram N emails para cada
+ *  lado numa varredura só — volume que queima a reputação do remetente. */
 export type DeadlineMissedEvent = {
   requestId: string;
-  requestItemId: string;
-  itemName: string;
-  dueDate: string;
   companyName: string;
   contactName: string;
   contactEmail: string;
   uploadUrl: string;
   accountantEmails: string[];
+  overdueItems: { name: string; dueDate: string }[];
 };
 
 export type ReminderDueEvent = {

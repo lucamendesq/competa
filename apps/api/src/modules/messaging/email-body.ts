@@ -142,18 +142,30 @@ export const requestCompletedEmail = (event: RequestCompletedEvent) => ({
 Nada mais é necessário por agora. Obrigado!</p>`,
 });
 
+const overdueList = (items: { name: string; dueDate: string }[]) =>
+  `<ul>${items
+    .map((item) => `<li><b>${escape(item.name)}</b> — venceu em ${asDate(item.dueDate)}</li>`)
+    .join('')}</ul>`;
+
+/** Um email para todos os Itens vencidos da Solicitação, como no lembrete: a varredura
+ *  diária por item virava uma rajada por Responsável e por Contador. */
 export const deadlineMissedContactEmail = (event: DeadlineMissedEvent) => ({
-  subject: `Prazo vencido: ${event.itemName}`,
+  subject:
+    event.overdueItems.length === 1
+      ? `Prazo vencido: ${event.overdueItems[0].name}`
+      : `${event.overdueItems.length} documentos com prazo vencido`,
   body: `<p>Olá, ${escape(event.contactName)}.</p>
-<p>O documento <b>${escape(event.itemName)}</b> venceu em <b>${asDate(event.dueDate)}</b> e ainda não
-foi recebido.</p>
+<p>Estes documentos de <b>${escape(event.companyName)}</b> venceram e ainda não foram recebidos:</p>
+${overdueList(event.overdueItems)}
 ${linkButton(event.uploadUrl, 'Enviar agora')}`,
 });
 
 export const deadlineMissedAccountantEmail = (event: DeadlineMissedEvent) => ({
-  subject: `Prazo vencido: ${event.companyName} — ${event.itemName}`,
-  body: `<p>A empresa <b>${escape(event.companyName)}</b> não enviou <b>${escape(event.itemName)}</b>, com prazo
-em <b>${asDate(event.dueDate)}</b>. O Responsável (${escape(event.contactEmail)}) foi avisado.</p>`,
+  subject: `Prazo vencido: ${event.companyName} — ${event.overdueItems.length} documento(s)`,
+  body: `<p>A empresa <b>${escape(event.companyName)}</b> não enviou ${event.overdueItems.length}
+documento(s) com prazo vencido:</p>
+${overdueList(event.overdueItems)}
+<p>O Responsável (${escape(event.contactEmail)}) foi avisado.</p>`,
 });
 
 /** Convite de Contador: não passa por `message` (não há Solicitação a que amarrar a

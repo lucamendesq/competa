@@ -68,7 +68,7 @@
 
 **Contexto:** documentos têm vencimentos diferentes (extrato após o mês; DAS após ~dia 20; folha dentro do próprio mês). Cogitou-se abandonar a Competência e agendar por tipo de documento.
 
-**Decisão:** **a Competência (`period`) permanece a unidade do ciclo** (fan-out, painel, zip, encerramento). O vencimento entra **por item, dentro do ciclo**: `due_day` + `due_month_offset` (0 = mês de referência; 1 = mês seguinte), opcionais. `request_item.due_date` congelado na abertura; `NULL` herda o prazo da competência. **Lembretes continuam por Solicitação** (uma mensagem agrupa os itens pendentes). `DeadlineMissed` passa a ser por item.
+**Decisão:** **a Competência (`period`) permanece a unidade do ciclo** (fan-out, painel, zip, encerramento). O vencimento entra **por item, dentro do ciclo**: `due_day` + `due_month_offset` (0 = mês de referência; 1 = mês seguinte), opcionais. `request_item.due_date` congelado na abertura; `NULL` herda o prazo da competência. **Lembretes continuam por Solicitação** (uma mensagem agrupa os itens pendentes). `DeadlineMissed` avalia o prazo item a item, mas **também avisa por Solicitação**: uma varredura manda um email ao Responsável e um por Contador, listando os Itens vencidos.
 
 **Alternativas rejeitadas:** cobrança exclusiva por tipo de documento (multiplica mensagens ~5–6×, mata o "abrir o mês", scheduler complexo); prazo único por competência (mantido só como fallback).
 
