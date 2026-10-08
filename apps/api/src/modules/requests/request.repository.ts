@@ -160,8 +160,6 @@ export class RequestRepository {
         requestStatus: request.status,
         companyName: company.name,
         uploadLinkId: uploadLink.id,
-        uploadLinkTokenHash: uploadLink.tokenHash,
-        uploadLinkExpiresAt: uploadLink.expiresAt,
         contactName: contact.name,
         contactEmail: contact.email,
       })
@@ -230,24 +228,7 @@ export class RequestRepository {
         .set({ status: 'pending', deadlineNotifiedAt: null })
         .where(eq(requestItem.id, row.requestItemId!));
 
-      const now = new Date();
-      const graceExpiresAt = row.uploadLinkExpiresAt
-        ? new Date(Math.min(row.uploadLinkExpiresAt.getTime(), addHours(now, 48).getTime()))
-        : null;
-
-      await tx
-        .update(uploadLink)
-        .set({
-          tokenHash,
-          expiresAt: addDays(now, env.UPLOAD_LINK_TTL_DAYS),
-          ...(row.uploadLinkTokenHash
-            ? {
-                previousTokenHash: row.uploadLinkTokenHash,
-                previousExpiresAt: graceExpiresAt,
-              }
-            : {}),
-        })
-        .where(eq(uploadLink.id, row.uploadLinkId!));
+      await this.rotateLinkOnReopen(tx, row.uploadLinkId!, tokenHash);
 
       return this.syncRequestStatus(tx, row.requestId);
     });
@@ -291,8 +272,6 @@ export class RequestRepository {
         requestStatus: request.status,
         companyName: company.name,
         uploadLinkId: uploadLink.id,
-        uploadLinkTokenHash: uploadLink.tokenHash,
-        uploadLinkExpiresAt: uploadLink.expiresAt,
         contactName: contact.name,
         contactEmail: contact.email,
       })
@@ -470,24 +449,7 @@ export class RequestRepository {
       }
 
       if (rotated) {
-        const now = new Date();
-        const graceExpiresAt = head.uploadLinkExpiresAt
-          ? new Date(Math.min(head.uploadLinkExpiresAt.getTime(), addHours(now, 48).getTime()))
-          : null;
-
-        await tx
-          .update(uploadLink)
-          .set({
-            tokenHash: rotated.tokenHash,
-            expiresAt: addDays(now, env.UPLOAD_LINK_TTL_DAYS),
-            ...(head.uploadLinkTokenHash
-              ? {
-                  previousTokenHash: head.uploadLinkTokenHash,
-                  previousExpiresAt: graceExpiresAt,
-                }
-              : {}),
-          })
-          .where(eq(uploadLink.id, head.uploadLinkId!));
+        await this.rotateLinkOnReopen(tx, head.uploadLinkId!, rotated.tokenHash);
       }
 
       return this.syncRequestStatus(tx, requestId);
@@ -750,6 +712,24 @@ export class RequestRepository {
       contactName: row.contactName ?? '',
       contactEmail: row.contactEmail ?? '',
     };
+  }
+
+  /** Reabrir Item mata o token anterior NA HORA: zerar `previous_token_hash` faz o
+   *  `UploadTokenGuard` não ter como resolver o link velho, e ele passa a responder 404.
+   *  A carência de 48h de lembrete/reenvio não vale aqui — o Contador acabou de agir SOBRE
+   *  o link e a resposta promete `linkRotated: true`. Não usar `revoked`: a flag vale para
+   *  a LINHA inteira, derrubaria junto o token que acabou de ser emitido e ninguém a
+   *  reseta. */
+  private async rotateLinkOnReopen(tx: Tx, uploadLinkId: string, tokenHash: string) {
+    await tx
+      .update(uploadLink)
+      .set({
+        tokenHash,
+        expiresAt: addDays(new Date(), env.UPLOAD_LINK_TTL_DAYS),
+        previousTokenHash: null,
+        previousExpiresAt: null,
+      })
+      .where(eq(uploadLink.id, uploadLinkId));
   }
 
   /** `request.status` é derivado dos Itens (`complete` automático e reversível): grava
