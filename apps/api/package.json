@@ -26,7 +26,8 @@
     "verify:com-148": "tsx src/scripts/verify-com-148.ts",
     "verify:com-150": "tsx src/scripts/verify-com-150.ts",
     "verify:com-151": "tsx src/scripts/verify-com-151.ts",
-    "verify:com-152": "tsx src/scripts/verify-com-152.ts"
+    "verify:com-152": "tsx src/scripts/verify-com-152.ts",
+    "verify:com-160": "tsx src/scripts/verify-com-160.ts"
   },
   "dependencies": {
     "@aws-sdk/client-s3": "^3.1125.0",

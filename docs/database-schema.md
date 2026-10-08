@@ -335,9 +335,14 @@ where o.company_id = :company_id and o.action = 'add';
 Competência inteira, uma pasta por Empresa). Streaming: `StorageProvider.openRead` alimenta
 o archiver, que escreve direto na resposta — o zip nunca existe inteiro em memória nem em
 disco, e cada objeto do storage só é aberto quando chega a vez dele. Sem recompressão
-(`store`). Documento com `review_status='rejected'` **fica fora** da entrega (foi recusado
-na revisão); Documento Extra vai em `Documentos Extra/`. Montagem dos nomes (sanitização e
-colisão) em `modules/requests/zip.ts`.
+(`store`). O que entra depende do `request.status`: Solicitação **`open`/`complete`** entrega
+o pacote de trabalho — tudo que chegou e **não** foi recusado, `review_status` `accepted` ou
+`pending`; Solicitação **`closed`** (inclusive via `closePeriod`, que fecha todas as da
+Competência) entrega só o **`accepted`**, que é a entrega final e auditável. `rejected` nunca
+entra, e `upload_status='awaiting_upload'` também não (reserva de presign, sem objeto no
+storage). A regra vale **por Solicitação**, inclusive no zip da Competência inteira.
+Documento Extra vai em `Documentos Extra/`. Montagem dos nomes (sanitização e colisão) em
+`modules/requests/zip.ts`.
 
 ### Regras de upload (rotas públicas do Link de Upload — `UploadTokenGuard`)
 

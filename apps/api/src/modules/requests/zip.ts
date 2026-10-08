@@ -4,6 +4,7 @@ export type ZipDocument = {
   itemName: string | null;
   companyName: string;
   reviewStatus: string;
+  requestStatus: string;
 };
 
 export type ZipEntry = { storageKey: string; path: string };
@@ -25,6 +26,16 @@ const folderFor = (document: ZipDocument, withCompany: boolean) =>
     .filter(Boolean)
     .join('/');
 
+/** Enquanto a coleta está aberta o zip é o pacote de trabalho: entrega tudo que chegou e
+ *  não foi recusado, inclusive o que ainda não foi conferido. Fechar a Solicitação é o
+ *  Contador dizendo "terminei de coletar", e aí o zip vira a entrega final e auditável:
+ *  só o conferido. (`closePeriod` fecha toda Solicitação da Competência na mesma
+ *  transação, então Competência fechada cai aqui também.) */
+const delivers = (document: ZipDocument) =>
+  document.requestStatus === 'closed'
+    ? document.reviewStatus === 'accepted'
+    : document.reviewStatus !== 'rejected';
+
 const dedupe = (path: string, used: Set<string>) => {
   if (!used.has(path)) return path;
 
@@ -42,17 +53,12 @@ const dedupe = (path: string, used: Set<string>) => {
 export const zipEntries = (documents: ZipDocument[], withCompany: boolean): ZipEntry[] => {
   const used = new Set<string>();
 
-  return documents
-    .filter((document) => document.reviewStatus === 'accepted')
-    .map((document) => {
-      const path = dedupe(
-        `${folderFor(document, withCompany)}/${sanitize(document.fileName)}`,
-        used,
-      );
-      used.add(path);
+  return documents.filter(delivers).map((document) => {
+    const path = dedupe(`${folderFor(document, withCompany)}/${sanitize(document.fileName)}`, used);
+    used.add(path);
 
-      return { storageKey: document.storageKey, path };
-    });
+    return { storageKey: document.storageKey, path };
+  });
 };
 
 export const zipFileName = (label: string, referenceMonth: string) =>

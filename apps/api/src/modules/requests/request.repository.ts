@@ -788,6 +788,7 @@ export class RequestRepository {
         itemName: requestItem.name,
         companyName: company.name,
         reviewStatus: document.reviewStatus,
+        requestStatus: request.status,
       })
       .from(document)
       .innerJoin(request, eq(request.id, document.requestId))
@@ -901,6 +902,7 @@ export class RequestRepository {
         itemName: requestItem.name,
         companyName: company.name,
         reviewStatus: document.reviewStatus,
+        requestStatus: request.status,
       })
       .from(document)
       .innerJoin(request, eq(request.id, document.requestId))

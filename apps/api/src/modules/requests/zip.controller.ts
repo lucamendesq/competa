@@ -90,7 +90,7 @@ export class ZipController {
 
   private stream(entries: ZipEntry[], fileName: string, res: Response, targetId: string) {
     if (entries.length === 0) {
-      throw new NotFound('Nenhum documento para baixar (rejeitados não entram na entrega).');
+      throw new NotFound('Nenhum documento disponível para baixar.');
     }
 
     const archive = new ZipArchive({ store: true });

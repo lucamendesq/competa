@@ -158,8 +158,12 @@ async function run() {
     const firstDocumentId = await uploadOne(documents, uploadScope, itemId, 'extrato.pdf');
     assert.equal(await itemStatus(), 'submitted');
     console.log('  ✓ presign + gravação + confirmação → Item em `submitted`');
-    assert.deepEqual(await zipFileNames(), [], 'zip só entrega o que foi aceito');
-    console.log('  ✓ zip ainda vazio: documento pendente de conferência não é entrega');
+    assert.deepEqual(
+      await zipFileNames(),
+      ['Extrato bancário/extrato.pdf'],
+      'coleta aberta entrega o que chegou, mesmo sem conferência',
+    );
+    console.log('  ✓ zip já entrega o pendente: coleta aberta é pacote de trabalho');
 
     console.log('\n2. Recusa');
     const rejected = await requests.rejectDocument(
@@ -177,7 +181,7 @@ async function run() {
 
     console.log('\n3. Exclusão do zip');
     assert.deepEqual(await zipFileNames(), [], 'documento recusado não entra na entrega');
-    console.log('  ✓ zip segue vazio: o recusado está excluído');
+    console.log('  ✓ zip vazio: o recusado está excluído');
 
     console.log('\n4. Painel de pendências');
     const missing = await panelItem();
@@ -189,8 +193,12 @@ async function run() {
     assert.notEqual(secondDocumentId, firstDocumentId);
     assert.equal(await itemStatus(), 'submitted', 'reenvio devolve o Item para conferência');
     assert.equal((await panelItem())?.resent, true, 'painel marca que é reenvio');
-    assert.deepEqual(await zipFileNames(), [], 'reenvio ainda não conferido não entra no zip');
-    console.log('  ✓ Item em `submitted`, marcado como reenvio, zip ainda vazio');
+    assert.deepEqual(
+      await zipFileNames(),
+      ['Extrato bancário/extrato-v2.pdf'],
+      'reenvio entra no zip da coleta aberta; o recusado continua fora',
+    );
+    console.log('  ✓ Item em `submitted`, marcado como reenvio, zip com o reenvio');
 
     console.log('\n6. Novo aceite');
     const accepted = await requests.acceptItem(firmScope, itemId, accountantId);

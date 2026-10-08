@@ -6,15 +6,12 @@ const zipNotFound = new ApiError(
   {
     error: {
       code: 'NOT_FOUND',
-      message: 'Nenhum documento para baixar (rejeitados não entram na entrega).',
+      message: 'Nenhum documento disponível para baixar.',
     },
   },
   'API Error 404',
 );
-assert.equal(
-  apiErrorMessage(zipNotFound, 'fallback'),
-  'Nenhum documento para baixar (rejeitados não entram na entrega).',
-);
+assert.equal(apiErrorMessage(zipNotFound, 'fallback'), 'Nenhum documento disponível para baixar.');
 
 const validation = new ApiError(
   422,
