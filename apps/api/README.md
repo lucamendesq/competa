@@ -24,6 +24,8 @@ pnpm --filter api start:dev
 
 A API sobe em `http://localhost:{PORT}` (padrão `3000`). Rotas do Better Auth ficam em `/api/auth/*`; as demais (nossas) não têm prefixo `/api`.
 
+`ASAAS_WEBHOOK_TOKEN`, `WHATSAPP_VERIFY_TOKEN` e `META_APP_SECRET` já vêm preenchidos no template com placeholders **de desenvolvimento**, só para os webhooks de entrada não responderem 503 e a camada de autenticação deles ser exercitável localmente. Em produção são segredos reais do Asaas e da Meta — e a subida falha nomeando o que falta.
+
 ## "o servidor está rodando o que acabei de escrever?"
 
 `GET /health` responde `startedAt` (quando o processo subiu) e `compiledAt` (mtime do arquivo compilado que ele carregou), e a mesma linha sai no log do boot. Se `startedAt` for anterior à sua última edição, o `nest start --watch` recompilou mas não respawnou: mate o processo e suba de novo.
