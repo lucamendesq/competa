@@ -13,6 +13,7 @@ import {
   Upload,
 } from 'lucide-vue-next';
 import { Button } from '@/components/ui/button';
+import LoadingRows from '@/components/LoadingRows.vue';
 import StatusPill from '@/components/StatusPill.vue';
 import ResendNotice from '@/components/ResendNotice.vue';
 import UploadFeedback from '@/components/UploadFeedback.vue';
@@ -140,7 +141,7 @@ async function send(files: File[], requestItemId: string | null) {
       class="mx-auto w-full max-w-2xl flex-1 p-4 sm:p-6"
       aria-label="Carregando"
     >
-      <!-- Loading skeleton could go here -->
+      <LoadingRows :count="5" />
     </main>
 
     <main
