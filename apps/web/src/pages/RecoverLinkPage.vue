@@ -57,7 +57,11 @@ const onSubmit = handleSubmit(async (values) => {
           Se o e-mail estiver cadastrado, você receberá instruções para recuperar seu link de envio
           em instantes.
         </p>
-        <Button class="mt-6 w-full" variant="outline" @click="router.push('/entrar')">
+        <Button
+          class="mt-6 w-full"
+          variant="outline"
+          @click="router.push('/minha-area/acesso')"
+        >
           Voltar para o início
         </Button>
       </div>
@@ -106,7 +110,7 @@ const onSubmit = handleSubmit(async (values) => {
         </form>
 
         <p class="text-muted-foreground mt-6 text-center text-sm">
-          <RouterLink to="/entrar" class="inline-flex items-center hover:underline">
+          <RouterLink to="/minha-area/acesso" class="inline-flex items-center hover:underline">
             <ArrowLeft class="mr-1 h-3 w-3" />
             Voltar para o login
           </RouterLink>
