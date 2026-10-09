@@ -24,6 +24,7 @@ const LoginForm = z.object({
 
 const { handleSubmit, isSubmitting } = useForm({
   validationSchema: toTypedSchema(LoginForm),
+  initialValues: { email: '', password: '' },
 });
 
 const { value: email, errorMessage: emailError, meta: emailMeta } = useField<string>('email');

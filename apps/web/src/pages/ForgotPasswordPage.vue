@@ -24,6 +24,7 @@ const schema = z.object({
 
 const { handleSubmit, isSubmitting } = useForm({
   validationSchema: toTypedSchema(schema),
+  initialValues: { email: '' },
 });
 
 const { value: email, errorMessage: emailError, meta: emailMeta } = useField<string>('email');
