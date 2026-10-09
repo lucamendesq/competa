@@ -77,15 +77,13 @@ const allSent = computed(() => {
   );
 });
 
+/* Só `needsResend` muda de posição (precisa chamar atenção lá em cima). Fora isso, a
+ * ordem é sempre alfabética e não se mexe quando o status do item muda — um envio bem
+ * sucedido não pode fazer o item pular para o fim da lista embaixo do que ainda falta
+ * enviar, senão quem está preenchendo a lista perde a referência visual de onde estava. */
 const sortedItems = computed(() => {
   const items = [...(checklistQuery.data.value?.items ?? [])];
-  const rank = (item: any) => {
-    if (needsResend(item)) return 0;
-    if (item.status === 'pending') return 1;
-    if (item.status === 'submitted') return 2;
-    if (item.status === 'accepted') return 3;
-    return 4;
-  };
+  const rank = (item: any) => (needsResend(item) ? 0 : 1);
   return items.sort((a, b) => rank(a) - rank(b) || a.name.localeCompare(b.name));
 });
 
