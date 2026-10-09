@@ -103,3 +103,40 @@ export const parseCsvRecords = (text: string) => {
     values: Object.fromEntries(keys.map((key, column) => [key, cells[column] ?? ''])),
   }));
 };
+
+const FORMULA_PREFIX = /^[\s]*[=+\-@\t\r]/;
+
+export const escapeSpreadsheetCell = (value: string): string => {
+  if (FORMULA_PREFIX.test(value)) {
+    return `'${value}`;
+  }
+  return value;
+};
+
+export const formatCsvRow = (
+  cells: (string | number | boolean | null | undefined)[],
+  delimiter = ',',
+): string => {
+  return cells
+    .map((cell) => {
+      if (cell === null || cell === undefined) return '';
+      const stringValue = typeof cell === 'string' ? escapeSpreadsheetCell(cell) : String(cell);
+      if (
+        stringValue.includes('"') ||
+        stringValue.includes(delimiter) ||
+        stringValue.includes('\n') ||
+        stringValue.includes('\r')
+      ) {
+        return `"${stringValue.replace(/"/g, '""')}"`;
+      }
+      return stringValue;
+    })
+    .join(delimiter);
+};
+
+export const serializeCsv = (
+  rows: (string | number | boolean | null | undefined)[][],
+  delimiter = ',',
+): string => {
+  return rows.map((row) => formatCsvRow(row, delimiter)).join('\n');
+};
