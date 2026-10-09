@@ -33,7 +33,7 @@ async function sair() {
       Pular para o conteúdo
     </a>
 
-    <header class="bg-sidebar text-sidebar-foreground sticky top-0 z-40">
+    <header v-if="perfil" class="bg-sidebar text-sidebar-foreground sticky top-0 z-40">
       <div class="mx-auto flex max-w-3xl items-center gap-3 px-4 py-3">
         <Logo variant="icon" surface="dark" alt="" class="h-7 shrink-0" />
         <div class="min-w-0 flex-1">
@@ -90,6 +90,7 @@ async function sair() {
     </main>
 
     <nav
+      v-if="perfil"
       class="bg-card border-border fixed inset-x-0 bottom-0 z-40 border-t sm:hidden"
       aria-label="Navegação"
     >
