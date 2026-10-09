@@ -21,6 +21,11 @@ export const getRequestDetail = (requestId: string) =>
 export const publishReview = (requestId: string, body: ReviewBatchBody) =>
   api.post<ReviewResult>(`/requests/${requestId}/review`, body);
 
+export const undoAcceptItem = (requestItemId: string) =>
+  api.post<{ requestId: string; requestStatus: string }>(
+    `/request-items/${requestItemId}/undo-accept`,
+  );
+
 export const openDocumentContent = (documentId: string) =>
   api.blobUrl(`/documents/${documentId}/content`);
 

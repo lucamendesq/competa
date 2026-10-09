@@ -2,7 +2,7 @@
 import { computed, ref } from 'vue';
 import { useRouter } from 'vue-router';
 import { useQuery } from '@tanstack/vue-query';
-import { Check, ExternalLink, X } from 'lucide-vue-next';
+import { Check, ExternalLink, Undo2, X } from 'lucide-vue-next';
 import { Button } from '@/components/ui/button';
 import { Textarea } from '@/components/ui/textarea';
 import PageHeader from '@/components/PageHeader.vue';
@@ -15,6 +15,7 @@ import {
   getRequestDetail,
   openDocumentContent,
   publishReview,
+  undoAcceptItem,
   type RequestDocument,
   type RequestItem,
 } from '@/features/requests/api/requests';
@@ -123,6 +124,21 @@ function discard() {
   acceptedItemIds.value = new Set();
   rejections.value = new Map();
   extras.value = new Map();
+}
+
+const undoingItemId = ref<string | null>(null);
+
+async function handleUndoAccept(item: RequestItem) {
+  undoingItemId.value = item.id;
+  try {
+    await undoAcceptItem(item.id);
+    toast.success(`Aceite de "${item.name}" desfeito — item voltou a aguardar conferência.`);
+    detailQuery.refetch();
+  } catch (error) {
+    toast.error(apiErrorMessage(error, 'Não foi possível desfazer o aceite.'));
+  } finally {
+    undoingItemId.value = null;
+  }
 }
 
 async function publish() {
@@ -320,7 +336,19 @@ async function publish() {
           <li v-for="item in settledItems" :key="item.id" class="flex flex-col gap-2 p-3">
             <div class="flex flex-wrap items-center justify-between gap-2">
               <span class="text-sm font-medium">{{ item.name }}</span>
-              <StatusPill :status="displayItemStatus(item)" />
+              <div class="flex items-center gap-2">
+                <StatusPill :status="displayItemStatus(item)" />
+                <Button
+                  v-if="item.status === 'accepted' && !closed"
+                  variant="ghost"
+                  size="sm"
+                  :disabled="undoingItemId === item.id"
+                  @click="handleUndoAccept(item)"
+                >
+                  <Undo2 class="mr-2 h-4 w-4" />
+                  {{ undoingItemId === item.id ? 'Desfazendo...' : 'Desfazer aceite' }}
+                </Button>
+              </div>
             </div>
             <ResendNotice v-if="needsResend(item)" :item="item" />
           </li>
