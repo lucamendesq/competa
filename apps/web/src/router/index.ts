@@ -27,6 +27,7 @@ const routes: RouteRecordRaw[] = [
   {
     path: '/perdi-meu-link',
     name: 'RecoverLink',
+    meta: { guestOnly: true },
     component: () => import('../pages/RecoverLinkPage.vue'),
   },
   {
@@ -37,6 +38,7 @@ const routes: RouteRecordRaw[] = [
   {
     path: '/esqueci-senha',
     name: 'ForgotPassword',
+    meta: { guestOnly: true },
     component: () => import('../pages/ForgotPasswordPage.vue'),
   },
   {
