@@ -65,25 +65,45 @@ const availableFlags = COMPANY_FLAGS.map((flag) => ({
   label: FLAG_LABEL[flag],
 }));
 
+/* `z.union` aqui (uuid/email/cnpj válido OU string vazia) gera, quando a validação falha,
+ * um issue `invalid_union` cujo formato mudou do zod3 pro zod4 — o `@vee-validate/zod`
+ * instalado (4.15.1, sem versão mais nova disponível) ainda lê o campo `unionErrors` do
+ * zod3, que não existe mais, e quebra com "Cannot read properties of undefined (reading
+ * 'flatMap')". Isso ia estourar sempre que o campo validasse vazio/incompleto, inclusive
+ * numa validação perdida que o vee-validate dispara durante o unmount logo após o submit
+ * (navegação já trocou de rota). Por isso os campos "opcional, mas se preenchido precisa
+ * ser válido" abaixo usam `.refine()` sobre `z.string()` em vez de `z.union`: mesmo
+ * comportamento, sem o issue `invalid_union` que a lib não sabe processar. `val`/`value`
+ * podem chegar `undefined` nessa mesma validação perdida — daí o `?? ''`. */
 const CnpjSchema = z.string().refine(
   (val) => {
-    const raw = val.replace(/\D/g, '');
-    return raw.length === 14;
+    const raw = (val ?? '').replace(/\D/g, '');
+    return raw === '' || raw.length === 14;
   },
   { message: 'CNPJ incompleto.' },
 );
 
+const optionalUuid = (message: string) =>
+  z.string().refine((val) => (val ?? '') === '' || z.string().uuid().safeParse(val).success, {
+    message,
+  });
+
+const optionalEmail = () =>
+  z.string().refine((val) => (val ?? '') === '' || emailSchema().safeParse(val).success, {
+    message: 'E-mail inválido.',
+  });
+
 const CompanyForm = z
   .object({
     name: CreateCompanyBody.shape.name,
-    checklistTemplateId: z.union([z.string().uuid(), z.literal('')]),
-    responsibleAccountantId: z.union([z.string().uuid(), z.literal('')]),
-    cnpj: z.union([CnpjSchema, z.literal('')]),
+    checklistTemplateId: optionalUuid('Checklist inválido.'),
+    responsibleAccountantId: optionalUuid('Contador inválido.'),
+    cnpj: CnpjSchema,
     contactName: z.string().trim(),
-    contactEmail: z.union([emailSchema(), z.literal('')]),
+    contactEmail: optionalEmail(),
     contactPhone: z.string().trim(),
   })
-  .refine((value) => !value.contactName || value.contactEmail !== '', {
+  .refine((value) => !value?.contactName || value.contactEmail !== '', {
     message: 'Sem e-mail o Responsável não recebe o link de cobrança.',
     path: ['contactEmail'],
   });
