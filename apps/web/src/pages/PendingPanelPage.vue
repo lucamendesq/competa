@@ -6,6 +6,7 @@ import {
   CircleCheck,
   ClipboardCheck,
   FileArchive,
+  Link,
   Lock,
   Mail,
   MailWarning,
@@ -27,7 +28,11 @@ import {
 } from '@/features/periods/composables/usePeriodsFeature';
 import { useCompaniesFeature } from '@/features/companies/composables/useCompaniesFeature';
 import { getPendingPanel } from '@/features/periods/api/periods';
-import { resendUploadLink, downloadRequestZip } from '@/features/requests/api/requests';
+import {
+  resendUploadLink,
+  getUploadLink,
+  downloadRequestZip,
+} from '@/features/requests/api/requests';
 import { useQuery } from '@tanstack/vue-query';
 import { toast } from 'vue-sonner';
 import { apiErrorMessage } from '@/api/error';
@@ -189,6 +194,22 @@ async function doDownloadCompanyZip(requestId: string, companyName: string) {
 }
 
 const resendingRequestId = ref<string | null>(null);
+const copyingRequestId = ref<string | null>(null);
+
+async function handleCopyUploadLink(line: any) {
+  copyingRequestId.value = line.requestId;
+  try {
+    const link = await getUploadLink(line.requestId);
+    await navigator.clipboard.writeText(link.uploadUrl);
+    toast.success(
+      `Novo link de ${line.companyName} copiado — o link anterior deixou de funcionar.`,
+    );
+  } catch (error) {
+    toast.error(apiErrorMessage(error, 'Não foi possível gerar o link.'));
+  } finally {
+    copyingRequestId.value = null;
+  }
+}
 
 async function handleResendUploadLink(line: any) {
   resendingRequestId.value = line.requestId;
@@ -418,6 +439,16 @@ function maskedCnpj(cnpj: string | null) {
                   <ClipboardCheck class="mr-2 h-4 w-4" />
                   {{ line.counts.submitted > 0 ? `Conferir (${line.counts.submitted})` : 'Envios' }}
                 </RouterLink>
+              </Button>
+              <Button
+                v-if="line.requestStatus !== 'closed'"
+                variant="outline"
+                size="sm"
+                :disabled="copyingRequestId === line.requestId"
+                @click="handleCopyUploadLink(line)"
+              >
+                <Link class="mr-2 h-4 w-4" />
+                {{ copyingRequestId === line.requestId ? 'Gerando...' : 'Copiar link' }}
               </Button>
               <Button
                 variant="outline"
