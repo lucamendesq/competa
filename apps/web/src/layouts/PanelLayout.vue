@@ -9,17 +9,13 @@ import {
   SquareCheckBig,
   Settings,
   ChevronDown,
-  Sun,
-  Moon,
   LogOut,
 } from 'lucide-vue-next';
 import { useAuthStore } from '../stores/auth';
-import { useTheme } from '../composables/useTheme';
 import Logo from '../components/Logo.vue';
 
 const auth = useAuthStore();
 const router = useRouter();
-const theme = useTheme();
 
 const menuOpen = ref(false);
 const profileOpen = ref(false);
@@ -56,25 +52,26 @@ async function sair() {
   <div class="bg-background min-h-dvh lg:flex">
     <a
       href="#conteudo"
-      class="bg-primary text-primary-foreground sr-only focus:not-sr-only focus:fixed focus:top-2 focus:left-2 focus:z-[100] focus:rounded-lg focus:px-3 focus:py-2 focus:text-sm"
+      class="bg-primary text-primary-foreground sr-only focus:not-sr-only focus:fixed focus:top-2 focus:left-2 focus:z-[100] focus:rounded-lg focus:px-3 focus:py-2 focus:text-sm font-medium focus-visible:ring-2 focus-visible:ring-ring focus-visible:outline-none"
     >
       Pular para o conteúdo
     </a>
 
     <div
-      class="bg-sidebar text-sidebar-foreground sticky top-0 z-40 flex h-14 items-center gap-3 px-4 lg:hidden"
+      class="bg-white border-b border-border text-slate-900 sticky top-0 z-40 flex h-14 items-center gap-3 px-4 lg:hidden"
     >
       <button
         type="button"
-        class="focus-visible:ring-sidebar-ring inline-flex size-9 items-center justify-center rounded-lg focus-visible:ring-2 focus-visible:outline-none"
+        class="text-slate-600 hover:text-slate-900 hover:bg-slate-100 focus-visible:ring-2 focus-visible:ring-ring focus-visible:outline-none inline-flex size-9 items-center justify-center rounded-lg transition-colors"
         :aria-expanded="menuOpen"
         aria-controls="menu-lateral"
         @click="menuOpen = !menuOpen"
       >
         <span class="sr-only">{{ menuOpen ? 'Fechar menu' : 'Abrir menu' }}</span>
-        <component :is="menuOpen ? X : Menu" class="text-lg" aria-hidden="true" />
+        <component :is="menuOpen ? X : Menu" class="size-5" aria-hidden="true" />
       </button>
-      <p class="truncate text-sm font-semibold">{{ firmName }}</p>
+      <div class="h-4 w-px bg-border" aria-hidden="true" />
+      <p class="truncate text-sm font-semibold text-slate-900">{{ firmName || 'Contabilidade' }}</p>
     </div>
 
     <button
@@ -87,57 +84,57 @@ async function sair() {
 
     <nav
       id="menu-lateral"
-      class="bg-sidebar text-sidebar-foreground fixed inset-y-0 left-0 z-50 flex w-[260px] flex-col transition-transform lg:sticky lg:top-0 lg:h-dvh lg:translate-x-0"
+      class="bg-white text-slate-900 border-r border-border fixed inset-y-0 left-0 z-50 flex w-[260px] flex-col transition-transform lg:sticky lg:top-0 lg:h-dvh lg:translate-x-0"
       :class="{ '-translate-x-full': !menuOpen }"
       aria-label="Navegação principal"
     >
-      <div class="border-sidebar-border flex h-14 items-center gap-2 border-b px-4 lg:h-16">
-        <Logo variant="icon" surface="dark" alt="" class="h-8 shrink-0" />
-        <p class="truncate text-sm font-semibold">{{ firmName || 'Contabilidade' }}</p>
+      <div class="border-b border-border flex h-14 items-center gap-2.5 px-4 lg:h-16">
+        <Logo variant="icon" surface="auto" alt="" class="h-8 shrink-0" />
+        <p class="truncate text-sm font-semibold text-slate-900">{{ firmName || 'Contabilidade' }}</p>
       </div>
 
       <ul class="flex flex-1 flex-col gap-1 overflow-y-auto p-3">
         <li v-for="item in nav" :key="item.path">
           <RouterLink
             :to="item.path"
-            active-class="bg-sidebar-accent text-sidebar-accent-foreground font-semibold"
-            class="hover:bg-sidebar-accent/70 focus-visible:ring-sidebar-ring flex h-10 items-center gap-3 rounded-lg px-3 text-sm focus-visible:ring-2 focus-visible:outline-none"
+            active-class="bg-brand-light text-brand-strong font-semibold"
+            class="flex items-center gap-3 rounded-lg px-3 py-2 text-sm text-slate-600 hover:text-slate-900 hover:bg-slate-100 focus-visible:ring-2 focus-visible:ring-ring focus-visible:outline-none transition-colors"
             @click="menuOpen = false"
           >
-            <component :is="item.icon" class="text-base" aria-hidden="true" />
-            {{ item.label }}
+            <component :is="item.icon" class="size-4 shrink-0" aria-hidden="true" />
+            <span>{{ item.label }}</span>
           </RouterLink>
         </li>
       </ul>
 
-      <div class="border-sidebar-border relative border-t p-3">
+      <div class="border-border relative border-t p-3">
         <button
           type="button"
-          class="hover:bg-sidebar-accent/70 focus-visible:ring-sidebar-ring flex w-full items-center gap-3 rounded-lg p-2 text-left focus-visible:ring-2 focus-visible:outline-none"
+          class="hover:bg-slate-100 focus-visible:ring-2 focus-visible:ring-ring focus-visible:outline-none flex w-full items-center gap-3 rounded-lg p-2 text-left transition-colors"
           :aria-expanded="profileOpen"
           @click="profileOpen = !profileOpen"
         >
           <span
-            class="bg-sidebar-accent flex size-8 shrink-0 items-center justify-center rounded-full text-xs font-semibold"
+            class="bg-amber-100 text-amber-900 flex size-8 shrink-0 items-center justify-center rounded-full text-xs font-semibold"
             aria-hidden="true"
           >
             {{ initials }}
           </span>
           <span class="min-w-0 flex-1">
-            <span class="block truncate text-sm font-medium">{{ accountantName }}</span>
-            <span class="block truncate text-xs opacity-70">{{ accountantEmail }}</span>
+            <span class="block truncate text-sm font-medium text-slate-900">{{ accountantName }}</span>
+            <span class="block truncate text-xs text-slate-600">{{ accountantEmail }}</span>
           </span>
-          <ChevronDown class="text-sm" aria-hidden="true" />
+          <ChevronDown class="size-4 text-slate-500 shrink-0" aria-hidden="true" />
         </button>
 
         <div
           v-if="profileOpen"
-          class="bg-popover text-popover-foreground border-border absolute bottom-16 left-3 right-3 rounded-xl border p-1 shadow-lg"
+          class="bg-white text-slate-900 border-border absolute bottom-16 left-3 right-3 rounded-xl border p-1 shadow-lg z-50"
         >
           <RouterLink
             v-if="isOwner"
             to="/configuracoes/contadores"
-            class="hover:bg-muted flex h-9 items-center rounded-lg px-3 text-sm"
+            class="hover:bg-slate-100 focus-visible:ring-2 focus-visible:ring-ring focus-visible:outline-none flex h-9 items-center rounded-lg px-3 text-sm text-slate-700 hover:text-slate-900 transition-colors"
             @click="
               profileOpen = false;
               menuOpen = false;
@@ -147,18 +144,10 @@ async function sair() {
           </RouterLink>
           <button
             type="button"
-            class="hover:bg-muted flex h-9 w-full items-center gap-2 rounded-lg px-3 text-left text-sm"
-            @click="theme.toggle"
-          >
-            <component :is="theme.dark.value ? Sun : Moon" class="text-sm" aria-hidden="true" />
-            {{ theme.dark.value ? 'Tema claro' : 'Tema escuro' }}
-          </button>
-          <button
-            type="button"
-            class="hover:bg-muted flex h-9 w-full items-center gap-2 rounded-lg px-3 text-left text-sm"
+            class="hover:bg-slate-100 focus-visible:ring-2 focus-visible:ring-ring focus-visible:outline-none flex h-9 w-full items-center gap-2 rounded-lg px-3 text-left text-sm text-slate-700 hover:text-slate-900 transition-colors"
             @click="sair"
           >
-            <LogOut class="text-sm" aria-hidden="true" />
+            <LogOut class="size-4 shrink-0 text-slate-500" aria-hidden="true" />
             Sair
           </button>
         </div>
