@@ -48,10 +48,10 @@ const onSubmit = handleSubmit(async (values) => {
 </script>
 
 <template>
-  <div class="bg-muted/40 min-h-dvh flex items-center justify-center p-4 sm:p-8">
+  <div class="bg-background min-h-dvh flex items-center justify-center p-4 sm:p-8">
     <div class="bg-card border-border w-full max-w-md rounded-xl border p-6 shadow-sm sm:p-8">
       <div class="flex justify-center mb-6">
-        <Logo class="h-8" />
+        <Logo surface="auto" class="h-8" />
       </div>
 
       <div v-if="!token" class="text-center">
@@ -60,7 +60,7 @@ const onSubmit = handleSubmit(async (values) => {
         >
           <CircleAlert class="h-6 w-6" />
         </div>
-        <h1 class="text-xl font-semibold tracking-tight">Link inválido</h1>
+        <h1 class="font-display text-xl font-semibold tracking-tight">Link inválido</h1>
         <p class="text-muted-foreground mt-2 text-sm">
           O link acessado não possui o token necessário.
         </p>
@@ -75,14 +75,14 @@ const onSubmit = handleSubmit(async (values) => {
         >
           <CheckCircle class="h-6 w-6" />
         </div>
-        <h1 class="text-xl font-semibold tracking-tight">Senha alterada</h1>
+        <h1 class="font-display text-xl font-semibold tracking-tight">Senha alterada</h1>
         <p class="text-muted-foreground mt-2 text-sm">Sua senha foi atualizada com sucesso.</p>
         <Button class="mt-6 w-full" @click="router.push('/entrar')"> Entrar no painel </Button>
       </div>
 
       <div v-else>
         <div class="text-center mb-6">
-          <h1 class="text-xl font-semibold tracking-tight">Nova senha</h1>
+          <h1 class="font-display text-xl font-semibold tracking-tight">Nova senha</h1>
           <p class="text-muted-foreground mt-2 text-sm">
             Defina uma nova senha para acessar sua conta.
           </p>

@@ -40,10 +40,10 @@ const onSubmit = handleSubmit(async (values) => {
 </script>
 
 <template>
-  <div class="bg-muted/40 min-h-dvh flex items-center justify-center p-4 sm:p-8">
+  <div class="bg-background min-h-dvh flex items-center justify-center p-4 sm:p-8">
     <div class="bg-card border-border w-full max-w-md rounded-xl border p-6 shadow-sm sm:p-8">
       <div class="flex justify-center mb-6">
-        <Logo class="h-8" />
+        <Logo surface="auto" class="h-8" />
       </div>
 
       <div v-if="success" class="text-center">
@@ -52,7 +52,7 @@ const onSubmit = handleSubmit(async (values) => {
         >
           <MailCheck class="h-6 w-6" />
         </div>
-        <h1 class="text-xl font-semibold tracking-tight">Verifique seu e-mail</h1>
+        <h1 class="font-display text-xl font-semibold tracking-tight">Verifique seu e-mail</h1>
         <p class="text-muted-foreground mt-2 text-sm">
           Se o e-mail estiver cadastrado, você receberá instruções para recuperar seu link de envio
           em instantes.
@@ -68,7 +68,7 @@ const onSubmit = handleSubmit(async (values) => {
 
       <div v-else>
         <div class="text-center mb-6">
-          <h1 class="text-xl font-semibold tracking-tight">Recuperar Link</h1>
+          <h1 class="font-display text-xl font-semibold tracking-tight">Recuperar Link</h1>
           <p class="text-muted-foreground mt-2 text-sm">
             Informe o e-mail que você usa para enviar documentos para sua contabilidade.
           </p>

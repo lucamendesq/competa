@@ -50,10 +50,10 @@ const description = computed(() => {
   <Modal :open="isOpen" @update:open="onOpenChange" :title="title" :description="description">
     <ul class="divide-border divide-y" role="list">
       <li v-for="(result, index) in refusedFiles" :key="index" class="flex items-start gap-3 py-3">
-        <X class="mt-0.5 shrink-0 text-base text-danger" aria-hidden="true" />
+        <X class="mt-0.5 shrink-0 h-4 w-4 text-danger-foreground" aria-hidden="true" />
         <div class="min-w-0 flex-1">
-          <p class="truncate text-sm font-medium">{{ result.fileName }}</p>
-          <p class="mt-0.5 text-xs text-danger">{{ result.reason }}</p>
+          <p class="truncate text-sm font-medium text-foreground">{{ result.fileName }}</p>
+          <p class="mt-0.5 text-xs text-danger-foreground font-medium">{{ result.reason }}</p>
         </div>
       </li>
     </ul>

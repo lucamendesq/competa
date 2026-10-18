@@ -4,6 +4,7 @@ import { useRoute } from 'vue-router';
 import {
   Bell,
   Camera,
+  CheckCircle2,
   CircleCheck,
   File as FileIcon,
   Link2Off,
@@ -13,11 +14,15 @@ import {
   Upload,
 } from 'lucide-vue-next';
 import { Button } from '@/components/ui/button';
+import { Input } from '@/components/ui/input';
+import { Label } from '@/components/ui/label';
 import LoadingRows from '@/components/LoadingRows.vue';
 import StatusPill from '@/components/StatusPill.vue';
 import ResendNotice from '@/components/ResendNotice.vue';
 import UploadFeedback from '@/components/UploadFeedback.vue';
 import Logo from '@/components/Logo.vue';
+import InstallButton from '@/components/InstallButton.vue';
+import Modal from '@/components/Modal.vue';
 import { useUploadFeature } from '@/features/upload/composables/useUploadFeature';
 import { usePush } from '@/composables/usePush';
 import { dateBr, monthLabel } from '@/utils/format';
@@ -36,26 +41,45 @@ const push = usePush();
 const activatingAccess = ref(false);
 const accountExists = ref(false);
 const accessEmailSent = ref<string | null>(null);
+const showPasswordModal = ref(false);
+const newPassword = ref('');
+const passwordErrorMsg = ref('');
+const passwordSaved = ref(false);
 
-async function subscribeToPush() {
-  await push.subscribe((payload) => subscribePushMutation.mutateAsync(payload));
-}
+async function handleRegisterPassword() {
+  passwordErrorMsg.value = '';
+  if (!newPassword.value || newPassword.value.length < 8) {
+    passwordErrorMsg.value = 'A senha precisa ter pelo menos 8 caracteres.';
+    return;
+  }
 
-async function activateAccess() {
   activatingAccess.value = true;
   try {
-    const { email } = await activateAccessMutation.mutateAsync();
-    accessEmailSent.value = email;
+    await activateAccessMutation.mutateAsync({ password: newPassword.value });
+    passwordSaved.value = true;
+    showPasswordModal.value = false;
+    newPassword.value = '';
+    if (checklistQuery.data.value) {
+      checklistQuery.data.value.hasAccess = true;
+    }
+    toast.success('Senha cadastrada com sucesso! Você pode acessar a Minha Área a qualquer momento.');
   } catch (error) {
-    if (apiErrorCode(error) === 'EMAIL_ALREADY_REGISTERED') {
+    if (apiErrorCode(error) === 'EMAIL_ALREADY_REGISTERED' || apiErrorCode(error) === 'ACCESS_ALREADY_EXISTS') {
       accountExists.value = true;
+      showPasswordModal.value = false;
+      toast.info('Seu e-mail já possui uma conta ativa. Acesse em /minha-area/acesso.');
     } else {
-      toast.error(apiErrorMessage(error, 'Não foi possível ativar seu acesso.'));
+      toast.error(apiErrorMessage(error, 'Não foi possível cadastrar a senha.'));
     }
   } finally {
     activatingAccess.value = false;
   }
 }
+
+async function subscribeToPush() {
+  await push.subscribe((payload) => subscribePushMutation.mutateAsync(payload));
+}
+
 
 const closed = computed(() => checklistQuery.data.value?.status === 'closed');
 
@@ -129,9 +153,10 @@ async function send(files: File[], requestItemId: string | null) {
 </script>
 
 <template>
-  <div class="bg-muted flex min-h-dvh flex-col items-center">
-    <header class="bg-sidebar w-full border-b px-4 py-3 text-center sm:px-6">
-      <Logo variant="icon" surface="dark" class="h-6 opacity-80" />
+  <div class="bg-background flex min-h-dvh flex-col items-center">
+    <header class="bg-white border-b border-border w-full px-4 py-3 flex items-center justify-between sm:px-6">
+      <Logo variant="icon" surface="auto" class="h-6" />
+      <InstallButton variant="card" />
     </header>
 
     <main
@@ -147,7 +172,7 @@ async function send(files: File[], requestItemId: string | null) {
       class="mx-auto flex w-full max-w-xl flex-1 flex-col items-center justify-center p-6 text-center"
     >
       <Link2Off class="text-muted-foreground h-16 w-16" aria-hidden="true" />
-      <h1 class="mt-4 text-xl font-semibold tracking-tight">Link indisponível ou expirado</h1>
+      <h1 class="font-display mt-4 text-xl font-semibold tracking-tight">Link indisponível ou expirado</h1>
       <p class="text-muted-foreground mt-2 text-sm">
         O link de envio expirou ou a competência foi encerrada. Peça um novo link para a
         contabilidade.
@@ -159,7 +184,7 @@ async function send(files: File[], requestItemId: string | null) {
       class="mx-auto w-full max-w-2xl flex-1 p-4 pb-12 sm:p-6"
     >
       <div class="mb-6 flex flex-col items-center text-center">
-        <h1 class="text-xl font-bold tracking-tight text-foreground sm:text-2xl">
+        <h1 class="font-display text-xl font-bold tracking-tight text-foreground sm:text-2xl">
           {{ checklistQuery.data.value.company }}
         </h1>
         <p class="text-muted-foreground mt-1 text-sm">
@@ -181,7 +206,7 @@ async function send(files: File[], requestItemId: string | null) {
           </p>
         </div>
         <div class="bg-muted relative h-12 w-12 rounded-full">
-          <svg class="h-full w-full rotate-[-90deg]" viewBox="0 0 36 36">
+          <svg class="h-full w-full -rotate-90" viewBox="0 0 36 36">
             <path
               class="text-border"
               d="M18 2.0845 a 15.9155 15.9155 0 0 1 0 31.831 a 15.9155 15.9155 0 0 1 0 -31.831"
@@ -202,7 +227,57 @@ async function send(files: File[], requestItemId: string | null) {
       </div>
 
       <div
-        v-if="allSent && !checklistQuery.data.value.hasAccess && !closed"
+        v-if="passwordSaved"
+        class="border-emerald-500/30 bg-emerald-500/5 mb-6 rounded-xl border p-4 shadow-sm"
+      >
+        <div class="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
+          <div class="flex items-start gap-3">
+            <span class="bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 flex size-9 shrink-0 items-center justify-center rounded-lg mt-0.5">
+              <CheckCircle2 class="h-4 w-4" />
+            </span>
+            <div>
+              <p class="text-sm font-semibold text-foreground">
+                Senha cadastrada com sucesso!
+              </p>
+              <p class="text-muted-foreground text-xs mt-0.5">
+                Você já pode acessar sua área exclusiva para acompanhar o histórico e pendências.
+              </p>
+            </div>
+          </div>
+          <Button variant="outline" size="sm" class="shrink-0" as-child>
+            <RouterLink to="/minha-area/acesso">
+              Acessar Minha Área
+            </RouterLink>
+          </Button>
+        </div>
+      </div>
+
+      <div
+        v-else-if="!allSent && !closed && !checklistQuery.data.value.hasAccess"
+        class="bg-card border-border mb-6 rounded-xl border p-4 shadow-sm"
+      >
+        <div class="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
+          <div class="flex items-start gap-3">
+            <span class="bg-primary/10 text-primary flex size-9 shrink-0 items-center justify-center rounded-lg mt-0.5">
+              <Lock class="h-4 w-4" />
+            </span>
+            <div>
+              <p class="text-sm font-semibold text-foreground">
+                Acesse quando quiser sem depender do link
+              </p>
+              <p class="text-muted-foreground text-xs mt-0.5">
+                Cadastre uma senha para acompanhar pendências e histórico na sua área exclusiva.
+              </p>
+            </div>
+          </div>
+          <Button variant="outline" size="sm" class="shrink-0" @click="showPasswordModal = true">
+            Cadastrar senha
+          </Button>
+        </div>
+      </div>
+
+      <div
+        v-else-if="(allSent || closed) && !checklistQuery.data.value.hasAccess"
         class="bg-primary/10 border-primary/20 mb-6 rounded-xl border p-5"
       >
         <div class="flex items-start gap-4">
@@ -235,9 +310,9 @@ async function send(files: File[], requestItemId: string | null) {
                     <Bell class="mr-2 h-4 w-4" />
                     {{ push.subscribing.value ? 'Ativando...' : 'Me avise neste aparelho' }}
                   </Button>
-                  <Button variant="outline" @click="activateAccess" :disabled="activatingAccess">
+                  <Button variant="outline" @click="showPasswordModal = true">
                     <Lock class="mr-2 h-4 w-4" />
-                    {{ activatingAccess ? 'Enviando...' : 'Criar acesso fixo' }}
+                    Cadastrar senha
                   </Button>
                 </template>
               </div>
@@ -250,30 +325,50 @@ async function send(files: File[], requestItemId: string | null) {
         class="bg-card border-border divide-border divide-y rounded-xl border shadow-sm"
         role="list"
       >
-        <li v-for="item in sortedItems" :key="item.id" class="flex flex-col">
+        <li
+          v-for="item in sortedItems"
+          :key="item.id"
+          class="flex flex-col transition-colors"
+          :class="{
+            'bg-amber-50/40': item.status === 'pending' && !needsResend(item),
+            'bg-rose-50/30': needsResend(item),
+          }"
+        >
           <button
             type="button"
-            class="hover:bg-muted/50 focus-visible:bg-muted/50 focus-visible:ring-ring flex items-start justify-between gap-4 p-4 text-left focus-visible:outline-none"
+            class="hover:bg-muted/40 focus-visible:bg-muted/40 focus-visible:ring-ring flex items-start justify-between gap-4 p-4 text-left focus-visible:outline-none transition-colors"
             :aria-expanded="expanded === item.id"
             :aria-controls="'upload-' + item.id"
             @click="toggle(item.id)"
           >
             <span class="min-w-0 flex-1">
-              <span class="flex items-center gap-2">
-                <span class="truncate text-sm font-semibold">{{ item.name }}</span>
+              <span class="flex items-center gap-2 flex-wrap">
+                <span class="truncate text-sm font-semibold text-foreground">{{ item.name }}</span>
                 <StatusPill :status="displayItemStatus(item)" />
               </span>
               <span class="text-muted-foreground mt-1 flex flex-wrap gap-x-2 gap-y-1 text-xs">
                 <span
                   v-if="isOverdue(item.dueDate) && item.status !== 'accepted'"
-                  class="font-semibold text-danger"
+                  class="font-semibold text-danger-foreground"
                 >
                   Prazo {{ dateBr(item.dueDate) }}
                 </span>
                 <span v-else>Prazo {{ dateBr(item.dueDate) }}</span>
               </span>
             </span>
-            <Upload class="text-muted-foreground mt-1 shrink-0 text-base" aria-hidden="true" />
+            <span
+              class="mt-0.5 flex size-8 shrink-0 items-center justify-center rounded-lg transition-colors"
+              :class="{
+                'bg-amber-100 text-amber-800': item.status === 'pending' && !needsResend(item),
+                'bg-rose-100 text-rose-800': needsResend(item),
+                'bg-emerald-100 text-emerald-800': item.status === 'accepted',
+                'bg-sky-100 text-sky-800': item.status === 'submitted',
+              }"
+              aria-hidden="true"
+            >
+              <CheckCircle2 v-if="item.status === 'accepted'" class="h-4 w-4" />
+              <Upload v-else class="h-4 w-4" />
+            </span>
           </button>
 
           <div v-if="needsResend(item)" class="mx-4 mb-4">
@@ -282,16 +377,16 @@ async function send(files: File[], requestItemId: string | null) {
 
           <ul
             v-if="item.documents.length"
-            class="border-border mx-4 mb-4 divide-y rounded-lg border"
+            class="border-border mx-4 mb-4 divide-y rounded-lg border bg-white"
             role="list"
           >
             <li
               v-for="(file, index) in item.documents"
               :key="index"
-              class="flex items-center gap-2 p-3"
+              class="flex items-center gap-2 p-3 text-sm"
             >
-              <FileIcon class="text-muted-foreground shrink-0 text-base" aria-hidden="true" />
-              <span class="min-w-0 flex-1 truncate text-sm">Arquivo {{ index + 1 }}</span>
+              <FileIcon class="text-muted-foreground shrink-0 h-4 w-4" aria-hidden="true" />
+              <span class="min-w-0 flex-1 truncate font-medium text-foreground">Arquivo {{ index + 1 }}</span>
               <StatusPill :status="file.reviewStatus" />
             </li>
           </ul>
@@ -313,7 +408,7 @@ async function send(files: File[], requestItemId: string | null) {
             </p>
             <div
               v-else-if="sending && retryTarget === item.id"
-              class="border-border flex min-h-28 flex-col items-center justify-center gap-2 rounded-lg border-2 border-dashed p-4 text-center"
+              class="border-border flex min-h-28 flex-col items-center justify-center gap-2 rounded-lg border-2 border-dashed p-4 text-center bg-white/60"
               role="status"
               aria-live="polite"
             >
@@ -323,7 +418,7 @@ async function send(files: File[], requestItemId: string | null) {
             </div>
             <div v-else>
               <label
-                class="border-border hover:bg-muted focus-within:ring-ring flex min-h-28 cursor-pointer flex-col items-center justify-center gap-2 rounded-lg border-2 border-dashed p-4 text-center focus-within:ring-2"
+                class="border-border hover:bg-muted/50 focus-within:ring-ring flex min-h-28 cursor-pointer flex-col items-center justify-center gap-2 rounded-lg border-2 border-dashed p-4 text-center focus-within:ring-2 bg-white"
                 :class="{ 'opacity-50 pointer-events-none': sending }"
                 @dragover.prevent
                 @drop.prevent="drop($event, item.id)"
@@ -345,7 +440,7 @@ async function send(files: File[], requestItemId: string | null) {
               </label>
 
               <label
-                class="border-border hover:bg-muted focus-within:ring-ring mt-2 flex min-h-12 cursor-pointer items-center justify-center gap-2 rounded-lg border p-3 text-sm font-medium focus-within:ring-2 sm:hidden"
+                class="border-border hover:bg-muted/50 focus-within:ring-ring mt-2 flex min-h-12 cursor-pointer items-center justify-center gap-2 rounded-lg border p-3 text-sm font-medium focus-within:ring-2 sm:hidden bg-white"
               >
                 <Camera class="text-base" aria-hidden="true" />
                 Tirar foto do documento
@@ -363,13 +458,13 @@ async function send(files: File[], requestItemId: string | null) {
         </li>
       </ul>
 
-      <section class="bg-card border-border mt-6 rounded-xl border p-4">
-        <h2 class="text-base font-semibold">Enviar documento extra</h2>
+      <section class="bg-card border-border mt-6 rounded-xl border p-4 shadow-sm">
+        <h2 class="font-display text-base font-semibold text-foreground">Enviar documento extra</h2>
         <p class="text-muted-foreground mt-1 text-sm">Se não estiver na lista acima, envie aqui.</p>
 
         <div
           v-if="sending && retryTarget === null"
-          class="border-border mt-3 flex min-h-20 flex-col items-center justify-center gap-1 rounded-lg border-2 border-dashed p-4 text-center"
+          class="border-border mt-3 flex min-h-20 flex-col items-center justify-center gap-1 rounded-lg border-2 border-dashed p-4 text-center bg-white"
           role="status"
           aria-live="polite"
         >
@@ -379,7 +474,7 @@ async function send(files: File[], requestItemId: string | null) {
         </div>
         <label
           v-else
-          class="border-border hover:bg-muted focus-within:ring-ring mt-3 flex min-h-20 cursor-pointer flex-col items-center justify-center gap-1 rounded-lg border-2 border-dashed p-4 text-center focus-within:ring-2"
+          class="border-border hover:bg-muted/50 focus-within:ring-ring mt-3 flex min-h-20 cursor-pointer flex-col items-center justify-center gap-1 rounded-lg border-2 border-dashed p-4 text-center focus-within:ring-2 bg-white"
           :class="{ 'opacity-50 pointer-events-none': sending }"
           @dragover.prevent
           @drop.prevent="drop($event, null)"
@@ -399,26 +494,41 @@ async function send(files: File[], requestItemId: string | null) {
 
         <ul
           v-if="checklistQuery.data.value.extraDocuments.length"
-          class="border-border mt-3 divide-y rounded-lg border"
+          class="border-border mt-3 divide-y rounded-lg border bg-white"
           role="list"
         >
           <li
             v-for="(file, index) in checklistQuery.data.value.extraDocuments"
             :key="index"
-            class="flex items-center gap-2 p-3"
+            class="flex items-center gap-2 p-3 text-sm"
           >
-            <FileIcon class="text-muted-foreground shrink-0 text-base" aria-hidden="true" />
-            <span class="min-w-0 flex-1 truncate text-sm">Documento extra {{ index + 1 }}</span>
+            <FileIcon class="text-muted-foreground shrink-0 h-4 w-4" aria-hidden="true" />
+            <span class="min-w-0 flex-1 truncate font-medium text-foreground">Documento extra {{ index + 1 }}</span>
             <StatusPill :status="file.reviewStatus" />
           </li>
         </ul>
       </section>
 
-      <footer class="mt-8 text-center text-xs text-muted-foreground">
-        <span>Já possui cadastro? </span>
-        <RouterLink to="/minha-area/acesso" class="font-medium text-foreground hover:underline">
-          Acessar Minha Área
-        </RouterLink>
+      <footer class="mt-8 flex flex-col items-center justify-center gap-2 text-center text-xs text-muted-foreground sm:flex-row sm:gap-4">
+        <template v-if="!checklistQuery.data.value.hasAccess && !passwordSaved">
+          <div>
+            <span>Ainda não tem senha? </span>
+            <button
+              type="button"
+              class="font-medium text-foreground hover:underline"
+              @click="showPasswordModal = true"
+            >
+              Cadastrar senha de acesso
+            </button>
+          </div>
+          <span class="hidden sm:inline text-border">·</span>
+        </template>
+        <div>
+          <span>Já possui cadastro? </span>
+          <RouterLink to="/minha-area/acesso" class="font-medium text-foreground hover:underline">
+            Acessar Minha Área
+          </RouterLink>
+        </div>
       </footer>
     </main>
 
@@ -427,5 +537,42 @@ async function send(files: File[], requestItemId: string | null) {
       @dismiss="results = null"
       @retry="send($event, retryTarget)"
     />
+
+    <Modal
+      v-model:open="showPasswordModal"
+      title="Cadastrar senha de acesso"
+      description="Defina uma senha para acessar seus documentos e pendências a qualquer momento em Minha Área."
+    >
+      <form class="space-y-4" @submit.prevent="handleRegisterPassword">
+        <div class="flex flex-col gap-1.5">
+          <Label for="contact-pwd">Nova senha</Label>
+          <Input
+            id="contact-pwd"
+            v-model="newPassword"
+            type="password"
+            placeholder="Mínimo de 8 caracteres"
+            autocomplete="new-password"
+            :disabled="activatingAccess"
+          />
+          <p v-if="passwordErrorMsg" class="text-destructive text-xs">
+            {{ passwordErrorMsg }}
+          </p>
+        </div>
+
+        <div class="flex justify-end gap-2 pt-2">
+          <Button
+            type="button"
+            variant="outline"
+            :disabled="activatingAccess"
+            @click="showPasswordModal = false"
+          >
+            Cancelar
+          </Button>
+          <Button type="submit" :disabled="activatingAccess">
+            {{ activatingAccess ? 'Cadastrando…' : 'Salvar senha' }}
+          </Button>
+        </div>
+      </form>
+    </Modal>
   </div>
 </template>

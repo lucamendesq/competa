@@ -86,10 +86,10 @@ const onSubmit = handleSubmit(async (values) => {
 </script>
 
 <template>
-  <div class="bg-muted/40 min-h-dvh flex items-center justify-center p-4 sm:p-8">
+  <div class="bg-background min-h-dvh flex items-center justify-center p-4 sm:p-8">
     <div class="bg-card border-border w-full max-w-md rounded-xl border p-6 shadow-sm sm:p-8">
       <div class="flex justify-center mb-6">
-        <Logo class="h-8" />
+        <Logo surface="auto" class="h-8" />
       </div>
 
       <div v-if="loading" class="text-center py-8 text-sm text-muted-foreground">
@@ -102,7 +102,7 @@ const onSubmit = handleSubmit(async (values) => {
         >
           <CircleAlert class="h-6 w-6" />
         </div>
-        <h1 class="text-xl font-semibold tracking-tight">Convite inválido</h1>
+        <h1 class="font-display text-xl font-semibold tracking-tight">Convite inválido</h1>
         <p class="text-muted-foreground mt-2 text-sm">{{ inviteError }}</p>
         <Button class="mt-6 w-full" variant="outline" @click="router.push('/entrar')">
           Ir para o login
@@ -117,7 +117,7 @@ const onSubmit = handleSubmit(async (values) => {
             <Building2 v-if="invite.target === 'accounting_firm'" class="h-6 w-6" />
             <Building v-else class="h-6 w-6" />
           </div>
-          <h1 class="text-xl font-semibold tracking-tight">Aceitar convite</h1>
+          <h1 class="font-display text-xl font-semibold tracking-tight">Aceitar convite</h1>
           <p class="text-muted-foreground mt-2 text-sm">
             <template v-if="invite.target === 'accounting_firm'">
               Você foi convidado para participar da contabilidade

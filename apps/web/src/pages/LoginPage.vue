@@ -64,10 +64,10 @@ const onSubmit = handleSubmit(async (values) => {
 </script>
 
 <template>
-  <div class="bg-muted/40 min-h-dvh lg:grid lg:grid-cols-2">
-    <section class="bg-sidebar text-sidebar-foreground hidden flex-col justify-center p-12 lg:flex">
+  <div class="bg-background min-h-dvh lg:grid lg:grid-cols-2">
+    <section class="bg-[#0F172A] text-white hidden flex-col justify-center p-12 lg:flex">
       <Logo surface="dark" class="h-10 text-white" />
-      <p class="mt-6 max-w-md text-3xl font-semibold tracking-tight">
+      <p class="font-display mt-6 max-w-md text-3xl font-semibold tracking-tight">
         Pare de garimpar documento no WhatsApp.
       </p>
       <p class="mt-3 max-w-md text-sm opacity-80">
@@ -78,7 +78,7 @@ const onSubmit = handleSubmit(async (values) => {
       <ul class="mt-10 flex max-w-md flex-col gap-6">
         <li v-for="item in benefits" :key="item.title" class="flex gap-4">
           <span
-            class="bg-sidebar-accent flex size-9 shrink-0 items-center justify-center rounded-lg"
+            class="bg-white/10 text-amber-400 flex size-9 shrink-0 items-center justify-center rounded-lg"
             aria-hidden="true"
           >
             <component :is="item.icon" class="text-base h-5 w-5" />
@@ -93,7 +93,10 @@ const onSubmit = handleSubmit(async (values) => {
 
     <main class="flex min-h-dvh items-center justify-center p-4 sm:p-8">
       <div class="bg-card border-border w-full max-w-md rounded-xl border p-6 shadow-sm sm:p-8">
-        <h1 class="text-xl font-semibold tracking-tight">Acessar painel do Contador</h1>
+        <div class="mb-6 flex justify-center lg:hidden">
+          <Logo class="h-8" />
+        </div>
+        <h1 class="font-display text-xl font-semibold tracking-tight">Acessar painel do Contador</h1>
         <p class="text-muted-foreground mt-1 text-sm">
           Informe suas credenciais para gerenciar suas competências.
         </p>
@@ -161,6 +164,13 @@ const onSubmit = handleSubmit(async (values) => {
         </form>
 
         <p class="text-muted-foreground mt-6 text-center text-sm">
+          Ainda não tem conta?
+          <RouterLink to="/cadastro" class="text-primary font-medium hover:underline">
+            Crie sua conta grátis
+          </RouterLink>
+        </p>
+
+        <p class="text-muted-foreground mt-2 text-center text-sm">
           <RouterLink to="/esqueci-senha" class="text-primary font-medium hover:underline">
             Esqueci minha senha
           </RouterLink>
