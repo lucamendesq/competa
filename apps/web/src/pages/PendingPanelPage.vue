@@ -272,13 +272,13 @@ function maskedCnpj(cnpj: string | null) {
     "
     description="Acompanhe o painel de pendências desta competência."
   >
-    <Button variant="outline" class="mr-2" @click="doDownloadPeriodZip">
+    <Button variant="outline" class="mr-2 shadow-xs" @click="doDownloadPeriodZip">
       <FileArchive class="mr-2 h-4 w-4" /> Baixar Tudo (.zip)
     </Button>
     <template v-if="detailQuery.data.value?.status === 'open'">
       <Button
         variant="outline"
-        class="text-danger hover:text-danger hover:bg-danger/10"
+        class="text-danger hover:text-danger hover:bg-danger-surface border-border shadow-xs"
         @click="confirmClose = true"
       >
         <Lock class="mr-2 h-4 w-4" /> Encerrar
@@ -296,10 +296,10 @@ function maskedCnpj(cnpj: string | null) {
     <template v-else>
       <div
         v-if="detailQuery.data.value?.status === 'closed'"
-        class="bg-card border-border mb-8 flex flex-col gap-4 rounded-xl border p-4 sm:flex-row sm:items-center sm:justify-between shadow-sm"
+        class="bg-card border-border mb-8 flex flex-col gap-4 rounded-xl border p-5 sm:flex-row sm:items-center sm:justify-between shadow-sm"
       >
         <div>
-          <h2 class="text-base font-semibold">Competência encerrada</h2>
+          <h2 class="text-base font-semibold font-display text-foreground">Competência encerrada</h2>
           <p class="text-muted-foreground mt-1 text-sm">
             Os itens pendentes e rejeitados não podem mais receber arquivos.
           </p>
@@ -308,11 +308,13 @@ function maskedCnpj(cnpj: string | null) {
       </div>
       <div
         v-else-if="allDelivered"
-        class="mb-8 flex flex-wrap items-center gap-4 rounded-xl border border-success-border bg-success-surface p-4 sm:p-6 shadow-sm"
+        class="mb-8 flex flex-wrap items-center gap-4 rounded-xl border border-success-border bg-success-surface p-5 sm:p-6 shadow-sm"
       >
-        <PartyPopper class="text-success mt-1 shrink-0 text-2xl sm:text-3xl" aria-hidden="true" />
+        <div class="flex h-12 w-12 items-center justify-center rounded-xl bg-success/15 text-success shrink-0">
+          <PartyPopper class="h-6 w-6 text-success" aria-hidden="true" />
+        </div>
         <div class="min-w-0 flex-1">
-          <h2 class="text-base font-semibold text-success-foreground">Zero pendências! 🎉</h2>
+          <h2 class="text-base font-semibold font-display text-success-foreground">Zero pendências! 🎉</h2>
           <p class="mt-1 text-sm text-success-foreground">
             Todos os {{ sendProgress.total }} documentos exigidos pelas solicitações ativas foram
             enviados e conferidos.
@@ -321,29 +323,36 @@ function maskedCnpj(cnpj: string | null) {
       </div>
       <div
         v-else
-        class="bg-card border-border mb-8 flex flex-col gap-4 rounded-xl border p-4 sm:p-6 shadow-sm"
+        class="bg-card border-border mb-8 flex flex-col gap-4 rounded-xl border p-5 sm:p-6 shadow-sm"
       >
         <div class="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
           <div>
-            <h2 class="text-base font-semibold">Progresso geral da competência</h2>
-            <p class="text-muted-foreground mt-1 text-sm">
-              {{ sendProgress.accepted }} de {{ sendProgress.total }} documentos entregues e
+            <h2 class="text-base font-semibold font-display text-foreground">Progresso geral da competência</h2>
+            <p class="text-muted-foreground mt-1 text-sm flex items-center gap-1.5">
+              <span class="font-display font-bold text-foreground tabular-nums">{{ sendProgress.accepted }}</span> de
+              <span class="font-display font-bold text-foreground tabular-nums">{{ sendProgress.total }}</span> documentos entregues e
               conferidos
             </p>
           </div>
-          <Button
-            variant="outline"
-            size="sm"
-            :disabled="runRemindersMutation.isPending.value"
-            @click="resendReminders"
-          >
-            <BellRing class="mr-2 h-4 w-4" />
-            {{ runRemindersMutation.isPending.value ? 'Disparando...' : 'Cobrar atrasados' }}
-          </Button>
+          <div class="flex items-center gap-3">
+            <span class="font-display text-2xl font-bold text-brand tabular-nums">
+              {{ sendProgress.percent }}%
+            </span>
+            <Button
+              variant="outline"
+              size="sm"
+              class="shadow-xs"
+              :disabled="runRemindersMutation.isPending.value"
+              @click="resendReminders"
+            >
+              <BellRing class="mr-2 h-4 w-4" />
+              {{ runRemindersMutation.isPending.value ? 'Disparando...' : 'Cobrar atrasados' }}
+            </Button>
+          </div>
         </div>
-        <div class="bg-muted mt-2 h-3 w-full overflow-hidden rounded-full">
+        <div class="bg-sunken mt-2 h-3 w-full overflow-hidden rounded-full p-0.5 border border-border-subtle">
           <div
-            class="bg-primary h-full transition-all duration-500 ease-out"
+            class="bg-brand h-full rounded-full transition-all duration-500 ease-out"
             :style="{ width: sendProgress.percent + '%' }"
           ></div>
         </div>
@@ -353,19 +362,19 @@ function maskedCnpj(cnpj: string | null) {
         <div class="flex flex-1 flex-wrap gap-3">
           <div class="relative w-full sm:w-80">
             <Search
-              class="text-muted-foreground pointer-events-none absolute top-2.5 left-3 h-4 w-4"
+              class="text-muted-foreground pointer-events-none absolute top-3 left-3 h-4 w-4"
             />
             <Input
               v-model="search"
               type="search"
               placeholder="Buscar empresa"
-              class="pl-9 w-full"
+              class="pl-9 w-full bg-card shadow-xs focus-visible:ring-ring focus-visible:border-primary"
             />
           </div>
           <select
             v-if="accountantChips.length > 0"
             v-model="selectedAccountant"
-            class="flex h-10 rounded-md border border-input bg-background px-3 py-2 text-sm ring-offset-background disabled:opacity-50"
+            class="flex h-10 rounded-md border border-input bg-card px-3 py-2 text-sm shadow-xs focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:border-primary text-foreground disabled:opacity-50"
           >
             <option v-for="chip in accountantChips" :key="chip.value" :value="chip.value">
               {{ chip.label }}
@@ -374,110 +383,126 @@ function maskedCnpj(cnpj: string | null) {
         </div>
       </div>
 
-      <div class="mb-4 flex gap-2 overflow-x-auto pb-2">
+      <div class="mb-5 flex gap-2 overflow-x-auto pb-2">
         <button
           v-for="chip in chips"
           :key="chip.value"
           type="button"
-          class="border-border bg-card hover:bg-muted focus-visible:ring-ring shrink-0 rounded-full border px-4 py-1.5 text-sm font-medium transition-colors focus-visible:outline-none focus-visible:ring-2"
-          :class="{ 'border-primary bg-primary/5 text-primary': filter === chip.value }"
+          class="shrink-0 rounded-full border px-4 py-1.5 text-xs sm:text-sm font-medium transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+          :class="filter === chip.value
+            ? 'border-primary/40 bg-primary/10 text-primary font-semibold shadow-xs'
+            : 'border-border bg-card text-muted-foreground hover:bg-muted hover:text-foreground'"
           @click="filter = chip.value"
         >
           {{ chip.label }}
           <span
-            class="bg-muted text-muted-foreground ml-1.5 inline-flex items-center rounded-full px-2 py-0.5 text-xs font-semibold"
-            :class="{ 'bg-primary/20 text-primary': filter === chip.value }"
+            class="ml-1.5 inline-flex items-center rounded-full px-2 py-0.5 text-xs font-semibold"
+            :class="filter === chip.value
+              ? 'bg-primary/20 text-primary'
+              : 'bg-muted text-muted-foreground'"
           >
             {{ counts[chip.value] }}
           </span>
         </button>
       </div>
 
-      <ul
-        class="border-border bg-card divide-border divide-y rounded-xl border shadow-sm"
-        role="list"
-      >
-        <li v-for="line in visible" :key="line.requestId" class="flex flex-col">
-          <div class="flex flex-col gap-4 p-4 sm:flex-row sm:items-start sm:justify-between">
-            <div class="flex min-w-0 flex-1 flex-col gap-1">
-              <div class="flex items-center gap-2">
+      <div class="space-y-3" role="list">
+        <div
+          v-for="line in visible"
+          :key="line.requestId"
+          class="bg-card border-border rounded-xl border shadow-xs overflow-hidden transition-all duration-150"
+          role="listitem"
+        >
+          <div class="flex flex-col gap-4 p-4 sm:p-5 sm:flex-row sm:items-center sm:justify-between">
+            <div class="flex min-w-0 flex-1 flex-col gap-1.5">
+              <div class="flex flex-wrap items-center gap-2">
                 <button
                   type="button"
-                  class="hover:text-primary focus-visible:ring-ring flex items-center gap-2 text-left font-medium transition-colors focus-visible:outline-none focus-visible:ring-2 rounded-sm"
+                  class="group flex items-center gap-2.5 text-left font-semibold text-foreground hover:text-primary transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring rounded-md py-0.5"
                   :aria-expanded="isExpanded(line.companyId)"
                   @click="toggle(line.companyId)"
                 >
                   <ChevronDown
-                    class="text-muted-foreground h-4 w-4 transition-transform"
+                    class="text-muted-foreground group-hover:text-primary h-4 w-4 transition-transform duration-200"
                     :class="{ '-rotate-90': !isExpanded(line.companyId) }"
                   />
-                  {{ line.companyName }}
+                  <span class="font-display text-base font-semibold text-foreground group-hover:text-primary transition-colors">
+                    {{ line.companyName }}
+                  </span>
                 </button>
                 <StatusPill v-if="line.requestStatus === 'closed'" status="closed" />
                 <span
                   v-else-if="line.overdue > 0"
-                  class="inline-flex items-center gap-1 rounded-full border border-danger-border bg-danger-surface px-2 py-0.5 text-[11px] font-semibold text-danger"
+                  class="inline-flex items-center gap-1 rounded-full border border-danger-border bg-danger-surface px-2.5 py-0.5 text-[11px] font-semibold text-danger-foreground"
                 >
-                  <TriangleAlert class="h-[10px] w-[10px]" /> Atrasada
+                  <TriangleAlert class="h-3 w-3 text-danger" /> Atrasada
                 </span>
               </div>
               <p class="text-muted-foreground pl-6 text-xs tabular-nums">
                 {{ maskedCnpj(line.cnpj) }}
               </p>
             </div>
-            <div class="flex shrink-0 flex-wrap items-center gap-4 sm:justify-end">
-              <div class="text-muted-foreground flex flex-col items-end text-sm">
-                <span>{{ line.counts.accepted }} de {{ line.total }}</span>
-                <span class="text-[11px]">{{ line.percent }}% completo</span>
+            <div class="flex shrink-0 flex-wrap items-center gap-3 sm:justify-end">
+              <div class="text-muted-foreground flex flex-col sm:items-end text-xs sm:text-sm">
+                <span class="font-medium text-foreground">
+                  <span class="tabular-nums font-semibold">{{ line.counts.accepted }}</span> de
+                  <span class="tabular-nums font-semibold">{{ line.total }}</span>
+                </span>
+                <span class="text-[11px] text-muted-foreground tabular-nums">{{ line.percent }}% completo</span>
               </div>
-              <Button
-                :variant="line.counts.submitted > 0 ? 'default' : 'outline'"
-                size="sm"
-                as-child
-              >
-                <RouterLink :to="`/solicitacoes/${line.requestId}`">
-                  <ClipboardCheck class="mr-2 h-4 w-4" />
-                  {{ line.counts.submitted > 0 ? `Conferir (${line.counts.submitted})` : 'Envios' }}
-                </RouterLink>
-              </Button>
-              <Button
-                v-if="line.requestStatus !== 'closed'"
-                variant="outline"
-                size="sm"
-                :disabled="copyingRequestId === line.requestId"
-                @click="handleCopyUploadLink(line)"
-              >
-                <Link class="mr-2 h-4 w-4" />
-                {{ copyingRequestId === line.requestId ? 'Gerando...' : 'Copiar link' }}
-              </Button>
-              <Button
-                variant="outline"
-                size="sm"
-                @click="doDownloadCompanyZip(line.requestId, line.companyName)"
-              >
-                <FileArchive class="mr-2 h-4 w-4" /> .zip
-              </Button>
+              <div class="flex items-center gap-2 flex-wrap">
+                <Button
+                  :variant="line.counts.submitted > 0 ? 'default' : 'outline'"
+                  size="sm"
+                  class="shadow-xs font-medium"
+                  as-child
+                >
+                  <RouterLink :to="`/solicitacoes/${line.requestId}`">
+                    <ClipboardCheck class="mr-2 h-4 w-4" />
+                    {{ line.counts.submitted > 0 ? `Conferir (${line.counts.submitted})` : 'Envios' }}
+                  </RouterLink>
+                </Button>
+                <Button
+                  v-if="line.requestStatus !== 'closed'"
+                  variant="outline"
+                  size="sm"
+                  class="shadow-xs"
+                  :disabled="copyingRequestId === line.requestId"
+                  @click="handleCopyUploadLink(line)"
+                >
+                  <Link class="mr-2 h-4 w-4" />
+                  {{ copyingRequestId === line.requestId ? 'Gerando...' : 'Copiar link' }}
+                </Button>
+                <Button
+                  variant="outline"
+                  size="sm"
+                  class="shadow-xs"
+                  @click="doDownloadCompanyZip(line.requestId, line.companyName)"
+                >
+                  <FileArchive class="mr-2 h-4 w-4" /> .zip
+                </Button>
+              </div>
             </div>
           </div>
 
           <div
             v-if="isExpanded(line.companyId)"
-            class="border-border bg-muted/20 border-t p-4 pt-3"
+            class="border-border bg-sunken/40 border-t p-4 sm:p-5"
           >
             <div
               v-if="line.channelFailures.length"
-              class="mb-4 rounded-lg border border-warning-border bg-warning-surface p-3 text-sm text-warning-foreground"
+              class="mb-4 rounded-xl border border-danger-border bg-danger-surface p-4 text-sm text-danger-foreground"
             >
-              <div class="flex gap-2">
+              <div class="flex gap-3">
                 <MailWarning
-                  class="text-warning-foreground mt-0.5 shrink-0 text-base"
+                  class="text-danger mt-0.5 shrink-0 text-lg"
                   aria-hidden="true"
                 />
-                <div>
-                  <p class="font-medium">
+                <div class="min-w-0 flex-1">
+                  <p class="font-semibold text-danger-foreground">
                     Falha na entrega de notificações ({{ uniqueFailures(line).join(', ') }})
                   </p>
-                  <p class="mt-1 text-xs">
+                  <p class="mt-1 text-xs text-danger-foreground/90 leading-relaxed">
                     A última cobrança automática não pôde ser entregue. Verifique se o e-mail ou
                     número de telefone estão corretos no cadastro da empresa.
                   </p>
@@ -485,10 +510,11 @@ function maskedCnpj(cnpj: string | null) {
                     <Button
                       variant="outline"
                       size="sm"
+                      class="border-danger-border bg-white text-danger-foreground hover:bg-danger-surface shadow-xs"
                       :disabled="resendingRequestId === line.requestId"
                       @click="handleResendUploadLink(line)"
                     >
-                      <Mail class="mr-2 h-4 w-4" />
+                      <Mail class="mr-2 h-4 w-4 text-danger" />
                       {{
                         resendingRequestId === line.requestId
                           ? 'Reenviando...'
@@ -501,35 +527,35 @@ function maskedCnpj(cnpj: string | null) {
             </div>
 
             <template v-if="line.missing.length === 0">
-              <div class="flex items-center gap-2 text-sm text-success p-2">
-                <CircleCheck class="h-4 w-4" /> Tudo conferido
+              <div class="flex items-center gap-2 text-sm text-success font-medium p-2">
+                <CircleCheck class="h-4 w-4 text-success" /> Tudo conferido
               </div>
             </template>
             <template v-else>
               <h4
-                class="text-xs font-semibold uppercase tracking-wider text-muted-foreground mb-2 px-1"
+                class="text-xs font-semibold uppercase tracking-wider text-muted-foreground mb-2.5 px-1"
               >
                 Aguardando Envio ({{ line.missing.length }})
               </h4>
-              <ul class="border-border bg-card divide-border divide-y rounded-lg border shadow-sm">
+              <ul class="border-border bg-card divide-border divide-y rounded-xl border shadow-xs overflow-hidden">
                 <li
                   v-for="item in line.missing"
                   :key="item.id"
-                  class="flex flex-col sm:flex-row sm:items-center sm:justify-between p-3 gap-2"
+                  class="flex flex-col sm:flex-row sm:items-center sm:justify-between p-3.5 gap-2 hover:bg-slate-50/75 transition-colors"
                 >
                   <div class="min-w-0">
-                    <p class="text-sm font-medium">{{ item.name }}</p>
-                    <p v-if="item.status === 'rejected'" class="text-danger mt-0.5 text-xs">
+                    <p class="text-sm font-medium text-foreground">{{ item.name }}</p>
+                    <p v-if="item.status === 'rejected'" class="text-danger mt-0.5 text-xs font-medium">
                       Recusado: aguardando reenvio
                     </p>
                   </div>
-                  <DueDate :date="item.dueDate" class="text-xs" />
+                  <DueDate :date="item.dueDate" class="text-xs shrink-0" />
                 </li>
               </ul>
             </template>
           </div>
-        </li>
-      </ul>
+        </div>
+      </div>
     </template>
   </main>
 
@@ -538,11 +564,11 @@ function maskedCnpj(cnpj: string | null) {
     title="Encerrar competência?"
     description="Encerrar é a palavra final: as solicitações desta competência também são encerradas, mesmo com pendências."
   >
-    <p class="text-sm">
+    <p class="text-sm text-foreground">
       Os Responsáveis não poderão mais enviar documentos nos itens — apenas documentos extras.
     </p>
     <div
-      class="border-border bg-muted/40 -mx-6 -mb-6 mt-5 flex flex-wrap justify-end gap-2 border-t p-4"
+      class="border-border bg-sunken/40 -mx-6 -mb-6 mt-6 flex flex-wrap justify-end gap-2.5 border-t p-4"
     >
       <Button variant="ghost" @click="confirmClose = false">Cancelar</Button>
       <Button

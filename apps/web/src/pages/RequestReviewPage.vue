@@ -184,7 +184,7 @@ async function publish() {
         : 'Aceite ou recuse os documentos enviados.'
     "
   >
-    <Button variant="outline" @click="router.back()">Voltar</Button>
+    <Button variant="outline" class="shadow-xs" @click="router.back()">Voltar</Button>
   </PageHeader>
 
   <main class="mt-8 pb-24">
@@ -197,7 +197,7 @@ async function publish() {
     <template v-else>
       <div
         v-if="closed"
-        class="border-border bg-muted/30 mb-6 rounded-xl border p-4 text-sm text-muted-foreground"
+        class="border-border bg-sunken/60 mb-6 rounded-xl border p-4 text-sm text-muted-foreground"
       >
         Solicitação encerrada: não é mais possível revisar documentos.
       </div>
@@ -209,19 +209,20 @@ async function publish() {
         <article
           v-for="item in reviewableItems"
           :key="item.id"
-          class="bg-card border-border rounded-xl border p-4 shadow-sm"
+          class="bg-card border-border rounded-xl border p-5 shadow-sm"
         >
           <div class="flex flex-wrap items-start justify-between gap-3">
             <div class="min-w-0">
-              <h3 class="flex flex-wrap items-center gap-2 text-base font-semibold">
+              <h3 class="flex flex-wrap items-center gap-2 text-base font-semibold font-display text-foreground">
                 {{ item.name }}
                 <StatusPill v-if="wasResent(item)" status="resent" />
               </h3>
-              <DueDate :date="item.dueDate" class="text-xs" />
+              <DueDate :date="item.dueDate" class="text-xs mt-1" />
             </div>
             <Button
               :variant="acceptedItemIds.has(item.id) ? 'default' : 'outline'"
               size="sm"
+              class="shadow-xs font-medium"
               :disabled="closed || itemBlocked(item)"
               @click="toggleAcceptItem(item)"
             >
@@ -230,24 +231,25 @@ async function publish() {
             </Button>
           </div>
 
-          <ul class="border-border divide-border mt-4 divide-y rounded-lg border">
-            <li v-for="doc in item.documents" :key="doc.id" class="flex flex-col gap-2 p-3">
+          <ul class="border-border divide-border mt-4 divide-y rounded-xl border bg-card overflow-hidden">
+            <li v-for="doc in item.documents" :key="doc.id" class="flex flex-col gap-3 p-3.5 hover:bg-slate-50/75 transition-colors">
               <div class="flex flex-wrap items-center justify-between gap-2">
                 <div class="min-w-0">
-                  <p class="truncate text-sm font-medium">{{ doc.fileName }}</p>
-                  <p class="text-muted-foreground text-xs">
+                  <p class="truncate text-sm font-medium text-foreground">{{ doc.fileName }}</p>
+                  <p class="text-muted-foreground text-xs mt-0.5">
                     {{ fileSize(doc.sizeBytes) }} · {{ dateTimeBr(doc.uploadedAt) }}
                   </p>
                 </div>
                 <div class="flex items-center gap-2">
                   <StatusPill v-if="doc.reviewStatus !== 'pending'" :status="doc.reviewStatus" />
-                  <Button variant="ghost" size="sm" @click="openDocument(doc)">
+                  <Button variant="ghost" size="sm" class="hover:bg-sunken text-muted-foreground hover:text-foreground" @click="openDocument(doc)">
                     <ExternalLink class="mr-2 h-4 w-4" /> Abrir
                   </Button>
                   <Button
                     v-if="doc.reviewStatus === 'pending'"
                     :variant="rejections.has(doc.id) ? 'destructive' : 'outline'"
                     size="sm"
+                    class="shadow-xs"
                     :disabled="closed"
                     @click="toggleRejectDocument(item, doc)"
                   >
@@ -256,19 +258,21 @@ async function publish() {
                   </Button>
                 </div>
               </div>
-              <Textarea
-                v-if="rejections.has(doc.id)"
-                :model-value="rejections.get(doc.id)"
-                placeholder="Motivo da recusa (o Responsável recebe este texto)"
-                rows="2"
-                @update:model-value="setRejectionReason(doc.id, String($event))"
-              />
+              <div v-if="rejections.has(doc.id)" class="pt-1">
+                <Textarea
+                  :model-value="rejections.get(doc.id)"
+                  placeholder="Motivo da recusa (o Responsável recebe este texto)"
+                  rows="2"
+                  class="border-danger-border focus-visible:ring-ring focus-visible:border-primary text-sm shadow-xs"
+                  @update:model-value="setRejectionReason(doc.id, String($event))"
+                />
+              </div>
             </li>
           </ul>
         </article>
       </section>
 
-      <section v-else class="border-border rounded-xl border-2 border-dashed p-12 text-center">
+      <section v-else class="border-border bg-card rounded-xl border-2 border-dashed p-12 text-center shadow-xs">
         <p class="text-muted-foreground text-sm">Nenhum documento aguardando conferência.</p>
       </section>
 
@@ -279,28 +283,29 @@ async function publish() {
         <h2 class="text-sm font-semibold uppercase tracking-wider text-muted-foreground">
           Documentos extras ({{ detailQuery.data.value.extraDocuments.length }})
         </h2>
-        <ul class="bg-card border-border divide-border divide-y rounded-xl border shadow-sm">
+        <ul class="bg-card border-border divide-border divide-y rounded-xl border shadow-sm overflow-hidden">
           <li
             v-for="doc in detailQuery.data.value.extraDocuments"
             :key="doc.id"
-            class="flex flex-col gap-2 p-3"
+            class="flex flex-col gap-3 p-3.5 hover:bg-slate-50/75 transition-colors"
           >
             <div class="flex flex-wrap items-center justify-between gap-2">
               <div class="min-w-0">
-                <p class="truncate text-sm font-medium">{{ doc.fileName }}</p>
-                <p class="text-muted-foreground text-xs">
+                <p class="truncate text-sm font-medium text-foreground">{{ doc.fileName }}</p>
+                <p class="text-muted-foreground text-xs mt-0.5">
                   {{ fileSize(doc.sizeBytes) }} · {{ dateTimeBr(doc.uploadedAt) }}
                 </p>
               </div>
               <div class="flex items-center gap-2">
                 <StatusPill v-if="doc.reviewStatus !== 'pending'" :status="doc.reviewStatus" />
-                <Button variant="ghost" size="sm" @click="openDocument(doc)">
+                <Button variant="ghost" size="sm" class="hover:bg-sunken text-muted-foreground hover:text-foreground" @click="openDocument(doc)">
                   <ExternalLink class="mr-2 h-4 w-4" /> Abrir
                 </Button>
                 <template v-if="doc.reviewStatus === 'pending'">
                   <Button
                     :variant="extras.get(doc.id)?.decision === 'accepted' ? 'default' : 'outline'"
                     size="sm"
+                    class="shadow-xs font-medium"
                     @click="toggleExtra(doc, 'accepted')"
                   >
                     <Check class="mr-2 h-4 w-4" /> Aceitar
@@ -310,6 +315,7 @@ async function publish() {
                       extras.get(doc.id)?.decision === 'rejected' ? 'destructive' : 'outline'
                     "
                     size="sm"
+                    class="shadow-xs"
                     @click="toggleExtra(doc, 'rejected')"
                   >
                     <X class="mr-2 h-4 w-4" /> Recusar
@@ -317,35 +323,38 @@ async function publish() {
                 </template>
               </div>
             </div>
-            <Textarea
-              v-if="extras.get(doc.id)?.decision === 'rejected'"
-              :model-value="extras.get(doc.id)?.rejectionReason"
-              placeholder="Motivo da recusa"
-              rows="2"
-              @update:model-value="setExtraReason(doc.id, String($event))"
-            />
+            <div v-if="extras.get(doc.id)?.decision === 'rejected'" class="pt-1">
+              <Textarea
+                :model-value="extras.get(doc.id)?.rejectionReason"
+                placeholder="Motivo da recusa"
+                rows="2"
+                class="border-danger-border focus-visible:ring-ring focus-visible:border-primary text-sm shadow-xs"
+                @update:model-value="setExtraReason(doc.id, String($event))"
+              />
+            </div>
           </li>
         </ul>
       </section>
 
-      <section v-if="settledItems.length" class="mt-8 flex flex-col gap-2">
+      <section v-if="settledItems.length" class="mt-8 flex flex-col gap-3">
         <h2 class="text-sm font-semibold uppercase tracking-wider text-muted-foreground">
           Demais itens ({{ settledItems.length }})
         </h2>
-        <ul class="bg-card border-border divide-border divide-y rounded-xl border shadow-sm">
-          <li v-for="item in settledItems" :key="item.id" class="flex flex-col gap-2 p-3">
+        <ul class="bg-card border-border divide-border divide-y rounded-xl border shadow-sm overflow-hidden">
+          <li v-for="item in settledItems" :key="item.id" class="flex flex-col gap-2 p-3.5 hover:bg-slate-50/75 transition-colors">
             <div class="flex flex-wrap items-center justify-between gap-2">
-              <span class="text-sm font-medium">{{ item.name }}</span>
+              <span class="text-sm font-medium text-foreground">{{ item.name }}</span>
               <div class="flex items-center gap-2">
                 <StatusPill :status="displayItemStatus(item)" />
                 <Button
                   v-if="item.status === 'accepted' && !closed"
                   variant="ghost"
                   size="sm"
+                  class="hover:bg-sunken text-muted-foreground hover:text-foreground text-xs"
                   :disabled="undoingItemId === item.id"
                   @click="handleUndoAccept(item)"
                 >
-                  <Undo2 class="mr-2 h-4 w-4" />
+                  <Undo2 class="mr-1.5 h-3.5 w-3.5" />
                   {{ undoingItemId === item.id ? 'Desfazendo...' : 'Desfazer aceite' }}
                 </Button>
               </div>
@@ -359,16 +368,20 @@ async function publish() {
 
   <div
     v-if="decisionCount > 0"
-    class="border-border bg-card fixed inset-x-0 bottom-0 z-40 border-t p-3 shadow-[0_-4px_12px_rgba(15,23,42,0.08)]"
+    class="border-border bg-card fixed inset-x-0 bottom-0 z-40 border-t p-4 shadow-[0_-4px_16px_rgba(15,23,42,0.06)]"
   >
-    <div class="mx-auto flex max-w-5xl items-center justify-between gap-3">
-      <span class="text-sm font-medium">
+    <div class="mx-auto flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+      <span class="text-sm font-medium text-foreground">
         {{ decisionCount }} decisão(ões) não publicada(s)
-        <span v-if="missingReason" class="text-danger">— informe o motivo das recusas</span>
+        <span v-if="missingReason" class="text-danger font-normal ml-1">— informe o motivo das recusas</span>
       </span>
-      <div class="flex items-center gap-2">
+      <div class="flex items-center gap-2.5">
         <Button variant="ghost" :disabled="acting" @click="discard">Descartar</Button>
-        <Button :disabled="acting || missingReason" @click="publish">
+        <Button
+          :disabled="acting || missingReason"
+          class="bg-brand-strong hover:bg-brand-strong/90 text-white font-medium shadow-xs"
+          @click="publish"
+        >
           {{ acting ? 'Publicando...' : 'Publicar revisão' }}
         </Button>
       </div>
