@@ -24,12 +24,12 @@ const props = defineProps<{
 type Tone = 'neutral' | 'info' | 'success' | 'danger' | 'warning' | 'closed';
 
 const TONE_CLASS: Record<Tone, string> = {
-  neutral: 'bg-muted text-muted-foreground border-border',
-  info: 'bg-info-surface text-info-foreground border-info-border',
-  success: 'bg-success-surface text-success-foreground border-success-border',
-  danger: 'bg-danger-surface text-danger-foreground border-danger-border',
-  warning: 'bg-warning-surface text-warning-foreground border-warning-border',
-  closed: 'bg-muted text-muted-foreground border-border',
+  neutral: 'bg-slate-100 text-slate-700 border-slate-200',
+  info: 'bg-sky-50 text-sky-800 border-sky-200',
+  success: 'bg-emerald-50 text-emerald-800 border-emerald-200',
+  danger: 'bg-rose-50 text-rose-800 border-rose-200',
+  warning: 'bg-amber-50 text-amber-800 border-amber-200',
+  closed: 'bg-slate-100 text-slate-600 border-slate-200',
 };
 
 const STATUS: Record<string, { label: string; tone: Tone; icon: any }> = {

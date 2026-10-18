@@ -1,3 +1,5 @@
+import '@fontsource-variable/outfit';
+import '@fontsource-variable/plus-jakarta-sans';
 import { createApp } from 'vue';
 import { createPinia } from 'pinia';
 import { VueQueryPlugin } from '@tanstack/vue-query';
