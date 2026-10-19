@@ -289,11 +289,11 @@ function resolveLeave(leave: boolean) {
         : 'Ajuste os documentos exigidos para empresas com este template.'
     "
   >
-    <Button variant="outline" class="mr-2" @click="router.back()">Voltar</Button>
-    <Button v-if="isProductTemplate" :disabled="acting" @click="deriveAndEdit">
+    <Button variant="outline" class="mr-2 shadow-xs" @click="router.back()">Voltar</Button>
+    <Button v-if="isProductTemplate" :disabled="acting" class="shadow-xs font-medium" @click="deriveAndEdit">
       <Copy class="mr-2 h-4 w-4" aria-hidden="true" /> Duplicar para editar
     </Button>
-    <Button v-else @click="catalogOpen = true">
+    <Button v-else class="shadow-xs font-medium" @click="catalogOpen = true">
       <Plus class="mr-2 h-4 w-4" aria-hidden="true" /> Adicionar documento
     </Button>
   </PageHeader>
@@ -306,12 +306,12 @@ function resolveLeave(leave: boolean) {
       <ErrorState title="Não foi possível carregar." @retry="detailQuery.refetch()" />
     </template>
     <template v-else>
-      <div class="mb-6 flex flex-col gap-1.5">
-        <label for="templateName" class="text-sm font-medium">Nome do template</label>
+      <div class="bg-card border-border rounded-xl border p-5 shadow-sm mb-6 flex flex-col gap-2 max-w-xl">
+        <label for="templateName" class="text-sm font-semibold font-display text-foreground">Nome do template</label>
         <Input
           id="templateName"
           v-model="draftName"
-          class="max-w-md"
+          class="focus-visible:ring-ring focus-visible:border-primary shadow-xs"
           :disabled="isProductTemplate"
         />
         <p v-if="isProductTemplate" class="text-muted-foreground text-xs">
@@ -323,23 +323,46 @@ function resolveLeave(leave: boolean) {
         <section
           v-for="item in visibleItems"
           :key="item.id"
-          class="bg-card border-border rounded-xl border p-4 shadow-sm"
+          class="bg-card border-border rounded-xl border p-5 shadow-sm transition-all"
         >
           <div class="flex flex-wrap items-start justify-between gap-4">
             <div class="min-w-0 flex-1">
-              <h3 class="text-base font-semibold">{{ item.name }}</h3>
-              <p class="text-muted-foreground text-xs uppercase tracking-wider mt-1">
-                {{ CATEGORY_LABEL[item.category] ?? item.category }}
-              </p>
-              <p v-if="item.description" class="text-muted-foreground mt-2 text-sm">
+              <div class="flex flex-wrap items-center gap-2 mb-1.5">
+                <span class="inline-flex items-center rounded-full bg-sunken border border-border px-2.5 py-0.5 text-[11px] font-semibold text-muted-foreground uppercase tracking-wider">
+                  {{ CATEGORY_LABEL[item.category] ?? item.category }}
+                </span>
+                <span
+                  v-if="item.added"
+                  class="inline-flex items-center rounded-full bg-primary/10 border border-primary/20 px-2 py-0.5 text-[10px] font-semibold text-primary"
+                >
+                  Novo
+                </span>
+                <span
+                  v-if="isDirty(item) && !item.added"
+                  class="inline-flex items-center rounded-full bg-warning-surface border border-warning-border px-2 py-0.5 text-[10px] font-semibold text-warning-foreground"
+                >
+                  Modificado
+                </span>
+              </div>
+              <h3 class="font-display text-base font-semibold text-foreground">{{ item.name }}</h3>
+              <p v-if="item.description" class="text-muted-foreground mt-1.5 text-sm">
                 {{ item.description }}
               </p>
+              <div v-if="item.acceptedFormats?.length" class="mt-2.5 flex flex-wrap gap-1.5">
+                <span
+                  v-for="format in item.acceptedFormats"
+                  :key="format"
+                  class="inline-flex items-center rounded-full bg-muted/80 border border-border/60 px-2 py-0.5 text-[11px] font-medium text-muted-foreground"
+                >
+                  {{ format }}
+                </span>
+              </div>
             </div>
             <Button
               v-if="!isProductTemplate"
               variant="ghost"
               size="icon"
-              class="text-danger hover:text-danger hover:bg-danger/10"
+              class="text-muted-foreground hover:text-danger hover:bg-danger/10 h-8 w-8 rounded-lg transition-colors"
               @click="confirmRemoval = item"
             >
               <Trash2 class="h-4 w-4" />
@@ -348,9 +371,9 @@ function resolveLeave(leave: boolean) {
 
           <div class="border-border mt-4 flex flex-wrap gap-4 border-t pt-4">
             <div class="flex flex-col gap-1.5 min-w-[140px]">
-              <label class="text-xs font-medium">Frequência</label>
+              <label class="text-xs font-medium text-foreground">Frequência</label>
               <select
-                class="flex h-9 w-full rounded-md border border-input bg-background px-3 py-1 text-sm shadow-sm transition-colors focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring disabled:cursor-not-allowed disabled:opacity-50"
+                class="flex h-9 w-full rounded-md border border-input bg-background px-3 py-1 text-sm shadow-xs transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:border-primary disabled:cursor-not-allowed disabled:opacity-50"
                 :disabled="isProductTemplate"
                 :value="item.periodicity"
                 @change="changePeriodicity(item, ($event.target as HTMLSelectElement).value)"
@@ -363,12 +386,12 @@ function resolveLeave(leave: boolean) {
 
             <template v-if="item.periodicity === 'monthly'">
               <div class="flex flex-col gap-1.5 min-w-[140px]">
-                <label class="text-xs font-medium">Prazo (Dia)</label>
+                <label class="text-xs font-medium text-foreground">Prazo (Dia)</label>
                 <Input
                   type="number"
                   min="1"
                   max="31"
-                  class="h-9 w-24"
+                  class="h-9 w-24 focus-visible:ring-ring focus-visible:border-primary"
                   placeholder="Livre"
                   :disabled="isProductTemplate"
                   :value="item.dueDay ?? ''"
@@ -379,9 +402,9 @@ function resolveLeave(leave: boolean) {
 
             <template v-if="item.periodicity === 'annual'">
               <div class="flex flex-col gap-1.5 min-w-[140px]">
-                <label class="text-xs font-medium">Mês do envio</label>
+                <label class="text-xs font-medium text-foreground">Mês do envio</label>
                 <select
-                  class="flex h-9 w-32 rounded-md border border-input bg-background px-3 py-1 text-sm shadow-sm transition-colors focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring disabled:cursor-not-allowed disabled:opacity-50"
+                  class="flex h-9 w-32 rounded-md border border-input bg-background px-3 py-1 text-sm shadow-xs transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:border-primary disabled:cursor-not-allowed disabled:opacity-50"
                   :disabled="isProductTemplate"
                   :value="item.annualMonth"
                   @change="changeAnnualMonth(item, ($event.target as HTMLSelectElement).value)"
@@ -403,9 +426,9 @@ function resolveLeave(leave: boolean) {
             </template>
 
             <div class="flex flex-col gap-1.5 min-w-[180px]">
-              <label class="text-xs font-medium">Condição (Opcional)</label>
+              <label class="text-xs font-medium text-foreground">Condição (Opcional)</label>
               <select
-                class="flex h-9 w-full rounded-md border border-input bg-background px-3 py-1 text-sm shadow-sm transition-colors focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring disabled:cursor-not-allowed disabled:opacity-50"
+                class="flex h-9 w-full rounded-md border border-input bg-background px-3 py-1 text-sm shadow-xs transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:border-primary disabled:cursor-not-allowed disabled:opacity-50"
                 :disabled="isProductTemplate"
                 :value="item.conditionFlag ?? ''"
                 @change="changeCondition(item, ($event.target as HTMLSelectElement).value)"
@@ -417,22 +440,23 @@ function resolveLeave(leave: boolean) {
               </select>
             </div>
 
-            <div class="flex items-center gap-2 mt-6">
+            <div class="flex items-center gap-2.5 sm:mt-6 pt-1">
               <input
                 type="checkbox"
-                class="size-4"
+                class="size-4 rounded border-border text-primary focus:ring-ring accent-primary"
                 :disabled="isProductTemplate"
                 :checked="item.required"
                 @change="toggleRequired(item)"
+                :id="'req-' + item.id"
               />
-              <label class="text-sm font-medium">Obrigatório</label>
+              <label :for="'req-' + item.id" class="text-sm font-medium text-foreground cursor-pointer">Obrigatório</label>
             </div>
           </div>
         </section>
 
         <div
           v-if="visibleItems.length === 0"
-          class="border-border rounded-xl border-2 border-dashed p-12 text-center"
+          class="border-border rounded-xl border-2 border-dashed p-12 text-center bg-card"
         >
           <p class="text-muted-foreground text-sm">Este template não possui documentos.</p>
         </div>
@@ -453,17 +477,17 @@ function resolveLeave(leave: boolean) {
   <!-- Sticky Footer Bar -->
   <div
     v-if="hasChanges"
-    class="border-border bg-card fixed inset-x-0 bottom-0 z-40 border-t p-3 shadow-[0_-4px_12px_rgba(15,23,42,0.08)]"
+    class="border-border bg-card fixed inset-x-0 bottom-0 z-40 border-t p-3.5 shadow-[0_-4px_16px_rgba(15,23,42,0.08)]"
   >
     <div class="mx-auto flex max-w-5xl items-center justify-between">
       <span
-        class="text-sm font-medium text-warning-foreground bg-warning-surface border border-warning-border rounded-full px-3 py-1"
+        class="text-xs sm:text-sm font-semibold text-warning-foreground bg-warning-surface border border-warning-border rounded-full px-3 py-1 shadow-xs"
       >
         Alterações não salvas
       </span>
-      <div class="flex items-center gap-2">
+      <div class="flex items-center gap-2.5">
         <Button variant="ghost" :disabled="acting" @click="discard">Descartar</Button>
-        <Button :disabled="acting" @click="save">{{
+        <Button :disabled="acting" class="shadow-xs font-medium" @click="save">{{
           acting ? 'Salvando...' : 'Salvar template'
         }}</Button>
       </div>

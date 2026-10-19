@@ -45,6 +45,12 @@ watch(search, (val) => {
   }, 300);
 });
 
+const statusChips = [
+  { value: undefined, label: 'Todas' },
+  { value: 'true', label: 'Ativas' },
+  { value: 'false', label: 'Inativas' },
+] as const;
+
 const { companiesQuery, sendAccessInvitesMutation, applyTemplateMutation } = useCompaniesFeature(
   page,
   perPage,
@@ -159,34 +165,41 @@ async function applyTemplateToSelected() {
     title="Empresas"
     description="Carteira de clientes ativos e inativos da contabilidade."
   >
-    <Button variant="outline" class="mr-2" as-child>
+    <Button variant="outline" class="mr-2 shadow-xs" as-child>
       <RouterLink to="/empresas/importar">
         <Upload class="mr-2 h-4 w-4" /> Importar CSV
       </RouterLink>
     </Button>
-    <Button as-child>
+    <Button as-child class="shadow-xs font-medium">
       <RouterLink to="/empresas/nova"> <Building2 class="mr-2 h-4 w-4" /> Nova empresa </RouterLink>
     </Button>
   </PageHeader>
 
   <section class="mt-8">
-    <div class="mb-4 flex flex-wrap items-center gap-3">
-      <Input
-        v-model="search"
-        type="search"
-        placeholder="Buscar pelo nome ou CNPJ"
-        class="w-full sm:w-80"
-        aria-label="Buscar empresa"
-      />
-      <select
-        v-model="active"
-        class="flex h-10 w-full rounded-md border border-input bg-background px-3 py-2 text-sm ring-offset-background file:border-0 file:bg-transparent file:text-sm file:font-medium placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-50 sm:w-48"
-        aria-label="Status da empresa"
-      >
-        <option :value="undefined">Todas (Ativas e Inativas)</option>
-        <option value="true">Apenas Ativas</option>
-        <option value="false">Apenas Inativas</option>
-      </select>
+    <div class="mb-5 flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
+      <div class="relative w-full sm:w-80">
+        <Input
+          v-model="search"
+          type="search"
+          placeholder="Buscar pelo nome ou CNPJ"
+          class="w-full shadow-xs focus-visible:ring-ring focus-visible:border-primary"
+          aria-label="Buscar empresa"
+        />
+      </div>
+      <div class="flex items-center gap-2 overflow-x-auto pb-1 sm:pb-0" role="group" aria-label="Status da empresa">
+        <button
+          v-for="chip in statusChips"
+          :key="String(chip.value)"
+          type="button"
+          class="shrink-0 rounded-full border px-4 py-1.5 text-xs sm:text-sm font-medium transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+          :class="active === chip.value
+            ? 'bg-primary/10 text-primary border-primary/30 font-semibold shadow-xs'
+            : 'border-border bg-card text-muted-foreground hover:bg-muted hover:text-foreground'"
+          @click="active = chip.value"
+        >
+          {{ chip.label }}
+        </button>
+      </div>
     </div>
 
     <template v-if="companiesQuery.isError.value">
@@ -201,48 +214,52 @@ async function applyTemplateToSelected() {
       <div class="bg-card border-border overflow-hidden rounded-xl border shadow-sm">
         <div class="overflow-x-auto">
           <Table>
-            <TableHeader>
-              <TableRow>
-                <TableHead class="w-12">
+            <TableHeader class="bg-sunken/60">
+              <TableRow class="hover:bg-transparent border-border">
+                <TableHead class="w-12 font-semibold text-foreground">
                   <input
                     type="checkbox"
-                    class="size-4"
+                    class="size-4 rounded border-border text-primary focus:ring-ring accent-primary"
                     aria-label="Selecionar todas"
                     :checked="companies.length > 0 && selectedIds.size === companies.length"
                     @change="selectAll"
                   />
                 </TableHead>
-                <TableHead>Nome</TableHead>
-                <TableHead>CNPJ</TableHead>
-                <TableHead>Responsável</TableHead>
-                <TableHead>Template</TableHead>
-                <TableHead>Status</TableHead>
-                <TableHead class="text-right">Ações</TableHead>
+                <TableHead class="font-semibold text-foreground">Nome</TableHead>
+                <TableHead class="font-semibold text-foreground">CNPJ</TableHead>
+                <TableHead class="font-semibold text-foreground">Responsável</TableHead>
+                <TableHead class="font-semibold text-foreground">Template</TableHead>
+                <TableHead class="font-semibold text-foreground">Status</TableHead>
+                <TableHead class="text-right font-semibold text-foreground">Ações</TableHead>
               </TableRow>
             </TableHeader>
             <TableBody>
-              <TableRow v-for="company in companies" :key="company.id">
+              <TableRow
+                v-for="company in companies"
+                :key="company.id"
+                class="border-border hover:bg-slate-50/75 transition-colors"
+              >
                 <TableCell>
                   <input
                     type="checkbox"
-                    class="size-4"
+                    class="size-4 rounded border-border text-primary focus:ring-ring accent-primary"
                     :aria-label="'Selecionar ' + company.name"
                     :checked="selectedIds.has(company.id)"
                     @change="toggleSelected(company.id)"
                   />
                 </TableCell>
-                <TableCell class="font-medium">
-                  <RouterLink :to="`/empresas/${company.id}/editar`" class="hover:underline">
+                <TableCell class="font-medium font-display text-foreground">
+                  <RouterLink :to="`/empresas/${company.id}/editar`" class="hover:text-primary transition-colors hover:underline">
                     {{ company.name }}
                   </RouterLink>
                 </TableCell>
-                <TableCell class="tabular-nums text-muted-foreground">{{
-                  maskedCnpj(company.cnpj)
-                }}</TableCell>
+                <TableCell class="tabular-nums text-muted-foreground text-xs sm:text-sm">
+                  {{ maskedCnpj(company.cnpj) }}
+                </TableCell>
                 <TableCell>
                   <template v-if="!company.contactCount || !company.contacts.length">
                     <span
-                      class="inline-flex items-center gap-1 rounded-full border border-danger-border bg-danger-surface px-2 py-0.5 text-[11px] font-semibold text-danger"
+                      class="inline-flex items-center gap-1 rounded-full border border-danger-border bg-danger-surface px-2.5 py-0.5 text-[11px] font-semibold text-danger"
                     >
                       <MailX class="h-3 w-3" aria-hidden="true" /> Sem Responsável
                     </span>
@@ -250,20 +267,20 @@ async function applyTemplateToSelected() {
                   <template v-else>
                     <div class="flex flex-col gap-0.5">
                       <div class="flex items-center gap-1.5">
-                        <span class="text-xs font-medium">{{ company.contacts[0].name }}</span>
+                        <span class="text-xs font-medium text-foreground">{{ company.contacts[0].name }}</span>
                         <template v-if="!company.readyContactCount">
                           <span
-                            class="text-muted-foreground border-border inline-flex items-center gap-1 rounded-full border px-1.5 py-0.5 text-[10px] font-semibold"
+                            class="text-muted-foreground border-border bg-muted/60 inline-flex items-center gap-1 rounded-full border px-1.5 py-0.5 text-[10px] font-semibold"
                             title="O Responsável envia pelo link, sem conta. A conta é opcional."
                           >
-                            <Mail class="h-[10px] w-[10px]" aria-hidden="true" /> Link
+                            <Mail class="h-2.5 w-2.5" aria-hidden="true" /> Link
                           </span>
                         </template>
                         <template v-else>
                           <span
                             class="inline-flex items-center gap-1 rounded-full border border-success-border bg-success-surface px-1.5 py-0.5 text-[10px] font-semibold text-success"
                           >
-                            <CircleCheck class="h-[10px] w-[10px]" aria-hidden="true" /> App
+                            <CircleCheck class="h-2.5 w-2.5" aria-hidden="true" /> App
                           </span>
                         </template>
                       </div>
@@ -281,13 +298,13 @@ async function applyTemplateToSelected() {
                 </TableCell>
                 <TableCell>
                   <template v-if="company.templateName">
-                    <RouterLink :to="`/empresas/${company.id}/checklist`" class="hover:underline">
+                    <RouterLink :to="`/empresas/${company.id}/checklist`" class="text-foreground hover:text-primary transition-colors hover:underline text-sm font-medium">
                       {{ company.templateName }}
                     </RouterLink>
                   </template>
                   <template v-else>
                     <span
-                      class="inline-flex items-center gap-1 rounded-full border border-warning-border bg-warning-surface px-2 py-0.5 text-[11px] font-semibold text-warning-foreground"
+                      class="inline-flex items-center gap-1 rounded-full border border-warning-border bg-warning-surface px-2.5 py-0.5 text-[11px] font-semibold text-warning-foreground"
                     >
                       Sem template
                     </span>
@@ -298,30 +315,32 @@ async function applyTemplateToSelected() {
                 </TableCell>
                 <TableCell class="text-right">
                   <div class="flex flex-wrap items-center justify-end gap-1">
-                    <Button variant="ghost" size="sm" as-child>
+                    <Button variant="ghost" size="sm" as-child class="h-8 px-2 text-xs text-muted-foreground hover:text-foreground">
                       <RouterLink :to="`/empresas/${company.id}/editar`">
-                        <Pencil class="mr-2 h-4 w-4" aria-hidden="true" /> Editar
+                        <Pencil class="mr-1.5 h-3.5 w-3.5" aria-hidden="true" /> Editar
                       </RouterLink>
                     </Button>
-                    <Button variant="ghost" size="sm" as-child>
+                    <Button variant="ghost" size="sm" as-child class="h-8 px-2 text-xs text-muted-foreground hover:text-foreground">
                       <RouterLink :to="`/empresas/${company.id}/checklist`">
-                        <SquareCheckBig class="mr-2 h-4 w-4" aria-hidden="true" /> Checklist
+                        <SquareCheckBig class="mr-1.5 h-3.5 w-3.5" aria-hidden="true" /> Checklist
                       </RouterLink>
                     </Button>
                     <Button
                       v-if="company.contactCount && !company.readyContactCount"
                       variant="ghost"
                       size="sm"
+                      class="h-8 px-2 text-xs text-muted-foreground hover:text-foreground"
                       :disabled="inviting === company.id"
                       @click="inviteToApp(company)"
                     >
-                      <Send class="mr-2 h-4 w-4" aria-hidden="true" />
+                      <Send class="mr-1.5 h-3.5 w-3.5" aria-hidden="true" />
                       {{ inviting === company.id ? 'Convidando…' : 'Convidar para o app' }}
                     </Button>
                     <Button
                       v-if="company.active"
                       variant="ghost"
                       size="sm"
+                      class="h-8 px-2 text-xs text-muted-foreground hover:text-destructive"
                       @click="confirmDeactivate = company"
                     >
                       Desativar
@@ -330,6 +349,7 @@ async function applyTemplateToSelected() {
                       v-else
                       variant="ghost"
                       size="sm"
+                      class="h-8 px-2 text-xs text-muted-foreground hover:text-primary"
                       :disabled="acting"
                       @click="reactivate(company)"
                     >
@@ -353,7 +373,7 @@ async function applyTemplateToSelected() {
     title="Desativar empresa?"
     description="Empresa desativada não entra no fan-out das próximas competências."
   >
-    <p class="text-sm">
+    <p class="text-sm text-foreground">
       {{ confirmDeactivate?.name }} deixa de ser cobrada. As solicitações já abertas continuam como
       estão, e você pode reativá-la depois.
     </p>
@@ -371,18 +391,18 @@ async function applyTemplateToSelected() {
   <div v-if="selectedIds.size" class="h-20" aria-hidden="true"></div>
   <div
     v-if="selectedIds.size"
-    class="border-border bg-card fixed inset-x-0 bottom-0 z-40 border-t p-3 shadow-[0_-4px_12px_rgba(15,23,42,0.08)]"
+    class="border-border bg-card fixed inset-x-0 bottom-0 z-40 border-t p-3.5 shadow-[0_-4px_16px_rgba(15,23,42,0.08)]"
     role="region"
     aria-label="Aplicar template em lote"
   >
     <div class="mx-auto flex max-w-5xl flex-wrap items-center justify-end gap-3">
-      <p class="mr-auto text-sm">
-        <b>{{ selectedIds.size }}</b>
+      <p class="mr-auto text-sm text-foreground font-medium">
+        <b class="font-semibold text-primary tabular-nums">{{ selectedIds.size }}</b>
         {{ selectedIds.size === 1 ? 'empresa selecionada' : 'empresas selecionadas' }}
       </p>
       <select
         v-model="bulkTemplateId"
-        class="flex h-10 w-56 rounded-md border border-input bg-background px-3 py-2 text-sm ring-offset-background file:border-0 file:bg-transparent file:text-sm file:font-medium placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-50"
+        class="flex h-10 w-56 rounded-md border border-input bg-background px-3 py-2 text-sm shadow-xs transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:border-primary disabled:cursor-not-allowed disabled:opacity-50"
         aria-label="Template de checklist"
       >
         <option value="">Escolha um template</option>
@@ -397,7 +417,7 @@ async function applyTemplateToSelected() {
       <Button variant="ghost" :disabled="applyingTemplate" @click="clearSelection">
         Limpar seleção
       </Button>
-      <Button :disabled="applyingTemplate || !bulkTemplateId" @click="applyTemplateToSelected">
+      <Button :disabled="applyingTemplate || !bulkTemplateId" class="shadow-xs font-medium" @click="applyTemplateToSelected">
         {{
           applyingTemplate
             ? 'Aplicando…'

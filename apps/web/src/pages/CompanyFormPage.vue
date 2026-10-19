@@ -342,15 +342,15 @@ const onSubmit = handleSubmit(async (values) => {
 
   <form
     novalidate
-    class="mx-auto mt-8 flex max-w-4xl flex-col items-start gap-12 lg:flex-row"
+    class="mx-auto mt-8 flex max-w-5xl flex-col items-start gap-8 lg:flex-row"
     @submit="onSubmit"
   >
-    <div class="flex flex-1 flex-col gap-10">
+    <div class="flex flex-1 flex-col gap-6 w-full">
       <Callout v-if="error" tone="danger" :heading="error" />
 
-      <section class="flex flex-col gap-6">
-        <div>
-          <h2 class="text-base font-semibold leading-7">Dados da empresa</h2>
+      <section class="bg-card border-border shadow-sm rounded-xl p-6 border flex flex-col gap-6">
+        <div class="border-b border-border/80 pb-4">
+          <h2 class="font-display text-base font-semibold leading-7 text-foreground">Dados da empresa</h2>
           <p class="text-muted-foreground mt-1 text-sm leading-6">
             O nome aparece no link de upload e nos emails enviados para o cliente.
           </p>
@@ -358,22 +358,22 @@ const onSubmit = handleSubmit(async (values) => {
 
         <div class="flex flex-col gap-4">
           <div class="flex flex-col gap-1.5">
-            <Label for="name">Nome da empresa <span class="text-danger">*</span></Label>
-            <Input id="name" v-model="name" />
+            <Label for="name" class="font-medium text-foreground">Nome da empresa <span class="text-danger">*</span></Label>
+            <Input id="name" v-model="name" class="focus-visible:ring-ring focus-visible:border-primary shadow-xs" />
             <p v-if="errors.name" class="text-danger text-sm">{{ errors.name }}</p>
           </div>
 
           <div class="flex flex-col gap-1.5">
-            <Label for="cnpj">CNPJ (Opcional)</Label>
-            <Input id="cnpj" v-model="cnpj" placeholder="00.000.000/0000-00" />
+            <Label for="cnpj" class="font-medium text-foreground">CNPJ (Opcional)</Label>
+            <Input id="cnpj" v-model="cnpj" placeholder="00.000.000/0000-00" class="focus-visible:ring-ring focus-visible:border-primary shadow-xs" />
             <p v-if="errors.cnpj" class="text-danger text-sm">{{ errors.cnpj }}</p>
           </div>
         </div>
       </section>
 
-      <section class="flex flex-col gap-6">
-        <div>
-          <h2 class="text-base font-semibold leading-7">Responsável pelo envio</h2>
+      <section class="bg-card border-border shadow-sm rounded-xl p-6 border flex flex-col gap-6">
+        <div class="border-b border-border/80 pb-4">
+          <h2 class="font-display text-base font-semibold leading-7 text-foreground">Responsável pelo envio</h2>
           <p class="text-muted-foreground mt-1 text-sm leading-6">
             Quem recebe os links de cobrança desta empresa.
           </p>
@@ -381,33 +381,34 @@ const onSubmit = handleSubmit(async (values) => {
 
         <div class="flex flex-col gap-4">
           <div class="flex flex-col gap-1.5">
-            <Label for="contactName">Nome do contato</Label>
-            <Input id="contactName" v-model="contactName" placeholder="Ex: João da Silva" />
+            <Label for="contactName" class="font-medium text-foreground">Nome do contato</Label>
+            <Input id="contactName" v-model="contactName" placeholder="Ex: João da Silva" class="focus-visible:ring-ring focus-visible:border-primary shadow-xs" />
             <p v-if="errors.contactName" class="text-danger text-sm">{{ errors.contactName }}</p>
           </div>
 
           <div class="flex flex-col gap-1.5">
-            <Label for="contactEmail">E-mail</Label>
-            <Input id="contactEmail" type="email" v-model="contactEmail" />
+            <Label for="contactEmail" class="font-medium text-foreground">E-mail</Label>
+            <Input id="contactEmail" type="email" v-model="contactEmail" class="focus-visible:ring-ring focus-visible:border-primary shadow-xs" />
             <p v-if="errors.contactEmail" class="text-danger text-sm">{{ errors.contactEmail }}</p>
           </div>
 
           <div class="flex flex-col gap-1.5">
-            <Label for="contactPhone">WhatsApp (Opcional)</Label>
+            <Label for="contactPhone" class="font-medium text-foreground">WhatsApp (Opcional)</Label>
             <Input
               id="contactPhone"
               type="tel"
               v-model="contactPhone"
               placeholder="(00) 00000-0000"
+              class="focus-visible:ring-ring focus-visible:border-primary shadow-xs"
             />
             <p v-if="errors.contactPhone" class="text-danger text-sm">{{ errors.contactPhone }}</p>
           </div>
         </div>
       </section>
 
-      <section class="flex flex-col gap-6">
-        <div>
-          <h2 class="text-base font-semibold leading-7">Atendimento</h2>
+      <section class="bg-card border-border shadow-sm rounded-xl p-6 border flex flex-col gap-6">
+        <div class="border-b border-border/80 pb-4">
+          <h2 class="font-display text-base font-semibold leading-7 text-foreground">Atendimento</h2>
           <p class="text-muted-foreground mt-1 text-sm leading-6">
             Responsável interno e obrigações da empresa.
           </p>
@@ -415,11 +416,11 @@ const onSubmit = handleSubmit(async (values) => {
 
         <div class="flex flex-col gap-4">
           <div class="flex flex-col gap-1.5">
-            <Label for="responsibleAccountantId">Contador responsável</Label>
+            <Label for="responsibleAccountantId" class="font-medium text-foreground">Contador responsável</Label>
             <select
               id="responsibleAccountantId"
               v-model="responsibleAccountantId"
-              class="flex h-10 w-full rounded-md border border-input bg-background px-3 py-2 text-sm ring-offset-background file:border-0 file:bg-transparent file:text-sm file:font-medium placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-50"
+              class="flex h-10 w-full rounded-md border border-input bg-background px-3 py-2 text-sm shadow-xs transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:border-primary disabled:cursor-not-allowed disabled:opacity-50"
             >
               <option value="">Nenhum (qualquer um da equipe pode atender)</option>
               <option v-for="user in teamAccountants" :key="user.id" :value="user.id">
@@ -432,36 +433,40 @@ const onSubmit = handleSubmit(async (values) => {
           </div>
         </div>
 
-        <div class="flex flex-col gap-4 mt-2">
-          <div v-for="flag in availableFlags" :key="flag.key" class="flex items-center gap-2">
+        <div class="flex flex-col gap-3 pt-2">
+          <div
+            v-for="flag in availableFlags"
+            :key="flag.key"
+            class="flex items-center gap-3 rounded-lg border border-border/60 bg-sunken/40 px-3.5 py-2.5 transition-colors hover:bg-sunken/70"
+          >
             <input
               type="checkbox"
               :id="'flag-' + flag.key"
               v-model="flags[flag.key]"
-              class="size-4"
+              class="size-4 rounded border-border text-primary focus:ring-ring accent-primary"
             />
-            <Label :for="'flag-' + flag.key" class="font-normal">{{ flag.label }}</Label>
+            <Label :for="'flag-' + flag.key" class="font-medium cursor-pointer text-foreground">{{ flag.label }}</Label>
           </div>
         </div>
       </section>
 
-      <div class="border-border flex gap-3 border-t pt-6">
+      <div class="border-border flex items-center gap-3 border-t pt-4">
         <Button variant="ghost" type="button" @click="router.back()">Cancelar</Button>
-        <Button type="submit" :disabled="saving">
+        <Button type="submit" :disabled="saving" class="shadow-xs font-medium">
           {{ saving ? 'Salvando...' : 'Salvar empresa' }}
         </Button>
       </div>
     </div>
 
     <div
-      class="bg-card border-border flex w-full flex-col gap-6 rounded-xl border p-4 shadow-sm lg:sticky lg:top-8 lg:w-[24rem]"
+      class="bg-card border-border flex w-full flex-col gap-6 rounded-xl border p-6 shadow-sm lg:sticky lg:top-8 lg:w-[24rem]"
     >
       <div>
-        <Label for="checklistTemplateId" class="mb-2 block">Checklist aplicado</Label>
+        <Label for="checklistTemplateId" class="mb-2 block font-medium text-foreground">Checklist aplicado</Label>
         <select
           id="checklistTemplateId"
           v-model="checklistTemplateId"
-          class="flex h-10 w-full rounded-md border border-input bg-background px-3 py-2 text-sm ring-offset-background file:border-0 file:bg-transparent file:text-sm file:font-medium placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-50"
+          class="flex h-10 w-full rounded-md border border-input bg-background px-3 py-2 text-sm shadow-xs transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:border-primary disabled:cursor-not-allowed disabled:opacity-50"
         >
           <option value="">Sem template de checklist</option>
           <option v-for="t in templatesQuery.data.value" :key="t.id" :value="t.id">
@@ -475,43 +480,43 @@ const onSubmit = handleSubmit(async (values) => {
 
       <div
         v-if="(checklistTemplateId || preview.total > 0) && !previewLoading"
-        class="border-border border-t pt-6"
+        class="border-border border-t pt-5"
       >
         <div class="flex items-center justify-between gap-4">
-          <h3 class="text-sm font-semibold">
+          <h3 class="text-sm font-semibold font-display text-foreground">
             Prévia do checklist
-            <span v-if="preview.customized" class="text-muted-foreground font-normal">
-              — inclui ajustes desta empresa
+            <span v-if="preview.customized" class="text-muted-foreground font-normal text-xs block sm:inline">
+              (inclui ajustes desta empresa)
             </span>
           </h3>
           <span
-            class="bg-muted text-muted-foreground inline-flex items-center rounded-full px-2 py-0.5 text-xs font-semibold"
+            class="bg-primary/10 text-primary border border-primary/20 inline-flex items-center rounded-full px-2.5 py-0.5 text-xs font-semibold shrink-0"
           >
             {{ preview.total }} itens
           </span>
         </div>
 
-        <div class="mt-4 flex flex-col gap-6">
+        <div class="mt-4 flex flex-col gap-4">
           <div
             v-for="[category, items] in preview.groups"
             :key="category"
-            class="flex flex-col gap-2"
+            class="flex flex-col gap-2 rounded-lg bg-sunken/40 p-3 border border-border/50"
           >
-            <h4 class="text-xs font-medium uppercase tracking-wider text-muted-foreground">
+            <h4 class="text-[11px] font-semibold uppercase tracking-wider text-muted-foreground">
               {{ CATEGORY_LABEL[category] ?? category }}
             </h4>
-            <ul class="flex flex-col gap-3">
+            <ul class="flex flex-col gap-2.5">
               <li v-for="item in items" :key="item.key" class="text-sm flex flex-col">
-                <span class="font-medium text-foreground">
-                  {{ item.name }}
-                  <span v-if="item.fromOverride" class="text-info-foreground ml-1 text-xs">
-                    (ajuste)
+                <span class="font-medium text-foreground flex items-center justify-between gap-2">
+                  <span>{{ item.name }}</span>
+                  <span v-if="item.fromOverride" class="inline-flex rounded-full bg-info-surface border border-info-border px-1.5 py-0.5 text-[10px] font-semibold text-info-foreground">
+                    ajuste
                   </span>
                 </span>
-                <span class="text-muted-foreground mt-0.5 text-xs">
-                  {{ PERIODICITY_LABEL[item.periodicity] ?? item.periodicity }}
-                  <span v-if="item.conditionFlag" class="text-warning-foreground ml-2 font-medium">
-                    (Se {{ FLAG_LABEL[item.conditionFlag] }})
+                <span class="text-muted-foreground mt-0.5 text-xs flex flex-wrap items-center gap-1.5">
+                  <span>{{ PERIODICITY_LABEL[item.periodicity] ?? item.periodicity }}</span>
+                  <span v-if="item.conditionFlag" class="text-warning-foreground font-medium">
+                    &middot; Se {{ FLAG_LABEL[item.conditionFlag] }}
                   </span>
                 </span>
               </li>

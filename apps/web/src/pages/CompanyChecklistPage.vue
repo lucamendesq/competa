@@ -188,33 +188,34 @@ async function restoreDefault() {
     <Button
       v-if="custom && effectiveChecklistQuery.data.value?.template"
       variant="ghost"
+      class="shadow-xs"
       @click="confirmRestore = true"
     >
       <RotateCcw class="mr-2 h-4 w-4" aria-hidden="true" /> Restaurar padrão do template
     </Button>
-    <Button @click="catalogOpen = true">
+    <Button @click="catalogOpen = true" class="shadow-xs font-medium">
       <Plus class="mr-2 h-4 w-4" aria-hidden="true" /> Adicionar documento
     </Button>
-    <Button variant="outline" as-child>
+    <Button variant="outline" as-child class="shadow-xs">
       <RouterLink :to="`/empresas/${id}/editar`">Voltar para a empresa</RouterLink>
     </Button>
   </PageHeader>
 
   <section
     v-if="created"
-    class="mt-8 flex flex-wrap items-center gap-3 rounded-xl border border-info-border bg-info-surface p-4"
+    class="mt-8 flex flex-wrap items-center gap-3 rounded-xl border border-info-border bg-info-surface/80 p-4 sm:p-5 shadow-xs"
     role="status"
   >
     <div class="min-w-0 flex-1">
       <h2 class="text-sm font-semibold text-info-foreground">
         Empresa cadastrada. Falta um ajuste?
       </h2>
-      <p class="mt-0.5 text-xs text-info-foreground">
+      <p class="mt-0.5 text-xs text-info-foreground/90">
         Este é o checklist que vai ser cobrado todo mês. Remova o que esta empresa não tem e
         adicione o que faltar — sem precisar criar um template novo.
       </p>
     </div>
-    <Button variant="outline" size="sm" as-child>
+    <Button variant="outline" size="sm" as-child class="shadow-xs bg-card">
       <RouterLink to="/empresas">Está bom assim</RouterLink>
     </Button>
   </section>
@@ -230,22 +231,26 @@ async function restoreDefault() {
       />
     </template>
     <template v-else>
-      <div class="flex flex-col gap-4">
+      <div class="flex flex-col gap-6">
         <section
           v-for="[category, groupLines] in groups"
           :key="category"
-          class="bg-card border-border rounded-xl border"
+          class="bg-card border-border rounded-xl border shadow-sm overflow-hidden"
         >
-          <h2 class="border-border border-b p-4 text-sm font-semibold">
-            {{ CATEGORY_LABEL[category] ?? category }}
-            <span class="text-muted-foreground font-normal">({{ groupLines.length }})</span>
-          </h2>
+          <div class="bg-sunken/60 border-b border-border px-5 py-3.5 flex items-center justify-between">
+            <h2 class="font-display text-sm font-semibold text-foreground flex items-center gap-2">
+              <span>{{ CATEGORY_LABEL[category] ?? category }}</span>
+              <span class="bg-muted text-muted-foreground inline-flex items-center rounded-full px-2 py-0.5 text-xs font-semibold">
+                {{ groupLines.length }}
+              </span>
+            </h2>
+          </div>
 
           <ul class="divide-border divide-y" role="list">
             <li
               v-for="line in groupLines"
               :key="line.documentTypeId"
-              class="flex flex-wrap items-start gap-3 p-4"
+              class="flex flex-wrap items-start gap-4 p-4 sm:p-5 hover:bg-slate-50/75 transition-colors"
             >
               <button
                 type="button"
@@ -269,7 +274,7 @@ async function restoreDefault() {
                 <div class="flex flex-wrap items-center gap-2">
                   <p
                     class="text-sm font-medium"
-                    :class="{ 'line-through text-muted-foreground': line.source === 'removido' }"
+                    :class="line.source === 'removido' ? 'line-through text-muted-foreground' : 'text-foreground font-display'"
                   >
                     {{ line.name }}
                   </p>
@@ -289,17 +294,17 @@ async function restoreDefault() {
                   {{ line.description }}
                 </p>
 
-                <div class="mt-2 flex flex-wrap items-center gap-x-4 gap-y-1 text-xs">
+                <div class="mt-2.5 flex flex-wrap items-center gap-x-4 gap-y-1.5 text-xs">
                   <span class="flex flex-wrap gap-1">
                     <span
                       v-for="format in line.acceptedFormats"
                       :key="format"
-                      class="bg-muted rounded-full px-2 py-0.5 font-medium"
+                      class="bg-muted text-muted-foreground border border-border/50 rounded-full px-2 py-0.5 font-medium text-[11px]"
                     >
                       {{ format }}
                     </span>
                   </span>
-                  <span class="text-muted-foreground">{{
+                  <span class="text-muted-foreground font-medium">{{
                     PERIODICITY_LABEL[line.periodicity]
                   }}</span>
                   <span v-if="line.dueDay" class="text-muted-foreground tabular-nums">
@@ -338,7 +343,7 @@ async function restoreDefault() {
     title="Restaurar padrão do template?"
     description="Todos os ajustes desta empresa serão descartados."
   >
-    <p class="text-sm">
+    <p class="text-sm text-foreground">
       O checklist volta a ser exatamente o do template
       <strong>{{ effectiveChecklistQuery.data.value?.template?.name }}</strong
       >. Competências já abertas não mudam.

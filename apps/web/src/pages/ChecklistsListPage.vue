@@ -76,7 +76,7 @@ async function createBlank() {
     description="Modelos de solicitação reutilizáveis por segmento ou regime."
   >
     <template #actions>
-      <Button @click="blankOpen = true">
+      <Button @click="blankOpen = true" class="shadow-xs font-medium">
         <Plus class="mr-2 h-4 w-4" aria-hidden="true" />
         Criar em branco
       </Button>
@@ -100,36 +100,46 @@ async function createBlank() {
       <div class="bg-card border-border overflow-hidden rounded-xl border shadow-sm">
         <div class="overflow-x-auto">
           <Table>
-            <TableHeader>
-              <TableRow>
-                <TableHead>Nome</TableHead>
-                <TableHead>Itens</TableHead>
-                <TableHead>Empresas usando</TableHead>
-                <TableHead class="text-right">Ações</TableHead>
+            <TableHeader class="bg-sunken/60">
+              <TableRow class="hover:bg-transparent border-border">
+                <TableHead class="font-semibold text-foreground">Nome</TableHead>
+                <TableHead class="font-semibold text-foreground">Itens</TableHead>
+                <TableHead class="font-semibold text-foreground">Empresas usando</TableHead>
+                <TableHead class="text-right font-semibold text-foreground">Ações</TableHead>
               </TableRow>
             </TableHeader>
             <TableBody>
-              <TableRow v-for="template in templatesQuery.data.value" :key="template.id">
-                <TableCell class="font-medium">
-                  <RouterLink :to="`/templates/${template.id}`" class="hover:underline">
-                    {{ template.name }}
-                  </RouterLink>
-                  <span
-                    v-if="template.isProduct"
-                    class="bg-primary/10 text-primary ml-2 inline-flex items-center rounded-full px-2 py-0.5 text-[10px] font-semibold"
-                  >
-                    Padrão Competa
-                  </span>
+              <TableRow
+                v-for="template in templatesQuery.data.value"
+                :key="template.id"
+                class="border-border hover:bg-slate-50/75 transition-colors"
+              >
+                <TableCell class="font-medium font-display text-foreground">
+                  <div class="flex items-center gap-2">
+                    <RouterLink :to="`/templates/${template.id}`" class="hover:text-primary transition-colors hover:underline">
+                      {{ template.name }}
+                    </RouterLink>
+                    <span
+                      v-if="template.isProduct"
+                      class="bg-primary/10 text-primary border border-primary/20 inline-flex items-center rounded-full px-2 py-0.5 text-[10px] font-semibold"
+                    >
+                      Padrão Competa
+                    </span>
+                  </div>
                 </TableCell>
-                <TableCell>{{ template.itemCount }} documentos</TableCell>
-                <TableCell>{{ template.companyCount }}</TableCell>
+                <TableCell class="text-muted-foreground text-sm">
+                  <span class="tabular-nums font-medium text-foreground">{{ template.itemCount }}</span> documentos
+                </TableCell>
+                <TableCell class="text-muted-foreground text-sm">
+                  <span class="tabular-nums font-medium text-foreground">{{ template.companyCount }}</span>
+                </TableCell>
                 <TableCell class="text-right">
-                  <div class="flex items-center justify-end gap-2">
-                    <Button variant="ghost" size="sm" as-child>
+                  <div class="flex items-center justify-end gap-1.5">
+                    <Button variant="ghost" size="sm" as-child class="h-8 px-2.5 text-xs text-muted-foreground hover:text-foreground">
                       <RouterLink :to="`/templates/${template.id}`"> Editar </RouterLink>
                     </Button>
-                    <Button variant="ghost" size="sm" @click="openDerive(template)">
-                      <Plus class="mr-2 h-4 w-4" aria-hidden="true" /> Duplicar
+                    <Button variant="ghost" size="sm" class="h-8 px-2.5 text-xs text-muted-foreground hover:text-foreground" @click="openDerive(template)">
+                      <Plus class="mr-1.5 h-3.5 w-3.5" aria-hidden="true" /> Duplicar
                     </Button>
                   </div>
                 </TableCell>
@@ -149,12 +159,12 @@ async function createBlank() {
   >
     <form @submit.prevent="derive" class="mt-4 flex flex-col gap-4">
       <div class="flex flex-col gap-1.5">
-        <Label for="deriveName">Nome do novo template</Label>
-        <Input id="deriveName" v-model="newName" autofocus />
+        <Label for="deriveName" class="font-medium text-foreground">Nome do novo template</Label>
+        <Input id="deriveName" v-model="newName" class="focus-visible:ring-ring focus-visible:border-primary shadow-xs" autofocus />
       </div>
       <div class="border-border bg-muted/40 -mx-6 -mb-6 mt-5 flex justify-end gap-2 border-t p-4">
         <Button variant="ghost" type="button" @click="deriveOpen = null">Cancelar</Button>
-        <Button type="submit" :disabled="acting || !newName.trim()">
+        <Button type="submit" :disabled="acting || !newName.trim()" class="shadow-xs font-medium">
           {{ acting ? 'Duplicando...' : 'Criar cópia' }}
         </Button>
       </div>
@@ -169,8 +179,8 @@ async function createBlank() {
   >
     <form @submit.prevent="createBlank" class="mt-4 flex flex-col gap-4">
       <div class="flex flex-col gap-1.5">
-        <Label for="blankName">Nome do template</Label>
-        <Input id="blankName" v-model="newName" autofocus />
+        <Label for="blankName" class="font-medium text-foreground">Nome do template</Label>
+        <Input id="blankName" v-model="newName" class="focus-visible:ring-ring focus-visible:border-primary shadow-xs" autofocus />
       </div>
       <div class="border-border bg-muted/40 -mx-6 -mb-6 mt-5 flex justify-end gap-2 border-t p-4">
         <Button
@@ -182,7 +192,7 @@ async function createBlank() {
           "
           >Cancelar</Button
         >
-        <Button type="submit" :disabled="acting || !newName.trim()">
+        <Button type="submit" :disabled="acting || !newName.trim()" class="shadow-xs font-medium">
           {{ acting ? 'Criando...' : 'Criar template' }}
         </Button>
       </div>

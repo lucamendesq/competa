@@ -243,7 +243,7 @@ function downloadTemplate() {
     title="Importar Empresas"
     description="Adicione suas empresas em lote, importando do sistema contábil."
   >
-    <Button variant="outline" as-child>
+    <Button variant="outline" as-child class="shadow-xs">
       <RouterLink to="/empresas">Voltar</RouterLink>
     </Button>
   </PageHeader>
@@ -252,7 +252,7 @@ function downloadTemplate() {
     <section v-if="preview" class="flex flex-col gap-6">
       <div class="flex flex-col gap-4 sm:flex-row sm:items-start sm:justify-between">
         <div>
-          <h2 class="text-base font-semibold">Resumo da importação</h2>
+          <h2 class="font-display text-base font-semibold text-foreground">Resumo da importação</h2>
           <p class="text-muted-foreground mt-1 text-sm">
             <template v-if="confirmed">
               {{ summary.created }} importadas &middot; {{ summary.errors }} com erro &middot;
@@ -265,31 +265,31 @@ function downloadTemplate() {
           </p>
         </div>
         <div class="flex gap-2">
-          <Button variant="outline" @click="restart">Importar outra planilha</Button>
-          <Button :disabled="confirming" @click="finish">{{ finishLabel }}</Button>
+          <Button variant="outline" class="shadow-xs" @click="restart">Importar outra planilha</Button>
+          <Button :disabled="confirming" class="shadow-xs font-medium" @click="finish">{{ finishLabel }}</Button>
         </div>
       </div>
 
       <div
         v-if="actionableCount"
-        class="border-border bg-muted/40 flex flex-wrap items-center gap-3 border rounded-xl p-4"
+        class="border-border bg-card shadow-xs flex flex-wrap items-center gap-3 border rounded-xl p-4 sm:p-5"
       >
         <template v-if="invitesSent === null">
-          <p class="text-muted-foreground min-w-0 flex-1 text-xs">
+          <p class="text-muted-foreground min-w-0 flex-1 text-xs sm:text-sm">
             A importação não avisa ninguém por e-mail — confira o relatório antes.
             <template v-if="confirmed"
               >Envie o convite de acesso para os Responsáveis cadastrados.</template
             >
             <template v-else>Enviar os convites agora também importa as empresas.</template>
           </p>
-          <Button variant="outline" :disabled="inviting" @click="doSendInvites">
+          <Button variant="outline" :disabled="inviting" class="shadow-xs font-medium" @click="doSendInvites">
             <Mail class="mr-2 h-4 w-4" aria-hidden="true" />
             {{ inviting ? 'Enviando…' : 'Enviar convites de acesso (' + actionableCount + ')' }}
           </Button>
         </template>
         <template v-else>
-          <p class="flex min-w-0 flex-1 items-center gap-2 text-xs text-success font-medium">
-            <CircleCheck class="shrink-0 text-base" aria-hidden="true" />
+          <p class="flex min-w-0 flex-1 items-center gap-2 text-xs sm:text-sm text-success font-medium">
+            <CircleCheck class="shrink-0 h-4 w-4" aria-hidden="true" />
             {{ invitesSent }}
             {{ invitesSent === 1 ? 'convite enviado' : 'convites enviados' }}. Quem já tinha convite
             em aberto não recebeu outro.
@@ -300,39 +300,43 @@ function downloadTemplate() {
       <div class="bg-card border-border overflow-hidden rounded-xl border shadow-sm">
         <div class="overflow-x-auto">
           <Table>
-            <TableHeader>
-              <TableRow>
-                <TableHead>Linha</TableHead>
-                <TableHead>Empresa</TableHead>
-                <TableHead>Resultado</TableHead>
-                <TableHead>Detalhe</TableHead>
+            <TableHeader class="bg-sunken/60">
+              <TableRow class="hover:bg-transparent border-border">
+                <TableHead class="font-semibold text-foreground">Linha</TableHead>
+                <TableHead class="font-semibold text-foreground">Empresa</TableHead>
+                <TableHead class="font-semibold text-foreground">Resultado</TableHead>
+                <TableHead class="font-semibold text-foreground">Detalhe</TableHead>
               </TableRow>
             </TableHeader>
             <TableBody>
-              <TableRow v-for="line in displayLines" :key="line.line">
+              <TableRow
+                v-for="line in displayLines"
+                :key="line.line"
+                class="border-border hover:bg-slate-50/75 transition-colors"
+              >
                 <TableCell class="tabular-nums text-muted-foreground">{{ line.line }}</TableCell>
-                <TableCell class="font-medium">{{ line.name || '—' }}</TableCell>
+                <TableCell class="font-medium font-display text-foreground">{{ line.name || '—' }}</TableCell>
                 <TableCell>
                   <span
                     v-if="line.status === 'created'"
-                    class="inline-flex items-center gap-1 rounded-full border border-success-border bg-success-surface px-2 py-0.5 text-[11px] font-semibold text-success"
+                    class="inline-flex items-center gap-1.5 rounded-full border border-success-border bg-success-surface px-2.5 py-0.5 text-xs font-semibold text-success"
                   >
-                    <CircleCheck class="h-[12px] w-[12px]" aria-hidden="true" /> Importada
+                    <CircleCheck class="h-3.5 w-3.5" aria-hidden="true" /> Importada
                   </span>
                   <span
                     v-else-if="line.status === 'pending'"
-                    class="text-muted-foreground border-border inline-flex items-center gap-1 rounded-full border px-2 py-0.5 text-[11px] font-semibold"
+                    class="text-muted-foreground border-border bg-muted/60 inline-flex items-center gap-1.5 rounded-full border px-2.5 py-0.5 text-xs font-semibold"
                   >
-                    <Clock class="h-[12px] w-[12px]" aria-hidden="true" /> Pronta
+                    <Clock class="h-3.5 w-3.5" aria-hidden="true" /> Pronta
                   </span>
                   <span
                     v-else
-                    class="inline-flex items-center gap-1 rounded-full border border-danger-border bg-danger-surface px-2 py-0.5 text-[11px] font-semibold text-danger"
+                    class="inline-flex items-center gap-1.5 rounded-full border border-danger-border bg-danger-surface px-2.5 py-0.5 text-xs font-semibold text-danger"
                   >
-                    <CircleAlert class="h-[12px] w-[12px]" aria-hidden="true" /> Erro
+                    <CircleAlert class="h-3.5 w-3.5" aria-hidden="true" /> Erro
                   </span>
                 </TableCell>
-                <TableCell class="text-muted-foreground text-xs">
+                <TableCell class="text-muted-foreground text-xs sm:text-sm">
                   <template v-if="line.status === 'error'">{{ line.error }}</template>
                   <template v-else-if="line.status === 'created'">Empresa criada.</template>
                   <template v-else>Aguardando confirmação.</template>
@@ -349,19 +353,19 @@ function downloadTemplate() {
         <Callout v-if="error" tone="danger" :heading="error" />
 
         <div
-          class="bg-card rounded-xl border-2 border-dashed p-8 text-center transition-colors"
-          :class="dragging ? 'border-primary bg-primary/5' : 'border-border'"
+          class="bg-card rounded-xl border-2 border-dashed p-8 sm:p-10 text-center transition-colors shadow-xs"
+          :class="dragging ? 'border-primary/50 bg-primary/5' : 'border-border hover:border-primary/40'"
           @dragover.prevent="dragging = true"
           @dragleave="dragging = false"
           @drop="drop"
         >
           <span
-            class="bg-muted text-muted-foreground mx-auto flex size-12 items-center justify-center rounded-full"
+            class="bg-primary/10 text-primary mx-auto flex size-12 items-center justify-center rounded-full mb-4 shadow-xs"
           >
-            <Upload class="text-xl h-6 w-6" aria-hidden="true" />
+            <Upload class="h-6 w-6" aria-hidden="true" />
           </span>
 
-          <p class="mt-4 text-sm font-medium">
+          <p class="text-sm font-semibold font-display text-foreground">
             Arraste sua planilha (.xlsx ou .csv) aqui ou escolha o arquivo
           </p>
           <p class="text-muted-foreground mt-1 text-xs">
@@ -369,7 +373,7 @@ function downloadTemplate() {
           </p>
 
           <label
-            class="bg-primary text-primary-foreground hover:bg-primary/90 focus-within:ring-ring mt-5 inline-flex h-9 cursor-pointer items-center rounded-md px-3 text-sm font-medium focus-within:ring-2"
+            class="bg-primary text-primary-foreground hover:bg-primary/90 focus-within:ring-ring mt-5 inline-flex h-9 cursor-pointer items-center rounded-md px-3 text-sm font-medium focus-within:ring-2 shadow-xs transition-colors"
           >
             Escolher arquivo
             <input
@@ -380,17 +384,17 @@ function downloadTemplate() {
             />
           </label>
 
-          <p v-if="file" class="mt-4 text-sm">
-            Arquivo selecionado: <strong>{{ file.name }}</strong>
+          <p v-if="file" class="mt-4 text-sm text-foreground">
+            Arquivo selecionado: <strong class="font-semibold text-primary">{{ file.name }}</strong>
           </p>
         </div>
 
         <div class="flex flex-wrap items-center justify-between gap-2">
-          <Button variant="outline" @click="downloadTemplate">
+          <Button variant="outline" class="shadow-xs font-medium" @click="downloadTemplate">
             <Download class="mr-2 h-4 w-4" aria-hidden="true" /> Baixar planilha modelo
           </Button>
           <div class="flex flex-col items-end gap-1">
-            <Button :disabled="!file || sending" aria-describedby="import-help" @click="importCsv">
+            <Button :disabled="!file || sending" class="shadow-xs font-medium" aria-describedby="import-help" @click="importCsv">
               {{ sending ? 'Importando…' : 'Importar empresas' }}
             </Button>
             <p id="import-help" class="text-muted-foreground text-xs">
@@ -401,19 +405,19 @@ function downloadTemplate() {
         </div>
       </section>
 
-      <aside class="bg-card border-border h-fit rounded-xl border shadow-sm">
-        <div class="border-border border-b p-4">
-          <h2 class="text-sm font-semibold">Colunas esperadas</h2>
+      <aside class="bg-card border-border h-fit rounded-xl border shadow-sm overflow-hidden">
+        <div class="bg-sunken/60 border-border border-b p-4">
+          <h2 class="text-sm font-semibold font-display text-foreground">Colunas esperadas</h2>
           <p class="text-muted-foreground mt-1 text-xs">
             A primeira linha da planilha precisa ter estes nomes de coluna (variações como "Razão
             Social", "E-mail do responsável" e "WhatsApp" também são aceitas).
           </p>
         </div>
         <ul class="divide-border divide-y">
-          <li v-for="column in COLUMNS" :key="column.key" class="p-3">
-            <p class="text-sm font-semibold">{{ column.header }}</p>
+          <li v-for="column in COLUMNS" :key="column.key" class="p-3.5 hover:bg-slate-50/75 transition-colors">
+            <p class="text-sm font-semibold text-foreground">{{ column.header }}</p>
             <p class="text-muted-foreground mt-0.5 text-xs">
-              <span v-if="column.required" class="text-foreground font-medium">Obrigatória</span>
+              <span v-if="column.required" class="text-primary font-medium">Obrigatória</span>
               <template v-else>Opcional</template>
               <template v-if="'label' in column ? column.label : ''">
                 &middot; {{ 'label' in column ? column.label : '' }}</template
