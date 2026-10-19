@@ -8,6 +8,7 @@ configuração para funcionar. Complementa o [`roadmap.md`](./roadmap.md).
 | Rota                                     | Tela                                                                                                                 | Estado                                                      |
 | ---------------------------------------- | -------------------------------------------------------------------------------------------------------------------- | ----------------------------------------------------------- |
 | `/entrar`                                | Login do Contador (com "Esqueci minha senha")                                                                        | completa                                                    |
+| `/cadastro`                              | Cadastro público da Contabilidade (2 passos: Usuário + Contabilidade com 14 dias de trial)                           | completa                                                    |
 | `/esqueci-senha`, `/redefinir-senha`     | Reset de senha do Contador (token 1h, resposta cega)                                                                 | completa (2026-09-11)                                       |
 | `/convite/:token`                        | Aceitar convite (define senha, Contador e Responsável)                                                               | completa; convite já usado manda para a entrada             |
 | `/perdi-meu-link`                        | Pedido de novo Link (passo 1: email de confirmação de posse)                                                         | completa (2 passos desde 2026-09-11)                        |
@@ -187,3 +188,11 @@ Instalável pela área do Responsável: `manifest.webmanifest` com `start_url`
 service worker do Angular (`ngsw-config.json`) com **prefetch só de casca e assets**.
 Não há `dataGroups`: resposta de API nunca é cacheada — documento contábil velho em tela é
 pior do que tela vazia. Verificado com build de produção: SW ativo, casca abre offline.
+
+## Novo Design System (Outubro/2026)
+
+- **Paleta Canônica:** Noite Azulada (`#0F172A`) & Âmbar Solar (`#D97706` / `#B45309`) sobre Canvas claro e arejado (`#FAFAFA`) e superfícies puras (`#FFFFFF`).
+- **Tipografia:** `Outfit Variable` para títulos, display e KPIs; `Plus Jakarta Sans Variable` para leitura e dados.
+- **Acessibilidade WCAG 2.1 AA:** Relação de contraste mínima de 4.5:1 para textos e 3.0:1 para elementos de interface e anéis de foco, validada por teste automatizado (`pnpm --filter web run check:wcag`).
+- **Proibição Estrita de Losangos / 45°:** Blindagem via teste automatizado (`pnpm --filter web run check:no-diamond`).
+- **Descontinuação do Dark Mode:** Foco 100% em interface clara e arejada com remoção completa de `:root.dark` e exclusão de composables órfãos.

@@ -232,7 +232,7 @@ async function send(files: File[], requestItemId: string | null) {
       >
         <div class="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
           <div class="flex items-start gap-3">
-            <span class="bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 flex size-9 shrink-0 items-center justify-center rounded-lg mt-0.5">
+            <span class="bg-emerald-500/10 text-emerald-600 flex size-9 shrink-0 items-center justify-center rounded-lg mt-0.5">
               <CheckCircle2 class="h-4 w-4" />
             </span>
             <div>
