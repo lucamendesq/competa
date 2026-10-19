@@ -2,6 +2,7 @@
 import { ref, onMounted } from 'vue';
 import { useTitle } from '@vueuse/core';
 import { Button } from '@/components/ui/button';
+import { Input } from '@/components/ui/input';
 import {
   Card,
   CardContent,
@@ -127,24 +128,24 @@ onMounted(fetchStatus);
 </script>
 
 <template>
-  <div class="space-y-6">
+  <div class="space-y-6 max-w-4xl">
     <div>
-      <h1 class="text-3xl font-bold tracking-tight">WhatsApp</h1>
-      <p class="text-muted-foreground">
+      <h1 class="text-3xl font-bold tracking-tight font-display text-foreground">WhatsApp</h1>
+      <p class="text-muted-foreground mt-1">
         Conecte sua conta do WhatsApp Business para enviar lembretes e solicitações aos seus
         clientes.
       </p>
     </div>
 
-    <Card v-if="loading" class="flex justify-center p-12">
+    <Card v-if="loading" class="flex justify-center p-12 border border-border shadow-sm rounded-xl">
       <Loader2 class="h-8 w-8 animate-spin text-muted-foreground" />
     </Card>
 
     <div v-else class="space-y-6">
-      <Card v-if="status === 'not_connected'">
+      <Card v-if="status === 'not_connected'" class="border border-border shadow-sm rounded-xl">
         <CardHeader>
-          <CardTitle class="flex items-center gap-2">
-            <MessageSquare class="h-5 w-5" />
+          <CardTitle class="flex items-center gap-2 font-display">
+            <MessageSquare class="h-5 w-5 text-primary" />
             Integrar WhatsApp
           </CardTitle>
           <CardDescription>
@@ -154,16 +155,16 @@ onMounted(fetchStatus);
         </CardHeader>
         <CardContent class="space-y-4 text-sm text-muted-foreground">
           <p>O envio via WhatsApp aumenta em até 80% a taxa de entrega dos documentos no prazo.</p>
-          <div class="rounded-md bg-muted p-4">
-            <p class="font-medium text-foreground mb-1">Atenção aos custos</p>
-            <p>
+          <div class="rounded-xl border border-warning-border bg-warning-surface p-4 text-warning-foreground">
+            <p class="font-semibold text-warning-foreground mb-1">Atenção aos custos</p>
+            <p class="leading-relaxed">
               O serviço de mensagens do WhatsApp / Meta Cloud API é cobrado diretamente pela Meta
               (Facebook) através do cartão de crédito cadastrado na sua conta empresarial. A
               assinatura do Competa cobre apenas a plataforma de software.
             </p>
           </div>
         </CardContent>
-        <CardFooter>
+        <CardFooter class="border-t border-border px-6 py-4">
           <Button @click="connectWhatsApp" :disabled="processing">
             <Loader2 v-if="processing" class="mr-2 h-4 w-4 animate-spin" />
             Conectar com o Facebook
@@ -171,33 +172,33 @@ onMounted(fetchStatus);
         </CardFooter>
       </Card>
 
-      <Card v-else>
+      <Card v-else class="border border-border shadow-sm rounded-xl">
         <CardHeader>
-          <CardTitle class="flex items-center gap-2">
-            <CheckCircle2 v-if="status === 'active'" class="h-5 w-5 text-green-500" />
-            <AlertCircle v-else class="h-5 w-5 text-amber-500" />
+          <CardTitle class="flex items-center gap-2 font-display">
+            <CheckCircle2 v-if="status === 'active'" class="h-5 w-5 text-emerald-600" />
+            <AlertCircle v-else class="h-5 w-5 text-amber-600" />
             Integração Ativa
           </CardTitle>
           <CardDescription> Gerencie sua conexão com o WhatsApp Business. </CardDescription>
         </CardHeader>
         <CardContent class="space-y-6">
           <div class="grid gap-4 md:grid-cols-2">
-            <div class="space-y-1">
-              <span class="text-sm font-medium text-muted-foreground">Número de Disparo</span>
-              <p class="text-lg">{{ displayPhoneNumber }}</p>
+            <div class="space-y-1 bg-muted/30 p-3.5 rounded-lg border border-border/60">
+              <span class="text-xs font-semibold text-muted-foreground uppercase tracking-wider">Número de Disparo</span>
+              <p class="text-base font-medium text-foreground">{{ displayPhoneNumber }}</p>
             </div>
-            <div class="space-y-1">
-              <span class="text-sm font-medium text-muted-foreground">Status da Conexão</span>
-              <p class="text-lg capitalize">{{ status.replace('_', ' ') }}</p>
+            <div class="space-y-1 bg-muted/30 p-3.5 rounded-lg border border-border/60">
+              <span class="text-xs font-semibold text-muted-foreground uppercase tracking-wider">Status da Conexão</span>
+              <p class="text-base font-medium text-foreground capitalize">{{ status.replace('_', ' ') }}</p>
             </div>
-            <div class="space-y-1">
-              <span class="text-sm font-medium text-muted-foreground">WABA ID</span>
-              <p class="text-lg font-mono text-sm">{{ wabaId }}</p>
+            <div class="space-y-1 bg-muted/30 p-3.5 rounded-lg border border-border/60 md:col-span-2">
+              <span class="text-xs font-semibold text-muted-foreground uppercase tracking-wider">WABA ID</span>
+              <p class="text-sm font-mono text-muted-foreground break-all">{{ wabaId }}</p>
             </div>
           </div>
         </CardContent>
-        <CardFooter class="flex justify-between border-t px-6 py-4">
-          <p class="text-sm text-muted-foreground">
+        <CardFooter class="flex flex-col sm:flex-row gap-4 sm:items-center sm:justify-between border-t border-border px-6 py-4">
+          <p class="text-xs text-muted-foreground">
             Lembre-se: os custos de disparo são faturados pela Meta.
           </p>
           <Button variant="destructive" @click="disconnectWhatsApp" :disabled="processing">
@@ -206,20 +207,20 @@ onMounted(fetchStatus);
         </CardFooter>
       </Card>
 
-      <Card v-if="status === 'active'">
+      <Card v-if="status === 'active'" class="border border-border shadow-sm rounded-xl">
         <CardHeader>
-          <CardTitle>Disparo de Teste</CardTitle>
+          <CardTitle class="font-display">Disparo de Teste</CardTitle>
           <CardDescription
             >Envie uma mensagem para validar se sua integração está funcionando.</CardDescription
           >
         </CardHeader>
         <CardContent>
           <div class="flex max-w-sm items-center gap-2">
-            <input
+            <Input
               v-model="testPhone"
               type="text"
               placeholder="Ex: 5511999999999"
-              class="flex h-10 w-full rounded-md border border-input bg-background px-3 py-2 text-sm ring-offset-background file:border-0 file:bg-transparent file:text-sm file:font-medium placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-50"
+              class="w-full"
             />
             <Button
               @click="sendTestMessage"

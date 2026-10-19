@@ -44,7 +44,7 @@ const onSubmit = handleSubmit(async (values) => {
 </script>
 
 <template>
-  <div class="bg-muted/40 min-h-dvh flex items-center justify-center p-4 sm:p-8">
+  <div class="bg-canvas min-h-dvh flex items-center justify-center p-4 sm:p-8">
     <div class="bg-card border-border w-full max-w-md rounded-xl border p-6 shadow-sm sm:p-8">
       <div class="flex justify-center mb-6">
         <Logo class="h-8" />
@@ -52,22 +52,26 @@ const onSubmit = handleSubmit(async (values) => {
 
       <div v-if="success" class="text-center">
         <div
-          class="mx-auto mb-4 flex size-12 items-center justify-center rounded-full bg-primary/10 text-primary"
+          class="mx-auto mb-4 flex size-12 items-center justify-center rounded-full bg-emerald-50 text-emerald-800 border border-emerald-200"
         >
           <CheckCircle class="h-6 w-6" />
         </div>
-        <h1 class="text-xl font-semibold tracking-tight">Senha definida</h1>
+        <h1 class="text-2xl font-bold tracking-tight font-display text-foreground">
+          Senha definida
+        </h1>
         <p class="text-muted-foreground mt-2 text-sm">
           Você já pode acessar sua área exclusiva usando seu e-mail e a nova senha.
         </p>
-        <Button class="mt-6 w-full" @click="router.push('/minha-area/pendencias')">
+        <Button class="mt-6 w-full font-medium" @click="router.push('/minha-area/pendencias')">
           Ver pendências
         </Button>
       </div>
 
       <div v-else>
         <div class="text-center mb-6">
-          <h1 class="text-xl font-semibold tracking-tight">Definir senha de acesso</h1>
+          <h1 class="text-2xl font-bold tracking-tight font-display text-foreground">
+            Definir senha de acesso
+          </h1>
           <p class="text-muted-foreground mt-2 text-sm">
             Crie uma senha para acompanhar as pendências da sua empresa.
           </p>
@@ -78,7 +82,7 @@ const onSubmit = handleSubmit(async (values) => {
           class="mb-6 flex gap-3 rounded-lg border border-danger-border bg-danger-surface p-3 text-sm text-danger-foreground"
           role="alert"
         >
-          <CircleAlert class="mt-0.5 shrink-0 text-base h-4 w-4" aria-hidden="true" />
+          <CircleAlert class="mt-0.5 shrink-0 text-base h-4 w-4 text-danger-accent" aria-hidden="true" />
           <p>{{ submitError }}</p>
         </div>
 
@@ -104,7 +108,7 @@ const onSubmit = handleSubmit(async (values) => {
             </p>
           </div>
 
-          <Button size="lg" type="submit" class="mt-2 w-full" :disabled="isSubmitting">
+          <Button size="lg" type="submit" class="mt-2 w-full font-medium" :disabled="isSubmitting">
             {{ isSubmitting ? 'Salvando…' : 'Definir senha' }}
             <ArrowRight class="ml-2 h-4 w-4" aria-hidden="true" />
           </Button>

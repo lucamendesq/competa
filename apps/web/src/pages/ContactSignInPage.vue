@@ -74,12 +74,14 @@ const onRequestLink = linkForm.handleSubmit(async (values) => {
 </script>
 
 <template>
-  <div class="bg-muted/40 flex min-h-dvh flex-col items-center justify-center gap-6 p-4">
+  <div class="bg-canvas flex min-h-dvh flex-col items-center justify-center gap-6 p-4 sm:p-6">
     <Logo class="h-8" />
 
-    <div class="bg-card border-border w-full max-w-md rounded-xl border p-6">
-      <h1 class="text-xl font-semibold tracking-tight">Entrar na minha área</h1>
-      <p class="text-muted-foreground mt-1 text-sm">
+    <div class="bg-card border-border w-full max-w-md rounded-xl border p-6 sm:p-8 shadow-sm">
+      <h1 class="text-2xl font-bold tracking-tight font-display text-foreground">
+        Entrar na minha área
+      </h1>
+      <p class="text-muted-foreground mt-1.5 text-sm">
         Aqui você vê o que falta enviar, o que já mandou e o que a contabilidade recusou.
       </p>
 
@@ -125,14 +127,14 @@ const onRequestLink = linkForm.handleSubmit(async (values) => {
           </p>
         </div>
 
-        <Button size="lg" type="submit" :disabled="signInForm.isSubmitting.value">
+        <Button size="lg" type="submit" class="w-full font-medium" :disabled="signInForm.isSubmitting.value">
           {{ signInForm.isSubmitting.value ? 'Entrando…' : 'Entrar' }}
         </Button>
       </form>
 
       <div class="my-6 flex items-center gap-3">
         <span class="bg-border h-px flex-1"></span>
-        <span class="text-muted-foreground text-xs">ou receba um link por e-mail</span>
+        <span class="text-muted-foreground text-xs font-medium">ou receba um link por e-mail</span>
         <span class="bg-border h-px flex-1"></span>
       </div>
 
@@ -166,7 +168,7 @@ const onRequestLink = linkForm.handleSubmit(async (values) => {
             </p>
           </div>
 
-          <Button size="lg" type="submit" :disabled="linkForm.isSubmitting.value">
+          <Button size="lg" type="submit" variant="outline" class="w-full hover:bg-muted font-medium" :disabled="linkForm.isSubmitting.value">
             <Mail class="mr-2 h-4 w-4" aria-hidden="true" />
             {{ linkForm.isSubmitting.value ? 'Enviando…' : 'Receber link por e-mail' }}
           </Button>

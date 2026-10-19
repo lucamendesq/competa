@@ -134,7 +134,7 @@ async function doRevoke() {
 
   <main class="mt-8 flex flex-col gap-8">
     <section>
-      <h2 class="mb-3 text-sm font-semibold uppercase tracking-wider text-muted-foreground">
+      <h2 class="mb-3 text-base font-semibold font-display text-foreground">
         Contadores
       </h2>
       <template v-if="accountantsQuery.isLoading.value">
@@ -149,7 +149,7 @@ async function doRevoke() {
       <div v-else class="bg-card border-border overflow-hidden rounded-xl border shadow-sm">
         <div class="overflow-x-auto">
           <Table>
-            <TableHeader>
+            <TableHeader class="bg-muted/40">
               <TableRow>
                 <TableHead>Nome</TableHead>
                 <TableHead>E-mail</TableHead>
@@ -159,7 +159,7 @@ async function doRevoke() {
             </TableHeader>
             <TableBody>
               <TableRow v-for="row in accountantsQuery.data.value ?? []" :key="row.id">
-                <TableCell class="font-medium">{{ row.name }}</TableCell>
+                <TableCell class="font-medium text-foreground">{{ row.name }}</TableCell>
                 <TableCell class="text-muted-foreground">{{ row.email }}</TableCell>
                 <TableCell>
                   <StatusPill
@@ -172,7 +172,7 @@ async function doRevoke() {
                     v-if="isOwner && !row.owner"
                     variant="ghost"
                     size="sm"
-                    class="text-danger hover:text-danger hover:bg-danger/10"
+                    class="text-rose-700 hover:text-rose-800 hover:bg-rose-50"
                     @click="confirmRemoval = row"
                   >
                     <Trash2 class="mr-2 h-4 w-4" /> Remover
@@ -186,7 +186,7 @@ async function doRevoke() {
     </section>
 
     <section>
-      <h2 class="mb-3 text-sm font-semibold uppercase tracking-wider text-muted-foreground">
+      <h2 class="mb-3 text-base font-semibold font-display text-foreground">
         Convites pendentes
       </h2>
       <template v-if="invitesQuery.isLoading.value">
@@ -200,7 +200,7 @@ async function doRevoke() {
       </template>
       <div
         v-else-if="(invitesQuery.data.value ?? []).length === 0"
-        class="border-border rounded-xl border-2 border-dashed p-8 text-center text-sm text-muted-foreground"
+        class="border-border rounded-xl border-2 border-dashed p-8 text-center text-sm text-muted-foreground bg-card/50"
       >
         Nenhum convite aguardando aceite.
       </div>
@@ -208,19 +208,19 @@ async function doRevoke() {
         <li
           v-for="row in invitesQuery.data.value"
           :key="row.id"
-          class="flex flex-wrap items-center justify-between gap-2 p-3"
+          class="flex flex-wrap items-center justify-between gap-2 p-4"
         >
           <div class="min-w-0">
-            <p class="flex items-center gap-2 text-sm font-medium">
+            <p class="flex items-center gap-2 text-sm font-medium text-foreground">
               <Mail class="h-4 w-4 text-muted-foreground" /> {{ row.email }}
             </p>
-            <p class="text-muted-foreground text-xs">Expira em {{ dateTimeBr(row.expiresAt) }}</p>
+            <p class="text-muted-foreground text-xs mt-0.5">Expira em {{ dateTimeBr(row.expiresAt) }}</p>
           </div>
           <Button
             v-if="isOwner"
             variant="ghost"
             size="sm"
-            class="text-danger hover:text-danger hover:bg-danger/10"
+            class="text-rose-700 hover:text-rose-800 hover:bg-rose-50"
             @click="confirmRevoke = row"
           >
             Revogar

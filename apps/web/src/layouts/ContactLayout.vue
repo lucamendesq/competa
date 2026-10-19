@@ -1,15 +1,13 @@
 <script setup lang="ts">
 import { computed } from 'vue';
 import { useRouter } from 'vue-router';
-import { ClipboardList, History, LogOut, Sun, Moon } from 'lucide-vue-next';
+import { ClipboardList, History, LogOut } from 'lucide-vue-next';
 import { useAuthStore } from '../stores/auth';
-import { useTheme } from '../composables/useTheme';
 import Logo from '../components/Logo.vue';
 import InstallButton from '../components/InstallButton.vue';
 
 const auth = useAuthStore();
 const router = useRouter();
-const theme = useTheme();
 
 const perfil = computed(() => auth.contact);
 
@@ -33,51 +31,41 @@ async function sair() {
       Pular para o conteúdo
     </a>
 
-    <header v-if="perfil" class="bg-sidebar text-sidebar-foreground sticky top-0 z-40">
+    <header v-if="perfil" class="sticky top-0 z-40 bg-[#0F172A] text-white shadow-xs">
       <div class="mx-auto flex max-w-3xl items-center gap-3 px-4 py-3">
         <Logo variant="icon" surface="dark" alt="" class="h-7 shrink-0" />
         <div class="min-w-0 flex-1">
           <template v-if="(perfil?.companies?.length ?? 0) > 1">
-            <p class="truncate text-sm font-semibold">{{ perfil?.name }}</p>
-            <p class="truncate text-xs opacity-70">
+            <p class="truncate text-sm font-semibold text-white">{{ perfil?.name }}</p>
+            <p class="truncate text-xs text-slate-300">
               {{ perfil?.companies?.length }} empresas · {{ perfil?.accountingFirmName }}
             </p>
           </template>
           <template v-else>
-            <p class="truncate text-sm font-semibold">{{ perfil?.companyName }}</p>
-            <p class="truncate text-xs opacity-70">{{ perfil?.accountingFirmName }}</p>
+            <p class="truncate text-sm font-semibold text-white">{{ perfil?.companyName }}</p>
+            <p class="truncate text-xs text-slate-300">{{ perfil?.accountingFirmName }}</p>
           </template>
         </div>
         <InstallButton />
         <button
           type="button"
-          class="focus-visible:ring-sidebar-ring inline-flex size-9 items-center justify-center rounded-lg focus-visible:ring-2 focus-visible:outline-none"
-          @click="theme.toggle"
-        >
-          <span class="sr-only">{{
-            theme.dark.value ? 'Usar tema claro' : 'Usar tema escuro'
-          }}</span>
-          <component :is="theme.dark.value ? Sun : Moon" class="text-base" aria-hidden="true" />
-        </button>
-        <button
-          type="button"
-          class="focus-visible:ring-sidebar-ring inline-flex h-9 items-center gap-2 rounded-lg px-3 text-xs font-medium focus-visible:ring-2 focus-visible:outline-none"
+          class="inline-flex h-9 items-center gap-2 rounded-lg px-3 text-xs font-medium text-slate-300 hover:bg-white/10 hover:text-white focus-visible:ring-2 focus-visible:ring-amber-400 focus-visible:outline-none transition-colors"
           @click="sair"
         >
-          <LogOut class="text-sm" aria-hidden="true" />
+          <LogOut class="size-3.5" aria-hidden="true" />
           Sair
         </button>
       </div>
 
-      <nav class="border-sidebar-border hidden border-t sm:block" aria-label="Navegação">
+      <nav class="hidden border-t border-slate-800 sm:block" aria-label="Navegação">
         <ul class="mx-auto flex max-w-3xl gap-1 px-2">
           <li v-for="item in nav" :key="item.path">
             <RouterLink
               :to="item.path"
-              active-class="border-sidebar-primary font-semibold"
-              class="focus-visible:ring-sidebar-ring flex h-11 items-center gap-2 border-b-2 border-transparent px-3 text-sm focus-visible:ring-2 focus-visible:outline-none"
+              active-class="border-amber-400 text-white font-semibold"
+              class="flex h-11 items-center gap-2 border-b-2 border-transparent px-3 text-sm text-slate-300 hover:bg-white/5 hover:text-white focus-visible:ring-2 focus-visible:ring-amber-400 focus-visible:outline-none transition-colors"
             >
-              <component :is="item.icon" class="text-base" aria-hidden="true" />
+              <component :is="item.icon" class="size-4" aria-hidden="true" />
               {{ item.label }}
             </RouterLink>
           </li>
@@ -91,7 +79,7 @@ async function sair() {
 
     <nav
       v-if="perfil"
-      class="bg-card border-border fixed inset-x-0 bottom-0 z-40 border-t sm:hidden"
+      class="fixed inset-x-0 bottom-0 z-40 border-t border-border bg-card shadow-lg sm:hidden"
       aria-label="Navegação"
     >
       <ul class="flex">
@@ -99,9 +87,9 @@ async function sair() {
           <RouterLink
             :to="item.path"
             active-class="text-primary font-semibold"
-            class="text-muted-foreground focus-visible:ring-ring flex min-h-14 flex-col items-center justify-center gap-1 text-[11px] focus-visible:ring-2 focus-visible:outline-none"
+            class="text-muted-foreground hover:text-foreground focus-visible:ring-ring flex min-h-14 flex-col items-center justify-center gap-1 text-[11px] focus-visible:ring-2 focus-visible:outline-none transition-colors"
           >
-            <component :is="item.icon" class="text-lg" aria-hidden="true" />
+            <component :is="item.icon" class="size-5" aria-hidden="true" />
             {{ item.label }}
           </RouterLink>
         </li>

@@ -106,8 +106,8 @@ async function save() {
         Apenas o dono da Contabilidade pode alterar estas configurações.
       </Callout>
 
-      <section class="flex flex-col gap-4">
-        <h2 class="text-sm font-semibold uppercase tracking-wider text-muted-foreground">Perfil</h2>
+      <section class="bg-card border border-border shadow-sm rounded-xl p-6 flex flex-col gap-5">
+        <h2 class="text-base font-semibold font-display text-foreground">Perfil</h2>
 
         <div class="flex flex-col gap-1.5">
           <Label for="firmName">Nome da Contabilidade</Label>
@@ -144,8 +144,8 @@ async function save() {
         </div>
       </section>
 
-      <section class="flex flex-col gap-4">
-        <h2 class="text-sm font-semibold uppercase tracking-wider text-muted-foreground">
+      <section class="bg-card border border-border shadow-sm rounded-xl p-6 flex flex-col gap-5">
+        <h2 class="text-base font-semibold font-display text-foreground">
           Lembretes automáticos
         </h2>
 
