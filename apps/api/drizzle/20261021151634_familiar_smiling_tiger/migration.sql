@@ -1,0 +1,1 @@
+ALTER TABLE "subscription" ADD COLUMN "cycle" text DEFAULT 'monthly' NOT NULL;

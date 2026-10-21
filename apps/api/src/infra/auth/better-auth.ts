@@ -80,6 +80,7 @@ const auth = betterAuth({
     before: createAuthMiddleware(async (ctx) => {
       if (ctx.path !== '/sign-up/email') return;
       if (!ctx.request) return;
+      if (ctx.headers?.get('x-internal-signup') === 'true') return;
 
       throw new APIError('NOT_FOUND', {
         message: 'Cadastro aberto não existe neste produto. Use o link de convite.',

@@ -1,11 +1,20 @@
 <script setup lang="ts">
-import { ref } from 'vue';
+import { computed, ref } from 'vue';
 import { useRouter } from 'vue-router';
 import { useForm, useField } from 'vee-validate';
 import * as z from 'zod';
 import { email as emailSchema } from '@competa/contracts';
 import { toTypedSchema } from '@vee-validate/zod';
-import { ArrowLeft, ArrowRight, CircleAlert, Check, Building2, Zap, Download, Link as LinkIcon } from 'lucide-vue-next';
+import {
+  ArrowLeft,
+  ArrowRight,
+  CircleAlert,
+  Check,
+  Building2,
+  Zap,
+  Download,
+  Link as LinkIcon,
+} from 'lucide-vue-next';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
@@ -36,10 +45,22 @@ const { handleSubmit, isSubmitting, setFieldTouched, validateField } = useForm({
   },
 });
 
-const { value: userName, errorMessage: userNameError, meta: userNameMeta } = useField<string>('userName');
+const {
+  value: userName,
+  errorMessage: userNameError,
+  meta: userNameMeta,
+} = useField<string>('userName');
 const { value: email, errorMessage: emailError, meta: emailMeta } = useField<string>('email');
-const { value: password, errorMessage: passwordError, meta: passwordMeta } = useField<string>('password');
-const { value: firmName, errorMessage: firmNameError, meta: firmNameMeta } = useField<string>('firmName');
+const {
+  value: password,
+  errorMessage: passwordError,
+  meta: passwordMeta,
+} = useField<string>('password');
+const {
+  value: firmName,
+  errorMessage: firmNameError,
+  meta: firmNameMeta,
+} = useField<string>('firmName');
 
 const benefits = [
   {
@@ -58,6 +79,19 @@ const benefits = [
     text: 'Documentos recebidos e agrupados em zip por empresa e competência.',
   },
 ];
+
+const stepOneValid = computed(
+  () =>
+    RegisterFormSchema.pick({ userName: true, email: true, password: true }).safeParse({
+      userName: userName.value,
+      email: email.value,
+      password: password.value,
+    }).success,
+);
+
+const firmNameValid = computed(
+  () => RegisterFormSchema.shape.firmName.safeParse(firmName.value).success,
+);
 
 async function nextStep() {
   submitError.value = null;
@@ -98,6 +132,15 @@ const onSubmit = handleSubmit(async (values) => {
     );
   }
 });
+
+/** Enter dentro do passo 1 avança em vez de submeter a conta pela metade. */
+function submitStep(event: Event) {
+  if (currentStep.value === 1) {
+    event.preventDefault();
+    return nextStep();
+  }
+  return onSubmit(event);
+}
 </script>
 
 <template>
@@ -136,20 +179,32 @@ const onSubmit = handleSubmit(async (values) => {
           <div>
             <h1 class="font-display text-xl font-semibold tracking-tight">Criar conta</h1>
             <p class="text-muted-foreground mt-1 text-sm">
-              {{ currentStep === 1 ? 'Passo 1 de 2: Seus dados de acesso' : 'Passo 2 de 2: Sua contabilidade' }}
+              {{
+                currentStep === 1
+                  ? 'Passo 1 de 2: Seus dados de acesso'
+                  : 'Passo 2 de 2: Sua contabilidade'
+              }}
             </p>
           </div>
           <div class="flex items-center gap-1.5">
             <span
               class="flex size-7 items-center justify-center rounded-full text-xs font-semibold"
-              :class="currentStep === 1 ? 'bg-primary text-primary-foreground' : 'bg-primary/15 text-primary'"
+              :class="
+                currentStep === 1
+                  ? 'bg-primary text-primary-foreground'
+                  : 'bg-primary/15 text-primary'
+              "
             >
               1
             </span>
             <span class="bg-border h-0.5 w-4"></span>
             <span
               class="flex size-7 items-center justify-center rounded-full text-xs font-semibold"
-              :class="currentStep === 2 ? 'bg-primary text-primary-foreground' : 'bg-muted text-muted-foreground'"
+              :class="
+                currentStep === 2
+                  ? 'bg-primary text-primary-foreground'
+                  : 'bg-muted text-muted-foreground'
+              "
             >
               2
             </span>
@@ -165,7 +220,7 @@ const onSubmit = handleSubmit(async (values) => {
           <p>{{ submitError }}</p>
         </div>
 
-        <form novalidate @submit="onSubmit">
+        <form novalidate @submit="submitStep">
           <div v-show="currentStep === 1" class="flex flex-col gap-4">
             <div class="flex flex-col gap-1.5">
               <Label for="user-name">
@@ -178,7 +233,9 @@ const onSubmit = handleSubmit(async (values) => {
                 autocomplete="name"
                 placeholder="Ex.: Carlos Mendes"
                 v-model="userName"
-                :aria-describedby="userNameError && userNameMeta.touched ? 'user-name-error' : undefined"
+                :aria-describedby="
+                  userNameError && userNameMeta.touched ? 'user-name-error' : undefined
+                "
               />
               <p
                 v-if="userNameError && userNameMeta.touched"
@@ -223,7 +280,9 @@ const onSubmit = handleSubmit(async (values) => {
                 autocomplete="new-password"
                 placeholder="Mínimo de 8 caracteres"
                 v-model="password"
-                :aria-describedby="passwordError && passwordMeta.touched ? 'password-error' : undefined"
+                :aria-describedby="
+                  passwordError && passwordMeta.touched ? 'password-error' : undefined
+                "
               />
               <p
                 v-if="passwordError && passwordMeta.touched"
@@ -234,12 +293,7 @@ const onSubmit = handleSubmit(async (values) => {
               </p>
             </div>
 
-            <Button
-              type="button"
-              size="lg"
-              class="mt-2 w-full"
-              @click="nextStep"
-            >
+            <Button type="submit" size="lg" class="mt-2 w-full" :disabled="!stepOneValid">
               Continuar
               <ArrowRight class="ml-2 h-4 w-4" aria-hidden="true" />
             </Button>
@@ -257,7 +311,9 @@ const onSubmit = handleSubmit(async (values) => {
                 autocomplete="organization"
                 placeholder="Ex.: Mendes & Silva Contabilidade"
                 v-model="firmName"
-                :aria-describedby="firmNameError && firmNameMeta.touched ? 'firm-name-error' : undefined"
+                :aria-describedby="
+                  firmNameError && firmNameMeta.touched ? 'firm-name-error' : undefined
+                "
               />
               <p
                 v-if="firmNameError && firmNameMeta.touched"
@@ -268,13 +324,16 @@ const onSubmit = handleSubmit(async (values) => {
               </p>
             </div>
 
-            <div class="bg-muted/50 border-border rounded-lg border p-4 text-xs text-muted-foreground">
+            <div
+              class="bg-muted/50 border-border rounded-lg border p-4 text-xs text-muted-foreground"
+            >
               <div class="flex items-center gap-2 font-medium text-foreground">
                 <Building2 class="h-4 w-4 text-primary" />
                 <span>Conta master e titularidade</span>
               </div>
               <p class="mt-1">
-                Você será cadastrado como o proprietário da contabilidade e poderá convidar outros contadores da sua equipe depois.
+                Você será cadastrado como o proprietário da contabilidade e poderá convidar outros
+                contadores da sua equipe depois.
               </p>
             </div>
 
@@ -294,7 +353,7 @@ const onSubmit = handleSubmit(async (values) => {
                 type="submit"
                 size="lg"
                 class="flex-1"
-                :disabled="isSubmitting"
+                :disabled="isSubmitting || !firmNameValid"
               >
                 {{ isSubmitting ? 'Criando conta…' : 'Criar conta' }}
                 <Check v-if="!isSubmitting" class="ml-2 h-4 w-4" aria-hidden="true" />

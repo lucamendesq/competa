@@ -6,6 +6,9 @@ import {
   CreateCompanyBody,
   type ContactBody,
   MAX_IMPORT_ROWS,
+  planCompanyCap,
+  planForCompanies,
+  planSoftCap,
   type UpdateCompanyBody,
 } from '@competa/contracts';
 import * as z from 'zod';
@@ -16,6 +19,7 @@ import {
   checklistTemplate,
   company,
   contact,
+  subscription,
   user,
 } from '../../infra/database/schema/index.js';
 import type { FirmScope } from '../auth/scope.js';
@@ -23,7 +27,7 @@ import type { FirmScope } from '../auth/scope.js';
 import { parseCsvRecords } from './csv.js';
 
 export type ImportLineResult =
-  | { line: number; status: 'created'; companyId: string; name: string }
+  | { line: number; status: 'created'; companyId: string; name: string; active: boolean }
   | { line: number; status: 'error'; name: string; error: string };
 
 export type PendingImportRow = { line: number; body: CreateCompanyBody };
@@ -68,8 +72,80 @@ export class CompanyRepository {
     return Boolean(row);
   }
 
+  /** Teto de Empresas do plano. Fica aqui, e não no controller, porque os dois caminhos de
+   *  entrada (cadastro avulso e importação por planilha) passam por `create`/`confirmImport` —
+   *  guardar só no controller deixaria a planilha furar o plano. Nunca bloqueia competência
+   *  já aberta: o limite é só sobre ocupar vaga de Empresa ativa.
+   *
+   *  Conta só Empresa **ativa** (a métrica de cobrança da D17/D18): Empresa desativada
+   *  ocupando vaga puniria justamente "importe a carteira inteira e ative aos poucos".
+   *  Gaming conhecido e aceito: desativar/reativar em rodízio para caber no teto. O limite
+   *  prático é que a Competência é única por Contabilidade e o fan-out roda uma vez, então
+   *  uma competência nunca cobre mais Empresas que o teto. */
+  private async capacityOf(scope: FirmScope, tx: Database = this.db) {
+    const [sub] = await tx
+      .select({ planName: subscription.planName })
+      .from(subscription)
+      .where(eq(subscription.accountingFirmId, scope))
+      .limit(1);
+
+    const cap = planCompanyCap(sub?.planName ?? 'trial');
+
+    const [{ value: current }] = await tx
+      .select({ value: count() })
+      .from(company)
+      .where(and(eq(company.accountingFirmId, scope), eq(company.active, true)));
+
+    /* Folga de 20% antes do muro (D18 §7): bater o teto no dia 5 travaria o mês do cliente.
+     * Entre o teto e a folga o cadastro passa e a firm entra em excedente — o banner é o
+     * prompt de upgrade. No limite da folga, recusa. */
+    return { cap, current, limit: planSoftCap(cap) };
+  }
+
+  private capExceeded(cap: number, current: number) {
+    return (
+      `Seu plano permite ${cap} empresas ativas e você já tem ${current}. ` +
+      'Mude de plano em Plano e Assinatura para cadastrar mais.'
+    );
+  }
+
+  private async assertCompanyCapacity(scope: FirmScope, adding: number, tx: Database = this.db) {
+    const { cap, current, limit } = await this.capacityOf(scope, tx);
+
+    if (current + adding > limit) throw new ValidationError(this.capExceeded(cap, current));
+  }
+
+  /** Consumo do teto. Alimenta o banner de excedente e a recomendação de tier na tela de
+   *  plano; a web invalida junto com a lista de Empresas (mesmo prefixo de chave). */
+  async usage(scope: FirmScope) {
+    const [sub] = await this.db
+      .select({ planName: subscription.planName })
+      .from(subscription)
+      .where(eq(subscription.accountingFirmId, scope))
+      .limit(1);
+
+    const [{ value: companiesInactive }] = await this.db
+      .select({ value: count() })
+      .from(company)
+      .where(and(eq(company.accountingFirmId, scope), eq(company.active, false)));
+
+    const { cap, current, limit } = await this.capacityOf(scope);
+
+    return {
+      planName: sub?.planName ?? 'trial',
+      companiesActive: current,
+      companiesInactive,
+      companyCap: cap,
+      softCap: limit,
+      overCap: current > cap,
+      recommendedPlan: planForCompanies(current),
+    };
+  }
+
   async create(scope: FirmScope, body: CreateCompanyBody, tx: Database = this.db) {
     const run = async (executor: Database) => {
+      await this.assertCompanyCapacity(scope, 1, executor);
+
       const [row] = await executor
         .insert(company)
         .values({
@@ -218,6 +294,18 @@ export class CompanyRepository {
   }
 
   async update(scope: FirmScope, companyId: string, body: UpdateCompanyBody) {
+    /* Reativar ocupa vaga igual a cadastrar. Só a transição `false → true` custa a query de
+     * teto — PATCH de nome ou template numa Empresa já ativa não pode pagar por isso. */
+    if (body.active === true) {
+      const [current] = await this.db
+        .select({ active: company.active })
+        .from(company)
+        .where(and(eq(company.id, companyId), eq(company.accountingFirmId, scope)))
+        .limit(1);
+
+      if (current && !current.active) await this.assertCompanyCapacity(scope, 1);
+    }
+
     // PATCH parcial de `flags` MESCLA: mandar uma flag não pode apagar as outras.
     const values = body.flags
       ? { ...body, flags: sql`${company.flags} || ${JSON.stringify(body.flags)}::jsonb` }
@@ -241,6 +329,53 @@ export class CompanyRepository {
 
   async deactivate(scope: FirmScope, companyId: string) {
     return this.update(scope, companyId, { active: false });
+  }
+
+  /** Ativação em lote: ativa quantas couberem na folga do teto e diz quantas ficaram de
+   *  fora. Erro no lote inteiro seria pior — o Contador só quer saber onde parou. */
+  async activateMany(scope: FirmScope, companyIds: string[]) {
+    const inactive = await this.db
+      .select({ id: company.id, name: company.name })
+      .from(company)
+      .where(
+        and(
+          eq(company.accountingFirmId, scope),
+          eq(company.active, false),
+          inArray(company.id, companyIds),
+        ),
+      )
+      .orderBy(company.name);
+
+    const { cap, current, limit } = await this.capacityOf(scope);
+    const slots = Math.max(0, limit - current);
+    const fitting = inactive.slice(0, slots);
+
+    if (fitting.length) {
+      await this.db
+        .update(company)
+        .set({ active: true })
+        .where(
+          and(
+            eq(company.accountingFirmId, scope),
+            inArray(
+              company.id,
+              fitting.map((row) => row.id),
+            ),
+          ),
+        );
+    }
+
+    const skipped = inactive.length - fitting.length;
+
+    return {
+      activated: fitting.length,
+      skipped,
+      companyCap: cap,
+      softCap: limit,
+      reason: skipped
+        ? `${skipped} empresa(s) não entraram: seu plano cobre ${cap} ativas (com folga até ${limit}) e você já tinha ${current}.`
+        : undefined,
+    };
   }
 
   async listContacts(scope: FirmScope, companyId: string) {
@@ -387,23 +522,45 @@ export class CompanyRepository {
    *  rollback e sem relatório. Agora ou entra tudo, ou não entra nada — e o relatório por
    *  linha continua saindo, porque a validação já aconteceu em `validateCsv`, antes de
    *  chegar aqui. */
-  async confirmImport(scope: FirmScope, pending: PendingImportRow[]) {
+  async confirmImport(scope: FirmScope, pending: PendingImportRow[], activate = true) {
     if (pending.length > MAX_IMPORT_ROWS) {
       throw new ValidationError(`Limite de ${MAX_IMPORT_ROWS} linhas por importação.`);
     }
 
     /* `pending` é corpo do cliente: a prévia pode ser pulada, então o lote chega aqui sem
      * ter passado por `validateCsv`. */
-    const cnpjs = pending.map(({ body }) => body.cnpj).filter(Boolean);
+    const cnpjs = pending
+      .map(({ body }) => body.cnpj)
+      .filter((cnpj): cnpj is string => Boolean(cnpj));
     if (new Set(cnpjs).size !== cnpjs.length) {
       throw new ValidationError('A planilha tem o mesmo CNPJ em mais de uma linha.');
     }
 
-    const created = pending.length ? await this.insertBatch(scope, pending) : [];
+    /* A planilha faz upsert por CNPJ: reenvio de quem já está cadastrado não ocupa vaga
+     * nova, então só as linhas que realmente entram contam contra o teto do plano. */
+    const existing = cnpjs.length
+      ? await this.db
+          .select({ cnpj: company.cnpj })
+          .from(company)
+          .where(and(eq(company.accountingFirmId, scope), inArray(company.cnpj, cnpjs)))
+      : [];
+    const known = new Set(existing.map((row) => row.cnpj));
+    const adding = pending.filter(({ body }) => !body.cnpj || !known.has(body.cnpj));
+
+    /* Importar a carteira inteira NUNCA é recusado por teto: as linhas que não couberem
+     * entram desativadas, e o Contador ativa quando quiser. Recusar aqui era pedir que o
+     * cliente se auto-promovesse de tier só para cadastrar quem ele ainda nem usa. */
+    const { current, limit } = await this.capacityOf(scope);
+    const slots = activate ? Math.max(0, limit - current) : 0;
+
+    const activeByLine = new Map(adding.map(({ line }, index) => [line, index < slots] as const));
+
+    const created = pending.length ? await this.insertBatch(scope, pending, activeByLine) : [];
 
     return {
       total: pending.length,
       created: created.length,
+      activated: created.filter((row) => row.status === 'created' && row.active).length,
       failed: 0,
       lines: created,
     };
@@ -417,6 +574,7 @@ export class CompanyRepository {
   private async insertBatch(
     scope: FirmScope,
     pending: PendingImportRow[],
+    activeByLine: Map<number, boolean>,
   ): Promise<ImportLineResult[]> {
     try {
       return await this.db.transaction(async (tx) => {
@@ -427,14 +585,17 @@ export class CompanyRepository {
           ? await tx
               .insert(company)
               .values(
-                withCnpj.map(({ body }) => ({
+                withCnpj.map(({ line, body }) => ({
                   accountingFirmId: scope,
                   checklistTemplateId: body.checklistTemplateId ?? null,
                   name: body.name,
                   cnpj: body.cnpj,
                   flags: body.flags,
+                  active: activeByLine.get(line) ?? false,
                 })),
               )
+              /* `active` fica FORA do `set`: reenviar a planilha não pode desativar quem o
+               * Contador já ativou na mão, nem reativar quem ele desativou. */
               .onConflictDoUpdate({
                 target: [company.accountingFirmId, company.cnpj],
                 targetWhere: sql`${company.cnpj} is not null`,
@@ -444,25 +605,31 @@ export class CompanyRepository {
                   flags: sql`excluded.flags`,
                 },
               })
-              .returning({ id: company.id, name: company.name, cnpj: company.cnpj })
+              .returning({
+                id: company.id,
+                name: company.name,
+                cnpj: company.cnpj,
+                active: company.active,
+              })
           : [];
 
         const inserted = withoutCnpj.length
           ? await tx
               .insert(company)
               .values(
-                withoutCnpj.map(({ body }) => ({
+                withoutCnpj.map(({ line, body }) => ({
                   accountingFirmId: scope,
                   checklistTemplateId: body.checklistTemplateId ?? null,
                   name: body.name,
                   cnpj: null,
                   flags: body.flags,
+                  active: activeByLine.get(line) ?? false,
                 })),
               )
-              .returning({ id: company.id, name: company.name })
+              .returning({ id: company.id, name: company.name, active: company.active })
           : [];
 
-        const rowByLine = new Map<number, { id: string; name: string }>();
+        const rowByLine = new Map<number, { id: string; name: string; active: boolean }>();
         const companyByCnpj = new Map(upserted.map((row) => [row.cnpj!, row]));
         withCnpj.forEach(({ line, body }) => {
           const matched = companyByCnpj.get(body.cnpj!);
@@ -503,7 +670,13 @@ export class CompanyRepository {
 
         return pending.map(({ line }) => {
           const row = rowByLine.get(line)!;
-          return { line, status: 'created' as const, companyId: row.id, name: row.name };
+          return {
+            line,
+            status: 'created' as const,
+            companyId: row.id,
+            name: row.name,
+            active: row.active,
+          };
         });
       });
     } catch (error) {

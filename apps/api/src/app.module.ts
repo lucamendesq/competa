@@ -13,6 +13,7 @@ import { HealthController } from './health.controller.js';
 import { HealthRepository } from './health.repository.js';
 import { AuthModule } from './modules/auth/auth.module.js';
 import { DatabaseModule } from './infra/database/database.module.js';
+import { PlanGuard } from './modules/auth/plan.guard.js';
 import { TenantGuard } from './modules/auth/tenant.guard.js';
 import { ChecklistsModule } from './modules/checklists/checklists.module.js';
 import { CompaniesModule } from './modules/companies/companies.module.js';
@@ -68,6 +69,8 @@ import { BillingModule } from './modules/billing/billing.module.js';
     // ordem importa: barra o excesso ANTES de resolver sessão e tocar o banco
     { provide: APP_GUARD, useClass: ThrottlerGuard },
     { provide: APP_GUARD, useClass: TenantGuard },
+    // depois do TenantGuard: lê o plano que ele resolveu, sem consultar de novo
+    { provide: APP_GUARD, useClass: PlanGuard },
   ],
 })
 export class AppModule {}

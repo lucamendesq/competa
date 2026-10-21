@@ -11,11 +11,14 @@ export class BetterAuthAdapter implements AuthProvider {
     input: SignUpEmailInput,
     reqHeaders?: Headers,
   ): Promise<Result<{ userId: string; setCookie?: string[] }, unknown>> {
+    const headers = reqHeaders ?? new Headers();
+    headers.set('x-internal-signup', 'true');
+
     const result = await tryCatchAsync(() =>
       auth.api.signUpEmail({
         body: input,
-        headers: reqHeaders,
-        asResponse: !!reqHeaders,
+        headers,
+        asResponse: true,
       }),
     );
 
@@ -24,9 +27,17 @@ export class BetterAuthAdapter implements AuthProvider {
     }
 
     if (result.value instanceof Response) {
-      const session = await auth.api.getSession({ headers: forwardCookies(result.value) });
+      let userId = '';
+      try {
+        const data = (await result.value.clone().json()) as { user?: { id?: string } };
+        if (data.user?.id) userId = data.user.id;
+      } catch {
+        const session = await auth.api.getSession({ headers: forwardCookies(result.value) });
+        userId = session?.user.id || '';
+      }
+
       return success({
-        userId: session?.user.id || '',
+        userId,
         setCookie: result.value.headers.getSetCookie(),
       });
     }

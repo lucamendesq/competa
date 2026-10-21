@@ -1,7 +1,7 @@
 <script setup lang="ts">
 import { ref } from 'vue';
 import { useRouter } from 'vue-router';
-import { Plus } from 'lucide-vue-next';
+import { Plus, SquareCheckBig } from 'lucide-vue-next';
 import { Button } from '@/components/ui/button';
 import {
   Table,
@@ -30,6 +30,11 @@ const deriveOpen = ref<Template | null>(null);
 const blankOpen = ref(false);
 const newName = ref('');
 const acting = ref(false);
+
+function openBlank() {
+  newName.value = '';
+  blankOpen.value = true;
+}
 
 function openDerive(template: Template) {
   newName.value = template.name + ' (Cópia)';
@@ -75,12 +80,10 @@ async function createBlank() {
     title="Templates de Checklist"
     description="Modelos de solicitação reutilizáveis por segmento ou regime."
   >
-    <template #actions>
-      <Button @click="blankOpen = true" class="shadow-xs font-medium">
-        <Plus class="mr-2 h-4 w-4" aria-hidden="true" />
-        Criar em branco
-      </Button>
-    </template>
+    <Button @click="openBlank" class="shadow-xs font-medium">
+      <Plus class="mr-2 h-4 w-4" aria-hidden="true" />
+      Criar checklist
+    </Button>
   </PageHeader>
 
   <main class="mt-8">
@@ -92,8 +95,11 @@ async function createBlank() {
     </template>
     <template v-else-if="templatesQuery.data.value?.length === 0">
       <EmptyState
-        title="Nenhum template encontrado"
-        description="Você não possui templates configurados."
+        :icon="SquareCheckBig"
+        title="Nenhum checklist encontrado"
+        description="Crie um checklist do zero e escolha quais documentos cada empresa precisa enviar."
+        action-label="Criar checklist"
+        @action="openBlank"
       />
     </template>
     <template v-else>
@@ -116,7 +122,10 @@ async function createBlank() {
               >
                 <TableCell class="font-medium font-display text-foreground">
                   <div class="flex items-center gap-2">
-                    <RouterLink :to="`/templates/${template.id}`" class="hover:text-primary transition-colors hover:underline">
+                    <RouterLink
+                      :to="`/templates/${template.id}`"
+                      class="hover:text-primary transition-colors hover:underline"
+                    >
                       {{ template.name }}
                     </RouterLink>
                     <span
@@ -128,17 +137,32 @@ async function createBlank() {
                   </div>
                 </TableCell>
                 <TableCell class="text-muted-foreground text-sm">
-                  <span class="tabular-nums font-medium text-foreground">{{ template.itemCount }}</span> documentos
+                  <span class="tabular-nums font-medium text-foreground">{{
+                    template.itemCount
+                  }}</span>
+                  documentos
                 </TableCell>
                 <TableCell class="text-muted-foreground text-sm">
-                  <span class="tabular-nums font-medium text-foreground">{{ template.companyCount }}</span>
+                  <span class="tabular-nums font-medium text-foreground">{{
+                    template.companyCount
+                  }}</span>
                 </TableCell>
                 <TableCell class="text-right">
                   <div class="flex items-center justify-end gap-1.5">
-                    <Button variant="ghost" size="sm" as-child class="h-8 px-2.5 text-xs text-muted-foreground hover:text-foreground">
+                    <Button
+                      variant="ghost"
+                      size="sm"
+                      as-child
+                      class="h-8 px-2.5 text-xs text-muted-foreground hover:text-foreground"
+                    >
                       <RouterLink :to="`/templates/${template.id}`"> Editar </RouterLink>
                     </Button>
-                    <Button variant="ghost" size="sm" class="h-8 px-2.5 text-xs text-muted-foreground hover:text-foreground" @click="openDerive(template)">
+                    <Button
+                      variant="ghost"
+                      size="sm"
+                      class="h-8 px-2.5 text-xs text-muted-foreground hover:text-foreground"
+                      @click="openDerive(template)"
+                    >
                       <Plus class="mr-1.5 h-3.5 w-3.5" aria-hidden="true" /> Duplicar
                     </Button>
                   </div>
@@ -160,7 +184,12 @@ async function createBlank() {
     <form @submit.prevent="derive" class="mt-4 flex flex-col gap-4">
       <div class="flex flex-col gap-1.5">
         <Label for="deriveName" class="font-medium text-foreground">Nome do novo template</Label>
-        <Input id="deriveName" v-model="newName" class="focus-visible:ring-ring focus-visible:border-primary shadow-xs" autofocus />
+        <Input
+          id="deriveName"
+          v-model="newName"
+          class="focus-visible:ring-ring focus-visible:border-primary shadow-xs"
+          autofocus
+        />
       </div>
       <div class="border-border bg-muted/40 -mx-6 -mb-6 mt-5 flex justify-end gap-2 border-t p-4">
         <Button variant="ghost" type="button" @click="deriveOpen = null">Cancelar</Button>
@@ -180,7 +209,12 @@ async function createBlank() {
     <form @submit.prevent="createBlank" class="mt-4 flex flex-col gap-4">
       <div class="flex flex-col gap-1.5">
         <Label for="blankName" class="font-medium text-foreground">Nome do template</Label>
-        <Input id="blankName" v-model="newName" class="focus-visible:ring-ring focus-visible:border-primary shadow-xs" autofocus />
+        <Input
+          id="blankName"
+          v-model="newName"
+          class="focus-visible:ring-ring focus-visible:border-primary shadow-xs"
+          autofocus
+        />
       </div>
       <div class="border-border bg-muted/40 -mx-6 -mb-6 mt-5 flex justify-end gap-2 border-t p-4">
         <Button

@@ -13,6 +13,7 @@
     "pages:deploy": "astro build && wrangler pages deploy dist --project-name=competa-landing"
   },
   "dependencies": {
+    "@competa/contracts": "workspace:*",
     "astro": "^5.4.2"
   },
   "devDependencies": {

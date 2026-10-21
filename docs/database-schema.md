@@ -60,10 +60,16 @@ create table subscription (               -- Assinatura Asaas e Status (COM-6)
   gateway_customer_id      text,          -- cus_... (Asaas)
   gateway_subscription_id  text,          -- sub_... (Asaas)
   plan_name                text not null default 'trial',
+  cycle                    text not null default 'monthly', -- monthly | yearly (anual = 10× o mensal)
   status                   text not null default 'trialing', -- trialing, ACTIVE, OVERDUE, CANCELED
   trial_ends_at            timestamptz,
   current_period_start     timestamptz,
-  current_period_end       timestamptz
+  current_period_end       timestamptz,
+  -- Oferta Fundador (D18 §6): mapa de preço mensal por plano, ex. {"profissional": 139}.
+  -- É mapa e não número para o fundador que sobe de tier continuar fundador.
+  -- Null = preço público. Aplicado por SQL — runbook em docs/oferta-fundador.md.
+  price_override           jsonb,
+  price_override_reason    text           -- ex. 'fundador-2026'
 );
 
 create table accountant (                 -- Contador (N por Contabilidade, via convite — D-01)

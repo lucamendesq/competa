@@ -22,7 +22,9 @@
 | [D13](#d13--responsável-com-senha-e-competência-só-para-quem-configurou-o-acesso) | Responsável com senha; Competência só cobra quem configurou o acesso | Superada por D14 (itens 1, 4 e 6)               |
 | [D14](#d14--conta-do-responsável-é-opcional-push-não-depende-de-conta)            | Conta do Responsável é opcional; push não depende de conta           | Vigente                                         |
 | [D15](#d15--provedor-externo-é-escolhido-pelo-node_env-não-pela-credencial)       | Provedor externo é escolhido pelo `NODE_ENV`, não pela credencial    | Vigente (supera o mecanismo da D12)             |
-| [D16](#d16--gateway-de-pagamento-asaas--modelo-de-planotrial)                     | Gateway de pagamento Asaas + Modelo de plano flat-rate               | Vigente                                         |
+| [D16](#d16--gateway-de-pagamento-asaas--modelo-de-planotrial)                     | Gateway de pagamento Asaas + Modelo de plano flat-rate               | Vigente (preço e trava superados pela D17)      |
+| [D17](#d17--preço-público-e-métrica-de-cobrança-empresa-ativa-cadastrada)         | Preço público e métrica de cobrança: empresa ativa cadastrada        | Vigente (números superados pela D18)            |
+| [D18](#d18--recalibragem-de-planos-pela-carteira-real-e-segundo-eixo-de-upgrade)  | Recalibragem de planos pela carteira real + segundo eixo de upgrade  | Vigente                                         |
 
 ---
 
@@ -382,3 +384,157 @@ dizer o que o `NODE_ENV` já diz).
 
 - Stripe: descartado por priorizar o ecossistema brasileiro (Pix/Boleto mais nativo no Asaas e emissão fiscal futura).
 - Metered billing: descartado no MVP para reduzir a complexidade técnica e entregar a fatia de cobrança mais rapidamente.
+
+## D17 — Preço público e métrica de cobrança: empresa ativa cadastrada
+
+**Contexto:** A D16 fixou gateway (Asaas) e modelo (flat-rate por tiers), mas deixou os
+números como hipótese do discovery: dois planos a R$79 e R$147, teto de "10 empresas" no
+Essencial e "ilimitado" no Profissional, e trava no momento de **abrir a competência**.
+Nenhum desses números tinha pesquisa por trás, e nenhum teto era aplicado em código.
+
+A pesquisa de preço de 2026-10-18 mudou três coisas:
+
+1. **O WhatsApp não é custo nosso.** A integração é BYO — cada Contabilidade conecta o
+   próprio WABA no Embedded Signup e a Meta cobra ela direto (ver
+   [`whatsapp-integration.md`](./whatsapp-integration.md)). A estimativa de custo
+   operacional do `product.md` (~R$465/mês para 50 escritórios, dominada por mensagem a
+   ~R$0,045) estava errada: o custo variável real é storage R2 ($0,015/GB-mês, egress
+   grátis) + email + taxa do gateway, e fica em ~R$6,50 por cliente/mês.
+2. **A faixa de R$59 era baixa demais.** As âncoras públicas: Omie G-Click R$100/mês
+   (única pública do nicho no BR), Content Snare US$35–215/mês por conta — o concorrente
+   funcionalmente mais próximo, que cobra por *active requests*, não por usuário —, e
+   suítes per-seat (Karbon US$59–89/user, TaxDome US$800–1.200/seat/ano). Com dev solo, um
+   cliente de R$59 consome o mesmo suporte que um de R$249 e ancora a percepção de valor
+   no chão. O alerta FileInvite (saiu do nicho contábil) é sobre teto, não sobre piso.
+3. **"Competência aberta" é uma métrica que o cliente joga contra.** Cobrar pelo evento de
+   abertura dá ao Contador o incentivo de deixar de abrir competência de algumas Empresas
+   para cair de tier — ou seja, de **parar de usar o produto** para economizar.
+
+**Decisão:**
+
+1. **Métrica: Empresa ativa cadastrada**, como teto por plano. É a mesma unidade com que o
+   escritório cobra o próprio honorário (previsível antes de assinar), é a mesma estrutura
+   do Content Snare, e não tem o incentivo de gaming da competência aberta.
+2. **Contadores ilimitados em todo plano.** Todo concorrente global cobra per-seat; num
+   escritório de 1–5 pessoas, "usuários ilimitados" é o argumento de troca.
+3. **Preço de lançamento:** Essencial R$99 (20 empresas) · **Profissional R$149
+   (50 empresas, âncora)** · Escritório R$249 (120 empresas). Trial de 14 dias, 10
+   empresas, sem cartão. **Sem freemium** — trial converte 2–3× melhor (ChartMogul) e o
+   custo marginal por usuário free não é zero: a retenção fiscal de 5 anos
+   ([`retention.md`](./retention.md)) guarda o storage dele por anos.
+4. **Preço maduro:** R$129 / R$199 / R$349, com grandfathering, ao atingir **20 pagantes +
+   2 estudos de caso**. O gatilho é prova social, nunca aumento de custo.
+5. **A trava mudou de lugar:** não é mais ao abrir competência, é ao **cadastrar Empresa
+   nova**. Fica em `CompanyRepository` (`assertCompanyCapacity`), não no controller, porque
+   o cadastro avulso e a importação por planilha são dois caminhos de insert — guardar só
+   no controller deixaria a planilha furar o plano. Competência já aberta **nunca** é
+   bloqueada por limite.
+6. **Catálogo de planos em `libs/contracts/src/plan.ts`**, consumido pela API e pela web:
+   preço, teto e texto comercial saem do mesmo lugar. A tela de plano mostrava R$79/R$147 e
+   "empresas ilimitadas" enquanto o controller cobrava outra coisa — era duas verdades.
+
+**Consequências:**
+
+- Margem bruta de ~93% em 100 pagantes (receita R$16.150/mês contra ~R$1.050 de custo
+  variável + infra fixa). A restrição do negócio é CAC e tempo de suporte, não infra.
+- O anual (2 meses grátis) deve ser **cobrado no Pix**: taxa fixa de R$1,99 contra ~3% no
+  cartão — R$1,99 contra R$44,55 num plano anual de R$1.490.
+- O teto é rígido: passou do limite, o cadastro é recusado com a mensagem apontando a tela
+  de plano. **Overage suave (cobrar por empresa extra em vez de bloquear) fica de fora**
+  — exige metered billing no Asaas, que é justamente o que a D16 adiou. Revisitar no
+  primeiro cliente que reclamar de bloqueio em vez de cancelar.
+- A importação por planilha conta só as linhas que **entram** (o upsert por CNPJ não ocupa
+  vaga nova), senão reenviar o arquivo corrigido bateria no teto sem adicionar ninguém.
+  Verificação em `pnpm --filter api check:plan-cap`.
+
+**Alternativas rejeitadas:** manter a métrica por competência aberta (gaming); cobrar por
+usuário (é exatamente o que torna a suíte cara, e o posicionamento é o oposto); freemium
+(custo marginal não é zero por causa da retenção de 5 anos, e conversão leva 90–180 dias);
+cobrar por GB (o Responsável escolhe o tamanho do arquivo, o Contador paga a conta).
+
+## D18 — Recalibragem de planos pela carteira real e segundo eixo de upgrade
+
+**Contexto:** Os números da [D17](#d17--preço-público-e-métrica-de-cobrança-empresa-ativa-cadastrada)
+(R$99/149/249, tetos 20/50/120) foram pesquisados contra concorrentes, mas nunca contra a
+**carteira real** do escritório-alvo. A pesquisa de 2026-10-20 mostrou que o teto de entrada
+está calibrado para um mercado que não existe:
+
+| Fonte                       | Carteira por escritório                                                    |
+| --------------------------- | -------------------------------------------------------------------------- |
+| Fenacon (111 escritórios)   | 10–300, média **72,25** · 20% têm 1–30 · **34% têm 31–60** · 21% têm 61–90 |
+| Sescon-SP (255 escritórios) | média 187, mediana 150 · 17% até 50                                        |
+| PNEC/CFC 2017               | média 93 clientes / 12 funcionários ≈ 7,8 por pessoa                       |
+| Sescon-SP (honorários)      | faixa modal R$301–500/mês por cliente Simples Nacional                     |
+
+O teto de 20 empresas do Essencial cobre ~13% do mercado-alvo. O diagnóstico "um eixo só não
+faz ninguém subir" é secundário — o problema primário é que a porta de entrada parece pequena
+demais na própria página de preços.
+
+**Decisão:**
+
+1. **Tabela nova:** Essencial R$119 (30 empresas) · **Profissional R$189 (80 empresas, âncora)**
+   · Escritório R$299 (200 empresas). Degraus de 1,59× e 1,58× no preço contra 2,67× e 2,5× no
+   teto. O trial sobe de 10 para **15 empresas** — 10 não deixa o escritório médio (72 clientes)
+   montar um teste representativo em 14 dias.
+2. **Métrica mantida:** Empresa **ativa** cadastrada. A D17 acertou o eixo; errou o número.
+   Cobrar por competência aberta continua sendo gaming contra o uso.
+3. **Segundo eixo (três gates, todos já construídos ou de custo trivial):** marca do escritório
+   no link e nos e-mails · cadência de lembretes configurável · zip da competência inteira.
+   Existem para os ~20% do mercado com ≤30 clientes, que nunca vão disparar o eixo de volume.
+   O `trial` tem os três — o teste mostra o produto inteiro, senão vende o plano errado.
+4. **Nunca vira gate:** WhatsApp (é a promessa do produto), contadores (é a arma contra o
+   G-Click), histórico de 5 anos (economiza ~R$5/cliente/mês e compra uma conversa de "vocês
+   apagaram meu documento fiscal").
+5. **Supera o "preço maduro" R$129/199/349 da D17.** Esta é a tabela de lançamento _e_ a tabela
+   madura. Não lançar barato para subir depois — subir preço com grandfathering é custo de
+   comunicação; desconto de fundador é presente.
+6. **Oferta Fundador:** 10 escritórios a R$89/139/219 vitalício em troca de depoimento gravado +
+   estudo de caso com número medido. Cumpre a hipótese 🔴1 da D17 sem ancorar o preço público
+   no chão.
+7. **Teto deixa de ser muro exato:** folga de 20% (`SOFT_CAP_FACTOR`) com aviso antes do
+   bloqueio. Substitui a TASK-055 (overage suave com metered billing), que fica **cancelada** —
+   metered no Asaas é justamente o que a D16 adiou.
+
+**Consequências:**
+
+- `libs/contracts/src/plan.ts` continua sendo a fonte canônica: preço, teto, preço anual,
+  capabilities e `SOFT_CAP_FACTOR` saem do mesmo lugar, e os docs apontam para ele em vez de
+  repetir número.
+- O teto passa a contar **Empresa ativa**, não linha na tabela (a D17 dizia isso e o código não
+  fazia). Com isso, importar a carteira inteira como inativa não custa vaga — é a mitigação do
+  risco de adoção por recorte.
+- O segundo eixo exige um guard de capability por plano (`@RequiresPlan`) devolvendo **402** com
+  `{ capability, requiredPlan }`, para a web virar CTA em vez de erro genérico.
+- A negação de gate é instrumentada: é o único dado que vai dizer se o segundo eixo merece
+  existir. Gatilho de revisão em [`metricas-plano.md`](./metricas-plano.md) — com **20 pagantes
+  e 3 meses de uso**, se nenhum gate tiver sido batido por ao menos 3 firms distintas, a
+  recomendação padrão é remover os três e voltar ao eixo único, mantendo os preços (eles foram
+  calibrados pela carteira, não pelos gates).
+- Economia unitária a 100 pagantes, mix 40/40/20:
+
+  ```
+  Receita   40×119 + 40×189 + 20×299 = R$ 18.300/mês   (ARPU R$ 183)
+  Variável  gateway R$437 + storage R2 R$140 ......... R$   577   (ano 1)
+  Fixo      Fly + Supabase + Resend + Sentry ......... R$   550
+  Margem bruta ano 1: 93,8%   ·   ano 5 (retenção cheia): 91%
+  ```
+
+**Alternativas rejeitadas:**
+
+- **15/40/100:** aperta ainda mais embaixo num mercado cuja moda é 31–60 clientes.
+- **WhatsApp fora do plano de entrada:** quebra o posicionamento WhatsApp-first; o ganho de
+  upgrade não paga a contradição da promessa.
+- **Histórico de 12 meses no Essencial:** economia irrelevante (3,6% da receita no ano 5), risco
+  de confiança alto.
+- **Teto de contadores:** 1–5 pessoas tem pouco headroom e teto de assento convida à senha
+  compartilhada.
+- **Manter R$99 de entrada:** fica abaixo do piso de ARPU do fundador e empata com a única
+  âncora pública do nicho (G-Click R$100) sem margem para a diferença de assentos ilimitados
+  aparecer.
+- **Cobrar por empresa excedente** (overage da TASK-055): exige metered billing no Asaas.
+  Revisitar só se um cliente real pedir para pagar em vez de subir de plano.
+
+**Tickets:** COM-175 (este ADR) · COM-176 (catálogo) · COM-177 (teto conta só ativa) ·
+COM-178 (`@RequiresPlan`) · COM-179 (folga de 20%) · COM-180 (anual) · COM-181 (Oferta
+Fundador) · COM-182/183/184 (os três gates) · COM-185 (telas de preço) · COM-186 (importar
+como inativa) · COM-187 (instrumentação).

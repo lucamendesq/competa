@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { ref } from 'vue';
+import { computed, ref } from 'vue';
 import { useRouter } from 'vue-router';
 import { useForm, useField } from 'vee-validate';
 import * as z from 'zod';
@@ -28,6 +28,8 @@ const { handleSubmit, isSubmitting } = useForm({
 });
 
 const { value: email, errorMessage: emailError, meta: emailMeta } = useField<string>('email');
+
+const formValid = computed(() => schema.safeParse({ email: email.value }).success);
 
 const onSubmit = handleSubmit(async (values) => {
   submitError.value = null;
@@ -99,7 +101,12 @@ const onSubmit = handleSubmit(async (values) => {
             </p>
           </div>
 
-          <Button size="lg" type="submit" class="mt-2 w-full" :disabled="isSubmitting">
+          <Button
+            size="lg"
+            type="submit"
+            class="mt-2 w-full"
+            :disabled="isSubmitting || !formValid"
+          >
             {{ isSubmitting ? 'Enviando…' : 'Enviar e-mail' }}
             <ArrowRight class="ml-2 h-4 w-4" aria-hidden="true" />
           </Button>

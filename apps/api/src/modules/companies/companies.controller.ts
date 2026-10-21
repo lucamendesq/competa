@@ -1,6 +1,7 @@
 import { Body, Controller, Delete, Get, HttpCode, Param, Patch, Post, Query } from '@nestjs/common';
 import { EventEmitter2 } from '@nestjs/event-emitter';
 import {
+  ActivateCompaniesBody,
   ApplyTemplateBody,
   CompanyQuery,
   ContactBody,
@@ -45,6 +46,12 @@ export class CompaniesController {
     const { rows, total } = await this.companies.list(scope, query);
 
     return paginated(rows, { page: query.page, perPage: query.perPage, total });
+  }
+
+  /** Antes de `@Get(':id')`: a ordem de declaração é a ordem de match no Nest. */
+  @Get('usage')
+  usage(@CurrentScope() scope: FirmScope) {
+    return this.companies.usage(scope);
   }
 
   @Post()
@@ -173,7 +180,15 @@ export class CompaniesController {
       await this.requireAccountant(scope, accountantId);
     }
 
-    return this.companies.confirmImport(scope, body.pending);
+    return this.companies.confirmImport(scope, body.pending, body.activate);
+  }
+
+  @Post('activate')
+  activate(
+    @CurrentScope() scope: FirmScope,
+    @Body(zodPipe(ActivateCompaniesBody)) body: ActivateCompaniesBody,
+  ) {
+    return this.companies.activateMany(scope, body.companyIds);
   }
 
   @Get(':id')

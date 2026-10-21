@@ -24,7 +24,7 @@ export function useUploadFeature(token: string) {
   });
 
   const activateAccessMutation = useMutation({
-    mutationFn: () => activateAccess(token),
+    mutationFn: (body?: { name?: string; password?: string }) => activateAccess(token, body),
   });
 
   const sendFiles = async (files: File[], requestItemId: string | null) => {

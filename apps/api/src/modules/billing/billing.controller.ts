@@ -1,5 +1,5 @@
 import { Body } from '@nestjs/common';
-import * as z from 'zod';
+import { CheckoutBody, PLANS, planPrice } from '@competa/contracts';
 import { zodPipe } from '../../lib/zod-pipe.js';
 
 import { Controller, Post } from '@nestjs/common';
@@ -11,15 +11,6 @@ import type { FirmScope } from '../auth/scope.js';
 import { BillingProvider } from './providers/billing.provider.js';
 import { AccountantRepository } from '../auth/accountant.repository.js';
 import { SubscriptionRepository } from './subscription.repository.js';
-
-const PLAN_RATES = {
-  essencial: 79.0,
-  profissional: 147.0,
-};
-
-const CheckoutBody = z.object({
-  planName: z.enum(['essencial', 'profissional']),
-});
 
 @Controller('billing')
 export class BillingController {
@@ -33,7 +24,7 @@ export class BillingController {
   async checkout(
     @CurrentScope() scope: FirmScope,
     @Session() session: AuthSession,
-    @Body(zodPipe(CheckoutBody)) body: z.infer<typeof CheckoutBody>,
+    @Body(zodPipe(CheckoutBody)) body: CheckoutBody,
   ) {
     if (!(await this.accountants.isOwner(scope, session.user.id))) {
       throw new OnlyOwnerCanManageTeam();
@@ -48,16 +39,24 @@ export class BillingController {
       email: firm.contactEmail || 'faturamento@competa.com.br',
     });
 
-    // 2. Define o plano e cria a assinatura
-    const planName = body.planName;
+    // 2. Define o plano e cria a assinatura, respeitando a Oferta Fundador se houver
+    const { planName, cycle } = body;
+    const current = await this.subscriptions.findByFirm(firm.id);
     const { subscriptionId, checkoutUrl } = await this.billing.createSubscription({
       customerId,
       planName,
-      value: PLAN_RATES[planName],
+      cycle,
+      value: planPrice(PLANS[planName], cycle, current?.priceOverride?.[planName]),
     });
 
-    // 3. Salva no banco os IDs do gateway
-    await this.subscriptions.updateGatewayData(firm.id, customerId, subscriptionId);
+    // 3. Salva no banco o plano, o ciclo e os IDs do gateway
+    await this.subscriptions.startCheckout({
+      firmId: firm.id,
+      planName,
+      cycle,
+      gatewayCustomerId: customerId,
+      gatewaySubscriptionId: subscriptionId,
+    });
 
     return { checkoutUrl, simulated: this.billing.simulated };
   }

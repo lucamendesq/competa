@@ -1,5 +1,6 @@
 import { ref, computed } from 'vue';
 import { defineStore } from 'pinia';
+import type { BillingCycle, PlanCapability, PlanName, PriceOverride } from '@competa/contracts';
 import { api } from '../api/client';
 import { authClient } from '../api/auth-client';
 
@@ -10,10 +11,13 @@ export type Accountant = {
     name: string;
     logoUrl?: string | null;
     contactEmail?: string | null;
+    plan: { name: PlanName; companyCap: number; capabilities: PlanCapability[] };
     subscription?: {
       status: string;
       planName: string;
+      cycle: BillingCycle;
       trialEndsAt: string | null;
+      priceOverride: PriceOverride | null;
     };
   };
 };
@@ -136,6 +140,20 @@ export const useAuthStore = defineStore('auth', () => {
     await api.post('/auth/sign-up', { ...body, token });
   }
 
+  async function registerFirm(body: {
+    userName: string;
+    email: string;
+    password: string;
+    firmName: string;
+  }) {
+    await api.post('/auth/register', body);
+    setSessionHint('accountant');
+    const ok = await loadAccountant();
+    if (!ok) {
+      await signInAccountant(body.email, body.password);
+    }
+  }
+
   async function acceptContactInvite(token: string, body: { name: string; password?: string }) {
     await api.post(`/invites/${token}/contact-account`, body);
   }
@@ -216,12 +234,18 @@ export const useAuthStore = defineStore('auth', () => {
     if (error) throw new Error('Não foi possível enviar o link. Confira o e-mail e tente de novo.');
   }
 
+  /** `false` enquanto o `/me` não voltou: nenhum gate deve parecer liberado antes de saber. */
+  const can = (capability: PlanCapability) =>
+    accountant.value?.accountingFirm.plan.capabilities.includes(capability) ?? false;
+
   return {
     accountant,
     contact,
+    can,
     ensureLoaded,
     signInAccountant,
     signUpWithInvite,
+    registerFirm,
     acceptContactInvite,
     recoverLink,
     confirmRecoverLink,

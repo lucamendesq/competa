@@ -38,6 +38,15 @@ const feature = useUploadFeature(token.value);
 const { checklistQuery, subscribePushMutation, activateAccessMutation, sendFiles } = feature;
 
 const push = usePush();
+
+/* Marca do escritório no lugar da nossa, na mesma altura do cabeçalho: no celular o
+ * conteúdo de upload não pode descer nem um pixel por causa do logo. URL quebrada cai de
+ * volta na marca Competa em vez de deixar imagem quebrada numa página pública.
+ * `referrerpolicy="no-referrer"` é obrigatório: a URL desta página CARREGA o token do Link
+ * de Upload, e sem isso ela vai no Referer para o host do logo — que é escolhido pelo
+ * tenant e pode ser qualquer um. */
+const firmLogoUrl = computed(() => checklistQuery.data.value?.accountingFirmLogoUrl ?? null);
+const logoBroken = ref(false);
 const activatingAccess = ref(false);
 const accountExists = ref(false);
 const accessEmailSent = ref<string | null>(null);
@@ -62,9 +71,14 @@ async function handleRegisterPassword() {
     if (checklistQuery.data.value) {
       checklistQuery.data.value.hasAccess = true;
     }
-    toast.success('Senha cadastrada com sucesso! Você pode acessar a Minha Área a qualquer momento.');
+    toast.success(
+      'Senha cadastrada com sucesso! Você pode acessar a Minha Área a qualquer momento.',
+    );
   } catch (error) {
-    if (apiErrorCode(error) === 'EMAIL_ALREADY_REGISTERED' || apiErrorCode(error) === 'ACCESS_ALREADY_EXISTS') {
+    if (
+      apiErrorCode(error) === 'EMAIL_ALREADY_REGISTERED' ||
+      apiErrorCode(error) === 'ACCESS_ALREADY_EXISTS'
+    ) {
       accountExists.value = true;
       showPasswordModal.value = false;
       toast.info('Seu e-mail já possui uma conta ativa. Acesse em /minha-area/acesso.');
@@ -79,7 +93,6 @@ async function handleRegisterPassword() {
 async function subscribeToPush() {
   await push.subscribe((payload) => subscribePushMutation.mutateAsync(payload));
 }
-
 
 const closed = computed(() => checklistQuery.data.value?.status === 'closed');
 
@@ -141,8 +154,11 @@ async function send(files: File[], requestItemId: string | null) {
   try {
     const res = await sendFiles(files, requestItemId);
     results.value = res;
-    if (requestItemId && expanded.value === requestItemId && res.every((r) => r.ok)) {
-      expanded.value = null;
+    if (res.every((r) => r.ok)) {
+      toast.success(
+        res.length === 1 ? 'Arquivo enviado com sucesso.' : `${res.length} arquivos enviados.`,
+      );
+      if (requestItemId && expanded.value === requestItemId) expanded.value = null;
     }
   } catch (error) {
     toast.error(apiErrorMessage(error, 'Não foi possível enviar os arquivos.'));
@@ -154,8 +170,18 @@ async function send(files: File[], requestItemId: string | null) {
 
 <template>
   <div class="bg-background flex min-h-dvh flex-col items-center">
-    <header class="bg-white border-b border-border w-full px-4 py-3 flex items-center justify-between sm:px-6">
-      <Logo variant="icon" surface="auto" class="h-6" />
+    <header
+      class="bg-white border-b border-border w-full px-4 py-3 flex items-center justify-between sm:px-6"
+    >
+      <img
+        v-if="firmLogoUrl && !logoBroken"
+        :src="firmLogoUrl"
+        :alt="checklistQuery.data.value?.accountingFirm"
+        class="h-6 w-auto max-w-[160px] object-contain"
+        referrerpolicy="no-referrer"
+        @error="logoBroken = true"
+      />
+      <Logo v-else variant="icon" surface="auto" class="h-6" />
       <InstallButton variant="card" />
     </header>
 
@@ -172,7 +198,9 @@ async function send(files: File[], requestItemId: string | null) {
       class="mx-auto flex w-full max-w-xl flex-1 flex-col items-center justify-center p-6 text-center"
     >
       <Link2Off class="text-muted-foreground h-16 w-16" aria-hidden="true" />
-      <h1 class="font-display mt-4 text-xl font-semibold tracking-tight">Link indisponível ou expirado</h1>
+      <h1 class="font-display mt-4 text-xl font-semibold tracking-tight">
+        Link indisponível ou expirado
+      </h1>
       <p class="text-muted-foreground mt-2 text-sm">
         O link de envio expirou ou a competência foi encerrada. Peça um novo link para a
         contabilidade.
@@ -232,22 +260,20 @@ async function send(files: File[], requestItemId: string | null) {
       >
         <div class="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
           <div class="flex items-start gap-3">
-            <span class="bg-emerald-500/10 text-emerald-600 flex size-9 shrink-0 items-center justify-center rounded-lg mt-0.5">
+            <span
+              class="bg-emerald-500/10 text-emerald-600 flex size-9 shrink-0 items-center justify-center rounded-lg mt-0.5"
+            >
               <CheckCircle2 class="h-4 w-4" />
             </span>
             <div>
-              <p class="text-sm font-semibold text-foreground">
-                Senha cadastrada com sucesso!
-              </p>
+              <p class="text-sm font-semibold text-foreground">Senha cadastrada com sucesso!</p>
               <p class="text-muted-foreground text-xs mt-0.5">
                 Você já pode acessar sua área exclusiva para acompanhar o histórico e pendências.
               </p>
             </div>
           </div>
           <Button variant="outline" size="sm" class="shrink-0" as-child>
-            <RouterLink to="/minha-area/acesso">
-              Acessar Minha Área
-            </RouterLink>
+            <RouterLink to="/minha-area/acesso"> Acessar Minha Área </RouterLink>
           </Button>
         </div>
       </div>
@@ -258,7 +284,9 @@ async function send(files: File[], requestItemId: string | null) {
       >
         <div class="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
           <div class="flex items-start gap-3">
-            <span class="bg-primary/10 text-primary flex size-9 shrink-0 items-center justify-center rounded-lg mt-0.5">
+            <span
+              class="bg-primary/10 text-primary flex size-9 shrink-0 items-center justify-center rounded-lg mt-0.5"
+            >
               <Lock class="h-4 w-4" />
             </span>
             <div>
@@ -386,7 +414,9 @@ async function send(files: File[], requestItemId: string | null) {
               class="flex items-center gap-2 p-3 text-sm"
             >
               <FileIcon class="text-muted-foreground shrink-0 h-4 w-4" aria-hidden="true" />
-              <span class="min-w-0 flex-1 truncate font-medium text-foreground">Arquivo {{ index + 1 }}</span>
+              <span class="min-w-0 flex-1 truncate font-medium text-foreground"
+                >Arquivo {{ index + 1 }}</span
+              >
               <StatusPill :status="file.reviewStatus" />
             </li>
           </ul>
@@ -503,13 +533,17 @@ async function send(files: File[], requestItemId: string | null) {
             class="flex items-center gap-2 p-3 text-sm"
           >
             <FileIcon class="text-muted-foreground shrink-0 h-4 w-4" aria-hidden="true" />
-            <span class="min-w-0 flex-1 truncate font-medium text-foreground">Documento extra {{ index + 1 }}</span>
+            <span class="min-w-0 flex-1 truncate font-medium text-foreground"
+              >Documento extra {{ index + 1 }}</span
+            >
             <StatusPill :status="file.reviewStatus" />
           </li>
         </ul>
       </section>
 
-      <footer class="mt-8 flex flex-col items-center justify-center gap-2 text-center text-xs text-muted-foreground sm:flex-row sm:gap-4">
+      <footer
+        class="mt-8 flex flex-col items-center justify-center gap-2 text-center text-xs text-muted-foreground sm:flex-row sm:gap-4"
+      >
         <template v-if="!checklistQuery.data.value.hasAccess && !passwordSaved">
           <div>
             <span>Ainda não tem senha? </span>
@@ -568,7 +602,7 @@ async function send(files: File[], requestItemId: string | null) {
           >
             Cancelar
           </Button>
-          <Button type="submit" :disabled="activatingAccess">
+          <Button type="submit" :disabled="activatingAccess || newPassword.length < 8">
             {{ activatingAccess ? 'Cadastrando…' : 'Salvar senha' }}
           </Button>
         </div>

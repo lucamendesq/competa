@@ -35,6 +35,7 @@ export type ConfirmUploadBody = z.infer<typeof ConfirmUploadBody>;
  *  um magic link para a caixa do Responsável; o acesso se completa de lá. */
 export const ActivateContactAccessBody = z.object({
   name: optionalText(),
+  password: z.string().min(8, 'A senha precisa ter pelo menos 8 caracteres.').optional(),
 });
 export type ActivateContactAccessBody = z.infer<typeof ActivateContactAccessBody>;
 

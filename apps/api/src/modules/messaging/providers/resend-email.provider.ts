@@ -79,7 +79,7 @@ export class ResendEmail extends MessageProvider {
     }
   }
 
-  async send({ recipient, subject, body, senderName }: MessageToSend) {
+  async send({ recipient, subject, body, senderName, brandLogoUrl }: MessageToSend) {
     this.checkCircuit();
 
     const maxRetries = 3;
@@ -92,7 +92,7 @@ export class ResendEmail extends MessageProvider {
             from: this.sender(senderName),
             to: recipient,
             subject,
-            html: emailLayout(body, senderName),
+            html: emailLayout(body, senderName, brandLogoUrl),
           },
           { signal: AbortSignal.timeout(10_000) } as never,
         );

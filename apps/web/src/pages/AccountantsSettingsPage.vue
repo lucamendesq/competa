@@ -1,7 +1,7 @@
 <script setup lang="ts">
 import { computed, ref } from 'vue';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/vue-query';
-import { Copy, Mail, Trash2, UserPlus } from 'lucide-vue-next';
+import { Check, Copy, Mail, Trash2, UserPlus } from 'lucide-vue-next';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
@@ -31,6 +31,7 @@ import { useAuthStore } from '@/stores/auth';
 import { CreateInviteBody } from '@competa/contracts';
 import { toast } from 'vue-sonner';
 import { apiErrorMessage } from '@/api/error';
+import { useCopy } from '@/composables/useCopy';
 import { dateTimeBr } from '@/utils/format';
 
 const auth = useAuthStore();
@@ -88,14 +89,11 @@ async function sendInvite() {
   }
 }
 
+const { copiedKey, copy } = useCopy();
+
 async function copyInviteUrl() {
   if (!inviteUrl.value) return;
-  try {
-    await navigator.clipboard.writeText(inviteUrl.value);
-    toast.success('Link do convite copiado.');
-  } catch {
-    toast.error('Não foi possível copiar o link.');
-  }
+  await copy(inviteUrl.value, 'Link do convite copiado.', 'invite');
 }
 
 async function doRemove() {
@@ -134,9 +132,7 @@ async function doRevoke() {
 
   <main class="mt-8 flex flex-col gap-8">
     <section>
-      <h2 class="mb-3 text-base font-semibold font-display text-foreground">
-        Contadores
-      </h2>
+      <h2 class="mb-3 text-base font-semibold font-display text-foreground">Contadores</h2>
       <template v-if="accountantsQuery.isLoading.value">
         <LoadingRows />
       </template>
@@ -186,9 +182,7 @@ async function doRevoke() {
     </section>
 
     <section>
-      <h2 class="mb-3 text-base font-semibold font-display text-foreground">
-        Convites pendentes
-      </h2>
+      <h2 class="mb-3 text-base font-semibold font-display text-foreground">Convites pendentes</h2>
       <template v-if="invitesQuery.isLoading.value">
         <LoadingRows :count="2" />
       </template>
@@ -214,7 +208,9 @@ async function doRevoke() {
             <p class="flex items-center gap-2 text-sm font-medium text-foreground">
               <Mail class="h-4 w-4 text-muted-foreground" /> {{ row.email }}
             </p>
-            <p class="text-muted-foreground text-xs mt-0.5">Expira em {{ dateTimeBr(row.expiresAt) }}</p>
+            <p class="text-muted-foreground text-xs mt-0.5">
+              Expira em {{ dateTimeBr(row.expiresAt) }}
+            </p>
           </div>
           <Button
             v-if="isOwner"
@@ -262,7 +258,9 @@ async function doRevoke() {
       <code class="bg-muted break-all rounded-md p-3 text-xs">{{ inviteUrl }}</code>
       <div class="border-border bg-muted/40 -mx-6 -mb-6 mt-2 flex justify-end gap-2 border-t p-4">
         <Button variant="outline" @click="copyInviteUrl">
-          <Copy class="mr-2 h-4 w-4" /> Copiar link
+          <Check v-if="copiedKey === 'invite'" class="mr-2 h-4 w-4 text-success" />
+          <Copy v-else class="mr-2 h-4 w-4" />
+          {{ copiedKey === 'invite' ? 'Link copiado!' : 'Copiar link' }}
         </Button>
         <Button @click="inviteOpen = false">Fechar</Button>
       </div>

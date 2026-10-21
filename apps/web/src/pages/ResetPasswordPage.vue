@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { ref } from 'vue';
+import { computed, ref } from 'vue';
 import { useRoute, useRouter } from 'vue-router';
 import { useForm, useField } from 'vee-validate';
 import * as z from 'zod';
@@ -34,6 +34,8 @@ const {
   errorMessage: passwordError,
   meta: passwordMeta,
 } = useField<string>('password');
+
+const formValid = computed(() => schema.safeParse({ password: password.value }).success);
 
 const onSubmit = handleSubmit(async (values) => {
   if (!token) return;
@@ -119,7 +121,12 @@ const onSubmit = handleSubmit(async (values) => {
             </p>
           </div>
 
-          <Button size="lg" type="submit" class="mt-2 w-full" :disabled="isSubmitting">
+          <Button
+            size="lg"
+            type="submit"
+            class="mt-2 w-full"
+            :disabled="isSubmitting || !formValid"
+          >
             {{ isSubmitting ? 'Salvando…' : 'Redefinir senha' }}
             <ArrowRight class="ml-2 h-4 w-4" aria-hidden="true" />
           </Button>

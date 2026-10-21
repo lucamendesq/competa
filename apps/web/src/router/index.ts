@@ -166,6 +166,16 @@ const routes: RouteRecordRaw[] = [
     meta: { guestOnly: true },
     component: () => import('../pages/LoginPage.vue'),
   },
+  {
+    path: '/cadastro',
+    name: 'Register',
+    meta: { guestOnly: true, title: 'Criar conta' },
+    component: () => import('../pages/RegisterPage.vue'),
+  },
+  {
+    path: '/criar-conta',
+    redirect: '/cadastro',
+  },
   /* Catch-all explícito: sem ele uma URL com typo casava com nada e o `<RouterView>`
    * ficava vazio — tela branca sem erro, sem 404 e sem cair no guard de login. */
   {

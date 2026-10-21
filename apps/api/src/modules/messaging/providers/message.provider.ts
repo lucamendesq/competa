@@ -6,6 +6,8 @@ export type MessageToSend = {
   subject: string;
   body: string;
   senderName?: string;
+  /** Logo do escritório. Só vem preenchido quando o plano tem a capability `branding`. */
+  brandLogoUrl?: string | null;
 };
 
 /** Provedor de canal (regra 10: API externa só aqui dentro). `send` lança em falha;

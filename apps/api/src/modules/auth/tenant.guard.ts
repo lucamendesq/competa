@@ -59,6 +59,9 @@ export class TenantGuard implements CanActivate {
 
     request.firmScope = toFirmScope(row.accountingFirmId);
     request.accountantId = row.id;
+    /* O `PlanGuard` lê daqui: o plano já veio na mesma consulta de sessão, então o gate de
+     * capability não custa uma query a mais por request. */
+    request.planName = row.subscriptionPlanName ?? 'trial';
     return true;
   }
 }

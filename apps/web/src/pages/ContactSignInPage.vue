@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { ref } from 'vue';
+import { computed, ref } from 'vue';
 import { useRouter } from 'vue-router';
 import { useForm, useField } from 'vee-validate';
 import * as z from 'zod';
@@ -46,6 +46,11 @@ const {
   errorMessage: linkEmailError,
   meta: linkEmailMeta,
 } = useField<string>('linkEmail', undefined, { form: linkForm });
+
+const signInValid = computed(
+  () => SignInForm.safeParse({ email: email.value, password: password.value }).success,
+);
+const linkValid = computed(() => LinkForm.safeParse({ linkEmail: linkEmail.value }).success);
 
 const onSignIn = signInForm.handleSubmit(async (values) => {
   error.value = null;
@@ -127,7 +132,12 @@ const onRequestLink = linkForm.handleSubmit(async (values) => {
           </p>
         </div>
 
-        <Button size="lg" type="submit" class="w-full font-medium" :disabled="signInForm.isSubmitting.value">
+        <Button
+          size="lg"
+          type="submit"
+          class="w-full font-medium"
+          :disabled="signInForm.isSubmitting.value || !signInValid"
+        >
           {{ signInForm.isSubmitting.value ? 'Entrando…' : 'Entrar' }}
         </Button>
       </form>
@@ -168,7 +178,13 @@ const onRequestLink = linkForm.handleSubmit(async (values) => {
             </p>
           </div>
 
-          <Button size="lg" type="submit" variant="outline" class="w-full hover:bg-muted font-medium" :disabled="linkForm.isSubmitting.value">
+          <Button
+            size="lg"
+            type="submit"
+            variant="outline"
+            class="w-full hover:bg-muted font-medium"
+            :disabled="linkForm.isSubmitting.value || !linkValid"
+          >
             <Mail class="mr-2 h-4 w-4" aria-hidden="true" />
             {{ linkForm.isSubmitting.value ? 'Enviando…' : 'Receber link por e-mail' }}
           </Button>

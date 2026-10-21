@@ -1,7 +1,7 @@
 import { Body, Controller, Get, HttpCode, Logger, Patch, Post, Req } from '@nestjs/common';
 import { AllowAnonymous } from '@thallesp/nestjs-better-auth';
 import { APIError } from 'better-auth/api';
-import { RegisterDeviceBody, SignUpBody } from '@competa/contracts';
+import { PLANS, type PlanName, RegisterDeviceBody, SignUpBody } from '@competa/contracts';
 import type { Request } from 'express';
 import { NotFound } from '../../lib/app-error.js';
 import { isFailure } from '../../lib/either.js';
@@ -85,6 +85,8 @@ export class AuthController {
     const me = await this.accountants.findMe(scope, session.user.id);
     if (!me) throw new NotFound();
 
+    const plan = PLANS[(me.subscriptionPlanName ?? 'trial') as PlanName] ?? PLANS.trial;
+
     return {
       accountant: { id: me.accountantId, name: me.name, email: me.email, owner: me.owner },
       accountingFirm: {
@@ -92,11 +94,21 @@ export class AuthController {
         name: me.firmName,
         logoUrl: me.firmLogoUrl,
         contactEmail: me.firmContactEmail,
+        /** A web decide o que renderizar com isto — sem ele o usuário só descobre o gate
+         *  tomando 402 depois de clicar. */
+        plan: {
+          name: plan.name,
+          companyCap: plan.companyCap,
+          capabilities: plan.capabilities,
+        },
         subscription: me.subscriptionStatus
           ? {
               status: me.subscriptionStatus,
               planName: me.subscriptionPlanName,
+              cycle: me.subscriptionCycle,
               trialEndsAt: me.subscriptionTrialEndsAt,
+              /** Oferta Fundador: a tela de plano tem que mostrar o preço que ele paga. */
+              priceOverride: me.subscriptionPriceOverride,
             }
           : undefined,
       },

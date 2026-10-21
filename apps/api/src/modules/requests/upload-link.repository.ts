@@ -9,8 +9,10 @@ import {
   period,
   request,
   requestItem,
+  subscription,
   uploadLink,
 } from '../../infra/database/schema/index.js';
+import { planAllows } from '@competa/contracts';
 import type { UploadScope } from '../auth/scope.js';
 
 @Injectable()
@@ -66,6 +68,8 @@ export class UploadLinkRepository {
       .select({
         companyName: company.name,
         accountingFirmName: accountingFirm.name,
+        accountingFirmLogoUrl: accountingFirm.logoUrl,
+        planName: subscription.planName,
         referenceMonth: period.referenceMonth,
         periodDueDate: period.dueDate,
         status: request.status,
@@ -73,6 +77,7 @@ export class UploadLinkRepository {
       .from(request)
       .innerJoin(company, eq(company.id, request.companyId))
       .innerJoin(accountingFirm, eq(accountingFirm.id, company.accountingFirmId))
+      .leftJoin(subscription, eq(subscription.accountingFirmId, accountingFirm.id))
       .innerJoin(period, eq(period.id, request.periodId))
       .where(eq(request.id, scope.requestId))
       .limit(1);
@@ -105,6 +110,10 @@ export class UploadLinkRepository {
 
     return {
       ...row,
+      /** Marca do escritório na página pública: só no plano com a capability `branding`. */
+      accountingFirmLogoUrl: planAllows(row.planName ?? 'trial', 'branding')
+        ? row.accountingFirmLogoUrl
+        : null,
       items: items.map((item) => ({
         ...item,
         documents: documents.filter((file) => file.requestItemId === item.id),

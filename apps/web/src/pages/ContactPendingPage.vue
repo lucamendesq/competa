@@ -1,18 +1,20 @@
 <script setup lang="ts">
 import { computed, ref } from 'vue';
-import { Upload, Bell, CircleAlert } from 'lucide-vue-next';
+import { CircleAlert, PartyPopper, Upload } from 'lucide-vue-next';
 import { Button } from '@/components/ui/button';
-import { Card, CardContent } from '@/components/ui/card';
+import StatusPill from '@/components/StatusPill.vue';
 import { useContactPending } from '@/features/contact-area/composables/useContactPending';
-import { dateBr, monthLabel } from '@/utils/format';
-import { isOverdue } from '@/utils/format';
+import { dateBr, isOverdue, monthLabel } from '@/utils/format';
+import LoadingRows from '@/components/LoadingRows.vue';
 import UploadFeedback from '@/components/UploadFeedback.vue';
+import type { FileResult } from '@/composables/useUpload';
+import { toast } from 'vue-sonner';
 
 const { pendingQuery, sendFiles } = useContactPending();
 
-// Upload state per item
-const uploadingItemId = ref<string | null>(null);
-const uploadResults = ref<any[] | null>(null);
+const sendingItemId = ref<string | null>(null);
+const results = ref<FileResult[] | null>(null);
+const retryTarget = ref<{ requestId: string; itemId: string } | null>(null);
 
 const triggerFileInput = (id: string) => {
   window.document.getElementById(`file-${id}`)?.click();
@@ -23,19 +25,33 @@ const triggerFileInput = (id: string) => {
 const acceptAttr = (formats?: string[]) =>
   [...new Set([...(formats ?? []).map((f) => `.${f}`), '.jpg', '.jpeg', '.png'])].join(',');
 
-const handleFileUpload = async (e: Event, requestId: string, itemId: string) => {
-  const input = e.target as HTMLInputElement;
-  if (!input.files?.length) return;
+async function send(files: File[], requestId: string, itemId: string) {
+  retryTarget.value = { requestId, itemId };
+  sendingItemId.value = itemId;
+  results.value = null;
 
-  uploadingItemId.value = itemId;
-  uploadResults.value = null;
+  const res = await sendFiles(files, requestId, itemId);
+  results.value = res;
+  sendingItemId.value = null;
 
-  const results = await sendFiles(Array.from(input.files), requestId, itemId);
-  uploadResults.value = results;
+  if (res.every((r) => r.ok)) {
+    toast.success(
+      res.length === 1 ? 'Arquivo enviado com sucesso.' : `${res.length} arquivos enviados.`,
+    );
+  }
+}
 
-  // reset input
+async function onPick(event: Event, requestId: string, itemId: string) {
+  const input = event.target as HTMLInputElement;
+  const files = [...(input.files ?? [])];
   input.value = '';
-};
+  if (files.length) await send(files, requestId, itemId);
+}
+
+function retry(files: File[]) {
+  const target = retryTarget.value;
+  if (target) send(files, target.requestId, target.itemId);
+}
 
 const groupedItems = computed(() => {
   const items = pendingQuery.data.value || [];
@@ -45,6 +61,7 @@ const groupedItems = computed(() => {
     const key = `${item.companyId}-${item.periodId}`;
     if (!groups.has(key)) {
       groups.set(key, {
+        key,
         companyName: item.companyName,
         referenceMonth: item.referenceMonth,
         requestId: item.requestId,
@@ -59,121 +76,107 @@ const groupedItems = computed(() => {
 </script>
 
 <template>
-  <div class="space-y-6">
-    <div v-if="pendingQuery.isLoading.value" class="text-center py-16 text-muted-foreground font-medium">
-      Carregando pendências...
-    </div>
+  <div class="flex flex-col gap-6">
+    <LoadingRows v-if="pendingQuery.isLoading.value" :count="4" />
 
     <div
       v-else-if="!groupedItems.length"
-      class="bg-card border border-border rounded-xl p-10 text-center shadow-sm"
+      class="bg-primary/10 border-primary/20 rounded-xl border p-5"
     >
-      <div
-        class="mx-auto mb-4 flex size-12 items-center justify-center rounded-full bg-primary/10 text-primary"
-      >
-        <Bell class="h-6 w-6" />
+      <div class="flex items-start gap-4">
+        <PartyPopper class="text-primary mt-1 shrink-0" aria-hidden="true" />
+        <div>
+          <h1 class="text-foreground text-base font-semibold tracking-tight">
+            Tudo certo por aqui!
+          </h1>
+          <p class="text-foreground/80 mt-1 text-sm">
+            Nenhuma empresa sua tem documento pendente neste momento.
+          </p>
+        </div>
       </div>
-      <h2 class="text-xl font-bold font-display text-foreground">Tudo certo por aqui!</h2>
-      <p class="text-muted-foreground mt-2 max-w-md mx-auto text-sm">
-        Nenhuma empresa possui documentos pendentes para envio neste momento.
-      </p>
     </div>
 
-    <div v-else class="space-y-8">
-      <div v-for="group in groupedItems" :key="group.requestId" class="space-y-4">
-        <h2 class="text-lg font-bold font-display tracking-tight text-foreground flex flex-wrap items-center gap-2">
-          {{ group.companyName }}
-          <span class="text-muted-foreground font-normal text-sm font-sans"
-            >— Competência {{ monthLabel(group.referenceMonth) }}</span
-          >
-        </h2>
+    <section v-for="group in groupedItems" :key="group.key" class="flex flex-col gap-3">
+      <h2 class="font-display text-foreground text-base font-semibold tracking-tight">
+        {{ group.companyName }}
+        <span class="text-muted-foreground font-sans text-sm font-normal">
+          — Competência {{ monthLabel(group.referenceMonth) }}
+        </span>
+      </h2>
 
-        <Card
+      <ul
+        class="bg-card border-border divide-border divide-y rounded-xl border shadow-sm"
+        role="list"
+      >
+        <li
           v-for="row in group.items"
           :key="row.item.id"
-          class="border border-border bg-card shadow-sm rounded-xl"
+          class="flex flex-col gap-3 p-4 sm:flex-row sm:items-start sm:justify-between"
+          :class="{
+            'bg-amber-50/40': row.item.status === 'pending',
+            'bg-rose-50/30': row.item.status === 'rejected',
+          }"
         >
-          <CardContent class="p-5 sm:p-6">
-            <div class="flex flex-col sm:flex-row gap-6 justify-between items-start">
-              <div class="space-y-2 flex-1">
-                <div class="flex flex-wrap items-center gap-2.5">
-                  <h3 class="font-semibold text-foreground font-display text-base">
-                    {{ row.item.name }}
-                  </h3>
-                  <span
-                    v-if="row.item.status === 'rejected'"
-                    class="inline-flex items-center rounded-full px-2.5 py-0.5 text-xs font-medium border border-rose-200 bg-rose-50 text-rose-800"
-                  >
-                    Recusado
-                  </span>
-                  <span
-                    v-else-if="isOverdue(row.item.dueDate)"
-                    class="inline-flex items-center rounded-full px-2.5 py-0.5 text-xs font-medium border border-amber-200 bg-amber-50 text-amber-800"
-                  >
-                    Atrasado
-                  </span>
-                  <span
-                    v-else
-                    class="inline-flex items-center rounded-full px-2.5 py-0.5 text-xs font-medium border border-slate-200 bg-slate-100 text-slate-700"
-                  >
-                    Pendente
-                  </span>
-                </div>
-
-                <p v-if="row.item.description" class="text-sm text-muted-foreground">
-                  {{ row.item.description }}
-                </p>
-
-                <div class="text-xs text-muted-foreground flex flex-wrap gap-4 pt-1">
-                  <span v-if="row.item.dueDate">Prazo: {{ dateBr(row.item.dueDate) }}</span>
-                  <span v-if="row.item.acceptedFormats?.length">
-                    Formatos: {{ row.item.acceptedFormats.join(', ').toUpperCase() }}
-                  </span>
-                </div>
-
-                <div
-                  v-if="row.item.status === 'rejected' && row.item.rejections?.[0]"
-                  class="mt-4 p-3.5 bg-danger-surface border border-danger-border rounded-lg text-danger-foreground text-sm flex gap-2.5"
-                >
-                  <CircleAlert class="h-4 w-4 shrink-0 mt-0.5 text-danger-accent" />
-                  <div>
-                    <p class="font-semibold">Motivo da recusa:</p>
-                    <p class="mt-0.5">{{ row.item.rejections[0].reason }}</p>
-                  </div>
-                </div>
-
-                <div v-if="uploadingItemId === row.item.id && uploadResults" class="mt-4">
-                  <UploadFeedback :results="uploadResults" />
-                </div>
-              </div>
-
-              <div class="shrink-0 w-full sm:w-auto">
-                <input
-                  type="file"
-                  :id="`file-${row.item.id}`"
-                  class="hidden"
-                  multiple
-                  :accept="acceptAttr(row.item.acceptedFormats)"
-                  @change="handleFileUpload($event, group.requestId, row.item.id)"
-                />
-                <Button
-                  variant="outline"
-                  class="w-full sm:w-auto hover:bg-primary/5 hover:text-primary hover:border-primary/40 focus-visible:ring-ring focus-visible:border-primary"
-                  @click="triggerFileInput(row.item.id)"
-                  :disabled="uploadingItemId === row.item.id && !uploadResults"
-                >
-                  <Upload class="h-4 w-4 mr-2" />
-                  {{
-                    uploadingItemId === row.item.id && !uploadResults
-                      ? 'Enviando...'
-                      : 'Enviar arquivos'
-                  }}
-                </Button>
-              </div>
+          <div class="min-w-0 flex-1">
+            <div class="flex flex-wrap items-center gap-2">
+              <span class="text-foreground truncate text-sm font-semibold">
+                {{ row.item.name }}
+              </span>
+              <StatusPill :status="row.item.status" />
+              <span
+                v-if="row.item.status !== 'rejected' && isOverdue(row.item.dueDate)"
+                class="text-danger-foreground border-danger-border bg-danger-surface inline-flex items-center rounded-full border px-2 py-0.5 text-[11px] font-semibold"
+              >
+                Atrasado
+              </span>
             </div>
-          </CardContent>
-        </Card>
-      </div>
-    </div>
+
+            <p v-if="row.item.description" class="text-muted-foreground mt-1 text-sm">
+              {{ row.item.description }}
+            </p>
+
+            <p class="text-muted-foreground mt-1 flex flex-wrap gap-x-3 gap-y-1 text-xs">
+              <span v-if="row.item.dueDate">Prazo {{ dateBr(row.item.dueDate) }}</span>
+              <span v-if="row.item.acceptedFormats?.length">
+                Formatos: {{ row.item.acceptedFormats.join(', ').toUpperCase() }}
+              </span>
+            </p>
+
+            <div
+              v-if="row.item.status === 'rejected' && row.item.rejections?.[0]"
+              class="bg-danger-surface border-danger-border text-danger-foreground mt-3 flex gap-2.5 rounded-lg border p-3 text-sm"
+            >
+              <CircleAlert class="text-danger mt-0.5 h-4 w-4 shrink-0" aria-hidden="true" />
+              <span>
+                <span class="font-semibold">Motivo da recusa:</span>
+                {{ row.item.rejections[0].reason }}
+              </span>
+            </div>
+          </div>
+
+          <div class="shrink-0">
+            <input
+              type="file"
+              :id="`file-${row.item.id}`"
+              class="sr-only"
+              multiple
+              :accept="acceptAttr(row.item.acceptedFormats)"
+              @change="onPick($event, group.requestId, row.item.id)"
+            />
+            <Button
+              variant="outline"
+              size="sm"
+              class="w-full sm:w-auto"
+              @click="triggerFileInput(row.item.id)"
+            >
+              <Upload class="mr-2 h-4 w-4" aria-hidden="true" />
+              {{ sendingItemId === row.item.id ? 'Enviando…' : 'Enviar arquivos' }}
+            </Button>
+          </div>
+        </li>
+      </ul>
+    </section>
+
+    <UploadFeedback :results="results" @dismiss="results = null" @retry="retry" />
   </div>
 </template>

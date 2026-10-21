@@ -9,6 +9,7 @@ import PageHeader from '@/components/PageHeader.vue';
 import ErrorState from '@/components/ErrorState.vue';
 import LoadingRows from '@/components/LoadingRows.vue';
 import Callout from '@/components/Callout.vue';
+import PlanGateNotice from '@/components/PlanGateNotice.vue';
 import { getFirm, updateFirm } from '@/features/firm/api/firm';
 import { useAuthStore } from '@/stores/auth';
 import { toast } from 'vue-sonner';
@@ -18,6 +19,8 @@ const auth = useAuthStore();
 const queryClient = useQueryClient();
 
 const isOwner = computed(() => auth.accountant?.accountant.owner === true);
+const canBrand = computed(() => auth.can('branding'));
+const canTuneReminders = computed(() => auth.can('reminderTuning'));
 
 const firmQuery = useQuery({ queryKey: ['accountingFirm'], queryFn: getFirm });
 
@@ -58,13 +61,19 @@ async function save() {
   if (saving.value) return;
   fieldErrors.value = {};
 
+  /* Sem a capability, os três knobs nem entram no corpo: mandá-los faria o PATCH tomar 402
+   * mesmo quando o Contador só renomeou o escritório. */
   const parsed = UpdateFirmBody.safeParse({
     name: draft.value.name,
     contactEmail: draft.value.contactEmail,
     logoUrl: draft.value.logoUrl,
-    reminderMax: Number(draft.value.reminderMax),
-    reminderDueSoonDays: Number(draft.value.reminderDueSoonDays),
-    reminderGapDays: Number(draft.value.reminderGapDays),
+    ...(canTuneReminders.value
+      ? {
+          reminderMax: Number(draft.value.reminderMax),
+          reminderDueSoonDays: Number(draft.value.reminderDueSoonDays),
+          reminderGapDays: Number(draft.value.reminderGapDays),
+        }
+      : {}),
   });
 
   if (!parsed.success) {
@@ -137,17 +146,38 @@ async function save() {
           <Input
             id="firmLogoUrl"
             v-model="draft.logoUrl"
-            :disabled="!isOwner"
+            :disabled="!isOwner || !canBrand"
             placeholder="https://..."
           />
+          <p class="text-muted-foreground text-xs">
+            Aparece no topo do Link de Upload e no cabeçalho dos e-mails. Endereço
+            <code>https://</code> de uma imagem já publicada.
+          </p>
+          <img
+            v-if="draft.logoUrl"
+            :src="draft.logoUrl"
+            :alt="`Logo de ${draft.name}`"
+            class="border-border bg-card mt-1 h-10 w-auto max-w-[200px] self-start rounded-md border object-contain p-1"
+            referrerpolicy="no-referrer"
+          />
+          <PlanGateNotice v-if="!canBrand" capability="branding">
+            Sua marca no Link de Upload e nos e-mails
+          </PlanGateNotice>
           <p v-if="fieldErrors.logoUrl" class="text-danger text-xs">{{ fieldErrors.logoUrl }}</p>
         </div>
       </section>
 
       <section class="bg-card border border-border shadow-sm rounded-xl p-6 flex flex-col gap-5">
-        <h2 class="text-base font-semibold font-display text-foreground">
-          Lembretes automáticos
-        </h2>
+        <h2 class="text-base font-semibold font-display text-foreground">Lembretes automáticos</h2>
+
+        <p class="text-muted-foreground text-sm">
+          A cobrança automática roda em todos os planos. O que muda aqui é a
+          <strong>cadência</strong>: quantos lembretes, a partir de quantos dias do prazo e com
+          que intervalo.
+        </p>
+        <PlanGateNotice v-if="!canTuneReminders" capability="reminderTuning">
+          Ajustar a cadência dos lembretes
+        </PlanGateNotice>
 
         <div class="flex flex-col gap-1.5">
           <Label for="reminderMax">Máximo de lembretes por item</Label>
@@ -158,7 +188,7 @@ async function save() {
             min="0"
             max="10"
             class="w-28"
-            :disabled="!isOwner"
+            :disabled="!isOwner || !canTuneReminders"
           />
           <p class="text-muted-foreground text-xs">0 desliga as cobranças automáticas.</p>
           <p v-if="fieldErrors.reminderMax" class="text-danger text-xs">
@@ -175,7 +205,7 @@ async function save() {
             min="0"
             max="31"
             class="w-28"
-            :disabled="!isOwner"
+            :disabled="!isOwner || !canTuneReminders"
           />
           <p v-if="fieldErrors.reminderDueSoonDays" class="text-danger text-xs">
             {{ fieldErrors.reminderDueSoonDays }}
@@ -191,7 +221,7 @@ async function save() {
             min="1"
             max="31"
             class="w-28"
-            :disabled="!isOwner"
+            :disabled="!isOwner || !canTuneReminders"
           />
           <p v-if="fieldErrors.reminderGapDays" class="text-danger text-xs">
             {{ fieldErrors.reminderGapDays }}
@@ -200,7 +230,7 @@ async function save() {
       </section>
 
       <div v-if="isOwner" class="flex justify-end">
-        <Button type="submit" :disabled="saving">
+        <Button type="submit" :disabled="saving || !draft.name.trim()">
           {{ saving ? 'Salvando...' : 'Salvar configurações' }}
         </Button>
       </div>

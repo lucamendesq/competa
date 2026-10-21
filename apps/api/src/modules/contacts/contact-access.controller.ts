@@ -61,12 +61,15 @@ export class ContactAccessController {
      * circula por email encaminhado, histórico e log de proxy — equivalente à senha,
      * dando a quem o tivesse o acervo inteiro da Empresa por `/my/documents/:id/content`.
      * Mesma regra já aplicada no aceite de convite de Responsável. */
+    const hasProvidedPassword = Boolean(body.password);
+    const password = body.password || randomBytes(32).toString('base64url');
+
     let userId = existing?.id;
     if (!userId) {
       const created = await this.auth.signUpEmail({
         name,
         email: owner.email,
-        password: randomBytes(32).toString('base64url'),
+        password,
       });
       if (isFailure(created)) {
         const duplicate =
@@ -84,9 +87,16 @@ export class ContactAccessController {
     await this.contacts.linkAuthUser(owner.id, userId);
     // a tela informa que ativar implica no aceite dos Termos/Privacidade
     await this.contacts.markTermsAccepted(userId);
-    await this.auth.sendSignInLink(owner.email);
 
-    return { email: owner.email, name, nextStep: 'check_email' as const };
+    if (!hasProvidedPassword) {
+      await this.auth.sendSignInLink(owner.email);
+    }
+
+    return {
+      email: owner.email,
+      name,
+      nextStep: hasProvidedPassword ? ('password_set' as const) : ('check_email' as const),
+    };
   }
 
   @Post('push')

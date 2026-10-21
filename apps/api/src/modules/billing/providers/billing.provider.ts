@@ -1,3 +1,5 @@
+import type { BillingCycle } from '@competa/contracts';
+
 export abstract class BillingProvider {
   /** Fora de produção o checkout é um stub de console: a UI precisa dizer isso em vez de
    *  fingir que redirecionou para um pagamento. */
@@ -18,6 +20,7 @@ export abstract class BillingProvider {
   abstract createSubscription(input: {
     customerId: string;
     planName: string;
-    value: number; // Valor em reais
+    cycle: BillingCycle;
+    value: number; // Valor em reais do ciclo escolhido
   }): Promise<{ subscriptionId: string; checkoutUrl: string }>;
 }

@@ -1,15 +1,15 @@
 import { Body, Controller, Logger, Post, Res } from '@nestjs/common';
 import { AllowAnonymous } from '@thallesp/nestjs-better-auth';
 import { APIError } from 'better-auth/api';
-import { PublicSignUpBody } from '@competa/contracts';
+import { RegisterFirmBody } from '@competa/contracts';
 import type { Response } from 'express';
 import { isFailure } from '../../lib/either.js';
 import { zodPipe } from '../../lib/zod-pipe.js';
 import { AccountantRepository } from './accountant.repository.js';
 import { AuthProvider } from './auth-provider.js';
-import { EmailAlreadyRegistered } from './errors.js';
+import { SignupRejected } from './errors.js';
 
-@Controller('public-signup')
+@Controller(['auth/register', 'public-signup'])
 export class PublicSignupController {
   private readonly logger = new Logger(PublicSignupController.name);
 
@@ -21,11 +21,11 @@ export class PublicSignupController {
   @Post()
   @AllowAnonymous()
   async signUp(
-    @Body(zodPipe(PublicSignUpBody)) body: PublicSignUpBody,
+    @Body(zodPipe(RegisterFirmBody)) body: RegisterFirmBody,
     @Res({ passthrough: true }) res: Response,
   ) {
     if (await this.accountants.userExistsByEmail(body.email)) {
-      throw new EmailAlreadyRegistered();
+      throw new SignupRejected();
     }
 
     const signUp = await this.auth.signUpEmail(
@@ -46,7 +46,7 @@ export class PublicSignupController {
 
       if (!isDuplicateEmail) throw signUp.error;
 
-      throw new EmailAlreadyRegistered();
+      throw new SignupRejected();
     }
 
     const { userId, setCookie } = signUp.value;

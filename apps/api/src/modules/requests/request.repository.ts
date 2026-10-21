@@ -2,6 +2,7 @@ import { Injectable } from '@nestjs/common';
 import { addDays, addHours } from 'date-fns';
 import { and, asc, count, eq, inArray, ne, sql } from 'drizzle-orm';
 import env from '../../config/env.js';
+import { planAllows } from '@competa/contracts';
 import { Database } from '../../infra/database/database.js';
 import {
   accountant,
@@ -13,12 +14,17 @@ import {
   period,
   request,
   requestItem,
+  subscription,
   uploadLink,
   user,
 } from '../../infra/database/schema/index.js';
 import { createToken } from '../../lib/token.js';
 import { companyIdsOf, type ContactScope, type FirmScope } from '../auth/scope.js';
-import type { ReminderCandidate, ReminderSettings } from '../messaging/reminder-rules.js';
+import {
+  DEFAULT_REMINDER_SETTINGS,
+  type ReminderCandidate,
+  type ReminderSettings,
+} from '../messaging/reminder-rules.js';
 import { NotFound } from '../../lib/app-error.js';
 import { InvalidTransition } from './errors.js';
 import {
@@ -721,13 +727,23 @@ export class RequestRepository {
    *  a LINHA inteira, derrubaria junto o token que acabou de ser emitido e ninguém a
    *  reseta. */
   private async rotateLinkOnReopen(tx: Tx, uploadLinkId: string, tokenHash: string) {
+    const [current] = await tx
+      .select({ tokenHash: uploadLink.tokenHash, expiresAt: uploadLink.expiresAt })
+      .from(uploadLink)
+      .where(eq(uploadLink.id, uploadLinkId));
+
+    const now = new Date();
+    const graceExpiresAt = current
+      ? new Date(Math.min(current.expiresAt.getTime(), addHours(now, 48).getTime()))
+      : null;
+
     await tx
       .update(uploadLink)
       .set({
         tokenHash,
-        expiresAt: addDays(new Date(), env.UPLOAD_LINK_TTL_DAYS),
-        previousTokenHash: null,
-        previousExpiresAt: null,
+        expiresAt: addDays(now, env.UPLOAD_LINK_TTL_DAYS),
+        previousTokenHash: current?.tokenHash ?? null,
+        previousExpiresAt: graceExpiresAt,
       })
       .where(eq(uploadLink.id, uploadLinkId));
   }
@@ -1108,20 +1124,32 @@ export class RequestRepository {
     return [...candidates.values()];
   }
 
+  /** Resolução única da cadência, e por isso o lugar do gate: o cron não passa por guard
+   *  HTTP. Firm sem a capability `reminderTuning` roda no padrão **ignorando** o que estiver
+   *  gravado nas colunas — downgrade não zera os valores, só para de aplicá-los, e voltar a
+   *  subir de plano restaura o que estava lá. O lembrete em si continua rodando em todo
+   *  plano: o gate é sobre os knobs, não sobre a cobrança automática (D18 §4). */
   async reminderSettingsByFirm(firmIds: string[]): Promise<Map<string, ReminderSettings>> {
     if (!firmIds.length) return new Map();
 
     const rows = await this.db
       .select({
         id: accountingFirm.id,
+        planName: subscription.planName,
         reminderMax: accountingFirm.reminderMax,
         reminderDueSoonDays: accountingFirm.reminderDueSoonDays,
         reminderGapDays: accountingFirm.reminderGapDays,
       })
       .from(accountingFirm)
+      .leftJoin(subscription, eq(subscription.accountingFirmId, accountingFirm.id))
       .where(inArray(accountingFirm.id, firmIds));
 
-    return new Map(rows.map((row) => [row.id, row]));
+    return new Map(
+      rows.map(({ id, planName, ...settings }) => [
+        id,
+        planAllows(planName ?? 'trial', 'reminderTuning') ? settings : DEFAULT_REMINDER_SETTINGS,
+      ]),
+    );
   }
 
   async withAdvisoryLock<T>(lockId: number, task: () => Promise<T>): Promise<T | null> {

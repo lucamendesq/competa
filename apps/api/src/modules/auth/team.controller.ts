@@ -1,15 +1,18 @@
 import { Body, Controller, Delete, Get, Param, Patch } from '@nestjs/common';
-import { IdParam, UpdateFirmBody } from '@competa/contracts';
+import { IdParam, planAllows, UpdateFirmBody } from '@competa/contracts';
 import { NotFound } from '../../lib/app-error.js';
 import { zodPipe } from '../../lib/zod-pipe.js';
 import { AccountantRepository } from './accountant.repository.js';
 import type { AuthSession } from './auth-provider.js';
+import { CurrentPlan } from './current-plan.decorator.js';
 import { CurrentScope } from './current-scope.decorator.js';
-import { CannotRemoveOwner, OnlyOwnerCanManageTeam } from './errors.js';
+import { CannotRemoveOwner, OnlyOwnerCanManageTeam, PlanCapabilityRequired } from './errors.js';
 import { InviteRepository } from './invite.repository.js';
 import type { FirmScope } from './scope.js';
 import { Session } from './session.decorator.js';
 import { UserDeviceRepository } from './user-device.repository.js';
+
+const REMINDER_FIELDS = ['reminderMax', 'reminderDueSoonDays', 'reminderGapDays'] as const;
 
 @Controller()
 export class TeamController {
@@ -59,14 +62,22 @@ export class TeamController {
     return this.devices.platformStats(scope);
   }
 
+  /** `@RequiresPlan` não serve aqui: o gate depende de QUAIS campos vieram no corpo —
+   *  trancar a rota inteira travaria nome, logo e e-mail de contato junto. */
   @Patch('accounting-firm')
   async updateFirm(
     @CurrentScope() scope: FirmScope,
+    @CurrentPlan() planName: string,
     @Session() session: AuthSession,
     @Body(zodPipe(UpdateFirmBody)) body: UpdateFirmBody,
   ) {
     if (!(await this.accountants.isOwner(scope, session.user.id))) {
       throw new OnlyOwnerCanManageTeam();
+    }
+
+    const tuningReminders = REMINDER_FIELDS.some((field) => body[field] !== undefined);
+    if (tuningReminders && !planAllows(planName, 'reminderTuning')) {
+      throw new PlanCapabilityRequired('reminderTuning');
     }
 
     await this.accountants.updateFirm(scope, body);

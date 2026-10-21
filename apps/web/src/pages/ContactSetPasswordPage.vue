@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { ref } from 'vue';
+import { computed, ref } from 'vue';
 import { useRouter } from 'vue-router';
 import { useForm, useField } from 'vee-validate';
 import * as z from 'zod';
@@ -31,6 +31,8 @@ const {
   errorMessage: passwordError,
   meta: passwordMeta,
 } = useField<string>('password');
+
+const formValid = computed(() => schema.safeParse({ password: password.value }).success);
 
 const onSubmit = handleSubmit(async (values) => {
   submitError.value = null;
@@ -82,7 +84,10 @@ const onSubmit = handleSubmit(async (values) => {
           class="mb-6 flex gap-3 rounded-lg border border-danger-border bg-danger-surface p-3 text-sm text-danger-foreground"
           role="alert"
         >
-          <CircleAlert class="mt-0.5 shrink-0 text-base h-4 w-4 text-danger-accent" aria-hidden="true" />
+          <CircleAlert
+            class="mt-0.5 shrink-0 text-base h-4 w-4 text-danger-accent"
+            aria-hidden="true"
+          />
           <p>{{ submitError }}</p>
         </div>
 
@@ -108,7 +113,12 @@ const onSubmit = handleSubmit(async (values) => {
             </p>
           </div>
 
-          <Button size="lg" type="submit" class="mt-2 w-full font-medium" :disabled="isSubmitting">
+          <Button
+            size="lg"
+            type="submit"
+            class="mt-2 w-full font-medium"
+            :disabled="isSubmitting || !formValid"
+          >
             {{ isSubmitting ? 'Salvando…' : 'Definir senha' }}
             <ArrowRight class="ml-2 h-4 w-4" aria-hidden="true" />
           </Button>

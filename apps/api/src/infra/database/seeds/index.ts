@@ -3,6 +3,7 @@ import path from 'node:path';
 import { fileURLToPath, pathToFileURL } from 'node:url';
 
 import { isFailure, tryCatchAsync } from '../../../lib/either.js';
+import { pool } from '../index.js';
 
 type SeedFn = () => Promise<void>;
 
@@ -52,4 +53,9 @@ async function main(): Promise<void> {
   }
 }
 
-await main();
+try {
+  await main();
+} finally {
+  await pool.end();
+  process.exit(process.exitCode ?? 0);
+}

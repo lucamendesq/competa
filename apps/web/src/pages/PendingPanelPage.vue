@@ -2,6 +2,7 @@
 import { computed, ref } from 'vue';
 import {
   BellRing,
+  Check,
   ChevronDown,
   CircleCheck,
   ClipboardCheck,
@@ -36,6 +37,10 @@ import {
 import { useQuery } from '@tanstack/vue-query';
 import { toast } from 'vue-sonner';
 import { apiErrorMessage } from '@/api/error';
+import { useCopy } from '@/composables/useCopy';
+import { useAuthStore } from '@/stores/auth';
+import PlanGateNotice from '@/components/PlanGateNotice.vue';
+import { planGateMessage } from '@competa/contracts';
 import { monthLabel, isOverdue } from '@/utils/format';
 
 const props = defineProps<{ id: string }>();
@@ -176,10 +181,15 @@ function slug(text: string) {
   return text.toLowerCase().replace(/[^a-z0-9]+/g, '-');
 }
 
+const auth = useAuthStore();
+const canPeriodZip = computed(() => auth.can('periodZip'));
+const periodZipHint = planGateMessage('periodZip');
+
 async function doDownloadPeriodZip() {
   const reference = detailQuery.data.value?.referenceMonth ?? '';
   try {
     await downloadPeriodZip(props.id, reference);
+    toast.success('Download da competência concluído.');
   } catch (error) {
     toast.error(apiErrorMessage(error, 'Não foi possível baixar o zip.'));
   }
@@ -188,6 +198,7 @@ async function doDownloadPeriodZip() {
 async function doDownloadCompanyZip(requestId: string, companyName: string) {
   try {
     await downloadRequestZip(requestId, `${slug(companyName)}.zip`);
+    toast.success(`Download de ${companyName} concluído.`);
   } catch (error) {
     toast.error(apiErrorMessage(error, 'Não foi possível baixar o zip.'));
   }
@@ -195,14 +206,16 @@ async function doDownloadCompanyZip(requestId: string, companyName: string) {
 
 const resendingRequestId = ref<string | null>(null);
 const copyingRequestId = ref<string | null>(null);
+const { copiedKey, copy } = useCopy();
 
 async function handleCopyUploadLink(line: any) {
   copyingRequestId.value = line.requestId;
   try {
     const link = await getUploadLink(line.requestId);
-    await navigator.clipboard.writeText(link.uploadUrl);
-    toast.success(
+    await copy(
+      link.uploadUrl,
       `Novo link de ${line.companyName} copiado — o link anterior deixou de funcionar.`,
+      line.requestId,
     );
   } catch (error) {
     toast.error(apiErrorMessage(error, 'Não foi possível gerar o link.'));
@@ -263,6 +276,10 @@ function maskedCnpj(cnpj: string | null) {
 </script>
 
 <template>
+  <PlanGateNotice v-if="!canPeriodZip" capability="periodZip" class="mb-4">
+    Baixar o zip da competência inteira (o zip por empresa continua liberado)
+  </PlanGateNotice>
+
   <PageHeader
     :title="
       'Cobrança da competência ' +
@@ -272,9 +289,19 @@ function maskedCnpj(cnpj: string | null) {
     "
     description="Acompanhe o painel de pendências desta competência."
   >
-    <Button variant="outline" class="mr-2 shadow-xs" @click="doDownloadPeriodZip">
-      <FileArchive class="mr-2 h-4 w-4" /> Baixar Tudo (.zip)
-    </Button>
+    <span
+      class="mr-2 inline-block"
+      :title="canPeriodZip ? undefined : periodZipHint"
+    >
+      <Button
+        variant="outline"
+        class="shadow-xs"
+        :disabled="!canPeriodZip"
+        @click="doDownloadPeriodZip"
+      >
+        <FileArchive class="mr-2 h-4 w-4" /> Baixar Tudo (.zip)
+      </Button>
+    </span>
     <template v-if="detailQuery.data.value?.status === 'open'">
       <Button
         variant="outline"
@@ -299,7 +326,9 @@ function maskedCnpj(cnpj: string | null) {
         class="bg-card border-border mb-8 flex flex-col gap-4 rounded-xl border p-5 sm:flex-row sm:items-center sm:justify-between shadow-sm"
       >
         <div>
-          <h2 class="text-base font-semibold font-display text-foreground">Competência encerrada</h2>
+          <h2 class="text-base font-semibold font-display text-foreground">
+            Competência encerrada
+          </h2>
           <p class="text-muted-foreground mt-1 text-sm">
             Os itens pendentes e rejeitados não podem mais receber arquivos.
           </p>
@@ -310,11 +339,15 @@ function maskedCnpj(cnpj: string | null) {
         v-else-if="allDelivered"
         class="mb-8 flex flex-wrap items-center gap-4 rounded-xl border border-success-border bg-success-surface p-5 sm:p-6 shadow-sm"
       >
-        <div class="flex h-12 w-12 items-center justify-center rounded-xl bg-success/15 text-success shrink-0">
+        <div
+          class="flex h-12 w-12 items-center justify-center rounded-xl bg-success/15 text-success shrink-0"
+        >
           <PartyPopper class="h-6 w-6 text-success" aria-hidden="true" />
         </div>
         <div class="min-w-0 flex-1">
-          <h2 class="text-base font-semibold font-display text-success-foreground">Zero pendências! 🎉</h2>
+          <h2 class="text-base font-semibold font-display text-success-foreground">
+            Zero pendências! 🎉
+          </h2>
           <p class="mt-1 text-sm text-success-foreground">
             Todos os {{ sendProgress.total }} documentos exigidos pelas solicitações ativas foram
             enviados e conferidos.
@@ -327,11 +360,18 @@ function maskedCnpj(cnpj: string | null) {
       >
         <div class="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
           <div>
-            <h2 class="text-base font-semibold font-display text-foreground">Progresso geral da competência</h2>
+            <h2 class="text-base font-semibold font-display text-foreground">
+              Progresso geral da competência
+            </h2>
             <p class="text-muted-foreground mt-1 text-sm flex items-center gap-1.5">
-              <span class="font-display font-bold text-foreground tabular-nums">{{ sendProgress.accepted }}</span> de
-              <span class="font-display font-bold text-foreground tabular-nums">{{ sendProgress.total }}</span> documentos entregues e
-              conferidos
+              <span class="font-display font-bold text-foreground tabular-nums">{{
+                sendProgress.accepted
+              }}</span>
+              de
+              <span class="font-display font-bold text-foreground tabular-nums">{{
+                sendProgress.total
+              }}</span>
+              documentos entregues e conferidos
             </p>
           </div>
           <div class="flex items-center gap-3">
@@ -350,7 +390,9 @@ function maskedCnpj(cnpj: string | null) {
             </Button>
           </div>
         </div>
-        <div class="bg-sunken mt-2 h-3 w-full overflow-hidden rounded-full p-0.5 border border-border-subtle">
+        <div
+          class="bg-sunken mt-2 h-3 w-full overflow-hidden rounded-full p-0.5 border border-border-subtle"
+        >
           <div
             class="bg-brand h-full rounded-full transition-all duration-500 ease-out"
             :style="{ width: sendProgress.percent + '%' }"
@@ -389,17 +431,21 @@ function maskedCnpj(cnpj: string | null) {
           :key="chip.value"
           type="button"
           class="shrink-0 rounded-full border px-4 py-1.5 text-xs sm:text-sm font-medium transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
-          :class="filter === chip.value
-            ? 'border-primary/40 bg-primary/10 text-primary font-semibold shadow-xs'
-            : 'border-border bg-card text-muted-foreground hover:bg-muted hover:text-foreground'"
+          :class="
+            filter === chip.value
+              ? 'border-primary/40 bg-primary/10 text-primary font-semibold shadow-xs'
+              : 'border-border bg-card text-muted-foreground hover:bg-muted hover:text-foreground'
+          "
           @click="filter = chip.value"
         >
           {{ chip.label }}
           <span
             class="ml-1.5 inline-flex items-center rounded-full px-2 py-0.5 text-xs font-semibold"
-            :class="filter === chip.value
-              ? 'bg-primary/20 text-primary'
-              : 'bg-muted text-muted-foreground'"
+            :class="
+              filter === chip.value
+                ? 'bg-primary/20 text-primary'
+                : 'bg-muted text-muted-foreground'
+            "
           >
             {{ counts[chip.value] }}
           </span>
@@ -413,7 +459,9 @@ function maskedCnpj(cnpj: string | null) {
           class="bg-card border-border rounded-xl border shadow-xs overflow-hidden transition-all duration-150"
           role="listitem"
         >
-          <div class="flex flex-col gap-4 p-4 sm:p-5 sm:flex-row sm:items-center sm:justify-between">
+          <div
+            class="flex flex-col gap-4 p-4 sm:p-5 sm:flex-row sm:items-center sm:justify-between"
+          >
             <div class="flex min-w-0 flex-1 flex-col gap-1.5">
               <div class="flex flex-wrap items-center gap-2">
                 <button
@@ -426,7 +474,9 @@ function maskedCnpj(cnpj: string | null) {
                     class="text-muted-foreground group-hover:text-primary h-4 w-4 transition-transform duration-200"
                     :class="{ '-rotate-90': !isExpanded(line.companyId) }"
                   />
-                  <span class="font-display text-base font-semibold text-foreground group-hover:text-primary transition-colors">
+                  <span
+                    class="font-display text-base font-semibold text-foreground group-hover:text-primary transition-colors"
+                  >
                     {{ line.companyName }}
                   </span>
                 </button>
@@ -448,7 +498,9 @@ function maskedCnpj(cnpj: string | null) {
                   <span class="tabular-nums font-semibold">{{ line.counts.accepted }}</span> de
                   <span class="tabular-nums font-semibold">{{ line.total }}</span>
                 </span>
-                <span class="text-[11px] text-muted-foreground tabular-nums">{{ line.percent }}% completo</span>
+                <span class="text-[11px] text-muted-foreground tabular-nums"
+                  >{{ line.percent }}% completo</span
+                >
               </div>
               <div class="flex items-center gap-2 flex-wrap">
                 <Button
@@ -459,7 +511,9 @@ function maskedCnpj(cnpj: string | null) {
                 >
                   <RouterLink :to="`/solicitacoes/${line.requestId}`">
                     <ClipboardCheck class="mr-2 h-4 w-4" />
-                    {{ line.counts.submitted > 0 ? `Conferir (${line.counts.submitted})` : 'Envios' }}
+                    {{
+                      line.counts.submitted > 0 ? `Conferir (${line.counts.submitted})` : 'Envios'
+                    }}
                   </RouterLink>
                 </Button>
                 <Button
@@ -470,8 +524,12 @@ function maskedCnpj(cnpj: string | null) {
                   :disabled="copyingRequestId === line.requestId"
                   @click="handleCopyUploadLink(line)"
                 >
-                  <Link class="mr-2 h-4 w-4" />
-                  {{ copyingRequestId === line.requestId ? 'Gerando...' : 'Copiar link' }}
+                  <Check v-if="copiedKey === line.requestId" class="mr-2 h-4 w-4 text-success" />
+                  <Link v-else class="mr-2 h-4 w-4" />
+                  <template v-if="copiedKey === line.requestId">Link copiado!</template>
+                  <template v-else>{{
+                    copyingRequestId === line.requestId ? 'Gerando...' : 'Copiar link'
+                  }}</template>
                 </Button>
                 <Button
                   variant="outline"
@@ -494,10 +552,7 @@ function maskedCnpj(cnpj: string | null) {
               class="mb-4 rounded-xl border border-danger-border bg-danger-surface p-4 text-sm text-danger-foreground"
             >
               <div class="flex gap-3">
-                <MailWarning
-                  class="text-danger mt-0.5 shrink-0 text-lg"
-                  aria-hidden="true"
-                />
+                <MailWarning class="text-danger mt-0.5 shrink-0 text-lg" aria-hidden="true" />
                 <div class="min-w-0 flex-1">
                   <p class="font-semibold text-danger-foreground">
                     Falha na entrega de notificações ({{ uniqueFailures(line).join(', ') }})
@@ -537,7 +592,9 @@ function maskedCnpj(cnpj: string | null) {
               >
                 Aguardando Envio ({{ line.missing.length }})
               </h4>
-              <ul class="border-border bg-card divide-border divide-y rounded-xl border shadow-xs overflow-hidden">
+              <ul
+                class="border-border bg-card divide-border divide-y rounded-xl border shadow-xs overflow-hidden"
+              >
                 <li
                   v-for="item in line.missing"
                   :key="item.id"
@@ -545,7 +602,10 @@ function maskedCnpj(cnpj: string | null) {
                 >
                   <div class="min-w-0">
                     <p class="text-sm font-medium text-foreground">{{ item.name }}</p>
-                    <p v-if="item.status === 'rejected'" class="text-danger mt-0.5 text-xs font-medium">
+                    <p
+                      v-if="item.status === 'rejected'"
+                      class="text-danger mt-0.5 text-xs font-medium"
+                    >
                       Recusado: aguardando reenvio
                     </p>
                   </div>

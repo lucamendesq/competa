@@ -162,6 +162,11 @@ onMounted(fetchStatus);
               (Facebook) através do cartão de crédito cadastrado na sua conta empresarial. A
               assinatura do Competa cobre apenas a plataforma de software.
             </p>
+            <p class="mt-2 leading-relaxed">
+              No uso típico de um escritório pequeno isso fica em
+              <strong>R$10 a R$20 por mês</strong>, e esse valor <strong>não está incluído</strong>
+              no preço do seu plano. Dizemos antes para você não ter surpresa no mês 2.
+            </p>
           </div>
         </CardContent>
         <CardFooter class="border-t border-border px-6 py-4">

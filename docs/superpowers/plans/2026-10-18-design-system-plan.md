@@ -72,16 +72,16 @@ Estabelecer as bases do novo design system: instalar tipografia Outfit e Plus Ja
 
 ### Passos Detalhados
 
-- [ ] **Passo 1.1:** Instalar `@fontsource-variable/outfit` e `@fontsource-variable/plus-jakarta-sans` em `apps/web`.
+- [x] **Passo 1.1:** Instalar `@fontsource-variable/outfit` e `@fontsource-variable/plus-jakarta-sans` em `apps/web`.
   - Comando: `pnpm --filter web add @fontsource-variable/outfit @fontsource-variable/plus-jakarta-sans`
   - Importar as fontes no topo de `apps/web/src/main.ts` ou `main.css`.
-- [ ] **Passo 1.2:** Criar o script de teste anti-losango `apps/web/scripts/check-no-diamond.ts`.
+- [x] **Passo 1.2:** Criar o script de teste anti-losango `apps/web/scripts/check-no-diamond.ts`.
   - O script varre todos os arquivos `.vue`, `.ts`, `.css` de `apps/web/src` procurando `rotate-45`, `rotate(45`, `rotate-[-45`, `diamond`. Falha se encontrar qualquer ocorrência.
   - Executar: `npx tsx apps/web/scripts/check-no-diamond.ts` (deve falhar inicialmente apontando `TooltipContent.vue`).
-- [ ] **Passo 1.3:** Atualizar `apps/web/src/components/ui/tooltip/TooltipContent.vue`.
+- [x] **Passo 1.3:** Atualizar `apps/web/src/components/ui/tooltip/TooltipContent.vue`.
   - Remover a classe `rotate-45` da seta ou substituir por triângulo SVG/borda limpa sem rotação 45°.
   - Reexecutar `npx tsx apps/web/scripts/check-no-diamond.ts` (deve passar verde).
-- [ ] **Passo 1.4:** Atualizar `apps/web/src/main.css` com a nova paleta.
+- [x] **Passo 1.4:** Atualizar `apps/web/src/main.css` com a nova paleta.
   - Definir `--font-sans: 'Plus Jakarta Sans Variable', ...` e `--font-display: 'Outfit Variable', ...`.
   - Mapear os tokens no `@theme`:
     - `--color-canvas: #FAFAFA`
@@ -105,12 +105,12 @@ Estabelecer as bases do novo design system: instalar tipografia Outfit e Plus Ja
     - `--border: #E2E8F0`
     - `--ring: #D97706`
   - Remover a declaração `:root.dark` e seus overrides.
-- [ ] **Passo 1.5:** Atualizar os primitivos de UI em `apps/web/src/components/ui/`:
+- [x] **Passo 1.5:** Atualizar os primitivos de UI em `apps/web/src/components/ui/`:
   - `button/index.ts`: garantir que `default` use `bg-primary text-primary-foreground hover:bg-primary/90` e estados de foco usem anel âmbar.
   - `StatusPill.vue`: garantir que os tons `success`, `warning`, `info`, `danger` e `neutral` usem as novas cores semânticas especificadas.
-- [ ] **Passo 1.6:** Atualizar `apps/web/src/components/Logo.vue` e gerar os novos SVGs da marca em `apps/web/public/brand/` com isotipo em Âmbar e tipografia Outfit, sem 45°.
-- [ ] **Passo 1.7:** Adicionar `"check:no-diamond": "tsx scripts/check-no-diamond.ts"` ao `package.json` de `apps/web`.
-- [ ] **Passo 1.8:** Verificação de integridade:
+- [x] **Passo 1.6:** Atualizar `apps/web/src/components/Logo.vue` e gerar os novos SVGs da marca em `apps/web/public/brand/` com isotipo em Âmbar e tipografia Outfit, sem 45°.
+- [x] **Passo 1.7:** Adicionar `"check:no-diamond": "tsx scripts/check-no-diamond.ts"` ao `package.json` de `apps/web`.
+- [x] **Passo 1.8:** Verificação de integridade:
   - `pnpm --filter web run check:no-diamond`
   - `pnpm --filter web run check:api-error`
   - `pnpm --filter web build`
@@ -126,13 +126,13 @@ Redesenhar o layout do painel interno do contador (`PanelLayout.vue`) aplicando 
 
 ### Passos Detalhados
 
-- [ ] **Passo 2.1:** Atualizar `apps/web/src/layouts/PanelLayout.vue`.
+- [x] **Passo 2.1:** Atualizar `apps/web/src/layouts/PanelLayout.vue`.
   - Sidebar: alterar de `bg-sidebar` escuro para fundo branco puro (`bg-surface border-r border-border-subtle`).
   - Navegação: links com pílula arredondada, texto `#475569`, estado ativo com `bg-brand-light text-brand-strong font-semibold`.
   - Cabeçalho da sidebar: exibir o novo logo em tom normal (não dark surface).
   - Menu de perfil: remover o botão de alternar tema (Sun/Moon e `theme.toggle`), mantendo "Convidar contador" e "Sair".
   - Header mobile: fundo branco limpo com borda inferior sutil e botão de menu acessível.
-- [ ] **Passo 2.2:** Verificação de integridade:
+- [x] **Passo 2.2:** Verificação de integridade:
   - `pnpm --filter web run check:no-diamond`
   - `pnpm --filter web build`
 - [ ] **Passo 2.3:** Commit: `feat: shell clara e arejada do painel do contador`
@@ -178,19 +178,19 @@ Redesenhar as telas onde o contador passa a maior parte do tempo: a listagem de 
 
 ### Passos Detalhados
 
-- [ ] **Passo 4.1:** Redesenhar `apps/web/src/pages/PeriodsListPage.vue`:
+- [x] **Passo 4.1:** Redesenhar `apps/web/src/pages/PeriodsListPage.vue`:
   - Cards de KPI com tipografia Outfit nos grandes números e labels claras.
   - Tabela/lista de competências com badges de status padronizados e botão de "Abrir Competência" em destaque.
   - Modal de abertura de competência limpo e responsivo.
-- [ ] **Passo 4.2:** Redesenhar `apps/web/src/pages/PendingPanelPage.vue`:
+- [x] **Passo 4.2:** Redesenhar `apps/web/src/pages/PendingPanelPage.vue`:
   - Barra de progresso geral em Âmbar Solar (`#D97706`).
   - Chips de filtro de status em pílulas com contadores arredondados.
   - Lista sanfonada de empresas com cards brancos sobre canvas `#FAFAFA`, separadores sutis, badge de atraso sem losangos e botões de ação alinhados.
   - Seção expandida de falhas de notificação e itens pendentes com superfícies de status limpas.
-- [ ] **Passo 4.3:** Redesenhar `apps/web/src/pages/RequestReviewPage.vue`:
+- [x] **Passo 4.3:** Redesenhar `apps/web/src/pages/RequestReviewPage.vue`:
   - Lista de documentos submetidos com ações de aceite em lote e rejeição com justificativa.
   - Modais de rejeição e visualização de arquivos limpos e sem quebra visual.
-- [ ] **Passo 4.4:** Verificação de integridade:
+- [x] **Passo 4.4:** Verificação de integridade:
   - `pnpm --filter web run check:no-diamond`
   - `pnpm --filter web build`
 - [ ] **Passo 4.5:** Commit: `feat: visual das telas de competencias, pendencias e revisao`
@@ -205,15 +205,15 @@ Redesenhar as páginas de gestão de Empresas e Checklists/Templates, garantindo
 
 ### Passos Detalhados
 
-- [ ] **Passo 5.1:** Redesenhar telas de Empresas:
+- [x] **Passo 5.1:** Redesenhar telas de Empresas:
   - `CompaniesListPage.vue`: tabela clara de empresas com chips de busca, paginação e botão "+ Nova Empresa".
   - `CompanyFormPage.vue`: formulário de dados da empresa com inputs padronizados e seletor de template.
   - `CompanyChecklistPage.vue`: personalização de overrides com itens claros e botões de ação.
   - `ImportCompaniesPage.vue`: área de drag-and-drop de planilha (.xlsx/.csv) e tabela de prévia.
-- [ ] **Passo 5.2:** Redesenhar telas de Checklists:
+- [x] **Passo 5.2:** Redesenhar telas de Checklists:
   - `ChecklistsListPage.vue`: listagem de templates com cards e tags de categorias.
   - `ChecklistFormPage.vue`: editor de checklist com adição de itens e formatos permitidos.
-- [ ] **Passo 5.3:** Verificação de integridade:
+- [x] **Passo 5.3:** Verificação de integridade:
   - `pnpm --filter web run check:no-diamond`
   - `pnpm --filter web build`
 - [ ] **Passo 5.4:** Commit: `feat: visual das telas de empresas e checklists`
@@ -228,18 +228,18 @@ Redesenhar a área de configurações do escritório, a área logada do respons�
 
 ### Passos Detalhados
 
-- [ ] **Passo 6.1:** Redesenhar telas de Configurações:
+- [x] **Passo 6.1:** Redesenhar telas de Configurações:
   - `FirmSettingsPage.vue`: dados da contabilidade e logo.
   - `AccountantsSettingsPage.vue`: gestão de equipe e convites.
   - `PlanPage.vue`: visual de planos, uso da competência e status da assinatura.
   - `WhatsAppSettingsPage.vue`: tela de status de integração do canal.
-- [ ] **Passo 6.2:** Redesenhar o layout e telas da Área do Responsável:
+- [x] **Passo 6.2:** Redesenhar o layout e telas da Área do Responsável:
   - `apps/web/src/layouts/ContactLayout.vue`: topo institucional em Noite Azulada (`#0F172A`), remoção do botão de alternar tema e navegação mobile no rodapé limpa.
   - `ContactPendingPage.vue`: lista "O que falta" para o responsável com cards claros.
   - `ContactSignInPage.vue` e `ContactSetPasswordPage.vue`: telas de acesso com senha limpas.
   - `ContactHistoryPage.vue`: histórico de competências.
-- [ ] **Passo 6.3:** Remover `apps/web/src/composables/useTheme.ts` e qualquer importação residual.
-- [ ] **Passo 6.4:** Verificação de integridade:
+- [x] **Passo 6.3:** Remover `apps/web/src/composables/useTheme.ts` e qualquer importação residual.
+- [x] **Passo 6.4:** Verificação de integridade:
   - `pnpm --filter web run check:no-diamond`
   - `pnpm --filter web build`
 - [ ] **Passo 6.5:** Commit: `feat: visual de configuracoes e area do responsavel com limpeza de dark mode`

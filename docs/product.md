@@ -17,18 +17,29 @@ SaaS que elimina o garimpo manual de documentos contábeis: a Contabilidade defi
 ## Público e posicionamento
 
 - **Público:** escritórios contábeis pequenos (1–5 pessoas) que acham as suítes (Acessórias/Onvio/Nibo) caras e pesadas.
-- **Posicionamento:** ferramenta **focada e barata, com preço público** — não uma suíte. **WhatsApp-first** (critério de troca citado por contadores). Faixa de preço plausível: **R$59–197/mês por escritório**, em tiers (🟡 validar no discovery antes da TASK-049):
+- **Posicionamento:** ferramenta **focada e barata, com preço público** — não uma suíte. **WhatsApp-first** (critério de troca citado por contadores). Preço recalibrado em 2026-10-21 na [D18](./decisions.md#d18--recalibragem-de-planos-pela-carteira-real-e-segundo-eixo-de-upgrade) (supera os números da [D17](./decisions.md#d17--preço-público-e-métrica-de-cobrança-empresa-ativa-cadastrada)) — fonte canônica dos números: [`libs/contracts/src/plan.ts`](../libs/contracts/src/plan.ts).
 
-  | Plano                 | Preço/mês  | Empresas ativas | WhatsApp incluso                          |
-  | --------------------- | ---------- | --------------- | ----------------------------------------- |
-  | Trial                 | grátis 14d | até 10          | incluído                                  |
-  | Essencial             | R$59–79    | até 15–20       | add-on / pré-pago                         |
-  | Profissional (âncora) | R$99–147   | até 40–50       | franquia (100–800 msgs) + overage         |
-  | Escritório            | R$169–197  | até 80–100      | franquia maior (300–1.600 msgs) + overage |
+  | Plano                 | Preço/mês  | Anual (10×) | Empresas | Contadores |
+  | --------------------- | ---------- | ----------- | -------- | ---------- |
+  | Teste                 | grátis 14d | —           | até 15   | ilimitados |
+  | Essencial             | R$ 119     | R$ 1.190    | até 30   | ilimitados |
+  | Profissional (âncora) | R$ 189     | R$ 1.890    | até 80   | ilimitados |
+  | Escritório            | R$ 299     | R$ 2.990    | até 200  | ilimitados |
 
-  Métrica de cobrança: **empresas ativas em competência aberta por mês** (não por usuário, não por
-  GB) — é o que a "Cobrança/assinatura" (ainda 🔴, sem nenhuma linha de código — ver
-  [`next-steps.md`](./next-steps.md#1-lacunas-de-produto)) deve instrumentar quando for desenhada.
+  Métrica de cobrança: **Empresa ativa cadastrada** (teto por plano) — não por usuário, não
+  por GB, não por competência aberta (essa última daria ao Contador o incentivo de _deixar
+  de abrir competência_ para cair de tier). A trava é no cadastro de Empresa nova
+  (`CompanyRepository.assertCompanyCapacity`), nunca em competência já aberta, e tem **folga
+  de 20%** com aviso antes de recusar. WhatsApp é BYO: a Contabilidade conecta o próprio WABA
+  e a Meta cobra ela direto (~R$10–20/mês no uso típico, fora do preço do Competa).
+
+  **Segundo eixo de upgrade** (Profissional+, e liberado no teste): marca do escritório no Link
+  de Upload e nos e-mails · cadência de lembretes configurável · zip da competência inteira.
+  Existe para os ~20% do mercado com ≤30 clientes, que nunca disparam o eixo de volume.
+
+  A tabela acima é a de lançamento **e** a madura: a D18 cancelou o "preço maduro" R$129/199/349
+  da D17. Os 10 primeiros escritórios entram pela **Oferta Fundador** (R$89/139/219 vitalício)
+  em troca de depoimento gravado + estudo de caso com número medido.
 
 - **Time:** dev solo.
 
@@ -77,12 +88,13 @@ Veredito do discovery (2026-08-26): **✅ GO condicionado** ao recorte **web-fir
 - **Gaps reais explorados pelo produto:** preço 100% opaco no BR (única âncora pública: G-Click R$100/mês), produtos pesados, **link sem senha raro**, **zip por cliente/mês inexistente** nos anúncios.
 - **Alerta Qive:** NF-e tende a ser resolvida por captura automática na SEFAZ. O valor durável está nos documentos **não estruturados** (extratos, folha, recibos) — por isso o modelo é agnóstico ao tipo de arquivo (sem parsing de XML na v1).
 - **Alerta FileInvite:** o único especializado que tentou viver só de coleta no nicho contábil abandonou o segmento — sinal de teto de preço para ferramenta avulsa.
+- **Carteira real do escritório-alvo (pesquisa de 2026-10-20, base da D18):** [Fenacon](https://fenacon.org.br/), 111 escritórios — 10 a 300 clientes, média **72,25**; 20% têm 1–30, **34% têm 31–60**, 21% têm 61–90. [Sescon-SP](https://sescon.org.br/), 255 escritórios — média 187, mediana 150, 17% até 50. **PNEC/CFC 2017** — média de 93 clientes para 12 funcionários (≈7,8 clientes por pessoa). Honorários (Sescon-SP): faixa modal **R$301–500/mês** por cliente Simples Nacional. Consequência: o teto de 20 empresas da D17 cobria ~13% do mercado-alvo, e R$189 para 80 empresas é ~R$2,36 por cliente contra um honorário de R$300–500.
 - **Regulatório:** nenhum bloqueio. O SaaS opera como **operador LGPD** (obrigações leves, responsabilidade solidária). Sem licença/registro CFC. Tratar storage como se pudesse conter dado sensível (folha revela sensível por inferência: sindicato, atestados). Link sem senha aceitável com expiração curta + escopo só-upload + vínculo a email/telefone.
-- **Custo operacional estimado:** ~R$465–480/mês para 50 escritórios (~10% da receita a R$99/escritório); dominado por WhatsApp (~R$0,045/msg).
+- **Custo operacional real (revisado em 2026-10-18):** ~R$6,50 por cliente/mês — storage R2 ($0,015/GB-mês, egress grátis) + email + taxa do gateway. **O WhatsApp não entra**: a integração é BYO (Embedded Signup, token do próprio tenant), então a Meta cobra a Contabilidade direto. A estimativa anterior (~R$465/mês para 50 escritórios, dominada por mensagem) estava errada por assumir WhatsApp como custo nosso. Margem bruta ~93% em 100 pagantes; a restrição é CAC e suporte, não infra.
 
 ### Hipóteses mais arriscadas (validar antes do produto completo)
 
-1. 🔴 Contadores pagam por uma ferramenta **avulsa** de coleta em vez de uma suíte? → landing com preço público + 10 conversas; meta: 3 cartões/cartas de intenção.
+1. 🔴 Contadores pagam por uma ferramenta **avulsa** de coleta em vez de uma suíte? → landing com preço público + 10 conversas. Com a D18 a validação deixa de ser carta de intenção: a **Oferta Fundador** dá aos 10 primeiros R$89/139/219 vitalício, em troca de depoimento gravado e estudo de caso com número medido. Meta: 3 assinaturas reais.
 2. 🔴 O **link sem senha** realmente aumenta a taxa de entrega? → concierge de 1 mês com o contador design-partner (5–10 clientes); medir entrega sem ligação vs. mês anterior.
 3. 🟡 Dev solo consegue os primeiros 10 escritórios pagantes sem força de vendas? → 30 dias de outreach (indicação + fórum Contábeis + conteúdo); meta 10 demos.
 
@@ -117,10 +129,14 @@ Backlog v1 em fatias verticais finas (esqueleto ambulante), fases 0–9 e marcos
 ## Evidências disponíveis
 
 - Discovery de mercado de 2026-08-26 com concorrentes, faixas de preço e alertas
-  (seção "Contexto de mercado" acima) — a única âncora de preço pública é G-Click R$100/mês.
+  (seção "Contexto de mercado" acima) — a única âncora de preço pública no BR é G-Click
+  R$100/mês.
+- Pesquisa de preço de 2026-10-18 (D17): Content Snare US$35–215/mês **por conta**, cobrando
+  por *active requests* — o concorrente funcionalmente mais próximo; Karbon US$59–89/user;
+  Financial Cents US$19–69/user; TaxDome US$800–1.200/seat/ano; Nibo R$199–479/mês.
 - Produto real rodando: API NestJS (`apps/api`) e web Angular (`apps/web`), fases 0–10,
   estado tela a tela em [`frontend-status.md`](./frontend-status.md).
 - Decisões registradas em [`decisions.md`](./decisions.md); domínio em [`domain.md`](./domain.md).
 - **Não existe ainda** (não inventar): cliente pagante, depoimento, estudo de caso, logotipo,
-  identidade visual definida, número de uso, imprensa, preço validado. A faixa R$97–197/mês
-  segue sendo hipótese.
+  identidade visual definida, número de uso, imprensa. O preço da D18 é **pesquisado, não
+  validado** — nenhum escritório pagou R$189 ainda.

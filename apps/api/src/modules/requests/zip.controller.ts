@@ -8,6 +8,7 @@ import { NotFound } from '../../lib/app-error.js';
 import { ZipTooLarge } from './errors.js';
 import { zodPipe } from '../../lib/zod-pipe.js';
 import { CurrentScope } from '../auth/current-scope.decorator.js';
+import { RequiresPlan } from '../auth/requires-plan.decorator.js';
 import type { FirmScope } from '../auth/scope.js';
 import { servedContentType } from './file-rules.js';
 import { RequestRepository } from './request.repository.js';
@@ -46,6 +47,9 @@ export class ZipController {
     });
   }
 
+  /** O gate é ANTES da montagem: um pedido que vai ser recusado não pode gastar uma
+   *  conexão de storage nem um slot do `ZipFlightService`. */
+  @RequiresPlan('periodZip')
   @Get('periods/:id/zip')
   async periodZip(
     @CurrentScope() scope: FirmScope,

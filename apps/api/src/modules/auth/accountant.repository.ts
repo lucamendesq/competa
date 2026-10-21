@@ -56,6 +56,7 @@ export class AccountantRepository {
         id: accountant.id,
         accountingFirmId: accountant.accountingFirmId,
         subscriptionStatus: subscription.status,
+        subscriptionPlanName: subscription.planName,
         trialEndsAt: subscription.trialEndsAt,
       })
       .from(accountant)
@@ -117,6 +118,8 @@ export class AccountantRepository {
         subscriptionStatus: subscription.status,
         subscriptionTrialEndsAt: subscription.trialEndsAt,
         subscriptionPlanName: subscription.planName,
+        subscriptionCycle: subscription.cycle,
+        subscriptionPriceOverride: subscription.priceOverride,
       })
       .from(accountant)
       .innerJoin(user, eq(user.id, accountant.authUserId))

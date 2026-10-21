@@ -7,7 +7,7 @@ Regras de leitura:
 1. **Faça na ordem.** Cada tarefa só depende da anterior necessária (coluna "Depende").
 2. **Uma tabela por vez.** A coluna "Tabelas novas" diz o que entra no banco. Divergência entre migration e [`database-schema.md`](./database-schema.md) (canônico) é bug — corrija um dos dois na mesma PR.
 
-> **Tudo o que falta agora tem número:** WhatsApp (Fase 8), mobile (Fase 9), cobrança
+> **Tudo o que falta agora tem número:** WhatsApp (Fase 8), mobile (Fase 9), overage de cobrança
 > (Fase 13, TASK-047..050) e LGPD operacional (Fase 14, TASK-051..055). Deploy/CI, backup e
 > a base de LGPD (termos/privacidade, aceite, retenção) **existem desde 2026-09-11** — ver
 > `deploy.md`, `backup.md` e `retention.md`. O detalhe narrativo continua em
@@ -220,16 +220,22 @@ Regras de leitura:
 
 ## Fase 13 — Cobrança (SaaS de verdade)
 
-> 🔴 O maior buraco para operar: zero código de cobrança. Preço hipotético e métrica
-> (empresas ativas em competência aberta, tiers R$59–197) em
-> [`product.md`](./product.md); validar contra o discovery antes da TASK-049.
+> ✅ Entregue. Gateway e modelo na [D16](./decisions.md#d16--gateway-de-pagamento-asaas--modelo-de-planotrial);
+> preço público, métrica e teto na [D17](./decisions.md#d17--preço-público-e-métrica-de-cobrança-empresa-ativa-cadastrada)
+> — Essencial R$119 (30) / Profissional R$189 (80) / Escritório R$299 (200), cobrando por
+> **Empresa ativa cadastrada** (D18; supera os números da D17). Catálogo canônico em
+> `libs/contracts/src/plan.ts`; teto verificado por `pnpm --filter api check:plan-cap`.
+>
+> Recalibragem e segundo eixo: COM-175..187 ("Precificação v2"). O que nenhum código
+> resolve continua aberto — nenhum escritório pagou ainda.
 
-| Task     | Título                                                                                     | Depende | Tabelas novas  | Demonstrável depois desta                                            |
-| -------- | ------------------------------------------------------------------------------------------ | ------- | -------------- | -------------------------------------------------------------------- |
-| TASK-047 | ADR: gateway (Stripe vs Pagar.me/Asaas — pix/boleto pesam) + modelo de plano/trial         | —       | —              | decisão registrada em `decisions.md` com preço e métrica de cobrança |
-| TASK-048 | Schema de assinatura: `subscription` na `accounting_firm` (plano, status, trial, período)  | 047     | `subscription` | firm nova nasce em trial; `GET /accounting-firm` devolve o plano     |
-| TASK-049 | Checkout + webhook do gateway (ativação, falha de pagamento, cancelamento)                 | 048     | —              | assinar de verdade em sandbox; status muda via webhook               |
-| TASK-050 | Régua de inadimplência: aviso → bloqueio de escrita (leitura/export ficam) + tela de plano | 049     | —              | firm inadimplente vê banner e perde escrita; regularizou, voltou     |
+| Task        | Título                                                                                                                                                                                                                        | Depende | Tabelas novas  | Demonstrável depois desta                                           |
+| ----------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ------- | -------------- | ------------------------------------------------------------------- |
+| ✅ TASK-047 | ADR: gateway (Stripe vs Pagar.me/Asaas — pix/boleto pesam) + modelo de plano/trial                                                                                                                                            | —       | —              | D16 (gateway/modelo) + D17 (preço, métrica, teto) em `decisions.md` |
+| ✅ TASK-048 | Schema de assinatura: `subscription` na `accounting_firm` (plano, status, trial, período)                                                                                                                                     | 047     | `subscription` | firm nova nasce em trial; `GET /accounting-firm` devolve o plano    |
+| ✅ TASK-049 | Checkout + webhook do gateway (ativação, falha de pagamento, cancelamento)                                                                                                                                                    | 048     | —              | assinar de verdade em sandbox; status muda via webhook              |
+| ✅ TASK-050 | Régua de inadimplência: aviso → bloqueio de escrita (leitura/export ficam) + tela de plano                                                                                                                                    | 049     | —              | firm inadimplente vê banner e perde escrita; regularizou, voltou    |
+| ❌ TASK-055 | ~~Overage suave: acima do teto cobra por Empresa extra em vez de bloquear o cadastro~~ — **cancelada pela D18**: substituída pela folga de 20% com aviso (COM-179), que resolve ~80% do problema sem metered billing no Asaas | 050     | —              | —                                                                   |
 
 ## Fase 14 — LGPD operacional (o que restou do §5 do next-steps)
 

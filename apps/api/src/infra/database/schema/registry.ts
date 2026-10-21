@@ -18,6 +18,7 @@ import {
   OVERRIDE_ACTIONS,
   PERIODICITIES,
   type CompanyFlags,
+  type PriceOverride,
 } from '@competa/contracts';
 import { user } from './auth.js';
 import { id, timestamps } from './columns.js';
@@ -256,6 +257,14 @@ export const subscription = pgTable(
     gatewayCustomerId: text('gateway_customer_id'),
     gatewaySubscriptionId: text('gateway_subscription_id'),
     planName: text('plan_name').notNull().default('trial'),
+    /** `monthly` | `yearly`. O anual é 10× o mensal (2 meses grátis) e é cobrado em boleto
+     *  com Pix embutido — o Asaas não faz recorrência Pix pura. */
+    cycle: text('cycle').notNull().default('monthly'),
+    /** Oferta Fundador: mapa de preço mensal por plano. Null = preço público. É mapa e não
+     *  número para o fundador que sobe de tier continuar fundador. Aplicado por SQL
+     *  (runbook em `docs/oferta-fundador.md`) — dez clientes não pagam um CRUD. */
+    priceOverride: jsonb('price_override').$type<PriceOverride>(),
+    priceOverrideReason: text('price_override_reason'),
     status: text('status').notNull().default('trialing'),
     trialEndsAt: timestamp('trial_ends_at', { withTimezone: true }),
     currentPeriodStart: timestamp('current_period_start', { withTimezone: true }),

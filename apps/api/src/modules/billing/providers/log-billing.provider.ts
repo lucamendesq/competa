@@ -1,4 +1,5 @@
 import { Injectable, Logger } from '@nestjs/common';
+import type { BillingCycle } from '@competa/contracts';
 import { BillingProvider } from './billing.provider.js';
 import { randomUUID } from 'node:crypto';
 
@@ -12,9 +13,15 @@ export class LogBilling implements BillingProvider {
     return { customerId: `mock_cus_${randomUUID()}` };
   }
 
-  async createSubscription(input: { customerId: string; planName: string; value: number }) {
+  async createSubscription(input: {
+    customerId: string;
+    planName: string;
+    cycle: BillingCycle;
+    value: number;
+  }) {
     this.logger.log(
-      `Mock: Criando assinatura ${input.planName} para ${input.customerId} (R$ ${input.value})`,
+      `Mock: Criando assinatura ${input.planName} ${input.cycle} para ${input.customerId} ` +
+        `(R$ ${input.value})`,
     );
 
     return {

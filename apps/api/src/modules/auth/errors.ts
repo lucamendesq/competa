@@ -1,3 +1,4 @@
+import { planGateMessage, planRequiredFor, type PlanCapability } from '@competa/contracts';
 import { AppError } from '../../lib/app-error.js';
 
 export class InviteNotFound extends AppError {
@@ -33,6 +34,18 @@ export class EmailAlreadyRegistered extends AppError {
 
   constructor() {
     super('Já existe uma conta com este email.');
+  }
+}
+
+/** Cadastro público nunca confirma se um email já tem conta: a resposta é a mesma para
+ *  email duplicado e para qualquer outra recusa, senão o formulário aberto vira oráculo
+ *  de "quem é cliente da Competa". */
+export class SignupRejected extends AppError {
+  readonly code = 'SIGNUP_REJECTED';
+  readonly status = 422;
+
+  constructor() {
+    super('Não foi possível criar a conta com esses dados. Verifique e tente novamente.');
   }
 }
 
@@ -96,5 +109,16 @@ export class CannotRemoveOwner extends AppError {
 
   constructor() {
     super('O dono da contabilidade não pode ser removido.');
+  }
+}
+
+/** 402 e não 403: a web traduz em CTA de upgrade, e o `details` diz exatamente qual gate
+ *  foi batido e para qual plano subir (D18 §3). */
+export class PlanCapabilityRequired extends AppError {
+  readonly code = 'PLAN_CAPABILITY_REQUIRED';
+  readonly status = 402;
+
+  constructor(capability: PlanCapability) {
+    super(planGateMessage(capability), { capability, requiredPlan: planRequiredFor(capability) });
   }
 }

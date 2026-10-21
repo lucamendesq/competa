@@ -1,6 +1,6 @@
 import { Inject, Injectable, Logger } from '@nestjs/common';
 import { and, count, desc, eq, gt, inArray, isNull, or, sql } from 'drizzle-orm';
-import type { MessageListQuery } from '@competa/contracts';
+import { planAllows, type MessageListQuery } from '@competa/contracts';
 import env from '../../config/env.js';
 import { InvalidTransition } from '../requests/errors.js';
 import { reportChannelFailure } from '../../lib/observability.js';
@@ -16,6 +16,7 @@ import {
   pushSubscription,
   request,
   requestItem,
+  subscription,
   uploadLink,
 } from '../../infra/database/schema/index.js';
 import {
@@ -226,16 +227,27 @@ export class MessageRepository {
    *  payload de evento: o Responsável precisa reconhecer o remetente em QUALQUER email
    *  (link, lembrete, rejeição, prazo), e centralizar evita esquecer em um deles.
    *  ponytail: uma consulta por email — escritório pequeno; se doer, cachear por request. */
-  private async firmNameOf(requestId: string) {
+  /** Nome e logo do escritório para o cabeçalho do e-mail. O logo só sai no plano com a
+   *  capability `branding` (D18 §3) — o `leftJoin` da assinatura cabe na mesma consulta que
+   *  já buscava o nome, então o gate não custa round trip. */
+  private async brandOf(requestId: string) {
     const [row] = await this.db
-      .select({ name: accountingFirm.name })
+      .select({
+        name: accountingFirm.name,
+        logoUrl: accountingFirm.logoUrl,
+        planName: subscription.planName,
+      })
       .from(request)
       .innerJoin(period, eq(period.id, request.periodId))
       .innerJoin(accountingFirm, eq(accountingFirm.id, period.accountingFirmId))
+      .leftJoin(subscription, eq(subscription.accountingFirmId, accountingFirm.id))
       .where(eq(request.id, requestId))
       .limit(1);
 
-    return row?.name;
+    return {
+      senderName: row?.name,
+      brandLogoUrl: row && planAllows(row.planName ?? 'trial', 'branding') ? row.logoUrl : null,
+    };
   }
 
   private async contactEmailOf(requestId: string): Promise<string | undefined> {
@@ -265,6 +277,7 @@ export class MessageRepository {
     subject: string;
     body: string;
     senderName?: string;
+    brandLogoUrl?: string | null;
     provider: MessageProvider;
   }): Promise<boolean> {
     let messageId: string | undefined;
@@ -290,6 +303,7 @@ export class MessageRepository {
         subject: input.subject,
         body: input.body,
         senderName: input.senderName,
+        brandLogoUrl: input.brandLogoUrl,
       });
 
       const metaMessageId = typeof result === 'string' ? result : undefined;
@@ -330,7 +344,7 @@ export class MessageRepository {
     const primaryProvider =
       provider ?? (channel === 'whatsapp' ? this.whatsappProvider : this.provider);
 
-    const senderName = await this.firmNameOf(requestId);
+    const { senderName, brandLogoUrl } = await this.brandOf(requestId);
 
     const primaryDelivered = await this.attemptSend({
       requestId,
@@ -339,6 +353,7 @@ export class MessageRepository {
       subject,
       body,
       senderName,
+      brandLogoUrl,
       provider: primaryProvider,
     });
 
@@ -364,6 +379,7 @@ export class MessageRepository {
           subject,
           body,
           senderName,
+          brandLogoUrl,
           provider: secondaryProvider,
         });
 

@@ -31,25 +31,25 @@ async function sair() {
       Pular para o conteúdo
     </a>
 
-    <header v-if="perfil" class="sticky top-0 z-40 bg-[#0F172A] text-white shadow-xs">
+    <header v-if="perfil" class="bg-card border-border sticky top-0 z-40 border-b">
       <div class="mx-auto flex max-w-3xl items-center gap-3 px-4 py-3">
-        <Logo variant="icon" surface="dark" alt="" class="h-7 shrink-0" />
+        <Logo variant="icon" surface="auto" alt="" class="h-6 shrink-0" />
         <div class="min-w-0 flex-1">
           <template v-if="(perfil?.companies?.length ?? 0) > 1">
-            <p class="truncate text-sm font-semibold text-white">{{ perfil?.name }}</p>
-            <p class="truncate text-xs text-slate-300">
+            <p class="text-foreground truncate text-sm font-semibold">{{ perfil?.name }}</p>
+            <p class="text-muted-foreground truncate text-xs">
               {{ perfil?.companies?.length }} empresas · {{ perfil?.accountingFirmName }}
             </p>
           </template>
           <template v-else>
-            <p class="truncate text-sm font-semibold text-white">{{ perfil?.companyName }}</p>
-            <p class="truncate text-xs text-slate-300">{{ perfil?.accountingFirmName }}</p>
+            <p class="text-foreground truncate text-sm font-semibold">{{ perfil?.companyName }}</p>
+            <p class="text-muted-foreground truncate text-xs">{{ perfil?.accountingFirmName }}</p>
           </template>
         </div>
-        <InstallButton />
+        <InstallButton variant="card" />
         <button
           type="button"
-          class="inline-flex h-9 items-center gap-2 rounded-lg px-3 text-xs font-medium text-slate-300 hover:bg-white/10 hover:text-white focus-visible:ring-2 focus-visible:ring-amber-400 focus-visible:outline-none transition-colors"
+          class="text-muted-foreground hover:bg-muted hover:text-foreground focus-visible:ring-ring inline-flex h-9 items-center gap-2 rounded-lg px-3 text-xs font-medium transition-colors focus-visible:ring-2 focus-visible:outline-none"
           @click="sair"
         >
           <LogOut class="size-3.5" aria-hidden="true" />
@@ -57,13 +57,13 @@ async function sair() {
         </button>
       </div>
 
-      <nav class="hidden border-t border-slate-800 sm:block" aria-label="Navegação">
+      <nav class="border-border hidden border-t sm:block" aria-label="Navegação">
         <ul class="mx-auto flex max-w-3xl gap-1 px-2">
           <li v-for="item in nav" :key="item.path">
             <RouterLink
               :to="item.path"
-              active-class="border-amber-400 text-white font-semibold"
-              class="flex h-11 items-center gap-2 border-b-2 border-transparent px-3 text-sm text-slate-300 hover:bg-white/5 hover:text-white focus-visible:ring-2 focus-visible:ring-amber-400 focus-visible:outline-none transition-colors"
+              active-class="border-primary text-primary font-semibold"
+              class="text-muted-foreground hover:bg-muted hover:text-foreground focus-visible:ring-ring flex h-11 items-center gap-2 border-b-2 border-transparent px-3 text-sm transition-colors focus-visible:ring-2 focus-visible:outline-none"
             >
               <component :is="item.icon" class="size-4" aria-hidden="true" />
               {{ item.label }}

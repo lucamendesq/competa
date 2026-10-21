@@ -13,11 +13,18 @@ export const UpdateFirmBody = z
     reminderMax: z.int().min(0).max(10),
     reminderDueSoonDays: z.int().min(0).max(31),
     reminderGapDays: z.int().min(1).max(31),
+    /* A URL é escolhida pelo tenant e vai parar numa página pública e no corpo de e-mails:
+     * só `https`. `http` vira aviso de conteúdo misto, e qualquer outro esquema
+     * (`javascript:`, `data:`) é vetor de XSS no `src` da imagem. */
     logoUrl: z
       .string()
       .trim()
       .url()
       .max(2048)
+      .refine(
+        (url) => url.startsWith('https://'),
+        'O endereço do logo precisa começar com https://',
+      )
       .nullable()
       .or(z.literal('').transform(() => null)),
     contactEmail: email()
@@ -36,3 +43,6 @@ export const PublicSignUpBody = z.object({
   password: z.string().min(8, 'A senha precisa ter no mínimo 8 caracteres.'),
 });
 export type PublicSignUpBody = z.infer<typeof PublicSignUpBody>;
+
+export const RegisterFirmBody = PublicSignUpBody;
+export type RegisterFirmBody = PublicSignUpBody;

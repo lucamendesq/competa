@@ -31,6 +31,7 @@ export class UploadController {
     return {
       company: checklist.companyName,
       accountingFirm: checklist.accountingFirmName,
+      accountingFirmLogoUrl: checklist.accountingFirmLogoUrl,
       hasAccess: Boolean(owner?.authUserId),
       referenceMonth: checklist.referenceMonth,
       dueDate: checklist.periodDueDate,

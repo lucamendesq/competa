@@ -28,7 +28,25 @@ export const linkButton = (url: string, label: string) => {
 </p>`;
 };
 
-export const emailLayout = (body: string, senderName?: string) => `<!doctype html>
+/** Imagem remota é bloqueada por padrão em boa parte dos clientes de e-mail: o `alt` tem
+ *  que ser o nome do escritório, e a altura fixa mantém o cabeçalho de pé sem a imagem.
+ *  Só `https` entra no `src` — `logoUrl` é dado do tenant (mesma regra do `linkButton`). */
+const brandHeader = (senderName?: string, logoUrl?: string | null) => {
+  const label = escape(senderName ?? 'Competa');
+  const safeLogo = logoUrl && /^https:\/\//i.test(logoUrl) ? escape(logoUrl) : undefined;
+
+  if (!safeLogo) {
+    return `<span style="font-size:18px;font-weight:700;color:#ffffff;letter-spacing:-0.02em;">${senderName ? label : 'Competa'}</span>`;
+  }
+
+  return `<img src="${safeLogo}" alt="${label}" height="28" style="height:28px;max-width:200px;display:block;border:0;outline:none;color:#ffffff;font-size:16px;font-weight:700;" />`;
+};
+
+export const emailLayout = (
+  body: string,
+  senderName?: string,
+  logoUrl?: string | null,
+) => `<!doctype html>
 <html lang="pt-BR">
   <head>
     <meta charset="utf-8" />
@@ -41,7 +59,7 @@ export const emailLayout = (body: string, senderName?: string) => `<!doctype htm
           <table role="presentation" width="480" cellpadding="0" cellspacing="0" style="width:480px;max-width:100%;background:#ffffff;border-radius:12px;overflow:hidden;">
             <tr>
               <td style="background:${NAVY};padding:20px 32px;">
-                <span style="font-size:18px;font-weight:700;color:#ffffff;letter-spacing:-0.02em;">Competa</span>
+                ${brandHeader(senderName, logoUrl)}
               </td>
             </tr>
             <tr>

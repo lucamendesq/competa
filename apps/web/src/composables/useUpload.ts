@@ -1,5 +1,5 @@
 import { ref } from 'vue';
-import { apiErrorMessage } from '@/api/error';
+import { apiErrorMessage, failureKind } from '@/api/error';
 
 export type FileResult = {
   fileName: string;
@@ -94,11 +94,23 @@ export function useUpload(deps: Dependencies) {
         }
       }
     } catch (e) {
-      results.value.push({
-        fileName: 'Falha geral',
+      /* Falha no presign/confirm derruba o lote inteiro. A mensagem do servidor fala de
+       * campo de API (`requestId`, `storage_key`) e não quer dizer nada para quem está
+       * do outro lado — some com ela e devolve os arquivos para nova tentativa. */
+      if (import.meta.env?.DEV) console.error('Falha no envio', e);
+
+      const reason =
+        failureKind(e) === 'offline'
+          ? 'Sem conexão com o servidor. Verifique sua internet.'
+          : 'Não foi possível concluir o envio. Tente de novo.';
+
+      results.value = fileArray.map((file) => ({
+        fileName: file.name,
         ok: false,
-        reason: apiErrorMessage(e),
-      });
+        reason,
+        retriable: true,
+        file,
+      }));
     } finally {
       isUploading.value = false;
     }

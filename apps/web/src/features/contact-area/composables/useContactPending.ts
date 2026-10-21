@@ -31,7 +31,7 @@ export function useContactPending() {
       },
       send: (url: string, file: File) => putFileToStorage(url, file),
       confirm: async (docIds: string[]) => {
-        const res = await confirmMyDocuments(docIds);
+        const res = await confirmMyDocuments(requestId, docIds);
         return res ?? { refused: [] };
       },
     });

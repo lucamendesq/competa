@@ -288,6 +288,19 @@ async function syncContact(contact?: { name: string; email: string; phone?: stri
   }
 }
 
+const formValid = computed(
+  () =>
+    CompanyForm.safeParse({
+      name: name.value,
+      checklistTemplateId: checklistTemplateId.value,
+      responsibleAccountantId: responsibleAccountantId.value,
+      cnpj: cnpj.value,
+      contactName: contactName.value,
+      contactEmail: contactEmail.value,
+      contactPhone: contactPhone.value,
+    }).success,
+);
+
 const onSubmit = handleSubmit(async (values) => {
   if (saving.value) return;
   saving.value = true;
@@ -350,7 +363,9 @@ const onSubmit = handleSubmit(async (values) => {
 
       <section class="bg-card border-border shadow-sm rounded-xl p-6 border flex flex-col gap-6">
         <div class="border-b border-border/80 pb-4">
-          <h2 class="font-display text-base font-semibold leading-7 text-foreground">Dados da empresa</h2>
+          <h2 class="font-display text-base font-semibold leading-7 text-foreground">
+            Dados da empresa
+          </h2>
           <p class="text-muted-foreground mt-1 text-sm leading-6">
             O nome aparece no link de upload e nos emails enviados para o cliente.
           </p>
@@ -358,14 +373,25 @@ const onSubmit = handleSubmit(async (values) => {
 
         <div class="flex flex-col gap-4">
           <div class="flex flex-col gap-1.5">
-            <Label for="name" class="font-medium text-foreground">Nome da empresa <span class="text-danger">*</span></Label>
-            <Input id="name" v-model="name" class="focus-visible:ring-ring focus-visible:border-primary shadow-xs" />
+            <Label for="name" class="font-medium text-foreground"
+              >Nome da empresa <span class="text-danger">*</span></Label
+            >
+            <Input
+              id="name"
+              v-model="name"
+              class="focus-visible:ring-ring focus-visible:border-primary shadow-xs"
+            />
             <p v-if="errors.name" class="text-danger text-sm">{{ errors.name }}</p>
           </div>
 
           <div class="flex flex-col gap-1.5">
             <Label for="cnpj" class="font-medium text-foreground">CNPJ (Opcional)</Label>
-            <Input id="cnpj" v-model="cnpj" placeholder="00.000.000/0000-00" class="focus-visible:ring-ring focus-visible:border-primary shadow-xs" />
+            <Input
+              id="cnpj"
+              v-model="cnpj"
+              placeholder="00.000.000/0000-00"
+              class="focus-visible:ring-ring focus-visible:border-primary shadow-xs"
+            />
             <p v-if="errors.cnpj" class="text-danger text-sm">{{ errors.cnpj }}</p>
           </div>
         </div>
@@ -373,7 +399,9 @@ const onSubmit = handleSubmit(async (values) => {
 
       <section class="bg-card border-border shadow-sm rounded-xl p-6 border flex flex-col gap-6">
         <div class="border-b border-border/80 pb-4">
-          <h2 class="font-display text-base font-semibold leading-7 text-foreground">Responsável pelo envio</h2>
+          <h2 class="font-display text-base font-semibold leading-7 text-foreground">
+            Responsável pelo envio
+          </h2>
           <p class="text-muted-foreground mt-1 text-sm leading-6">
             Quem recebe os links de cobrança desta empresa.
           </p>
@@ -382,18 +410,30 @@ const onSubmit = handleSubmit(async (values) => {
         <div class="flex flex-col gap-4">
           <div class="flex flex-col gap-1.5">
             <Label for="contactName" class="font-medium text-foreground">Nome do contato</Label>
-            <Input id="contactName" v-model="contactName" placeholder="Ex: João da Silva" class="focus-visible:ring-ring focus-visible:border-primary shadow-xs" />
+            <Input
+              id="contactName"
+              v-model="contactName"
+              placeholder="Ex: João da Silva"
+              class="focus-visible:ring-ring focus-visible:border-primary shadow-xs"
+            />
             <p v-if="errors.contactName" class="text-danger text-sm">{{ errors.contactName }}</p>
           </div>
 
           <div class="flex flex-col gap-1.5">
             <Label for="contactEmail" class="font-medium text-foreground">E-mail</Label>
-            <Input id="contactEmail" type="email" v-model="contactEmail" class="focus-visible:ring-ring focus-visible:border-primary shadow-xs" />
+            <Input
+              id="contactEmail"
+              type="email"
+              v-model="contactEmail"
+              class="focus-visible:ring-ring focus-visible:border-primary shadow-xs"
+            />
             <p v-if="errors.contactEmail" class="text-danger text-sm">{{ errors.contactEmail }}</p>
           </div>
 
           <div class="flex flex-col gap-1.5">
-            <Label for="contactPhone" class="font-medium text-foreground">WhatsApp (Opcional)</Label>
+            <Label for="contactPhone" class="font-medium text-foreground"
+              >WhatsApp (Opcional)</Label
+            >
             <Input
               id="contactPhone"
               type="tel"
@@ -408,7 +448,9 @@ const onSubmit = handleSubmit(async (values) => {
 
       <section class="bg-card border-border shadow-sm rounded-xl p-6 border flex flex-col gap-6">
         <div class="border-b border-border/80 pb-4">
-          <h2 class="font-display text-base font-semibold leading-7 text-foreground">Atendimento</h2>
+          <h2 class="font-display text-base font-semibold leading-7 text-foreground">
+            Atendimento
+          </h2>
           <p class="text-muted-foreground mt-1 text-sm leading-6">
             Responsável interno e obrigações da empresa.
           </p>
@@ -416,7 +458,9 @@ const onSubmit = handleSubmit(async (values) => {
 
         <div class="flex flex-col gap-4">
           <div class="flex flex-col gap-1.5">
-            <Label for="responsibleAccountantId" class="font-medium text-foreground">Contador responsável</Label>
+            <Label for="responsibleAccountantId" class="font-medium text-foreground"
+              >Contador responsável</Label
+            >
             <select
               id="responsibleAccountantId"
               v-model="responsibleAccountantId"
@@ -445,14 +489,16 @@ const onSubmit = handleSubmit(async (values) => {
               v-model="flags[flag.key]"
               class="size-4 rounded border-border text-primary focus:ring-ring accent-primary"
             />
-            <Label :for="'flag-' + flag.key" class="font-medium cursor-pointer text-foreground">{{ flag.label }}</Label>
+            <Label :for="'flag-' + flag.key" class="font-medium cursor-pointer text-foreground">{{
+              flag.label
+            }}</Label>
           </div>
         </div>
       </section>
 
       <div class="border-border flex items-center gap-3 border-t pt-4">
         <Button variant="ghost" type="button" @click="router.back()">Cancelar</Button>
-        <Button type="submit" :disabled="saving" class="shadow-xs font-medium">
+        <Button type="submit" :disabled="saving || !formValid" class="shadow-xs font-medium">
           {{ saving ? 'Salvando...' : 'Salvar empresa' }}
         </Button>
       </div>
@@ -462,7 +508,9 @@ const onSubmit = handleSubmit(async (values) => {
       class="bg-card border-border flex w-full flex-col gap-6 rounded-xl border p-6 shadow-sm lg:sticky lg:top-8 lg:w-[24rem]"
     >
       <div>
-        <Label for="checklistTemplateId" class="mb-2 block font-medium text-foreground">Checklist aplicado</Label>
+        <Label for="checklistTemplateId" class="mb-2 block font-medium text-foreground"
+          >Checklist aplicado</Label
+        >
         <select
           id="checklistTemplateId"
           v-model="checklistTemplateId"
@@ -485,7 +533,10 @@ const onSubmit = handleSubmit(async (values) => {
         <div class="flex items-center justify-between gap-4">
           <h3 class="text-sm font-semibold font-display text-foreground">
             Prévia do checklist
-            <span v-if="preview.customized" class="text-muted-foreground font-normal text-xs block sm:inline">
+            <span
+              v-if="preview.customized"
+              class="text-muted-foreground font-normal text-xs block sm:inline"
+            >
               (inclui ajustes desta empresa)
             </span>
           </h3>
@@ -509,11 +560,16 @@ const onSubmit = handleSubmit(async (values) => {
               <li v-for="item in items" :key="item.key" class="text-sm flex flex-col">
                 <span class="font-medium text-foreground flex items-center justify-between gap-2">
                   <span>{{ item.name }}</span>
-                  <span v-if="item.fromOverride" class="inline-flex rounded-full bg-info-surface border border-info-border px-1.5 py-0.5 text-[10px] font-semibold text-info-foreground">
+                  <span
+                    v-if="item.fromOverride"
+                    class="inline-flex rounded-full bg-info-surface border border-info-border px-1.5 py-0.5 text-[10px] font-semibold text-info-foreground"
+                  >
                     ajuste
                   </span>
                 </span>
-                <span class="text-muted-foreground mt-0.5 text-xs flex flex-wrap items-center gap-1.5">
+                <span
+                  class="text-muted-foreground mt-0.5 text-xs flex flex-wrap items-center gap-1.5"
+                >
                   <span>{{ PERIODICITY_LABEL[item.periodicity] ?? item.periodicity }}</span>
                   <span v-if="item.conditionFlag" class="text-warning-foreground font-medium">
                     &middot; Se {{ FLAG_LABEL[item.conditionFlag] }}

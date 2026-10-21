@@ -87,7 +87,10 @@ async function run() {
     );
     await refuses(
       'PATCH /accounting-firm → OnlyOwnerCanManageTeam',
-      () => teamController.updateFirm(scope, sessionOf(memberUserId), { name: 'Renomeada' }),
+      () =>
+        teamController.updateFirm(scope, 'profissional', sessionOf(memberUserId), {
+          name: 'Renomeada',
+        }),
       OnlyOwnerCanManageTeam,
     );
     await refuses(
@@ -114,7 +117,7 @@ async function run() {
     console.log('  ✓ POST /invites cria e GET /invites lista o pendente');
 
     await allows('PATCH /accounting-firm aceito para a dona', () =>
-      teamController.updateFirm(scope, sessionOf(ownerUserId), {
+      teamController.updateFirm(scope, 'profissional', sessionOf(ownerUserId), {
         name: 'Contabilidade COM-148 v2',
       }),
     );

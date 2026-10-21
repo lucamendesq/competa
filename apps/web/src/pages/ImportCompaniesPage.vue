@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { computed, ref, shallowRef } from 'vue';
+import { computed, ref, shallowRef, watch } from 'vue';
 import { useRouter } from 'vue-router';
 import { Upload, Download, Clock, CircleAlert, CircleCheck, Mail } from 'lucide-vue-next';
 import { Button } from '@/components/ui/button';
@@ -20,6 +20,7 @@ import {
   confirmImport as confirmImportApi,
   sendAccessInvites,
 } from '@/features/companies/api/companies';
+import { usePlanUsage } from '@/features/companies/composables/usePlanUsage';
 import type {
   ImportPreviewLine,
   ImportPreviewResult,
@@ -59,6 +60,7 @@ const preview = shallowRef<ImportPreviewResult | null>(null);
 const confirmed = shallowRef<ImportResult | null>(null);
 const confirming = ref(false);
 
+
 const summary = computed(() => {
   const done = confirmed.value;
   if (done) return { total: done.total, created: done.created, errors: done.failed };
@@ -81,6 +83,30 @@ const displayLines = computed(() => {
     (a, b) => a.line - b.line,
   );
 });
+
+const { data: usageData } = usePlanUsage();
+const activate = ref(true);
+
+/** Quantas das linhas prontas entram ativas: o resto fica inativo, sem ocupar vaga e sem
+ *  recusar a importação. O padrão vira "importar como inativas" quando o lote estoura o
+ *  teto — é o caso em que a escolha realmente importa. */
+const split = computed(() => {
+  const usage = usageData.value;
+  const ready = pendingRows.value.length;
+  const slots = usage ? Math.max(0, usage.softCap - usage.companiesActive) : ready;
+  const active = activate.value ? Math.min(ready, slots) : 0;
+
+  return { ready, active, inactive: ready - active, usage };
+});
+
+watch(
+  () => [usageData.value, preview.value] as const,
+  () => {
+    const usage = usageData.value;
+    if (!usage || !preview.value) return;
+    activate.value = pendingRows.value.length <= usage.softCap - usage.companiesActive;
+  },
+);
 
 const actionableCount = computed(() => confirmed.value?.created ?? pendingRows.value.length);
 
@@ -159,10 +185,11 @@ async function ensureConfirmed(): Promise<string[]> {
   const pending = pendingRows.value.map(({ line, body }) => ({ line, body }));
   if (!pending.length) return [];
 
-  const result = await confirmImportApi(pending);
+  const result = await confirmImportApi(pending, activate.value);
   confirmed.value = result;
   toast.success(
-    result.created === 1 ? '1 empresa importada.' : `${result.created} empresas importadas.`,
+    `${result.created} ${result.created === 1 ? 'empresa importada' : 'empresas importadas'}` +
+      ` — ${result.activated} ativa(s), ${result.created - result.activated} inativa(s).`,
   );
 
   return result.lines
@@ -271,6 +298,37 @@ function downloadTemplate() {
       </div>
 
       <div
+        v-if="!confirmed && split.ready"
+        class="border-border bg-card shadow-xs flex flex-col gap-3 rounded-xl border p-4 sm:p-5"
+      >
+        <p class="text-foreground text-sm">
+          <strong>{{ split.ready }}</strong>
+          {{ split.ready === 1 ? 'empresa será importada' : 'empresas serão importadas' }}.
+          <template v-if="split.usage">
+            <strong>{{ split.active }}</strong> {{ split.active === 1 ? 'ficará ativa' : 'ficarão ativas' }}
+            (seu plano cobre {{ split.usage.companyCap }} e você já tem
+            {{ split.usage.companiesActive }}) e
+            <strong>{{ split.inactive }}</strong>
+            {{ split.inactive === 1 ? 'ficará inativa' : 'ficarão inativas' }} — ative quando
+            quiser.
+          </template>
+        </p>
+
+        <label class="flex items-start gap-2 text-sm">
+          <input
+            v-model="activate"
+            type="checkbox"
+            class="accent-primary focus-visible:ring-ring mt-0.5 size-4 focus-visible:ring-2 focus-visible:outline-none"
+          />
+          <span class="text-muted-foreground">
+            Ativar as que couberem no teto do plano. Desmarque para
+            <strong>importar a carteira inteira como inativa</strong> — empresa inativa não ocupa
+            vaga e não entra no disparo da competência.
+          </span>
+        </label>
+      </div>
+
+      <div
         v-if="actionableCount"
         class="border-border bg-card shadow-xs flex flex-wrap items-center gap-3 border rounded-xl p-4 sm:p-5"
       >
@@ -338,7 +396,9 @@ function downloadTemplate() {
                 </TableCell>
                 <TableCell class="text-muted-foreground text-xs sm:text-sm">
                   <template v-if="line.status === 'error'">{{ line.error }}</template>
-                  <template v-else-if="line.status === 'created'">Empresa criada.</template>
+                  <template v-else-if="line.status === 'created'">
+                    {{ line.active ? 'Empresa criada e ativa.' : 'Empresa criada, inativa.' }}
+                  </template>
                   <template v-else>Aguardando confirmação.</template>
                 </TableCell>
               </TableRow>

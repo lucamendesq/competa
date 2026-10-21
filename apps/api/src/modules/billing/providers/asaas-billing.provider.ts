@@ -1,4 +1,5 @@
 import { Injectable, Logger } from '@nestjs/common';
+import type { BillingCycle } from '@competa/contracts';
 import { BillingProvider } from './billing.provider.js';
 import env from '../../../config/env.js';
 
@@ -66,15 +67,24 @@ export class AsaasBilling implements BillingProvider {
     return { customerId: createData.id };
   }
 
-  async createSubscription(input: { customerId: string; planName: string; value: number }) {
-    // Cria uma assinatura cobrada via Cartão/Pix/Boleto, gerando um link de pagamento
+  async createSubscription(input: {
+    customerId: string;
+    planName: string;
+    cycle: BillingCycle;
+    value: number;
+  }) {
+    const yearly = input.cycle === 'yearly';
+
+    /* No anual a taxa do gateway é o maior custo variável do cliente: R$1,99 fixos no
+     * boleto contra ~3% no cartão (R$56,99 num anual de R$1.890). O Asaas não faz
+     * recorrência Pix pura — o Pix vai como QR Code embutido no boleto. */
     const payload = {
       customer: input.customerId,
-      billingType: 'UNDEFINED', // Deixa o cliente escolher na tela de checkout
+      billingType: yearly ? 'BOLETO' : 'UNDEFINED',
       value: input.value,
       nextDueDate: new Date(Date.now() + 1000 * 60 * 60 * 24 * 3).toISOString().split('T')[0], // Daqui a 3 dias
-      cycle: 'MONTHLY',
-      description: `Plano ${input.planName} - Competa`,
+      cycle: yearly ? 'YEARLY' : 'MONTHLY',
+      description: `Plano ${input.planName} (${yearly ? 'anual' : 'mensal'}) - Competa`,
     };
 
     const res = await fetch(`${this.baseUrl}/subscriptions`, {
@@ -95,7 +105,7 @@ export class AsaasBilling implements BillingProvider {
 
     // O Asaas geralmente retorna a URL da fatura (invoiceUrl) no webhook,
     // ou na assinatura podemos direcionar pro link de pagamento
-    const checkoutUrl = await this.getPaymentLink(input.customerId, input.value, input.planName);
+    const checkoutUrl = await this.getPaymentLink(input.value, input.planName, input.cycle);
 
     return {
       subscriptionId: data.id,
@@ -103,7 +113,9 @@ export class AsaasBilling implements BillingProvider {
     };
   }
 
-  private async getPaymentLink(customerId: string, value: number, planName: string) {
+  private async getPaymentLink(value: number, planName: string, cycle: BillingCycle) {
+    const yearly = cycle === 'yearly';
+
     // Para simplificar a experiência, geramos um Link de Pagamento no Asaas
     const res = await fetch(`${this.baseUrl}/paymentLinks`, {
       method: 'POST',
@@ -113,11 +125,12 @@ export class AsaasBilling implements BillingProvider {
       },
       body: JSON.stringify({
         name: `Plano ${planName}`,
-        description: 'Assinatura mensal do software Competa',
+        description: `Assinatura ${yearly ? 'anual' : 'mensal'} do software Competa`,
         chargeType: 'RECURRENT',
+        subscriptionCycle: yearly ? 'YEARLY' : 'MONTHLY',
         endDate: null,
         value,
-        billingType: 'UNDEFINED',
+        billingType: yearly ? 'BOLETO' : 'UNDEFINED',
       }),
     });
 

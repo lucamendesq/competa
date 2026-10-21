@@ -1,5 +1,6 @@
 <script setup lang="ts">
 import { ref, computed } from 'vue';
+import { useRoute } from 'vue-router';
 import { useTitle } from '@vueuse/core';
 import { Button } from '@/components/ui/button';
 import {
@@ -10,17 +11,32 @@ import {
   CardHeader,
   CardTitle,
 } from '@/components/ui/card';
-import { PAID_PLANS, PLANS, type PlanName } from '@competa/contracts';
+import {
+  PAID_PLANS,
+  PLANS,
+  planPrice,
+  type BillingCycle,
+  type PaidPlanName,
+  type Plan,
+  type PlanName,
+} from '@competa/contracts';
 import { api } from '@/api/client';
 import { useAuthStore } from '@/stores/auth';
 import { toast } from 'vue-sonner';
 import { apiErrorMessage } from '@/api/error';
+import PlanCapBanner from '@/components/PlanCapBanner.vue';
+import Callout from '@/components/Callout.vue';
+import { usePlanUsage } from '@/features/companies/composables/usePlanUsage';
 import { Loader2, CreditCard, AlertTriangle, CheckCircle2 } from 'lucide-vue-next';
 
 useTitle('Plano e Assinatura | Competa');
 
 const auth = useAuthStore();
+const route = useRoute();
 const isLoading = ref(false);
+
+/** Vem do CTA do banner de excedente: o tier recomendado chega já destacado. */
+const highlighted = computed(() => (route.query.plano as string | undefined) ?? 'profissional');
 const simulatedCheckout = ref(false);
 
 const subscription = computed(() => auth.accountant?.accountingFirm.subscription);
@@ -29,8 +45,51 @@ const currentPlan = computed(
   () => PLANS[(subscription.value?.planName ?? 'trial') as PlanName] ?? PLANS.trial,
 );
 
+const cycle = ref<BillingCycle>('monthly');
+const yearly = computed(() => cycle.value === 'yearly');
+
+/** Oferta Fundador: o fundador vê o preço dele, não o público. */
+const priceOverride = computed(() => subscription.value?.priceOverride ?? null);
+const priceOf = (plan: Plan) =>
+  planPrice(plan, cycle.value, priceOverride.value?.[plan.name as PaidPlanName]);
+const monthlyOf = (plan: Plan) =>
+  priceOverride.value?.[plan.name as PaidPlanName] ?? plan.priceMonthly;
+
 const brl = (value: number) =>
   new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' }).format(value);
+
+const { data: usageData } = usePlanUsage();
+const usage = computed(() => usageData.value);
+
+const isCurrent = (plan: Plan) =>
+  subscription.value?.status === 'ACTIVE' && subscription.value.planName === plan.name;
+
+/** As 8 linhas da D18, as mesmas da página pública. Disponibilidade nunca é só cor. */
+const COMPARISON: { label: string; value: (plan: Plan) => string }[] = [
+  { label: 'Preço por mês', value: (plan) => brl(monthlyOf(plan)) },
+  { label: 'Empresas ativas', value: (plan) => `até ${plan.companyCap}` },
+  { label: 'Contadores da equipe', value: () => '✓ Ilimitados' },
+  { label: 'WhatsApp oficial no seu número', value: () => '✓ Sim' },
+  {
+    label: 'Lembretes automáticos',
+    value: (plan) =>
+      plan.capabilities.includes('reminderTuning')
+        ? '✓ Cadência configurável'
+        : '✓ Cadência padrão',
+  },
+  {
+    label: 'Sua marca no link e nos e-mails',
+    value: (plan) => (plan.capabilities.includes('branding') ? '✓ Sim' : '— Não'),
+  },
+  {
+    label: 'Download em zip',
+    value: (plan) =>
+      plan.capabilities.includes('periodZip')
+        ? '✓ Por empresa e da competência inteira'
+        : '✓ Por empresa',
+  },
+  { label: 'Histórico dos documentos', value: () => '✓ 5 anos' },
+];
 
 const statusLabel = computed(() => {
   if (!subscription.value) return 'Desconhecido';
@@ -63,7 +122,7 @@ async function goToCheckout(planName: string) {
     const { checkoutUrl, simulated } = await api.post<{
       checkoutUrl: string;
       simulated: boolean;
-    }>('/billing/checkout', { planName });
+    }>('/billing/checkout', { planName, cycle: cycle.value });
 
     if (simulated || !checkoutUrl) {
       simulatedCheckout.value = true;
@@ -90,6 +149,8 @@ async function goToCheckout(planName: string) {
         Gerencie o plano da sua Contabilidade e o acesso ao Competa.
       </p>
     </div>
+
+    <PlanCapBanner class="mb-6" />
 
     <Card class="border border-border shadow-sm rounded-xl">
       <CardHeader>
@@ -131,6 +192,15 @@ async function goToCheckout(planName: string) {
             <p class="text-sm font-medium text-muted-foreground">Encerramento do Trial</p>
             <p class="text-lg font-semibold text-foreground mt-1">{{ trialFormatted }}</p>
           </div>
+          <div class="flex-1" v-if="usage">
+            <p class="text-sm font-medium text-muted-foreground">Empresas ativas</p>
+            <p
+              class="text-lg font-semibold mt-1"
+              :class="usage.overCap ? 'text-warning-foreground' : 'text-foreground'"
+            >
+              {{ usage.companiesActive }} de {{ usage.companyCap }}
+            </p>
+          </div>
         </div>
 
         <div
@@ -151,27 +221,45 @@ async function goToCheckout(planName: string) {
         </div>
       </CardContent>
 
-      <CardFooter
-        v-if="subscription?.status === 'ACTIVE'"
-        class="flex justify-end gap-3 border-t border-border px-6 py-4"
-      >
-        <Button
-          @click="goToCheckout(currentPlan.name === 'trial' ? 'essencial' : currentPlan.name)"
-          :disabled="isLoading"
-          class="w-full sm:w-auto min-w-[200px]"
-        >
-          <Loader2 v-if="isLoading" class="mr-2 h-4 w-4 animate-spin" />
-          Gerenciar Assinatura
-        </Button>
-      </CardFooter>
     </Card>
 
-    <div v-if="subscription?.status !== 'ACTIVE'" class="mt-8">
-      <h2 class="text-xl font-bold font-display text-foreground mb-4">Escolha o seu plano</h2>
+    <div class="mt-8">
+      <h2 class="text-xl font-bold font-display text-foreground mb-4">
+        {{ subscription?.status === 'ACTIVE' ? 'Mudar de plano' : 'Escolha o seu plano' }}
+      </h2>
 
       <p class="text-muted-foreground mb-6 text-sm">
         O preço é por Contabilidade e a conta é por <strong>empresa ativa cadastrada</strong> —
         nunca por usuário. Todo plano inclui contadores ilimitados.
+      </p>
+
+      <div
+        class="inline-flex rounded-lg border border-border bg-card p-1"
+        role="group"
+        aria-label="Ciclo de cobrança"
+      >
+        <button
+          v-for="option in (['monthly', 'yearly'] as BillingCycle[])"
+          :key="option"
+          type="button"
+          class="rounded-md px-4 py-1.5 text-sm font-medium transition-colors focus-visible:ring-2 focus-visible:ring-ring focus-visible:outline-none"
+          :class="
+            cycle === option
+              ? 'bg-primary text-primary-foreground shadow-xs'
+              : 'text-muted-foreground hover:text-foreground'
+          "
+          :aria-pressed="cycle === option"
+          @click="cycle = option"
+        >
+          {{ option === 'monthly' ? 'Mensal' : 'Anual' }}
+          <span v-if="option === 'yearly'" class="ml-1 font-semibold">· 2 meses grátis</span>
+        </button>
+      </div>
+
+      <p class="text-muted-foreground mt-3 text-sm">
+        O anual é cobrado de uma vez, em boleto com Pix no QR Code.
+        <strong>Não existe assinatura mensal no Pix</strong> — no mensal o pagamento é no cartão
+        ou por boleto avulso.
       </p>
 
       <div class="mt-8 grid gap-6 sm:grid-cols-3">
@@ -180,13 +268,13 @@ async function goToCheckout(planName: string) {
           :key="plan.name"
           class="border relative flex flex-col transition-all duration-150 rounded-xl"
           :class="
-            plan.name === 'profissional'
+            plan.name === highlighted
               ? 'border-primary ring-2 ring-primary/20 shadow-md'
               : 'border-border hover:border-primary/50 shadow-sm'
           "
         >
           <div
-            v-if="plan.name === 'profissional'"
+            v-if="plan.name === highlighted"
             class="absolute -top-3 left-1/2 -translate-x-1/2 bg-primary text-primary-foreground text-xs font-bold px-3 py-1 rounded-full shadow-xs tracking-wide"
           >
             Recomendado
@@ -197,8 +285,21 @@ async function goToCheckout(planName: string) {
           </CardHeader>
           <CardContent class="flex-1">
             <p class="text-3xl font-bold font-display text-foreground">
-              {{ brl(plan.priceMonthly)
-              }}<span class="text-sm font-normal text-muted-foreground font-sans">/mês</span>
+              {{ brl(priceOf(plan))
+              }}<span class="text-sm font-normal text-muted-foreground font-sans">{{
+                yearly ? '/ano' : '/mês'
+              }}</span>
+            </p>
+            <p v-if="yearly" class="text-muted-foreground mt-1 text-sm">
+              Equivale a {{ brl(priceOf(plan) / 12) }}/mês — economia de
+              <strong>{{ brl(monthlyOf(plan) * 12 - priceOf(plan)) }}</strong> no ano.
+            </p>
+            <p
+              v-if="priceOverride?.[plan.name as PaidPlanName]"
+              class="mt-1 text-sm font-semibold text-primary"
+            >
+              Preço de fundador, vitalício (público:
+              {{ brl(planPrice(plan, cycle)) }}{{ yearly ? '/ano' : '/mês' }}).
             </p>
             <ul class="mt-4 space-y-2 text-sm text-muted-foreground">
               <li v-for="item in plan.highlights" :key="item" class="flex items-center gap-2">
@@ -207,13 +308,67 @@ async function goToCheckout(planName: string) {
             </ul>
           </CardContent>
           <CardFooter>
-            <Button @click="goToCheckout(plan.name)" :disabled="isLoading" class="w-full">
+            <Button
+              @click="goToCheckout(plan.name)"
+              :disabled="isLoading || isCurrent(plan)"
+              class="w-full"
+            >
               <Loader2 v-if="isLoading" class="mr-2 h-4 w-4 animate-spin" />
-              Assinar {{ plan.label }}
+              {{ isCurrent(plan) ? 'Plano atual' : `Assinar ${plan.label}` }}
             </Button>
           </CardFooter>
         </Card>
       </div>
+
+      <section class="mt-10">
+        <h3 class="font-display text-base font-semibold text-foreground">
+          O que muda entre os planos
+        </h3>
+        <div class="border-border mt-3 overflow-x-auto rounded-xl border">
+          <table class="w-full min-w-[560px] text-left text-sm">
+            <caption class="sr-only">
+              Comparativo dos planos Essencial, Profissional e Escritório
+            </caption>
+            <thead>
+              <tr class="border-border bg-muted/40 border-b">
+                <th scope="col" class="text-foreground px-4 py-3 font-semibold">&nbsp;</th>
+                <th
+                  v-for="plan in PAID_PLANS"
+                  :key="plan.name"
+                  scope="col"
+                  class="px-4 py-3 font-semibold"
+                  :class="plan.name === highlighted ? 'text-primary' : 'text-foreground'"
+                >
+                  {{ plan.label }}
+                </th>
+              </tr>
+            </thead>
+            <tbody>
+              <tr
+                v-for="row in COMPARISON"
+                :key="row.label"
+                class="border-border/60 border-b last:border-0"
+              >
+                <th scope="row" class="text-foreground px-4 py-3 font-medium">{{ row.label }}</th>
+                <td
+                  v-for="plan in PAID_PLANS"
+                  :key="plan.name"
+                  class="text-muted-foreground px-4 py-3"
+                >
+                  {{ row.value(plan) }}
+                </td>
+              </tr>
+            </tbody>
+          </table>
+        </div>
+      </section>
+
+      <Callout tone="warning" heading="O WhatsApp é cobrado pela Meta, não por nós" class="mt-8">
+        A integração é no seu próprio número: você conecta sua conta oficial e a
+        <strong>Meta cobra você direto</strong>, sem intermediário nem margem nossa. No uso típico
+        de um escritório pequeno isso fica em <strong>R$10 a R$20/mês</strong>, e esse valor
+        <strong>não está incluído</strong> no preço do Competa.
+      </Callout>
     </div>
   </div>
 </template>

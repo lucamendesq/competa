@@ -36,15 +36,20 @@ aws s3 rm "s3://$R2_BUCKET/firm/$FIRM_ID/" --recursive --endpoint-url "$R2_ENDPO
 ```
 
 ```sql
--- 2. Postgres: o grosso cai por cascade a partir da firm
--- (document/request_item NÃO têm cascade de request: apagar na ordem)
+-- 2. Postgres: apagar na ordem.
+-- ATENÇÃO: `company` NÃO tem cascade da firm (registry.ts: `.references(() => accountingFirm.id)`
+-- sem onDelete), e document/request_item não têm cascade de request. O delete da firm falha
+-- com violação de FK se as empresas ainda existirem.
 begin;
 delete from document d using request r, period p
   where d.request_id = r.id and r.period_id = p.id and p.accounting_firm_id = :firm_id;
 delete from request r using period p
   where r.period_id = p.id and p.accounting_firm_id = :firm_id;
 delete from period where accounting_firm_id = :firm_id;
-delete from accounting_firm where id = :firm_id; -- cascade: accountant, company, contact, invite…
+delete from contact c using company co
+  where c.company_id = co.id and co.accounting_firm_id = :firm_id;
+delete from company where accounting_firm_id = :firm_id;
+delete from accounting_firm where id = :firm_id; -- cascade: accountant, invite…
 commit;
 ```
 

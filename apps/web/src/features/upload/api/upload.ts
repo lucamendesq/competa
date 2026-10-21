@@ -1,4 +1,5 @@
 import { api } from '@/api/client';
+import { trackBusy } from '@/api/busy';
 import type { PushSubscriptionPayload } from '@/composables/usePush'; // Need to port PushService
 
 export type UploadedFile = {
@@ -19,6 +20,8 @@ export type ChecklistItem = {
 export type Checklist = {
   company: string;
   accountingFirm: string;
+  /** Só vem preenchido no plano com a capability `branding`. */
+  accountingFirmLogoUrl: string | null;
   hasAccess: boolean;
   referenceMonth: string;
   dueDate: string | null;
@@ -54,17 +57,18 @@ export const presignFiles = (
   },
 ) => api.post<Presign>(`/upload/${token}/documents`, body);
 
-export const putFileToStorage = async (uploadUrl: string, file: File) => {
-  const res = await fetch(uploadUrl, {
-    method: 'PUT',
-    body: file,
-    headers: {
-      'Content-Type': file.type || 'application/octet-stream',
-    },
+export const putFileToStorage = (uploadUrl: string, file: File) =>
+  trackBusy(async () => {
+    const res = await fetch(uploadUrl, {
+      method: 'PUT',
+      body: file,
+      headers: {
+        'Content-Type': file.type || 'application/octet-stream',
+      },
+    });
+    if (!res.ok) throw new Error(`PUT falhou com ${res.status}`);
+    return res.text();
   });
-  if (!res.ok) throw new Error(`PUT falhou com ${res.status}`);
-  return res.text();
-};
 
 export const confirmFiles = (token: string, documentIds: string[]) =>
   api.post<Confirmation>(`/upload/${token}/documents/confirm`, { documentIds });
@@ -72,5 +76,8 @@ export const confirmFiles = (token: string, documentIds: string[]) =>
 export const subscribePush = (token: string, subscription: PushSubscriptionPayload) =>
   api.post<{ id: string }>(`/upload/${token}/push`, subscription);
 
-export const activateAccess = (token: string) =>
-  api.post<{ email: string; name: string; nextStep: 'check_email' }>(`/upload/${token}/access`, {});
+export const activateAccess = (token: string, body?: { name?: string; password?: string }) =>
+  api.post<{ email: string; name: string; nextStep: 'check_email' | 'password_set' }>(
+    `/upload/${token}/access`,
+    body ?? {},
+  );

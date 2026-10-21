@@ -113,5 +113,14 @@ export const ImportConfirmBody = z.object({
     .array(z.object({ line: z.number(), body: CreateCompanyBody }))
     .min(1)
     .max(MAX_IMPORT_ROWS),
+  /** `false` importa a carteira inteira desativada — não ocupa vaga, e o Contador ativa
+   *  aos poucos. Com `true`, entram ativas as que couberem no teto e o resto fica inativo:
+   *  trazer a carteira toda nunca é recusado por limite de plano. */
+  activate: z.boolean().default(true),
 });
 export type ImportConfirmBody = z.infer<typeof ImportConfirmBody>;
+
+export const ActivateCompaniesBody = z.object({
+  companyIds: z.array(z.uuid()).min(1).max(MAX_IMPORT_ROWS),
+});
+export type ActivateCompaniesBody = z.infer<typeof ActivateCompaniesBody>;

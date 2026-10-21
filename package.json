@@ -15,6 +15,8 @@
     "dev": "pnpm -r --parallel run dev",
     "predev:lan": "pnpm --filter contracts build",
     "dev:lan": "pnpm -r --parallel run dev:lan",
+    "db:seed": "pnpm --filter api db:seed",
+    "run-seeds": "pnpm --filter api db:seed",
     "prepare": "husky"
   },
   "devDependencies": {

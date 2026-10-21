@@ -1,4 +1,5 @@
 import { ApiError } from './error';
+import { trackBusy } from './busy';
 
 export type Envelope<T> = { data: T };
 export type Meta = { page: number; perPage: number; total: number };
@@ -21,6 +22,17 @@ const apiUrl = import.meta.env.VITE_API_URL || 'http://localhost:3000';
 
 class ApiClient {
   private async request<T>(
+    method: string,
+    url: string,
+    options?: { body?: unknown; params?: Params; responseType?: 'json' | 'blob' },
+  ): Promise<T> {
+    const mutates = method !== 'GET' || options?.responseType === 'blob';
+    return mutates
+      ? trackBusy(() => this.send<T>(method, url, options))
+      : this.send<T>(method, url, options);
+  }
+
+  private async send<T>(
     method: string,
     url: string,
     options?: { body?: unknown; params?: Params; responseType?: 'json' | 'blob' },

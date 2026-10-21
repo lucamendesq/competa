@@ -3,6 +3,7 @@ import { computed, ref, watch } from 'vue';
 import {
   Mail,
   MailX,
+  Check,
   CircleCheck,
   Pencil,
   SquareCheckBig,
@@ -26,7 +27,11 @@ import LoadingRows from '@/components/LoadingRows.vue';
 import Modal from '@/components/Modal.vue';
 import Pagination from '@/components/ui/pagination/Pagination.vue';
 import StatusPill from '@/components/StatusPill.vue';
+import EmptyState from '@/components/ui/empty/EmptyState.vue';
+import PlanCapBanner from '@/components/PlanCapBanner.vue';
 import { useCompaniesFeature } from '@/features/companies/composables/useCompaniesFeature';
+import { usePlanUsage } from '@/features/companies/composables/usePlanUsage';
+import { useQueryClient } from '@tanstack/vue-query';
 import { useChecklistsFeature } from '@/features/checklists/composables/useChecklistsFeature';
 import { toast } from 'vue-sonner';
 import { apiErrorMessage } from '@/api/error';
@@ -45,11 +50,24 @@ watch(search, (val) => {
   }, 300);
 });
 
-const statusChips = [
-  { value: undefined, label: 'Todas' },
-  { value: 'true', label: 'Ativas' },
-  { value: 'false', label: 'Inativas' },
-] as const;
+const queryClient = useQueryClient();
+const { data: usage } = usePlanUsage();
+
+/* Invalida o prefixo, não só a lista: o consumo do teto (e o banner de excedente) vive sob
+ * a mesma chave e tem que apagar junto quando a Empresa é desativada. */
+const refreshCompanies = () => queryClient.invalidateQueries({ queryKey: ['companies'] });
+
+/** Com a carteira inteira importada, dezenas de linhas inativas afogam a lista: a contagem
+ *  no chip é o que torna o recorte ativa/inativa legível antes de clicar. */
+const statusChips = computed(() => [
+  {
+    value: undefined,
+    label: 'Todas',
+    count: usage.value ? usage.value.companiesActive + usage.value.companiesInactive : undefined,
+  },
+  { value: 'true', label: 'Ativas', count: usage.value?.companiesActive },
+  { value: 'false', label: 'Inativas', count: usage.value?.companiesInactive },
+]);
 
 const { companiesQuery, sendAccessInvitesMutation, applyTemplateMutation } = useCompaniesFeature(
   page,
@@ -76,7 +94,7 @@ async function deactivate(company: any) {
   const { deactivateCompany } = await import('@/features/companies/api/companies');
   try {
     await deactivateCompany(company.id);
-    companiesQuery.refetch();
+    await refreshCompanies();
     toast.success('Empresa desativada.');
     confirmDeactivate.value = null;
   } catch (error) {
@@ -91,7 +109,7 @@ async function reactivate(company: any) {
   const { updateCompany } = await import('@/features/companies/api/companies');
   try {
     await updateCompany(company.id, { active: true });
-    companiesQuery.refetch();
+    await refreshCompanies();
     toast.success('Empresa reativada.');
   } catch (error) {
     toast.error(apiErrorMessage(error, 'Não foi possível reativar.'));
@@ -101,10 +119,38 @@ async function reactivate(company: any) {
 }
 
 const inviting = ref<string | null>(null);
+
+/* Sessão, não servidor: o reenvio é legítimo amanhã, o que não pode é a mesma tela
+ * virar botão de spam enquanto o Contador olha para ela. */
+const INVITED_KEY = 'competa_invited_companies';
+
+const readInvited = (): string[] => {
+  try {
+    const raw = sessionStorage.getItem(INVITED_KEY);
+    return raw ? (JSON.parse(raw) as string[]) : [];
+  } catch {
+    return [];
+  }
+};
+
+const invited = ref<Set<string>>(new Set(readInvited()));
+
+function markInvited(id: string) {
+  const next = new Set(invited.value);
+  next.add(id);
+  invited.value = next;
+  try {
+    sessionStorage.setItem(INVITED_KEY, JSON.stringify([...next]));
+  } catch {
+    return;
+  }
+}
+
 async function inviteToApp(company: any) {
   inviting.value = company.id;
   try {
     const res = await sendAccessInvitesMutation.mutateAsync([company.id]);
+    markInvited(company.id);
     if (res.skipped > 0) {
       toast.info('Nenhum e-mail enviado (contatos já possuem acesso).');
     } else {
@@ -137,6 +183,27 @@ function selectAll() {
 
 function clearSelection() {
   selectedIds.value = new Set();
+}
+
+const activating = ref(false);
+
+async function activateSelected() {
+  activating.value = true;
+  try {
+    const { activateCompanies } = await import('@/features/companies/api/companies');
+    const result = await activateCompanies(Array.from(selectedIds.value));
+
+    if (result.activated) toast.success(`${result.activated} empresa(s) ativada(s).`);
+    if (result.reason) toast.warning(result.reason);
+    if (!result.activated && !result.reason) toast.info('Nenhuma empresa inativa na seleção.');
+
+    clearSelection();
+    await refreshCompanies();
+  } catch (error) {
+    toast.error(apiErrorMessage(error, 'Não foi possível ativar as empresas.'));
+  } finally {
+    activating.value = false;
+  }
 }
 
 const bulkTemplateId = ref('');
@@ -175,6 +242,8 @@ async function applyTemplateToSelected() {
     </Button>
   </PageHeader>
 
+  <PlanCapBanner class="mt-6" />
+
   <section class="mt-8">
     <div class="mb-5 flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
       <div class="relative w-full sm:w-80">
@@ -186,18 +255,24 @@ async function applyTemplateToSelected() {
           aria-label="Buscar empresa"
         />
       </div>
-      <div class="flex items-center gap-2 overflow-x-auto pb-1 sm:pb-0" role="group" aria-label="Status da empresa">
+      <div
+        class="flex items-center gap-2 overflow-x-auto pb-1 sm:pb-0"
+        role="group"
+        aria-label="Status da empresa"
+      >
         <button
           v-for="chip in statusChips"
           :key="String(chip.value)"
           type="button"
           class="shrink-0 rounded-full border px-4 py-1.5 text-xs sm:text-sm font-medium transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
-          :class="active === chip.value
-            ? 'bg-primary/10 text-primary border-primary/30 font-semibold shadow-xs'
-            : 'border-border bg-card text-muted-foreground hover:bg-muted hover:text-foreground'"
+          :class="
+            active === chip.value
+              ? 'bg-primary/10 text-primary border-primary/30 font-semibold shadow-xs'
+              : 'border-border bg-card text-muted-foreground hover:bg-muted hover:text-foreground'
+          "
           @click="active = chip.value"
         >
-          {{ chip.label }}
+          {{ chip.label }}<span v-if="chip.count !== undefined" class="ml-1.5 tabular-nums opacity-70">{{ chip.count }}</span>
         </button>
       </div>
     </div>
@@ -208,6 +283,20 @@ async function applyTemplateToSelected() {
 
     <template v-else-if="companiesQuery.isLoading.value">
       <LoadingRows />
+    </template>
+
+    <template v-else-if="companies.length === 0">
+      <EmptyState
+        :icon="Building2"
+        title="Nenhuma empresa"
+        :description="
+          search || active
+            ? 'Nenhuma empresa corresponde ao filtro atual.'
+            : 'Cadastre a primeira empresa (ou importe um CSV) para começar a cobrar documentos.'
+        "
+        :action-label="search || active ? undefined : 'Nova empresa'"
+        @action="$router.push('/empresas/nova')"
+      />
     </template>
 
     <template v-else>
@@ -249,7 +338,10 @@ async function applyTemplateToSelected() {
                   />
                 </TableCell>
                 <TableCell class="font-medium font-display text-foreground">
-                  <RouterLink :to="`/empresas/${company.id}/editar`" class="hover:text-primary transition-colors hover:underline">
+                  <RouterLink
+                    :to="`/empresas/${company.id}/editar`"
+                    class="hover:text-primary transition-colors hover:underline"
+                  >
                     {{ company.name }}
                   </RouterLink>
                 </TableCell>
@@ -267,7 +359,9 @@ async function applyTemplateToSelected() {
                   <template v-else>
                     <div class="flex flex-col gap-0.5">
                       <div class="flex items-center gap-1.5">
-                        <span class="text-xs font-medium text-foreground">{{ company.contacts[0].name }}</span>
+                        <span class="text-xs font-medium text-foreground">{{
+                          company.contacts[0].name
+                        }}</span>
                         <template v-if="!company.readyContactCount">
                           <span
                             class="text-muted-foreground border-border bg-muted/60 inline-flex items-center gap-1 rounded-full border px-1.5 py-0.5 text-[10px] font-semibold"
@@ -298,7 +392,10 @@ async function applyTemplateToSelected() {
                 </TableCell>
                 <TableCell>
                   <template v-if="company.templateName">
-                    <RouterLink :to="`/empresas/${company.id}/checklist`" class="text-foreground hover:text-primary transition-colors hover:underline text-sm font-medium">
+                    <RouterLink
+                      :to="`/empresas/${company.id}/checklist`"
+                      class="text-foreground hover:text-primary transition-colors hover:underline text-sm font-medium"
+                    >
                       {{ company.templateName }}
                     </RouterLink>
                   </template>
@@ -315,12 +412,22 @@ async function applyTemplateToSelected() {
                 </TableCell>
                 <TableCell class="text-right">
                   <div class="flex flex-wrap items-center justify-end gap-1">
-                    <Button variant="ghost" size="sm" as-child class="h-8 px-2 text-xs text-muted-foreground hover:text-foreground">
+                    <Button
+                      variant="ghost"
+                      size="sm"
+                      as-child
+                      class="h-8 px-2 text-xs text-muted-foreground hover:text-foreground"
+                    >
                       <RouterLink :to="`/empresas/${company.id}/editar`">
                         <Pencil class="mr-1.5 h-3.5 w-3.5" aria-hidden="true" /> Editar
                       </RouterLink>
                     </Button>
-                    <Button variant="ghost" size="sm" as-child class="h-8 px-2 text-xs text-muted-foreground hover:text-foreground">
+                    <Button
+                      variant="ghost"
+                      size="sm"
+                      as-child
+                      class="h-8 px-2 text-xs text-muted-foreground hover:text-foreground"
+                    >
                       <RouterLink :to="`/empresas/${company.id}/checklist`">
                         <SquareCheckBig class="mr-1.5 h-3.5 w-3.5" aria-hidden="true" /> Checklist
                       </RouterLink>
@@ -330,11 +437,19 @@ async function applyTemplateToSelected() {
                       variant="ghost"
                       size="sm"
                       class="h-8 px-2 text-xs text-muted-foreground hover:text-foreground"
-                      :disabled="inviting === company.id"
+                      :disabled="inviting === company.id || invited.has(company.id)"
                       @click="inviteToApp(company)"
                     >
-                      <Send class="mr-1.5 h-3.5 w-3.5" aria-hidden="true" />
-                      {{ inviting === company.id ? 'Convidando…' : 'Convidar para o app' }}
+                      <Check
+                        v-if="invited.has(company.id)"
+                        class="mr-1.5 h-3.5 w-3.5 text-success"
+                        aria-hidden="true"
+                      />
+                      <Send v-else class="mr-1.5 h-3.5 w-3.5" aria-hidden="true" />
+                      <template v-if="invited.has(company.id)">Convite enviado</template>
+                      <template v-else>{{
+                        inviting === company.id ? 'Convidando…' : 'Convidar para o app'
+                      }}</template>
                     </Button>
                     <Button
                       v-if="company.active"
@@ -393,7 +508,7 @@ async function applyTemplateToSelected() {
     v-if="selectedIds.size"
     class="border-border bg-card fixed inset-x-0 bottom-0 z-40 border-t p-3.5 shadow-[0_-4px_16px_rgba(15,23,42,0.08)]"
     role="region"
-    aria-label="Aplicar template em lote"
+    aria-label="Ações em lote nas empresas selecionadas"
   >
     <div class="mx-auto flex max-w-5xl flex-wrap items-center justify-end gap-3">
       <p class="mr-auto text-sm text-foreground font-medium">
@@ -414,10 +529,22 @@ async function applyTemplateToSelected() {
           {{ template.name }}
         </option>
       </select>
-      <Button variant="ghost" :disabled="applyingTemplate" @click="clearSelection">
+      <Button
+        variant="outline"
+        class="shadow-xs font-medium"
+        :disabled="activating || applyingTemplate"
+        @click="activateSelected"
+      >
+        {{ activating ? 'Ativando…' : 'Ativar selecionadas' }}
+      </Button>
+      <Button variant="ghost" :disabled="applyingTemplate || activating" @click="clearSelection">
         Limpar seleção
       </Button>
-      <Button :disabled="applyingTemplate || !bulkTemplateId" class="shadow-xs font-medium" @click="applyTemplateToSelected">
+      <Button
+        :disabled="applyingTemplate || !bulkTemplateId"
+        class="shadow-xs font-medium"
+        @click="applyTemplateToSelected"
+      >
         {{
           applyingTemplate
             ? 'Aplicando…'

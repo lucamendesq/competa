@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { ref } from 'vue';
+import { computed, ref } from 'vue';
 import { useRouter } from 'vue-router';
 import { useForm, useField } from 'vee-validate';
 import * as z from 'zod';
@@ -33,6 +33,10 @@ const {
   errorMessage: passwordError,
   meta: passwordMeta,
 } = useField<string>('password');
+
+const formValid = computed(
+  () => LoginForm.safeParse({ email: email.value, password: password.value }).success,
+);
 
 const benefits = [
   {
@@ -96,7 +100,9 @@ const onSubmit = handleSubmit(async (values) => {
         <div class="mb-6 flex justify-center lg:hidden">
           <Logo class="h-8" />
         </div>
-        <h1 class="font-display text-xl font-semibold tracking-tight">Acessar painel do Contador</h1>
+        <h1 class="font-display text-xl font-semibold tracking-tight">
+          Acessar painel do Contador
+        </h1>
         <p class="text-muted-foreground mt-1 text-sm">
           Informe suas credenciais para gerenciar suas competências.
         </p>
@@ -157,7 +163,12 @@ const onSubmit = handleSubmit(async (values) => {
             </p>
           </div>
 
-          <Button size="lg" type="submit" class="mt-2 w-full" :disabled="isSubmitting">
+          <Button
+            size="lg"
+            type="submit"
+            class="mt-2 w-full"
+            :disabled="isSubmitting || !formValid"
+          >
             {{ isSubmitting ? 'Entrando…' : 'Entrar' }}
             <ArrowRight class="ml-2 h-4 w-4" aria-hidden="true" />
           </Button>

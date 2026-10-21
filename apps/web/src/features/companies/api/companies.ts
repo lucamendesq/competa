@@ -7,6 +7,7 @@ import type {
   ContactDetailResponse,
   CreateCompanyBody,
   CreateOverrideBody,
+  PaidPlanName,
   UpdateCompanyBody,
 } from '@competa/contracts';
 
@@ -54,12 +55,13 @@ export type Override = {
 };
 
 export type ImportLine =
-  | { line: number; status: 'created'; companyId: string; name: string }
+  | { line: number; status: 'created'; companyId: string; name: string; active: boolean }
   | { line: number; status: 'error'; name: string; error: string };
 
 export type ImportResult = {
   total: number;
   created: number;
+  activated: number;
   failed: number;
   lines: ImportLine[];
 };
@@ -128,5 +130,22 @@ export const applyTemplate = (companyIds: string[], checklistTemplateId: string)
 export const importCsv = (csv: string) =>
   api.post<ImportPreviewResult>('/companies/import', { csv });
 
-export const confirmImport = (pending: PendingImportRow[]) =>
-  api.post<ImportResult>('/companies/import/confirm', { pending });
+export const confirmImport = (pending: PendingImportRow[], activate: boolean) =>
+  api.post<ImportResult>('/companies/import/confirm', { pending, activate });
+
+export const activateCompanies = (companyIds: string[]) =>
+  api.post<{ activated: number; skipped: number; reason?: string }>('/companies/activate', {
+    companyIds,
+  });
+
+export type PlanUsage = {
+  planName: string;
+  companiesActive: number;
+  companiesInactive: number;
+  companyCap: number;
+  softCap: number;
+  overCap: boolean;
+  recommendedPlan: PaidPlanName;
+};
+
+export const getPlanUsage = () => api.get<PlanUsage>('/companies/usage');
