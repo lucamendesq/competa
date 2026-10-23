@@ -4,15 +4,15 @@ Branch: `strip-nest`. Read this first on every invocation; update after every co
 
 ## Phase 0 — foundations
 
-| Step                                                        | Status                       |
-| ----------------------------------------------------------- | ---------------------------- |
-| Branch `strip-nest`                                         | done                         |
-| codebase-map (dependency edges below)                       | done                         |
-| effect + @effect/platform + @effect/platform-node installed | done                         |
-| `docs/strip-nest/effect-v4-notes.md` (research)             | in flight (background agent) |
-| Test infra (vitest + swc, boot helper, test DB, smoke spec) | done                         |
-| Pre-commit (typecheck + api tests)                          | done                         |
-| STATE.md                                                    | done                         |
+| Step                                                        | Status |
+| ----------------------------------------------------------- | ------ |
+| Branch `strip-nest`                                         | done   |
+| codebase-map (dependency edges below)                       | done   |
+| effect + @effect/platform + @effect/platform-node installed | done   |
+| `docs/strip-nest/effect-v4-notes.md` (research)             | done   |
+| Test infra (vitest + swc, boot helper, test DB, smoke spec) | done   |
+| Pre-commit (typecheck + api tests)                          | done   |
+| STATE.md                                                    | done   |
 
 ## Test infra
 
@@ -22,6 +22,15 @@ Branch: `strip-nest`. Read this first on every invocation; update after every co
 - Test DB: `competa_test` in the `apps/api/docker-compose.yml` postgres (init script creates it). Migrate with `DB_NAME=competa_test pnpm db:migrate`.
 - Wire contract (frozen): success `{ data }` / `{ data, meta }` (ResponseInterceptor), errors `{ error: { code, message, details? } }` (AppErrorFilter).
 - Run: `pnpm --filter api test` (or `pnpm test` from `apps/api`).
+
+## Effect v4 — armadilhas principais (detalhe em effect-v4-notes.md)
+
+- `@effect/platform` foi REMOVIDO das deps: o 0.97.x é linha v3. Em v4, HTTP vive em `effect/http` / `effect/http-api` (core) + `@effect/platform-node`.
+- `Layer.scoped` não existe; `Layer.effect` constrói no scope da layer (`Effect.acquireRelease` direto dentro — padrão para o pg Pool).
+- `HttpServerRequest.toWeb` (Effect) / `HttpServerResponse.fromWeb` (sync) + `HttpRouter.add('*', '/api/auth/*', handler)` = receita do mount do better-auth.
+- `Schedule.cron('0 3 * * *', tz?)` tem `CronParseError` no canal de erro — `orDie`.
+- `Effect.fork`/`forkDaemon` viraram `forkChild`/`forkScoped`/`forkDetach`.
+- Testes: `@effect/vitest` com `layer(L)(...)` no topo e `it.layer` aninhado; `HttpApiTest.groups` para handlers sem servidor.
 
 ## Module table
 

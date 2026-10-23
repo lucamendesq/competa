@@ -31,7 +31,6 @@
     "@aws-sdk/client-s3": "^3.1125.0",
     "@aws-sdk/s3-request-presigner": "^3.1125.0",
     "@competa/contracts": "workspace:*",
-    "@effect/platform": "^0.97.2",
     "@effect/platform-node": "^4.0.6",
     "@nestjs/common": "^12.0.1",
     "@nestjs/config": "^12.0.0",
