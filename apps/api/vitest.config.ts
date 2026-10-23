@@ -18,7 +18,7 @@ export default defineConfig({
     hookTimeout: 60000,
     env: {
       NODE_ENV: 'test',
-      DB_NAME: 'competa_test',
+      DB_NAME: process.env.DB_NAME ?? 'competa_test',
       LOG_LEVEL: 'error',
     },
   },

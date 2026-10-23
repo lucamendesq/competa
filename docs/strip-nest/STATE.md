@@ -36,17 +36,17 @@ Branch: `strip-nest`. Read this first on every invocation; update after every co
 
 Order: smallest first; auth last (better-auth plumbing is replaced in the final phase).
 
-| #   | Module     | Tests commit | Migration commit | Unit tests | Status  |
-| --- | ---------- | ------------ | ---------------- | ---------- | ------- |
-| 1   | periods    | —            | —                | —          | pending |
-| 2   | contacts   | —            | —                | —          | pending |
-| 3   | companies  | —            | —                | —          | pending |
-| 4   | checklists | —            | —                | —          | pending |
-| 5   | requests   | —            | —                | —          | pending |
-| 6   | messaging  | —            | —                | —          | pending |
-| 7   | whatsapp   | —            | —                | —          | pending |
-| 8   | billing    | —            | —                | —          | pending |
-| 9   | auth       | —            | —                | —          | pending |
+| #   | Module     | Tests commit | Migration commit | Unit tests | Status          |
+| --- | ---------- | ------------ | ---------------- | ---------- | --------------- |
+| 1   | periods    | 893d2c9      | 8c9a352          | 9 specs    | done            |
+| 2   | contacts   | —            | —                | —          | tests in flight |
+| 3   | companies  | —            | —                | —          | tests in flight |
+| 4   | checklists | —            | —                | —          | tests in flight |
+| 5   | requests   | —            | —                | —          | pending         |
+| 6   | messaging  | —            | —                | —          | pending         |
+| 7   | whatsapp   | —            | —                | —          | pending         |
+| 8   | billing    | —            | —                | —          | pending         |
+| 9   | auth       | —            | —                | —          | pending         |
 
 ## Dependency map (from codebase-map, 2026-10-23)
 
@@ -71,6 +71,15 @@ Cross-module seams the Effect composition must reproduce: event contract in `src
 ## Found bugs (log only — fix in follow-ups, never mid-migration)
 
 1. `GET /periods/:id/requests?page=abc` → 500 INTERNAL_ERROR. `periods.controller.ts` chama `PaginationQuery.parse(rawQuery)` cru (fora do `zodPipe`), o `ZodError` não casa com nenhum branch do `AppErrorFilter` e cai no fallback 500. Deveria ser 422. Congelado em `test/periods.e2e.spec.ts` ("bug congelado"). Obs: o branch `'rows' in result` no controller é código morto (`listRequests` com query sempre devolve `{rows,total}`).
+
+## Migration pattern (set by periods — follow for every module)
+
+- Effect service `<Module>Repo` in `src/modules/<module>/<name>.repo.ts`: `const make = Effect.gen(...)` returning the methods, `class XRepo extends Context.Service<XRepo, Effect.Success<typeof make>>()('competa/api/<module>/XRepo')` with `layerNoDeps = Layer.effect(XRepo, make)` and `layer = layerNoDeps.pipe(Layer.provide(Db.layer))`.
+- `Db` service (`src/infra/database/effect.ts`) wraps the infra drizzle instance; `db.use(f)` → `Effect<A, DbError>`; `db.raw` only for constructing not-yet-migrated plain repository classes.
+- Old Nest `@Injectable` repository becomes a thin shim delegating to `run(XRepo.use(...))` — keeps controllers and cross-module DI intact until consumers migrate.
+- `src/effect/runtime.ts`: composition root `AppLayer` (add each migrated service with `Layer.mergeAll` + one `provideMerge(Db.layer)` at the root), `ManagedRuntime`, and `run()` which unwraps `DbError` → cause so `AppErrorFilter` sees raw driver errors. Runtime disposal intentionally unwired while `Db.layer` owns no resources.
+- Errors thrown inside `db.use` arrive wrapped as `DbError`; remap to typed fails with `catchTag('DbError', ...)` where business errors (AppError subclasses) are involved (see `openWithFanOut`, `closePeriod`).
+- Unit tests in `test/unit/<name>.repo.spec.ts` via `@effect/vitest` `layer(XRepo.layer)(...)`; seed direto no banco; `toFirmScope`/`toContactScope` permitidos lá via bloco no `apps/api/eslint.config.mjs` (`test/unit/**`). Exceções de lint SEMPRE em bloco de config (lint-staged roda com a config da raiz — diretivas inline somem no `--fix`).
 
 ## Session notes
 
