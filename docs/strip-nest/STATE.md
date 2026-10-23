@@ -79,6 +79,9 @@ Cross-module seams the Effect composition must reproduce: event contract in `src
 7. (quirk, não bug) DELETE de template é bloqueado por empresa INATIVA (TEMPLATE_IN_USE) enquanto `companyCount` na listagem mostra 0 — FK-correto, display enganoso.
 8. `POST /my/documents` com `requestId` não-uuid → 500: `ContactUploadGuard` passa o body cru para `findUploadOwnership` antes do zodPipe e o Postgres estoura (`invalid input syntax for type uuid`). Deveria ser 422. Congelado em `test/contacts.e2e.spec.ts`.
 9. Ativação passwordless cria a conta better-auth com senha ALEATÓRIA via `signUpEmail` → todo Responsável nasce com credencial: o perfil mostra `hasPassword: true` para quem nunca escolheu senha e `POST /my/password` responde sempre 400 PASSWORD_ALREADY_SET (caminho 204 inalcançável) — o Responsável fica preso ao magic link. Congelado em `test/contacts.e2e.spec.ts`.
+10. `POST /whatsapp/test` sem integração ativa → 500 (`throw new Error('Integração não ativa')` cru no controller; deveria ser 4xx tipado). Congelado em `test/whatsapp.e2e.spec.ts`.
+11. (segurança) `WHATSAPP_ENCRYPTION_KEY` ausente → `WhatsappCryptoService` usa chave fallback toda-zero conhecida (`'0'.repeat(64)`); tokens cifrados com ela são decifráveis por qualquer um. Em produção o env é obrigatório? NÃO está em REQUIRED_IN_PRODUCTION. Congelado em `test/whatsapp.e2e.spec.ts`.
+12. (quirks congelados em `test/whatsapp.e2e.spec.ts`) onboard é stub (ignora `body.code`, grava credenciais mock mesmo sem META env); test send não grava linha em `message` (sem rastreio de entrega); `/whatsapp/test` não é owner-gated (onboard/disconnect são); DELETE idempotente devolve `{success:true}` sem integração.
 
 ## Migration pattern (set by periods — follow for every module)
 
