@@ -36,17 +36,17 @@ Branch: `strip-nest`. Read this first on every invocation; update after every co
 
 Order: smallest first; auth last (better-auth plumbing is replaced in the final phase).
 
-| #   | Module     | Tests commit | Migration commit | Unit tests | Status          |
-| --- | ---------- | ------------ | ---------------- | ---------- | --------------- |
-| 1   | periods    | 893d2c9      | 8c9a352          | 9 specs    | done            |
-| 2   | contacts   | —            | —                | —          | tests in flight |
-| 3   | companies  | —            | —                | —          | tests in flight |
-| 4   | checklists | —            | —                | —          | tests in flight |
-| 5   | requests   | —            | —                | —          | pending         |
-| 6   | messaging  | —            | —                | —          | pending         |
-| 7   | whatsapp   | —            | —                | —          | pending         |
-| 8   | billing    | —            | —                | —          | pending         |
-| 9   | auth       | —            | —                | —          | pending         |
+| #   | Module     | Tests commit | Migration commit | Unit tests | Status                |
+| --- | ---------- | ------------ | ---------------- | ---------- | --------------------- |
+| 1   | periods    | 893d2c9      | 8c9a352          | 9 specs    | done                  |
+| 2   | contacts   | ver tabela   | —                | —          | tests done (44 specs) |
+| 3   | companies  | 3d24db1      | —                | —          | tests done (55 specs) |
+| 4   | checklists | 34a7bfc      | —                | —          | tests done (50 specs) |
+| 5   | requests   | —            | —                | —          | pending               |
+| 6   | messaging  | —            | —                | —          | pending               |
+| 7   | whatsapp   | —            | —                | —          | pending               |
+| 8   | billing    | —            | —                | —          | pending               |
+| 9   | auth       | —            | —                | —          | pending               |
 
 ## Dependency map (from codebase-map, 2026-10-23)
 
@@ -71,6 +71,14 @@ Cross-module seams the Effect composition must reproduce: event contract in `src
 ## Found bugs (log only — fix in follow-ups, never mid-migration)
 
 1. `GET /periods/:id/requests?page=abc` → 500 INTERNAL_ERROR. `periods.controller.ts` chama `PaginationQuery.parse(rawQuery)` cru (fora do `zodPipe`), o `ZodError` não casa com nenhum branch do `AppErrorFilter` e cai no fallback 500. Deveria ser 422. Congelado em `test/periods.e2e.spec.ts` ("bug congelado"). Obs: o branch `'rows' in result` no controller é código morto (`listRequests` com query sempre devolve `{rows,total}`).
+2. `PATCH /companies/:id` com `{}` → 500. `UpdateCompanyBody` é todo parcial, `{}` passa no zodPipe e o drizzle lança `No values to set`. Deveria ser 422. Congelado em `test/companies.e2e.spec.ts`.
+3. `PATCH /companies/:id/contacts/:contactId` com `{}` → 500. Mesma causa (ContactBody.partial()). Congelado em `test/companies.e2e.spec.ts`.
+4. `POST /companies/import/confirm` valida `responsibleAccountantId` (422 para id de outra firma) mas `insertBatch` nunca grava a coluna — empresa importada fica com `responsibleAccountantId: null`. Congelado em `test/companies.e2e.spec.ts`.
+5. (não congelado — inalcançável via HTTP hoje) `revokeAccess` apaga a row de `user` quando o último vínculo de contato cai, sem checar se o user também é accountant.
+6. Override `add` parcial sobre tipo que já está no template transforma item ANUAL em MENSAL com `dueMonthOffset` 1: os defaults do zod (`periodicity:'monthly'`, `dueMonthOffset:1`, `required:true`) são gravados non-null e derrotam o `??` de herança no `mergeEffectiveChecklist` — cujo próprio comentário diz existir para impedir exatamente isso. Só `annualMonth`/`dueDay`/`conditionFlag` herdam de fato. Congelado em `test/checklists.e2e.spec.ts`.
+7. (quirk, não bug) DELETE de template é bloqueado por empresa INATIVA (TEMPLATE_IN_USE) enquanto `companyCount` na listagem mostra 0 — FK-correto, display enganoso.
+8. `POST /my/documents` com `requestId` não-uuid → 500: `ContactUploadGuard` passa o body cru para `findUploadOwnership` antes do zodPipe e o Postgres estoura (`invalid input syntax for type uuid`). Deveria ser 422. Congelado em `test/contacts.e2e.spec.ts`.
+9. Ativação passwordless cria a conta better-auth com senha ALEATÓRIA via `signUpEmail` → todo Responsável nasce com credencial: o perfil mostra `hasPassword: true` para quem nunca escolheu senha e `POST /my/password` responde sempre 400 PASSWORD_ALREADY_SET (caminho 204 inalcançável) — o Responsável fica preso ao magic link. Congelado em `test/contacts.e2e.spec.ts`.
 
 ## Migration pattern (set by periods — follow for every module)
 
