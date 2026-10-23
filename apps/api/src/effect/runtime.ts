@@ -1,8 +1,11 @@
 import { Cause, Effect, Exit, Layer, ManagedRuntime } from 'effect';
 import { Db, DbError } from '../infra/database/effect.js';
+import { ContactsRepo } from '../modules/contacts/contact.repo.js';
 import { PeriodsRepo } from '../modules/periods/period.repo.js';
 
-export const AppLayer = PeriodsRepo.layerNoDeps.pipe(Layer.provideMerge(Db.layer));
+export const AppLayer = Layer.mergeAll(PeriodsRepo.layerNoDeps, ContactsRepo.layerNoDeps).pipe(
+  Layer.provideMerge(Db.layer),
+);
 
 export type AppContext = Layer.Success<typeof AppLayer>;
 

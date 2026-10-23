@@ -1,280 +1,65 @@
 import { Injectable } from '@nestjs/common';
-import { and, asc, desc, eq, inArray, isNotNull, isNull } from 'drizzle-orm';
-import { Database } from '../../infra/database/database.js';
-import {
-  account,
-  accountant,
-  accountingFirm,
-  company,
-  contact,
-  period,
-  pushSubscription,
-  request,
-  uploadLink,
-  user,
-} from '../../infra/database/schema/index.js';
-import { contactIdsOf, type ContactScope, type FirmScope } from '../auth/scope.js';
+import { run } from '../../effect/runtime.js';
+import type { ContactScope, FirmScope } from '../auth/scope.js';
+import { ContactsRepo } from './contact.repo.js';
 
+/** Casca Nest sobre o serviço Effect (`contact.repo.ts`): mantém a DI dos controllers,
+ *  guards e do CompaniesModule até cada consumidor migrar; morre na fase final. */
 @Injectable()
 export class ContactRepository {
-  constructor(private readonly db: Database) {}
-
-  async profile(scope: ContactScope) {
-    const rows = await this.db
-      .select({
-        contactId: contact.id,
-        name: contact.name,
-        email: contact.email,
-        phone: contact.phone,
-        companyId: company.id,
-        companyName: company.name,
-        accountingFirmName: accountingFirm.name,
-      })
-      .from(contact)
-      .innerJoin(company, eq(company.id, contact.companyId))
-      .innerJoin(accountingFirm, eq(accountingFirm.id, company.accountingFirmId))
-      .where(inArray(contact.id, contactIdsOf(scope)))
-      .orderBy(asc(contact.createdAt), asc(contact.id));
-
-    const [first] = rows;
-    if (!first) return undefined;
-
-    const [pwdAccount] = await this.db
-      .select({ id: account.id })
-      .from(account)
-      .innerJoin(contact, eq(contact.authUserId, account.userId))
-      .where(and(eq(contact.id, first.contactId), isNotNull(account.password)))
-      .limit(1);
-
-    return {
-      contactId: first.contactId,
-      name: first.name,
-      email: first.email,
-      phone: first.phone,
-      companyId: first.companyId,
-      companyName: first.companyName,
-      accountingFirmName: first.accountingFirmName,
-      hasPassword: Boolean(pwdAccount),
-      companies: rows.map((row) => ({
-        companyId: row.companyId,
-        companyName: row.companyName,
-        accountingFirmName: row.accountingFirmName,
-      })),
-    };
+  profile(scope: ContactScope) {
+    return run(ContactsRepo.use((repo) => repo.profile(scope)));
   }
 
-  async findByEmailInCompany(companyId: string, email: string) {
-    const [row] = await this.db
-      .select({
-        id: contact.id,
-        name: contact.name,
-        email: contact.email,
-        authUserId: contact.authUserId,
-      })
-      .from(contact)
-      .where(and(eq(contact.companyId, companyId), eq(contact.email, email)))
-      .limit(1);
-
-    return row;
+  findByEmailInCompany(companyId: string, email: string) {
+    return run(ContactsRepo.use((repo) => repo.findByEmailInCompany(companyId, email)));
   }
 
-  /** Solicitações abertas de um email de Responsável, para o "perdi meu link" reenviar o
-   *  Link de Upload. Único método sem escopo branded: a entrada É o email, e quem chama é
-   *  a rota pública de recuperação, que responde igual em todos os casos e nunca devolve
-   *  nada ao cliente. Não usar em rota que exiba dado. */
-  async openRequestsForEmail(email: string) {
-    return this.db
-      .select({
-        requestId: request.id,
-        contactId: contact.id,
-        contactName: contact.name,
-        contactEmail: contact.email,
-        companyName: company.name,
-        referenceMonth: period.referenceMonth,
-        periodDueDate: period.dueDate,
-        hasAccess: contact.authUserId,
-        uploadLinkTokenHash: uploadLink.tokenHash,
-      })
-      .from(contact)
-      .innerJoin(company, eq(company.id, contact.companyId))
-      .innerJoin(request, eq(request.companyId, company.id))
-      .innerJoin(period, eq(period.id, request.periodId))
-      .leftJoin(uploadLink, eq(uploadLink.requestId, request.id))
-      .where(
-        and(
-          eq(contact.email, email),
-          eq(company.active, true),
-          eq(request.status, 'open'),
-          eq(period.status, 'open'),
-        ),
-      )
-      .orderBy(desc(period.referenceMonth));
+  openRequestsForEmail(email: string) {
+    return run(ContactsRepo.use((repo) => repo.openRequestsForEmail(email)));
   }
 
-  /** Existe conta com este email? A ativação passwordless pelo Link de Upload NÃO pode
-   *  rodar quando existe: o magic link interno logaria NA conta existente e o vínculo
-   *  entregaria a sessão dela a quem controla o Link (AUTHZ-1). */
-  async userByEmail(email: string) {
-    const [row] = await this.db
-      .select({ id: user.id })
-      .from(user)
-      .where(eq(user.email, email.toLowerCase()))
-      .limit(1);
-
-    if (!row) return undefined;
-
-    const [[asAccountant], [asContact]] = await Promise.all([
-      this.db
-        .select({ id: accountant.id })
-        .from(accountant)
-        .where(eq(accountant.authUserId, row.id))
-        .limit(1),
-      this.db
-        .select({ id: contact.id })
-        .from(contact)
-        .where(eq(contact.authUserId, row.id))
-        .limit(1),
-    ]);
-
-    return { id: row.id, isAccountant: Boolean(asAccountant), isContact: Boolean(asContact) };
+  userByEmail(email: string) {
+    return run(ContactsRepo.use((repo) => repo.userByEmail(email)));
   }
 
-  /** O token do convite foi entregue no email do contato: posse provada. Sem isto, o
-   *  primeiro magic link nessa conta dispara o revokeUnprovenAccountAccess do better-auth
-   *  e apaga a senha recém-criada. O aceite dos Termos é carimbado junto: a tela informa
-   *  que criar a conta implica no aceite. */
-  async markUserEmailVerified(userId: string) {
-    await this.db
-      .update(user)
-      .set({ emailVerified: true, termsAcceptedAt: new Date() })
-      .where(eq(user.id, userId));
+  markUserEmailVerified(userId: string) {
+    return run(ContactsRepo.use((repo) => repo.markUserEmailVerified(userId)));
   }
 
-  /** Aceite dos Termos no fluxo passwordless (a conta nasce/vincula pelo Link). */
-  async markTermsAccepted(userId: string) {
-    await this.db
-      .update(user)
-      .set({ termsAcceptedAt: new Date() })
-      .where(and(eq(user.id, userId), isNull(user.termsAcceptedAt)));
+  markTermsAccepted(userId: string) {
+    return run(ContactsRepo.use((repo) => repo.markTermsAccepted(userId)));
   }
 
-  async linkAuthUser(contactId: string, authUserId: string) {
-    const [row] = await this.db
-      .update(contact)
-      .set({ authUserId })
-      .where(eq(contact.id, contactId))
-      .returning({ id: contact.id, companyId: contact.companyId });
-
-    return row;
+  linkAuthUser(contactId: string, authUserId: string) {
+    return run(ContactsRepo.use((repo) => repo.linkAuthUser(contactId, authUserId)));
   }
 
-  /** Revogação pelo Contador (F10-7): tira o vínculo, as sessões e as passkeys. Conceder
-   *  acesso sem poder revogar é defeito de segurança, não falta de feature. */
-  async revokeAccess(scope: FirmScope, companyId: string, contactId: string) {
-    return this.db.transaction(async (tx) => {
-      const [row] = await tx
-        .select({ id: contact.id, authUserId: contact.authUserId })
-        .from(contact)
-        .innerJoin(company, eq(company.id, contact.companyId))
-        .where(
-          and(
-            eq(contact.id, contactId),
-            eq(contact.companyId, companyId),
-            eq(company.accountingFirmId, scope),
-          ),
-        )
-        .limit(1)
-        .for('update');
-
-      if (!row) return undefined;
-      if (!row.authUserId) return { revoked: false as const };
-
-      await tx.update(contact).set({ authUserId: null }).where(eq(contact.id, contactId));
-      await tx.delete(pushSubscription).where(eq(pushSubscription.contactId, contactId));
-
-      /* O Link de Upload é credencial separada da sessão e sobrevivia à revogação — e por
-       * `POST /upload/:token/access` o revogado reativava a conta. Revogar de verdade
-       * precisa matar os dois. */
-      await tx.update(uploadLink).set({ revoked: true }).where(eq(uploadLink.contactId, contactId));
-
-      /* Multi-empresa: o `user` só morre quando este era o ÚLTIMO vínculo — apagá-lo com
-       * outro vínculo vivo derrubaria o acesso das outras Empresas. Com vínculo restante,
-       * as sessões ficam: os guards re-resolvem o escopo a cada request e a Empresa
-       * revogada some na hora. Sem nenhum, apagar o `user` derruba sessões e passkeys por
-       * cascade, e o Responsável volta a ser só destinatário de Link. */
-      const [still] = await tx
-        .select({ id: contact.id })
-        .from(contact)
-        .where(eq(contact.authUserId, row.authUserId!))
-        .limit(1);
-
-      if (!still) await tx.delete(user).where(eq(user.id, row.authUserId!));
-
-      return { revoked: true as const };
-    });
+  revokeAccess(scope: FirmScope, companyId: string, contactId: string) {
+    return run(ContactsRepo.use((repo) => repo.revokeAccess(scope, companyId, contactId)));
   }
 
-  async findOwnedCompany(scope: FirmScope, companyId: string) {
-    const [row] = await this.db
-      .select({ id: company.id })
-      .from(company)
-      .where(and(eq(company.id, companyId), eq(company.accountingFirmId, scope)))
-      .limit(1);
-
-    return Boolean(row);
+  findOwnedCompany(scope: FirmScope, companyId: string) {
+    return run(ContactsRepo.use((repo) => repo.findOwnedCompany(scope, companyId)));
   }
 
-  async withAccess(scope: FirmScope, companyId: string) {
-    return this.db
-      .select({ id: contact.id, name: contact.name, email: contact.email })
-      .from(contact)
-      .innerJoin(company, eq(company.id, contact.companyId))
-      .where(
-        and(
-          eq(contact.companyId, companyId),
-          eq(company.accountingFirmId, scope),
-          isNotNull(contact.authUserId),
-        ),
-      );
+  withAccess(scope: FirmScope, companyId: string) {
+    return run(ContactsRepo.use((repo) => repo.withAccess(scope, companyId)));
   }
 
-  async contactsOf(companyIds: string[]) {
-    if (!companyIds.length) return [];
-
-    return this.db
-      .select({ id: contact.id, companyId: contact.companyId, name: contact.name })
-      .from(contact)
-      .where(inArray(contact.companyId, companyIds));
+  contactsOf(companyIds: string[]) {
+    return run(ContactsRepo.use((repo) => repo.contactsOf(companyIds)));
   }
 
-  async findMembershipsByAuthUser(authUserId: string) {
-    return this.db
-      .select({ contactId: contact.id, companyId: company.id, active: company.active })
-      .from(contact)
-      .innerJoin(company, eq(company.id, contact.companyId))
-      .where(eq(contact.authUserId, authUserId))
-      .orderBy(asc(contact.createdAt), asc(contact.id));
+  findMembershipsByAuthUser(authUserId: string) {
+    return run(ContactsRepo.use((repo) => repo.findMembershipsByAuthUser(authUserId)));
   }
 
-  async findUploadOwnership(authUserId: string, requestId: string) {
-    const [row] = await this.db
-      .select({ requestId: request.id, contactId: contact.id, active: company.active })
-      .from(contact)
-      .innerJoin(company, eq(company.id, contact.companyId))
-      .innerJoin(request, eq(request.companyId, company.id))
-      .where(and(eq(contact.authUserId, authUserId), eq(request.id, requestId)))
-      .limit(1);
-
-    return row;
+  findUploadOwnership(authUserId: string, requestId: string) {
+    return run(ContactsRepo.use((repo) => repo.findUploadOwnership(authUserId, requestId)));
   }
 
-  async existsByAuthUser(authUserId: string) {
-    const [row] = await this.db
-      .select({ id: contact.id })
-      .from(contact)
-      .where(eq(contact.authUserId, authUserId))
-      .limit(1);
-
-    return Boolean(row);
+  existsByAuthUser(authUserId: string) {
+    return run(ContactsRepo.use((repo) => repo.existsByAuthUser(authUserId)));
   }
 }

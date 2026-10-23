@@ -1,4 +1,3 @@
-/* eslint-disable no-restricted-syntax */
 import assert from 'node:assert/strict';
 import { addDays } from 'date-fns';
 import { and, eq, sql } from 'drizzle-orm';
@@ -72,7 +71,7 @@ async function run() {
   const accountantRepo = new AccountantRepository(db);
   const inviteRepo = new InviteRepository(db);
   const checklistRepo = new ChecklistRepository(db);
-  const contactRepo = new ContactRepository(db);
+  const contactRepo = new ContactRepository();
 
   let periodId = '';
   let requestId = '';
