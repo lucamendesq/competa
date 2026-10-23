@@ -102,4 +102,13 @@ export default tseslint.config(
       'no-restricted-syntax': 'off',
     },
   },
+
+  /* Testes de unidade dos serviços Effect montam fixture própria no banco — mesmo caso dos
+   * scripts de verificação acima: não há request nem guard de onde o escopo possa nascer. */
+  {
+    files: ['test/unit/**/*.ts'],
+    rules: {
+      'no-restricted-syntax': 'off',
+    },
+  },
 );

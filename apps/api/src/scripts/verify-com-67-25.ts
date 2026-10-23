@@ -179,7 +179,7 @@ async function run() {
   );
 
   console.log('5. Testando COM-25: Painel de pendências com contador responsável...');
-  const periodRepo = new PeriodRepository(db as never, null as never);
+  const periodRepo = new PeriodRepository();
   const { period: openedPeriod } = await periodRepo.openWithFanOut(
     firmScope,
     { referenceMonth: '2026-09-01' },

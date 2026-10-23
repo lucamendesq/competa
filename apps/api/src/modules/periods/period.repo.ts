@@ -1,0 +1,606 @@
+import { Context, Effect, Layer } from 'effect';
+import { and, asc, count, desc, eq, inArray, ne, sql } from 'drizzle-orm';
+import type { OpenPeriodBody } from '@competa/contracts';
+import { addDays } from 'date-fns';
+import env from '../../config/env.js';
+import { createToken } from '../../lib/token.js';
+import { Db } from '../../infra/database/effect.js';
+import {
+  accountant,
+  company,
+  contact,
+  document,
+  message,
+  period,
+  request,
+  requestItem,
+  uploadLink,
+  user,
+} from '../../infra/database/schema/index.js';
+import { companyIdsOf, type ContactScope, type FirmScope } from '../auth/scope.js';
+import { ChecklistRepository } from '../checklists/checklist.repository.js';
+import {
+  appliesToFlags,
+  mergeEffectiveChecklist,
+  type ChecklistLine,
+} from '../checklists/effective-checklist.js';
+import { summarizePending, type PanelRow } from '../requests/review-rules.js';
+import { PeriodAlreadyClosed, PeriodAlreadyOpen } from './errors.js';
+import { planFanOut, type RequestPlan } from './fan-out.js';
+
+/** O driver embrulha o erro do Postgres; procuramos a constraint na cadeia de causas
+ *  para devolver 409 de negócio em vez de 500. */
+const violatesPeriodUnique = (error: unknown): boolean => {
+  for (let cause: unknown = error; cause instanceof Error; cause = cause.cause) {
+    const pg = cause as { constraint?: string; code?: string };
+    if (pg.constraint === 'period_firm_month_uidx') return true;
+    if (pg.code === '23505' && cause.message.includes('period_firm_month_uidx')) return true;
+  }
+
+  return false;
+};
+
+const make = Effect.gen(function* () {
+  const db = yield* Db;
+  const checklists = new ChecklistRepository(db.raw);
+
+  const activeCompanies = Effect.fn('PeriodsRepo.activeCompanies')(function* (scope: FirmScope) {
+    return yield* db.use(async (d) => {
+      const companies = await d
+        .select({
+          id: company.id,
+          name: company.name,
+          checklistTemplateId: company.checklistTemplateId,
+          flags: company.flags,
+        })
+        .from(company)
+        .where(and(eq(company.accountingFirmId, scope), eq(company.active, true)))
+        .orderBy(company.name);
+
+      if (companies.length === 0) return [];
+
+      const contacts = await d
+        .select({
+          id: contact.id,
+          companyId: contact.companyId,
+          name: contact.name,
+          email: contact.email,
+          phone: contact.phone,
+        })
+        .from(contact)
+        .where(
+          inArray(
+            contact.companyId,
+            companies.map((row) => row.id),
+          ),
+        )
+        .orderBy(contact.createdAt);
+
+      return companies.map((row) => {
+        const own = contacts.filter((c) => c.companyId === row.id);
+
+        return { ...row, contactCount: own.length, contact: own[0] };
+      });
+    });
+  });
+
+  const openWithFanOut = Effect.fn('PeriodsRepo.openWithFanOut')(function* (
+    scope: FirmScope,
+    input: { referenceMonth: string; dueDate?: string },
+    plans: RequestPlan[],
+  ) {
+    return yield* db
+      .use((d) =>
+        d.transaction(async (tx) => {
+          const [row] = await tx
+            .insert(period)
+            .values({
+              accountingFirmId: scope,
+              referenceMonth: input.referenceMonth,
+              dueDate: input.dueDate ?? null,
+            })
+            .returning();
+
+          if (plans.length === 0)
+            return { period: row, requestIdByCompany: new Map<string, string>() };
+
+          const requests = await tx
+            .insert(request)
+            .values(plans.map((plan) => ({ periodId: row.id, companyId: plan.companyId })))
+            .returning({ id: request.id, companyId: request.companyId });
+
+          const requestIdByCompany = new Map(requests.map((r) => [r.companyId, r.id]));
+
+          const items = plans.flatMap((plan) =>
+            plan.items.map((item) => ({
+              ...item,
+              requestId: requestIdByCompany.get(plan.companyId)!,
+            })),
+          );
+          if (items.length > 0) await tx.insert(requestItem).values(items);
+
+          await tx.insert(uploadLink).values(
+            plans.map((plan) => ({
+              requestId: requestIdByCompany.get(plan.companyId)!,
+              contactId: plan.contactId,
+              tokenHash: plan.tokenHash,
+              expiresAt: plan.expiresAt,
+            })),
+          );
+
+          return { period: row, requestIdByCompany };
+        }),
+      )
+      .pipe(
+        Effect.catchTag('DbError', (error) =>
+          Effect.fail(
+            violatesPeriodUnique(error.cause) ? new PeriodAlreadyOpen(input.referenceMonth) : error,
+          ),
+        ),
+      );
+  });
+
+  const openPeriod = Effect.fn('PeriodsRepo.openPeriod')(function* (
+    scope: FirmScope,
+    body: OpenPeriodBody,
+  ) {
+    const companies = yield* activeCompanies(scope);
+    const companyIds = companies.map((c) => c.id);
+    const templateIds = [
+      ...new Set(companies.map((c) => c.checklistTemplateId).filter(Boolean)),
+    ] as string[];
+
+    const [templateItems, overrides] = yield* db.use(() =>
+      Promise.all([
+        templateIds.length ? checklists.listItemsForTemplates(templateIds) : [],
+        companyIds.length ? checklists.listOverridesForCompanies(scope, companyIds) : [],
+      ]),
+    );
+
+    type CompanyOverride = Awaited<
+      ReturnType<ChecklistRepository['listOverridesForCompanies']>
+    >[number];
+
+    const itemsByTemplate = new Map<string, ChecklistLine[]>();
+    for (const item of templateItems as (ChecklistLine & { checklistTemplateId: string })[]) {
+      const list = itemsByTemplate.get(item.checklistTemplateId);
+      if (list) list.push(item);
+      else itemsByTemplate.set(item.checklistTemplateId, [item]);
+    }
+
+    const overridesByCompany = new Map<string, CompanyOverride[]>();
+    for (const override of overrides) {
+      const list = overridesByCompany.get(override.companyId);
+      if (list) list.push(override);
+      else overridesByCompany.set(override.companyId, [override]);
+    }
+
+    const effective = new Map<string, Array<ChecklistLine & { applies: boolean }>>();
+    for (const comp of companies) {
+      const tItems = comp.checklistTemplateId
+        ? (itemsByTemplate.get(comp.checklistTemplateId) ?? [])
+        : [];
+      const cOverrides = overridesByCompany.get(comp.id) ?? [];
+      const lines = mergeEffectiveChecklist(tItems, cOverrides);
+      effective.set(
+        comp.id,
+        lines.map((line) => ({
+          ...line,
+          applies: appliesToFlags(line, comp.flags),
+        })),
+      );
+    }
+
+    const { plans, warnings } = planFanOut({
+      companies,
+      checklistFor: (companyId) => effective.get(companyId) ?? [],
+      referenceMonth: body.referenceMonth,
+      expiresAt: addDays(new Date(), env.UPLOAD_LINK_TTL_DAYS),
+      createToken,
+    });
+
+    const { period: row, requestIdByCompany } = yield* openWithFanOut(scope, body, plans);
+
+    return { period: row, warnings, plans, requestIdByCompany };
+  });
+
+  const list = Effect.fn('PeriodsRepo.list')(function* (
+    scope: FirmScope,
+    query: { page: number; perPage: number },
+  ) {
+    return yield* db.use(async (d) => {
+      const where = eq(period.accountingFirmId, scope);
+
+      const [rows, [total]] = await Promise.all([
+        d
+          .select({
+            id: period.id,
+            referenceMonth: period.referenceMonth,
+            status: period.status,
+            dueDate: period.dueDate,
+            createdAt: period.createdAt,
+            requestCount: d.$count(request, eq(request.periodId, period.id)),
+          })
+          .from(period)
+          .where(where)
+          .orderBy(period.referenceMonth)
+          .limit(query.perPage)
+          .offset((query.page - 1) * query.perPage),
+        d.select({ value: count() }).from(period).where(where),
+      ]);
+
+      return { rows, total: total.value };
+    });
+  });
+
+  const findOwnedId = Effect.fn('PeriodsRepo.findOwnedId')(function* (
+    scope: FirmScope,
+    periodId: string,
+  ) {
+    return yield* db.use(async (d) => {
+      const [row] = await d
+        .select({ id: period.id })
+        .from(period)
+        .where(and(eq(period.id, periodId), eq(period.accountingFirmId, scope)))
+        .limit(1);
+
+      return row?.id;
+    });
+  });
+
+  const findById = Effect.fn('PeriodsRepo.findById')(function* (
+    scope: FirmScope,
+    periodId: string,
+  ) {
+    return yield* db.use(async (d) => {
+      const [row] = await d
+        .select({
+          id: period.id,
+          referenceMonth: period.referenceMonth,
+          status: period.status,
+          dueDate: period.dueDate,
+          requestCount: d.$count(request, eq(request.periodId, period.id)),
+          completeRequestCount: d.$count(
+            request,
+            and(eq(request.periodId, period.id), eq(request.status, 'complete')),
+          ),
+        })
+        .from(period)
+        .where(and(eq(period.id, periodId), eq(period.accountingFirmId, scope)))
+        .limit(1);
+
+      if (!row) return undefined;
+
+      const [pending] = await d
+        .select({ value: count() })
+        .from(requestItem)
+        .innerJoin(request, eq(request.id, requestItem.requestId))
+        .where(and(eq(request.periodId, periodId), ne(requestItem.status, 'accepted')));
+
+      return { ...row, pendingItemCount: pending.value };
+    });
+  });
+
+  const pendingPanel = Effect.fn('PeriodsRepo.pendingPanel')(function* (
+    scope: FirmScope,
+    periodId: string,
+  ) {
+    return yield* db.use(async (d) => {
+      const rows = await d
+        .select({
+          companyId: company.id,
+          companyName: company.name,
+          responsibleAccountantId: company.responsibleAccountantId,
+          responsibleAccountantName: user.name,
+          requestId: request.id,
+          requestStatus: request.status,
+          itemId: requestItem.id,
+          itemName: requestItem.name,
+          itemStatus: requestItem.status,
+          itemDueDate: requestItem.dueDate,
+          periodDueDate: period.dueDate,
+          // `exists` em vez de join: um Item com dois arquivos rejeitados duplicaria a linha
+          // e contaria a Empresa duas vezes no painel.
+          hasRejection: sql<boolean>`exists (
+            select 1 from ${document}
+            where ${document.requestItemId} = ${requestItem.id}
+              and ${document.reviewStatus} = 'rejected'
+              and ${document.uploadStatus} = 'uploaded'
+          )`,
+        })
+        .from(request)
+        .innerJoin(period, eq(period.id, request.periodId))
+        .innerJoin(company, eq(company.id, request.companyId))
+        .leftJoin(
+          accountant,
+          and(
+            eq(accountant.id, company.responsibleAccountantId),
+            eq(accountant.accountingFirmId, company.accountingFirmId),
+          ),
+        )
+        .leftJoin(user, eq(user.id, accountant.authUserId))
+        .leftJoin(requestItem, eq(requestItem.requestId, request.id))
+        .where(and(eq(request.periodId, periodId), eq(period.accountingFirmId, scope)))
+        .orderBy(asc(company.name), asc(requestItem.dueDate), asc(requestItem.name));
+
+      /* O painel "quem faltou" existe para o Contador saber a quem cobrar — e email que
+       * nunca chegou é exatamente o caso em que cobrar de novo. Antes o controller devolvia
+       * `channelFailures: []` fixo e a falha era invisível aqui. */
+      const failures = await d
+        .select({
+          requestId: message.requestId,
+          channel: message.channel,
+          purpose: message.purpose,
+          recipient: message.recipient,
+          error: message.error,
+          createdAt: message.createdAt,
+        })
+        .from(message)
+        .innerJoin(request, eq(request.id, message.requestId))
+        .where(and(eq(request.periodId, periodId), eq(message.status, 'failed')))
+        .orderBy(desc(message.createdAt), desc(message.id));
+
+      return summarizePending(rows as PanelRow[]).map((row) => ({
+        ...row,
+        channelFailures: failures.filter((failure) => failure.requestId === row.requestId),
+      }));
+    });
+  });
+
+  const closePeriod = Effect.fn('PeriodsRepo.closePeriod')(function* (
+    scope: FirmScope,
+    periodId: string,
+  ) {
+    const row = yield* db.use(async (d) => {
+      const [found] = await d
+        .select({ id: period.id, status: period.status })
+        .from(period)
+        .where(and(eq(period.id, periodId), eq(period.accountingFirmId, scope)))
+        .limit(1);
+
+      return found;
+    });
+
+    if (!row) return undefined;
+    if (row.status === 'closed') return yield* Effect.fail(new PeriodAlreadyClosed());
+
+    const pending = yield* db.use(async (d) => {
+      const [value] = await d
+        .select({ value: count() })
+        .from(requestItem)
+        .innerJoin(request, eq(request.id, requestItem.requestId))
+        .where(and(eq(request.periodId, periodId), ne(requestItem.status, 'accepted')));
+
+      return value;
+    });
+
+    return yield* db
+      .use((d) =>
+        d.transaction(async (tx) => {
+          const closedRequests = await tx
+            .update(request)
+            .set({ status: 'closed', closedAt: new Date() })
+            .where(and(eq(request.periodId, periodId), ne(request.status, 'closed')))
+            .returning({ id: request.id });
+
+          /* `ne(status, 'closed')` no WHERE: a leitura acima é check-then-update e dois cliques
+           * simultâneos passavam os dois. */
+          const [closed] = await tx
+            .update(period)
+            .set({ status: 'closed' })
+            .where(and(eq(period.id, periodId), ne(period.status, 'closed')))
+            .returning({
+              id: period.id,
+              referenceMonth: period.referenceMonth,
+              status: period.status,
+            });
+
+          if (!closed) throw new PeriodAlreadyClosed();
+
+          return {
+            ...closed,
+            closedRequestCount: closedRequests.length,
+            pendingItemCount: pending.value,
+          };
+        }),
+      )
+      .pipe(
+        /* O throw do caminho concorrente acontece dentro da transação: sem o remap ele
+         * chegaria embrulhado em DbError e sumiria de um catchTag tipado. */
+        Effect.catchTag('DbError', (error) =>
+          Effect.fail(error.cause instanceof PeriodAlreadyClosed ? error.cause : error),
+        ),
+      );
+  });
+
+  const listRequests = Effect.fn('PeriodsRepo.listRequests')(function* (
+    scope: FirmScope,
+    periodId: string,
+    query?: { page: number; perPage: number },
+  ) {
+    return yield* db.use(async (d) => {
+      const where = and(eq(request.periodId, periodId), eq(period.accountingFirmId, scope));
+
+      const baseQuery = d
+        .select({
+          id: request.id,
+          companyId: company.id,
+          companyName: company.name,
+          status: request.status,
+          itemCount: sql<number>`cast(count(${requestItem.id}) as int)`,
+          pendingItemCount: sql<number>`cast(count(${requestItem.id}) filter (where ${requestItem.status} = 'pending') as int)`,
+        })
+        .from(request)
+        .innerJoin(period, eq(period.id, request.periodId))
+        .innerJoin(company, eq(company.id, request.companyId))
+        .leftJoin(requestItem, eq(requestItem.requestId, request.id))
+        .where(where)
+        .groupBy(request.id, company.id, company.name, request.status)
+        .orderBy(company.name);
+
+      if (query) {
+        const [rows, [total]] = await Promise.all([
+          baseQuery.limit(query.perPage).offset((query.page - 1) * query.perPage),
+          d
+            .select({ value: count() })
+            .from(request)
+            .innerJoin(period, eq(period.id, request.periodId))
+            .where(where),
+        ]);
+
+        return { rows, total: total.value };
+      }
+
+      return baseQuery;
+    });
+  });
+
+  const periods = Effect.fn('PeriodsRepo.periods')(function* (
+    scope: ContactScope,
+    query: { page: number; perPage: number },
+  ) {
+    return yield* db.use(async (d) => {
+      const where = inArray(request.companyId, companyIdsOf(scope));
+
+      const [rows, [total]] = await Promise.all([
+        d
+          .select({
+            requestId: request.id,
+            requestStatus: request.status,
+            periodId: period.id,
+            referenceMonth: period.referenceMonth,
+            periodStatus: period.status,
+            dueDate: period.dueDate,
+            companyId: company.id,
+            companyName: company.name,
+            itemCount: d.$count(requestItem, eq(requestItem.requestId, request.id)),
+            pendingCount: d.$count(
+              requestItem,
+              and(eq(requestItem.requestId, request.id), ne(requestItem.status, 'accepted')),
+            ),
+            deliveredCount: d.$count(
+              document,
+              and(eq(document.requestId, request.id), eq(document.uploadStatus, 'uploaded')),
+            ),
+          })
+          .from(request)
+          .innerJoin(period, eq(period.id, request.periodId))
+          .innerJoin(company, eq(company.id, request.companyId))
+          .where(where)
+          .orderBy(desc(period.referenceMonth), asc(company.name))
+          .limit(query.perPage)
+          .offset((query.page - 1) * query.perPage),
+        d.select({ value: count() }).from(request).where(where),
+      ]);
+
+      return { rows, total: total.value };
+    });
+  });
+
+  const periodDetail = Effect.fn('PeriodsRepo.periodDetail')(function* (
+    scope: ContactScope,
+    periodId: string,
+    companyId?: string,
+  ) {
+    const companyIds = companyIdsOf(scope);
+    if (companyId && !companyIds.includes(companyId)) return undefined;
+
+    return yield* db.use(async (d) => {
+      const [head] = await d
+        .select({
+          requestId: request.id,
+          requestStatus: request.status,
+          periodId: period.id,
+          referenceMonth: period.referenceMonth,
+          periodStatus: period.status,
+          dueDate: period.dueDate,
+          companyId: company.id,
+          companyName: company.name,
+        })
+        .from(request)
+        .innerJoin(period, eq(period.id, request.periodId))
+        .innerJoin(company, eq(company.id, request.companyId))
+        .where(
+          and(
+            companyId ? eq(request.companyId, companyId) : inArray(request.companyId, companyIds),
+            eq(period.id, periodId),
+          ),
+        )
+        .orderBy(asc(company.name))
+        .limit(1);
+
+      if (!head) return undefined;
+
+      /* Multi-vínculo: sem `companyId` a consulta devolvia a primeira Empresa em ordem
+       * alfabética e calava as outras. A lista vai junto para a tela poder trocar. */
+      const companies = await d
+        .select({ id: company.id, name: company.name })
+        .from(request)
+        .innerJoin(company, eq(company.id, request.companyId))
+        .where(and(eq(request.periodId, periodId), inArray(request.companyId, companyIds)))
+        .orderBy(asc(company.name));
+
+      const [items, documents] = await Promise.all([
+        d
+          .select({
+            id: requestItem.id,
+            name: requestItem.name,
+            description: requestItem.description,
+            acceptedFormats: requestItem.acceptedFormats,
+            status: requestItem.status,
+            dueDate: requestItem.dueDate,
+          })
+          .from(requestItem)
+          .where(eq(requestItem.requestId, head.requestId))
+          .orderBy(asc(requestItem.name)),
+        d
+          .select({
+            id: document.id,
+            requestItemId: document.requestItemId,
+            fileName: document.fileName,
+            sizeBytes: document.sizeBytes,
+            uploadedAt: document.uploadedAt,
+            reviewStatus: document.reviewStatus,
+            rejectionReason: document.rejectionReason,
+            uploadedByName: contact.name,
+          })
+          .from(document)
+          .leftJoin(contact, eq(contact.id, document.uploadedByContactId))
+          .where(and(eq(document.requestId, head.requestId), eq(document.uploadStatus, 'uploaded')))
+          .orderBy(asc(document.uploadedAt)),
+      ]);
+
+      return {
+        ...head,
+        companies,
+        items: items.map((item) => ({
+          ...item,
+          dueDate: item.dueDate ?? head.dueDate,
+          documents: documents.filter((row) => row.requestItemId === item.id),
+        })),
+        extraDocuments: documents.filter((row) => !row.requestItemId),
+      };
+    });
+  });
+
+  return {
+    openPeriod,
+    activeCompanies,
+    openWithFanOut,
+    list,
+    findOwnedId,
+    findById,
+    pendingPanel,
+    closePeriod,
+    listRequests,
+    periods,
+    periodDetail,
+  };
+});
+
+export class PeriodsRepo extends Context.Service<PeriodsRepo, Effect.Success<typeof make>>()(
+  'competa/api/periods/PeriodsRepo',
+) {
+  static readonly layerNoDeps = Layer.effect(PeriodsRepo, make);
+  static readonly layer = this.layerNoDeps.pipe(Layer.provide(Db.layer));
+}

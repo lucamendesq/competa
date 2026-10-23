@@ -1,6 +1,5 @@
 import { expect } from 'vitest';
 
-// eslint-disable-next-line @typescript-eslint/no-explicit-any -- corpo JSON dinamico, as specs afirmam a estrutura
 export type ApiResponse = { status: number; body: any; headers: Headers };
 
 export type Api = ReturnType<typeof apiClient>;

@@ -23,7 +23,6 @@ import {
 import { DocumentRepository } from '../modules/requests/document.repository.js';
 import { RequestRepository } from '../modules/requests/request.repository.js';
 import { PeriodRepository } from '../modules/periods/period.repository.js';
-import { ChecklistRepository } from '../modules/checklists/checklist.repository.js';
 import { toFirmScope, toUploadScope } from '../modules/auth/scope.js';
 import { zipEntries } from '../modules/requests/zip.js';
 import { createToken } from '../lib/token.js';
@@ -128,7 +127,7 @@ async function run() {
   const uploadScope = toUploadScope(requestId, contactId);
   const documents = new DocumentRepository(db, storage);
   const requests = new RequestRepository(db);
-  const periods = new PeriodRepository(db, new ChecklistRepository(db));
+  const periods = new PeriodRepository();
 
   const itemStatus = async () => {
     const [row] = await db

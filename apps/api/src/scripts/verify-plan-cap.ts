@@ -20,7 +20,6 @@ const { accountingFirm, subscription, company } = await import('../infra/databas
 const { CompanyRepository } = await import('../modules/companies/company.repository.js');
 const { toFirmScope } = await import('../modules/auth/scope.js');
 const { PeriodRepository } = await import('../modules/periods/period.repository.js');
-const { ChecklistRepository } = await import('../modules/checklists/checklist.repository.js');
 
 assert.equal(planCompanyCap('essencial'), 30);
 assert.equal(planCompanyCap('profissional'), 80);
@@ -139,7 +138,7 @@ async function run() {
 
   /* Regressão: Empresa inativa continua fora do fan-out da Competência. Sem isto, importar
    * a carteira inteira como inativa dispararia e-mail para todo mundo. */
-  const periods = new PeriodRepository(db, new ChecklistRepository(db));
+  const periods = new PeriodRepository();
   const fannedOut = await periods.activeCompanies(scope);
   const activeNow = (await repo.usage(scope)).companiesActive;
   assert.equal(fannedOut.length, activeNow, 'o fan-out cobre exatamente as Empresas ativas');
