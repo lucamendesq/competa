@@ -70,7 +70,7 @@ Cross-module seams the Effect composition must reproduce: event contract in `src
 
 ## Found bugs (log only — fix in follow-ups, never mid-migration)
 
-(none yet)
+1. `GET /periods/:id/requests?page=abc` → 500 INTERNAL_ERROR. `periods.controller.ts` chama `PaginationQuery.parse(rawQuery)` cru (fora do `zodPipe`), o `ZodError` não casa com nenhum branch do `AppErrorFilter` e cai no fallback 500. Deveria ser 422. Congelado em `test/periods.e2e.spec.ts` ("bug congelado"). Obs: o branch `'rows' in result` no controller é código morto (`listRequests` com query sempre devolve `{rows,total}`).
 
 ## Session notes
 
