@@ -1,7 +1,9 @@
 import { createApp } from '../../src/app.js';
+import { DeadlineCron } from '../../src/modules/requests/deadline.cron.js';
 
 export interface RunningApp {
   url: string;
+  runDeadlineSweep(): Promise<void>;
   close(): Promise<void>;
 }
 
@@ -15,6 +17,9 @@ export async function bootApp(): Promise<RunningApp> {
 
   return {
     url,
+    /* O job diário não tem rota HTTP; o acoplamento ao DI mora no harness (reimplementado
+     * na fase final como handle do runtime Effect), nunca nas suites. */
+    runDeadlineSweep: () => app.get(DeadlineCron).daily(),
     close: async () => {
       await app.close();
     },
