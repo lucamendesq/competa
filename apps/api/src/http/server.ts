@@ -7,8 +7,12 @@ import { buildInfo } from '../build-info.js';
 import { localStorageRoutes } from '../infra/storage/local-storage.routes.js';
 import { ServiceUnavailable } from '../lib/app-error.js';
 import { authRoutes } from '../modules/auth/auth.routes.js';
+import { signupRoutes } from '../modules/auth/signup.routes.js';
+import { teamRoutes } from '../modules/auth/team.routes.js';
 import { asaasWebhookRoutes } from '../modules/billing/asaas-webhook.routes.js';
+import { billingRoutes } from '../modules/billing/billing.routes.js';
 import { checklistsRoutes } from '../modules/checklists/checklists.routes.js';
+import { companiesRoutes } from '../modules/companies/companies.routes.js';
 import { contactsRoutes } from '../modules/contacts/contacts.routes.js';
 import { pushRoutes } from '../modules/messaging/push.routes.js';
 import { periodsRoutes } from '../modules/periods/periods.routes.js';
@@ -58,7 +62,11 @@ export const serverLayer = (options: {
       whatsappWebhookRoutes,
       periodsRoutes(options.events),
       checklistsRoutes,
+      companiesRoutes(options.events),
       authRoutes,
+      signupRoutes,
+      teamRoutes(options.events),
+      billingRoutes,
       contactsRoutes,
       uploadRoutes,
       nestFallback(options.fallback),
