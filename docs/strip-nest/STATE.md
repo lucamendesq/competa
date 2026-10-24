@@ -39,12 +39,12 @@ Order: smallest first; auth last (better-auth plumbing is replaced in the final 
 | #   | Module     | Tests commit | Migration commit | Unit tests | Status                |
 | --- | ---------- | ------------ | ---------------- | ---------- | --------------------- |
 | 1   | periods    | 893d2c9      | 8c9a352          | 9 specs    | done                  |
-| 2   | contacts   | ver tabela   | —                | —          | tests done (44 specs) |
+| 2   | contacts   | 88688ab      | b6d3f52          | 6 specs    | done                  |
 | 3   | companies  | 3d24db1      | —                | —          | tests done (55 specs) |
 | 4   | checklists | 34a7bfc      | —                | —          | tests done (50 specs) |
-| 5   | requests   | —            | —                | —          | pending               |
-| 6   | messaging  | —            | —                | —          | pending               |
-| 7   | whatsapp   | —            | —                | —          | pending               |
+| 5   | requests   | —            | —                | —          | tests in flight       |
+| 6   | messaging  | —            | —                | —          | tests in flight       |
+| 7   | whatsapp   | 8c8ce40      | —                | —          | tests done (20 specs) |
 | 8   | billing    | —            | —                | —          | pending               |
 | 9   | auth       | —            | —                | —          | pending               |
 
@@ -82,6 +82,12 @@ Cross-module seams the Effect composition must reproduce: event contract in `src
 10. `POST /whatsapp/test` sem integração ativa → 500 (`throw new Error('Integração não ativa')` cru no controller; deveria ser 4xx tipado). Congelado em `test/whatsapp.e2e.spec.ts`.
 11. (segurança) `WHATSAPP_ENCRYPTION_KEY` ausente → `WhatsappCryptoService` usa chave fallback toda-zero conhecida (`'0'.repeat(64)`); tokens cifrados com ela são decifráveis por qualquer um. Em produção o env é obrigatório? NÃO está em REQUIRED_IN_PRODUCTION. Congelado em `test/whatsapp.e2e.spec.ts`.
 12. (quirks congelados em `test/whatsapp.e2e.spec.ts`) onboard é stub (ignora `body.code`, grava credenciais mock mesmo sem META env); test send não grava linha em `message` (sem rastreio de entrega); `/whatsapp/test` não é owner-gated (onboard/disconnect são); DELETE idempotente devolve `{success:true}` sem integração.
+13. `POST /requests/:id/upload-link/resend` SEMPRE responde 503 — e o email já saiu com link MORTO: `onUploadLinkResent` não devolve o boolean que o `emitAsync(...).includes(true)` do controller espera, então `applyUploadToken` nunca roda (o token novo não é gravado) mas a entrega foi feita e logada como `resend/sent`. Congelado em `test/messaging.e2e.spec.ts`.
+14. Reenvio (`POST /messages/:id/resend`) de mensagem whatsapp sai por EMAIL: `resend()` chama `deliver()` sem `channel` e cai no provider default. Congelado em `test/messaging.e2e.spec.ts`.
+15. (quirks congelados em `test/messaging.e2e.spec.ts`) resend não checa status (mensagem `sent` duplica à vontade); row `purpose=resend` não tem branch → `{sent:false}` silencioso; resend push sem inscrição devolve `{sent:false}` ANTES do 409 de request fechada; `/messages/failures` com periodId alheio/desconhecido devolve `[]` e não 404.
+16. Rejeitar documento promete `linkRotated: true` mas o token antigo sobrevive 48h de graça — o docstring de `rotateLinkOnReopen` diz "mata o token anterior NA HORA / zerar previous_token_hash" e o código grava `previousTokenHash: current.tokenHash`. Congelado em `test/requests.e2e.spec.ts`.
+17. `POST /documents/:id/review-extra` ignora encerramento: `reviewExtraRefusal` recebe `requestStatus` e nunca o checa — Extra continua revisável com a Solicitação fechada (itens e documentos de item bloqueiam). Congelado em `test/requests.e2e.spec.ts`.
+18. (quirks congelados em `test/requests.e2e.spec.ts`) review-extra unitário com `accepted` + `rejectionReason` grava a reason (o lote anula); checklist só de itens opcionais nunca chega a `complete` (`allAccepted` exige required não-vazio); comentário obsoleto em `request.repository.ts` fala em 422 para o race de reject — é 409.
 
 ## Migration pattern (set by periods — follow for every module)
 
