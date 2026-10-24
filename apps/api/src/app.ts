@@ -1,4 +1,5 @@
 import { NestFactory } from '@nestjs/core';
+import { EventEmitter2 } from '@nestjs/event-emitter';
 import type { NestExpressApplication } from '@nestjs/platform-express';
 import { Context, ManagedRuntime } from 'effect';
 import { HttpServer } from 'effect/http';
@@ -65,6 +66,7 @@ export async function createApp(options?: {
       port,
       trustProxy,
       ping: () => health.ping(),
+      events: nest.get(EventEmitter2),
       fallback: nest.getHttpAdapter().getInstance(),
     }),
   );

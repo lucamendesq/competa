@@ -1,12 +1,19 @@
 import { createServer } from 'node:http';
 import { NodeHttpServer } from '@effect/platform-node';
+import type { EventEmitter2 } from '@nestjs/event-emitter';
 import { Effect, Layer } from 'effect';
 import { HttpRouter } from 'effect/http';
 import { buildInfo } from '../build-info.js';
+import { localStorageRoutes } from '../infra/storage/local-storage.routes.js';
 import { ServiceUnavailable } from '../lib/app-error.js';
 import { authRoutes } from '../modules/auth/auth.routes.js';
+import { asaasWebhookRoutes } from '../modules/billing/asaas-webhook.routes.js';
+import { checklistsRoutes } from '../modules/checklists/checklists.routes.js';
 import { contactsRoutes } from '../modules/contacts/contacts.routes.js';
+import { pushRoutes } from '../modules/messaging/push.routes.js';
+import { periodsRoutes } from '../modules/periods/periods.routes.js';
 import { uploadRoutes } from '../modules/requests/upload.routes.js';
+import { whatsappWebhookRoutes } from '../modules/whatsapp/whatsapp-webhook.routes.js';
 import { handler } from './envelope.js';
 import { nestFallback, type NodeRequestListener } from './nest-bridge.js';
 import { ThrottleStore, TrustProxy, route } from './platform.js';
@@ -35,6 +42,9 @@ export const serverLayer = (options: {
   readonly port: number;
   readonly trustProxy: boolean;
   readonly ping: () => Promise<void>;
+  /** A MESMA instância do container Nest: os listeners de messaging estão registrados
+   *  nela, e uma cópia engoliria todo evento emitido por rota migrada. */
+  readonly events: EventEmitter2;
   readonly fallback: NodeRequestListener;
 }) =>
   /* `nestFallback` é o curinga `'*' '/*'` e fica por último na leitura, mas find-my-way
@@ -42,6 +52,12 @@ export const serverLayer = (options: {
   HttpRouter.serve(
     Layer.mergeAll(
       healthRoute(options.ping),
+      localStorageRoutes,
+      pushRoutes,
+      asaasWebhookRoutes,
+      whatsappWebhookRoutes,
+      periodsRoutes(options.events),
+      checklistsRoutes,
       authRoutes,
       contactsRoutes,
       uploadRoutes,

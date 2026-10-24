@@ -219,5 +219,13 @@ export const body = <T>(schema: z.ZodType<T>) =>
     return yield* zodFail(schema, parsed);
   });
 
+/** `@Param(zodPipe(Schema))`. O roteador já decodifica cada segmento, como o Express. */
+export const params = <T>(schema: z.ZodType<T>) =>
+  Effect.flatMap(HttpRouter.params, (raw) => zodFail(schema, raw));
+
+/** `@Query(zodPipe(Schema))`. */
+export const query = <T>(schema: z.ZodType<T>) =>
+  Effect.flatMap(HttpServerRequest.ParsedSearchParams, (raw) => zodFail(schema, raw));
+
 const zodFail = <T>(schema: z.ZodType<T>, raw: unknown) =>
   Effect.try({ try: () => zodParse(schema, raw), catch: (error) => error as AppError });

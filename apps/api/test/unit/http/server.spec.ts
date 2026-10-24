@@ -1,4 +1,5 @@
 import { request as nodeRequest, type ServerResponse } from 'node:http';
+import { EventEmitter2 } from '@nestjs/event-emitter';
 import { Context, ManagedRuntime } from 'effect';
 import { HttpServer } from 'effect/http';
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
@@ -13,6 +14,7 @@ const boot = async (ping: () => Promise<void>) => {
       port: 0,
       trustProxy: true,
       ping,
+      events: new EventEmitter2(),
       fallback: (_request, response: ServerResponse) => {
         response.statusCode = 418;
         response.end();
