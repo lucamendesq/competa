@@ -35,7 +35,7 @@ async function run() {
     status: 'trialing',
   });
 
-  const controller = new AsaasWebhookController(new SubscriptionRepository(db));
+  const controller = new AsaasWebhookController(new SubscriptionRepository());
   const statusNow = async () => {
     const [row] = await db
       .select({ status: subscription.status })

@@ -1,5 +1,6 @@
 import { Cause, Effect, Exit, Layer, ManagedRuntime } from 'effect';
 import { Db, DbError } from '../infra/database/effect.js';
+import { SubscriptionsRepo } from '../modules/billing/subscription.repo.js';
 import { ChecklistsRepo } from '../modules/checklists/checklist.repo.js';
 import { CompaniesRepo } from '../modules/companies/company.repo.js';
 import { ContactsRepo } from '../modules/contacts/contact.repo.js';
@@ -7,6 +8,7 @@ import { PeriodsRepo } from '../modules/periods/period.repo.js';
 import { DocumentsRepo } from '../modules/requests/document.repo.js';
 import { RequestsRepo } from '../modules/requests/request.repo.js';
 import { UploadLinksRepo } from '../modules/requests/upload-link.repo.js';
+import { WhatsappRepo } from '../modules/whatsapp/whatsapp.repo.js';
 
 /* ChecklistsRepo entra por provideMerge, não por mergeAll: PeriodsRepo depende dele e o
  * mergeAll não alimenta uma layer com a outra. */
@@ -17,6 +19,8 @@ export const AppLayer = Layer.mergeAll(
   RequestsRepo.layerNoDeps,
   DocumentsRepo.layerNoDeps,
   UploadLinksRepo.layerNoDeps,
+  WhatsappRepo.layerNoDeps,
+  SubscriptionsRepo.layerNoDeps,
 ).pipe(Layer.provideMerge(ChecklistsRepo.layerNoDeps), Layer.provideMerge(Db.layer));
 
 export type AppContext = Layer.Success<typeof AppLayer>;
