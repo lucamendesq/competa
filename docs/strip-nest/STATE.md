@@ -43,10 +43,23 @@ Order: smallest first; auth last (better-auth plumbing is replaced in the final 
 | 3   | companies  | 3d24db1      | 92e47e5          | 12 specs   | done                  |
 | 4   | checklists | 34a7bfc      | fa59e11          | 23 specs   | done                  |
 | 5   | requests   | 3b53657      | 14c49f8          | 41 specs   | done                  |
-| 6   | messaging  | c3680ce      | —                | —          | tests done (33 specs) |
+| 6   | messaging  | c3680ce      | 56884dc          | 25 specs   | done                  |
 | 7   | whatsapp   | 8c8ce40      | b9f617d          | 6 specs    | done                  |
 | 8   | billing    | 0c57b3b      | b9f617d          | 5 specs    | done                  |
 | 9   | auth       | 3bc9cd4      | final phase      | —          | tests done (44 specs) |
+
+## Fase final — o strip (em andamento)
+
+Todos os 9 repositórios estão em Effect; o que resta é a CASCA. Sub-fases (cada uma verificada pela suíte de caracterização, que é a rede):
+
+1. **Plataforma**: servidor `effect/http` (core v4, NÃO `@effect/platform`), envelope de resposta, mapa de erros (equivalente ao `AppErrorFilter`), origin-check, helmet, CORS, throttling, mount do better-auth, paridade do `test/support/boot.ts`.
+2. **Guards → middleware Effect**: TenantGuard (sessão → FirmScope), PlanGuard, ContactGuard, ContactUploadGuard, UploadTokenGuard. Os escopos branded continuam nascendo só aqui.
+3. **Rotas por módulo** (97 handlers / 23 controllers — baseline em `route-inventory.md`), cada lote verificado contra a suíte do módulo.
+4. **Crons** `@nestjs/schedule` → `Schedule.cron` + `forkScoped` (ver effect-v4-notes.md §5).
+5. **Remoção das deps** `@nestjs/*`, `rxjs`, `reflect-metadata`, `@thallesp/nestjs-better-auth`; `main.ts` novo. Os seams de provider (Storage/messaging) e o registro órfão de `MessageProvider` morrem aqui — viram Layers.
+6. `test-quality-audit` + `create-pr` único da branch.
+
+Gate de paridade: diff da lista de rotas antes/depois contra `docs/strip-nest/route-inventory.md` (97 handlers + `/api/auth/*`).
 
 ## Dependency map (from codebase-map, 2026-10-23)
 
