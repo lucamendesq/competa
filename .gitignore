@@ -78,3 +78,5 @@ QA_DEFECTS_AND_FINDINGS.md
 # Reversa
 .reversa/config.user.toml
 _reversa_sdd/
+.storage-test/
+

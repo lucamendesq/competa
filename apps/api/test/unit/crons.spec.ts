@@ -1,4 +1,4 @@
-import { Effect, Layer } from 'effect';
+import { Effect, Exit, Layer, Scope } from 'effect';
 import { TestClock } from 'effect/testing';
 import { describe, expect, it } from 'vitest';
 import {
@@ -113,24 +113,26 @@ describe('crons: agendamento em Schedule.cron', () => {
     );
   });
 
+  /* Fechar o scope e avançar o relógio tem de acontecer no MESMO `TestClock`: cada
+   * `TestClock.layer()` constrói um relógio novo, e uma fibra agendada no relógio A nunca
+   * é alcançada avançando o relógio B — o teste passaria mesmo sem interrupção nenhuma. */
   it('o fim do scope interrompe as fibras', async () => {
     const jobs = fakes();
 
     await Effect.runPromise(
-      Effect.scoped(
-        Effect.gen(function* () {
-          yield* TestClock.setTime(MIDNIGHT_SAO_PAULO);
-          yield* Layer.build(cronsLayer(jobs));
-          yield* TestClock.adjust(0);
-        }),
-      ).pipe(Effect.provide(TestClock.layer())),
-    );
+      Effect.gen(function* () {
+        yield* TestClock.setTime(MIDNIGHT_SAO_PAULO);
 
-    // o scope fechou antes das 7h; nenhuma fibra sobreviveu para disparar
-    await Effect.runPromise(
-      Effect.scoped(runUntil('2026-10-24T12:00:00.000Z')).pipe(Effect.provide(TestClock.layer())),
-    );
+        const scope = yield* Scope.make();
+        yield* Layer.buildWithScope(cronsLayer(jobs), scope);
+        yield* TestClock.adjust(0);
 
-    expect(jobs.fired).toEqual([]);
+        // fecha ANTES das 7h
+        yield* Scope.close(scope, Exit.void);
+
+        yield* runUntil('2026-10-24T12:00:00.000Z');
+        expect(jobs.fired, 'fibra interrompida não dispara').toEqual([]);
+      }).pipe(Effect.provide(TestClock.layer())),
+    );
   });
 });
