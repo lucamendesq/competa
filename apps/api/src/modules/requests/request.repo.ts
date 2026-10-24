@@ -206,8 +206,8 @@ const make = Effect.gen(function* () {
     if (refusal) return yield* Effect.fail(new InvalidTransition(refusal));
 
     return yield* db
-      .use((d) =>
-        d.transaction(async (tx) => {
+      .withTransaction(
+        db.use(async (tx) => {
           const accepted = await tx
             .update(document)
             .set({ reviewStatus: 'accepted', reviewedBy, reviewedAt: new Date() })
@@ -325,8 +325,8 @@ const make = Effect.gen(function* () {
     const { token, tokenHash } = createToken();
 
     const requestStatus = yield* db
-      .use((d) =>
-        d.transaction(async (tx) => {
+      .withTransaction(
+        db.use(async (tx) => {
           /* Condicional, não check-then-act: duas revisões concorrentes no mesmo documento
            * serializam aqui — a segunda encontra 0 linhas e vira 422, em vez de rotacionar o
            * link de novo por cima de uma decisão já tomada (AUTHZ-5). */
@@ -529,8 +529,8 @@ const make = Effect.gen(function* () {
     const rotated = reopens ? createToken() : undefined;
 
     const applied = yield* db
-      .use((d) =>
-        d.transaction(async (tx) => {
+      .withTransaction(
+        db.use(async (tx) => {
           for (const itemId of input.acceptItemIds) {
             await tx
               .update(document)
@@ -743,8 +743,8 @@ const make = Effect.gen(function* () {
     contactId?: string,
     options?: { revokePrevious?: boolean },
   ) {
-    return yield* db.use((d) =>
-      d.transaction(async (tx) => {
+    return yield* db.withTransaction(
+      db.use(async (tx) => {
         const [current] = await tx
           .select({
             id: uploadLink.id,
@@ -787,8 +787,8 @@ const make = Effect.gen(function* () {
   ) {
     const { token, tokenHash } = createToken();
 
-    return yield* db.use((d) =>
-      d.transaction(async (tx) => {
+    return yield* db.withTransaction(
+      db.use(async (tx) => {
         const [current] = await tx
           .select({
             id: uploadLink.id,
@@ -1134,8 +1134,8 @@ const make = Effect.gen(function* () {
     const refusal = undoAcceptRefusal(context);
     if (refusal) return yield* Effect.fail(new InvalidTransition(refusal));
 
-    return yield* db.use((d) =>
-      d.transaction(async (tx) => {
+    return yield* db.withTransaction(
+      db.use(async (tx) => {
         const reverted = await tx
           .update(document)
           .set({ reviewStatus: 'pending', reviewedBy: null, reviewedAt: null })

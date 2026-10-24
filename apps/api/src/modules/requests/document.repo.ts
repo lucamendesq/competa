@@ -153,8 +153,8 @@ const make = Effect.gen(function* () {
     }
 
     return yield* db
-      .use((d) =>
-        d.transaction(async (tx) => {
+      .withTransaction(
+        db.use(async (tx) => {
           const [lockedRequest] = await tx
             .select({ id: request.id, status: request.status })
             .from(request)

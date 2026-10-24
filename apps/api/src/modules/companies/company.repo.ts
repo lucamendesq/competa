@@ -150,8 +150,8 @@ const make = Effect.gen(function* () {
     body: CreateCompanyBody,
   ) {
     return yield* db
-      .use((d) =>
-        d.transaction(async (tx) => {
+      .withTransaction(
+        db.use(async (tx) => {
           const { cap, current, limit } = await capacityOf(scope, tx);
           if (current + 1 > limit) throw new ValidationError(capExceeded(cap, current));
 
@@ -590,8 +590,8 @@ const make = Effect.gen(function* () {
     activeByLine: Map<number, boolean>,
   ) {
     return yield* db
-      .use((d) =>
-        d.transaction(async (tx): Promise<ImportLineResult[]> => {
+      .withTransaction(
+        db.use(async (tx): Promise<ImportLineResult[]> => {
           const withCnpj = pending.filter(({ body }) => body.cnpj);
           const withoutCnpj = pending.filter(({ body }) => !body.cnpj);
 

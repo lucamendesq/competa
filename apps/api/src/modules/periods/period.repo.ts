@@ -90,8 +90,8 @@ const make = Effect.gen(function* () {
     plans: RequestPlan[],
   ) {
     return yield* db
-      .use((d) =>
-        d.transaction(async (tx) => {
+      .withTransaction(
+        db.use(async (tx) => {
           const [row] = await tx
             .insert(period)
             .values({
@@ -376,8 +376,8 @@ const make = Effect.gen(function* () {
     });
 
     return yield* db
-      .use((d) =>
-        d.transaction(async (tx) => {
+      .withTransaction(
+        db.use(async (tx) => {
           const closedRequests = await tx
             .update(request)
             .set({ status: 'closed', closedAt: new Date() })

@@ -194,8 +194,8 @@ const make = Effect.gen(function* () {
     companyId: string,
     contactId: string,
   ) {
-    return yield* db.use((d) =>
-      d.transaction(async (tx) => {
+    return yield* db.withTransaction(
+      db.use(async (tx) => {
         const [row] = await tx
           .select({ id: contact.id, authUserId: contact.authUserId })
           .from(contact)

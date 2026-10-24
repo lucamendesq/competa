@@ -375,8 +375,8 @@ const make = Effect.gen(function* () {
     name?: string,
   ) {
     return yield* db
-      .use((d) =>
-        d.transaction(async (tx) => {
+      .withTransaction(
+        db.use(async (tx) => {
           const derived = await createTemplateOn(tx, scope, {
             name: name ?? source.name,
             derivedFrom: source.id,
