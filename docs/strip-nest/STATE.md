@@ -61,6 +61,17 @@ Todos os 9 repositórios estão em Effect; o que resta é a CASCA. Sub-fases (ca
 
 Gate de paridade: diff da lista de rotas antes/depois contra `docs/strip-nest/route-inventory.md` (97 handlers + `/api/auth/*`).
 
+Design completo em [`platform-design.md`](./platform-design.md) — recomendação central: **`HttpRouter` (handler-first), não `HttpApi`**, porque `HttpApi` exige Effect Schema e converter os 97 schemas zod de `@competa/contracts` seria um segundo projeto (além de não expressar stream, mount wildcard nem envelope uniforme). O zod fica onde está.
+
+### Decisões das 6 questões abertas do design (§12) — resolvidas pela regra dura 6 (comportamento congelado)
+
+1. Headers `X-RateLimit-*`: **manter** em toda resposta (paridade).
+2. helmet: **chamar o pacote** pelos objetos node crus (paridade; nenhum spec assere os headers, mas trocar seria mudança de comportamento).
+3. `eventemitter2` como dep direta: **sim**; NÃO trocar por `PubSub` do Effect nesta branch — mudaria a semântica do `emitAsync` e quebraria o bug congelado #13.
+4. `ContactUploadGuard` lendo o corpo antes da validação: **preservar** (é o bug congelado #8).
+5. IP do cliente em produção: **replicar `trust proxy: 1`**. Trocar para `fly-client-ip` é mais seguro, mas é mudança de comportamento → follow-up separado, não nesta branch.
+6. `zip.controller.ts` / `setErrorHandler`: **não decidível no papel.** Tentar paridade primeiro; `requests.e2e.spec.ts:1419` prova que a chave do single-flight libera no close do stream, não no retorno do handler. Se a paridade não sair, ESCALAR ao usuário em vez de escolher um comportamento novo.
+
 ## Dependency map (from codebase-map, 2026-10-23)
 
 Edges are "depends on". **DI** = NestJS module/provider edge (serializes migration); **pure** = plain import of functions/types (no DI); **type** = types/decorators only.
