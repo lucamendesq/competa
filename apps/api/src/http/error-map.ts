@@ -105,6 +105,14 @@ export const mapError = (error: unknown): MappedError => {
 
 const logger = new Logger('AppErrorFilter');
 
+/** O `originalUrl` do Effect é absoluto; o do Express era caminho + query. As linhas de log
+ *  de 403/500 são comparadas por operador contra as antigas — manter o mesmo formato. */
+const loggedUrl = (originalUrl: string) => {
+  const schemeless = originalUrl.replace(/^[a-z][a-z0-9+.-]*:\/\/[^/]*/i, '');
+
+  return schemeless === '' ? '/' : schemeless;
+};
+
 /** Fim de linha de toda rota servida pelo shell Effect (ver `platform.ts`): mapeia, loga e
  *  escreve. Não é middleware global — no modo estrangulador o catch-all do Nest já aplica
  *  o `AppErrorFilter` dele, e um mapa global reescreveria resposta que o Nest escreveu. */
@@ -115,13 +123,13 @@ export const handleCause = (cause: Cause.Cause<unknown>) =>
     const mapped = mapError(error);
 
     if (mapped.denial !== undefined) {
-      const denied = `403 ${mapped.denial}: ${request.method} ${request.originalUrl}`;
+      const denied = `403 ${mapped.denial}: ${request.method} ${loggedUrl(request.originalUrl)}`;
       logger.warn(denied);
       Sentry.captureMessage(denied, 'warning');
     }
 
     if (mapped.internal === true) {
-      logger.error(`500 ${request.method} ${request.originalUrl}`, describeError(error));
+      logger.error(`500 ${request.method} ${loggedUrl(request.originalUrl)}`, describeError(error));
       Sentry.captureException(error);
     }
 

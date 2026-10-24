@@ -2,13 +2,15 @@ import type { IncomingMessage, ServerResponse } from 'node:http';
 import { NodeHttpServerRequest } from '@effect/platform-node';
 import cors from 'cors';
 import { Context, Effect, Layer, type Types } from 'effect';
-import { HttpRouter, HttpServerRequest, HttpServerResponse } from 'effect/http';
+import { HttpRouter, HttpServerError, HttpServerRequest, HttpServerResponse } from 'effect/http';
 import helmet from 'helmet';
 import { PinoLogger } from 'nestjs-pino';
 import { pinoHttp, type Options as PinoHttpOptions } from 'pino-http';
+import type * as z from 'zod';
 import { allowedOrigins } from '../config/env.js';
 import { pinoOptions } from '../config/logger.js';
-import { AppError } from '../lib/app-error.js';
+import { AppError, BadRequest } from '../lib/app-error.js';
+import { zodParse } from '../lib/zod-pipe.js';
 import { applyEtag } from './envelope.js';
 import { handleCause } from './error-map.js';
 import { originCheck } from './origin-check.js';
@@ -19,6 +21,7 @@ import {
   makeThrottleStore,
   rateLimitHeaders,
   throttleKey,
+  uploadTracker,
   type Bucket,
   type ThrottleStore as ThrottleStoreService,
 } from './throttle.js';
@@ -88,16 +91,39 @@ const Node = {
     NodeHttpServerRequest.toServerResponse(request) as ServerResponse,
 };
 
+/* Tudo que uma rota pode falhar e o mapa de erros sabe traduzir: os erros do app mais os
+ * do próprio parse da requisição (corpo inválido → 400, corpo grande demais → 413). */
+type Failure = AppError | HttpServerError.HttpServerError;
+
+/**
+ * Perfil de autorização de uma rota — o que os `@UseGuards`/`@ContactRoute()` diziam. Roda
+ * DEPOIS do throttle e ANTES do handler, e entrega o serviço de request (`FirmContext` e
+ * companhia) que o handler exige por tipo. Os perfis moram em `middleware/auth.ts`.
+ */
+export type RouteProfile<Provides> = {
+  readonly throttle?: readonly Bucket[];
+  readonly apply: <A, E>(
+    inner: Effect.Effect<A, E, Provides>,
+  ) => Effect.Effect<A, E | Failure, HttpServerRequest.HttpServerRequest | HttpRouter.RouteContext>;
+};
+
+/** Rota sem guard: `@PUBLIC()` / `@AllowAnonymous()`, ou simplesmente nenhum decorator. */
+export const publicRoute: RouteProfile<never> = { apply: (inner) => inner };
+
 /* `catchCause` zera o canal de erro, e o construtor de middleware exige
  * `Types.unhandled extends E`. Nada aqui produz esse erro — é só o marcador de tipo. */
 type Served = Effect.Effect<
   HttpServerResponse.HttpServerResponse,
   Types.unhandled,
-  HttpServerRequest.HttpServerRequest
+  HttpServerRequest.HttpServerRequest | HttpRouter.RouteContext
 >;
 
-const platform = (routeKey: string, buckets: readonly Bucket[]) =>
-  HttpRouter.middleware<{ handles: AppError }>()((inner): Served =>
+const platform = <Provides>(
+  routeKey: string,
+  buckets: readonly Bucket[],
+  profile: RouteProfile<Provides>,
+) =>
+  HttpRouter.middleware<{ handles: Failure; provides: Provides }>()((inner): Served =>
     Effect.gen(function* () {
       const request = yield* HttpServerRequest.HttpServerRequest;
       const nodeRequest = Node.request(request);
@@ -107,13 +133,15 @@ const platform = (routeKey: string, buckets: readonly Bucket[]) =>
       // o middleware escreveu a resposta; o que devolvermos é descartado (writableEnded)
       if (!proceed) return HttpServerResponse.empty();
 
-      const tracker = callerIp(
+      const ip = callerIp(
         nodeRequest.headers as Record<string, string | undefined>,
         nodeRequest.socket.remoteAddress,
         yield* TrustProxy,
       );
+      const token = (yield* HttpRouter.params).token ?? '';
 
       for (const bucket of buckets) {
+        const tracker = bucket.byToken === true ? uploadTracker(ip, token) : ip;
         const result = (yield* ThrottleStore).hit(throttleKey(routeKey, bucket, tracker), bucket);
         for (const [name, value] of Object.entries(rateLimitHeaders(bucket, result))) {
           nodeResponse.setHeader(name, value);
@@ -121,7 +149,7 @@ const platform = (routeKey: string, buckets: readonly Bucket[]) =>
         if (!result.ok) return yield* Effect.fail(new TooManyRequests(result.retryAfterSec));
       }
 
-      return yield* inner;
+      return yield* profile.apply(inner);
     }).pipe(
       Effect.catchCause(handleCause),
       // o ETag entra no fim, como no `res.send()` do Express: sucesso E erro o carregam
@@ -133,11 +161,14 @@ const platform = (routeKey: string, buckets: readonly Bucket[]) =>
 
 /**
  * ÚNICA forma sancionada de registrar uma rota servida pelo shell Effect. Garante, na
- * ordem do Nest: helmet → origin-check → CORS → log de requisição → throttle → handler,
- * com o mapa de erros por cima. Rota nova que não passe por aqui perde tudo isso em
- * silêncio — nenhum spec assere esses headers.
+ * ordem do Nest: helmet → origin-check → CORS → log de requisição → throttle → guard →
+ * handler, com o mapa de erros por cima. Rota nova que não passe por aqui perde tudo isso
+ * em silêncio — nenhum spec assere esses headers.
+ *
+ * Os três estágios estão escritos na ordem no corpo de `platform`, de propósito:
+ * `Middleware.combine` existe, mas roda na ordem INVERSA da leitura.
  */
-export const route = <E extends AppError, R>(
+export const route = <E extends Failure, R, Provides = never>(
   method: 'GET' | 'POST' | 'PUT' | 'PATCH' | 'DELETE',
   path: `/${string}`,
   handler:
@@ -145,8 +176,48 @@ export const route = <E extends AppError, R>(
     | ((
         request: HttpServerRequest.HttpServerRequest,
       ) => Effect.Effect<HttpServerResponse.HttpServerResponse, E, R>),
-  options?: { readonly throttle?: readonly Bucket[] },
-) =>
-  HttpRouter.add(method, path, handler).pipe(
-    Layer.provide(platform(`${method} ${path}`, options?.throttle ?? GLOBAL_BUCKETS).layer),
+  options?: {
+    readonly throttle?: readonly Bucket[];
+    readonly auth?: RouteProfile<Provides>;
+  },
+) => {
+  const profile = options?.auth ?? (publicRoute as unknown as RouteProfile<Provides>);
+
+  return HttpRouter.add(method, path, handler).pipe(
+    Layer.provide(
+      platform(
+        `${method} ${path}`,
+        options?.throttle ?? profile.throttle ?? GLOBAL_BUCKETS,
+        profile,
+      ).layer,
+    ),
   );
+};
+
+/** `@Body(zodPipe(Schema))`: mesmo `ValidationError`, com os `issues` no `details`.
+ *
+ *  Reproduz o `express.json({ strict: true })` que vinha antes do pipe, porque a diferença
+ *  é observável: corpo VAZIO virava `{}` e o zod respondia 422 apontando o campo faltante,
+ *  enquanto topo que não é objeto/array (`null`, `"texto"`, `3`) era recusado como 400 pelo
+ *  parser antes de chegar ao zod. Sem isto cada rota migrada herdaria o desvio. */
+export const body = <T>(schema: z.ZodType<T>) =>
+  Effect.gen(function* () {
+    const request = yield* HttpServerRequest.HttpServerRequest;
+    const text = yield* request.text.pipe(Effect.orElseSucceed(() => ''));
+
+    // corpo vazio chegava ao pipe como `{}`: quem responde é o schema (422), não o parser
+    if (text.trim() === '') return yield* zodFail(schema, {});
+
+    const parsed = yield* Effect.try({
+      try: () => JSON.parse(text) as unknown,
+      catch: () => new BadRequest(),
+    });
+
+    // `strict: true`: só objeto ou array no topo; `null`, string e número são 400
+    if (typeof parsed !== 'object' || parsed === null) return yield* Effect.fail(new BadRequest());
+
+    return yield* zodFail(schema, parsed);
+  });
+
+const zodFail = <T>(schema: z.ZodType<T>, raw: unknown) =>
+  Effect.try({ try: () => zodParse(schema, raw), catch: (error) => error as AppError });

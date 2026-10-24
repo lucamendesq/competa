@@ -64,8 +64,11 @@ export default tseslint.config(
     },
   },
 
+  /* `src/http/middleware/auth.ts` é o ÚNICO lugar do shell Effect onde o escopo nasce — o
+   * mesmo papel que os guards de `src/modules/auth/` têm na casca Nest. A exceção dos
+   * guards continua até eles serem apagados. */
   {
-    files: ['src/modules/auth/**/*.ts'],
+    files: ['src/modules/auth/**/*.ts', 'src/http/middleware/auth.ts'],
     rules: {
       'no-restricted-syntax': ['error', SCOPE_CAST],
     },

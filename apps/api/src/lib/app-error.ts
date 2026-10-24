@@ -15,6 +15,17 @@ export class ValidationError extends AppError {
   readonly status = 422;
 }
 
+/** Corpo que o parser recusa antes de qualquer schema — o que o `express.json()` devolvia
+ *  como 400. Separado do 422: ali o corpo é legível e o campo é que está errado. */
+export class BadRequest extends AppError {
+  readonly code = 'BAD_REQUEST';
+  readonly status = 400;
+
+  constructor(message = 'Corpo inválido.') {
+    super(message);
+  }
+}
+
 export class NotFound extends AppError {
   readonly code = 'NOT_FOUND';
   readonly status = 404;

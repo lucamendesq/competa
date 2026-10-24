@@ -14,6 +14,8 @@ export type Bucket = {
   readonly limit: number;
   readonly ttlMs: number;
   readonly blockMs?: number;
+  /** `UploadThrottlerGuard.getTracker`: chaveia por `ip:token` em vez de só pelo IP. */
+  readonly byToken?: boolean;
 };
 
 /** Baldes globais do `ThrottlerModule`: `short` corta rajada, `default` corta abuso sustentado. */
@@ -27,7 +29,15 @@ export const UPLOAD_PRESIGN_BUCKET: Bucket = {
   name: 'upload-presign',
   limit: 60,
   ttlMs: 60_000,
+  byToken: true,
 };
+
+/** `@Throttle({ default: { ttl, limit } })`: o decorator nomeia UM balde, então o `short`
+ *  (30/10s) continua valendo ao lado do `default` reescrito. */
+export const throttleDefault = (limit: number, ttlMs: number): readonly Bucket[] =>
+  GLOBAL_BUCKETS.map((bucket) =>
+    bucket.name === 'default' ? { ...bucket, limit, ttlMs } : bucket,
+  );
 
 export type ThrottleResult =
   | { readonly ok: true; readonly remaining: number; readonly resetSec: number }

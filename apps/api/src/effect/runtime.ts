@@ -38,3 +38,16 @@ export async function run<A, E>(effect: Effect.Effect<A, E, AppContext>): Promis
   const error = Cause.squash(exit.cause);
   throw error instanceof DbError ? error.cause : error;
 }
+
+/** Mesma fronteira, para quem já está DENTRO de um Effect (rotas e middleware do shell
+ *  novo). Mantém UM runtime no processo enquanto a casca Nest existir: dois construiriam
+ *  um segundo provider de storage e um segundo cliente de email. O erro volta como defeito
+ *  cru, que é o que o mapa de erros espera ver. */
+export const fromRuntime = <A, E>(effect: Effect.Effect<A, E, AppContext>): Effect.Effect<A> =>
+  Effect.promise(() => run(effect));
+
+/** Para os repositórios que ainda NÃO têm versão Effect (módulo auth): classes simples
+ *  sobre o drizzle, construídas sobre a MESMA instância que o `Db` expõe, sem container
+ *  Nest. Some quando o módulo auth migrar. */
+export const withDb = <A>(f: (db: Db['Service']['raw']) => Promise<A>): Effect.Effect<A> =>
+  fromRuntime(Effect.flatMap(Db, (db) => Effect.promise(() => f(db.raw))));

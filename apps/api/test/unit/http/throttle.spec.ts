@@ -5,6 +5,7 @@ import {
   callerIp,
   makeThrottleStore,
   rateLimitHeaders,
+  throttleDefault,
   throttleKey,
   uploadTracker,
   type Bucket,
@@ -31,7 +32,16 @@ describe('baldes', () => {
       name: 'upload-presign',
       limit: 60,
       ttlMs: 60_000,
+      byToken: true,
     });
+  });
+
+  it('`@Throttle({default})` troca só o balde nomeado — o `short` sobrevive', () => {
+    expect(throttleDefault(3, 60_000)).toEqual([
+      { name: 'short', limit: 30, ttlMs: 10_000 },
+      { name: 'default', limit: 3, ttlMs: 60_000 },
+    ]);
+    expect(GLOBAL_BUCKETS[1]).toEqual({ name: 'default', limit: 120, ttlMs: 60_000 });
   });
 });
 

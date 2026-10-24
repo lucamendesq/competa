@@ -4,6 +4,9 @@ import { Effect, Layer } from 'effect';
 import { HttpRouter } from 'effect/http';
 import { buildInfo } from '../build-info.js';
 import { ServiceUnavailable } from '../lib/app-error.js';
+import { authRoutes } from '../modules/auth/auth.routes.js';
+import { contactsRoutes } from '../modules/contacts/contacts.routes.js';
+import { uploadRoutes } from '../modules/requests/upload.routes.js';
 import { handler } from './envelope.js';
 import { nestFallback, type NodeRequestListener } from './nest-bridge.js';
 import { ThrottleStore, TrustProxy, route } from './platform.js';
@@ -34,11 +37,22 @@ export const serverLayer = (options: {
   readonly ping: () => Promise<void>;
   readonly fallback: NodeRequestListener;
 }) =>
-  HttpRouter.serve(Layer.mergeAll(healthRoute(options.ping), nestFallback(options.fallback)), {
-    // pino-http é chamado pela pilha de plataforma (rotas Effect) e pelo Nest (catch-all)
-    disableLogger: true,
-    disableListenLog: true,
-  }).pipe(
+  /* `nestFallback` é o curinga `'*' '/*'` e fica por último na leitura, mas find-my-way
+   * prioriza estático > param > curinga: a ordem do merge não decide nada. */
+  HttpRouter.serve(
+    Layer.mergeAll(
+      healthRoute(options.ping),
+      authRoutes,
+      contactsRoutes,
+      uploadRoutes,
+      nestFallback(options.fallback),
+    ),
+    {
+      // pino-http é chamado pela pilha de plataforma (rotas Effect) e pelo Nest (catch-all)
+      disableLogger: true,
+      disableListenLog: true,
+    },
+  ).pipe(
     Layer.provideMerge(NodeHttpServer.layer(createServer, { port: options.port })),
     Layer.provideMerge(Layer.succeed(TrustProxy)(options.trustProxy)),
     Layer.provideMerge(Layer.sync(ThrottleStore)(() => makeThrottleStore())),
