@@ -10,13 +10,13 @@ Branch: `strip-nest`. Read this first on every invocation; update after every co
 | codebase-map (dependency edges below)                       | done   |
 | effect + @effect/platform + @effect/platform-node installed | done   |
 | `docs/strip-nest/effect-v4-notes.md` (research)             | done   |
-| Test infra (vitest + swc, boot helper, test DB, smoke spec) | done   |
+| Test infra (vitest, boot helper, test DB, smoke spec)       | done   |
 | Pre-commit (typecheck + api tests)                          | done   |
 | STATE.md                                                    | done   |
 
 ## Test infra
 
-- `apps/api/vitest.config.ts` — swc transform (decorator metadata), serial files, env overrides (`NODE_ENV=test`, `DB_NAME=competa_test`, `LOG_LEVEL=error`).
+- `apps/api/vitest.config.ts` — serial files, env overrides (`NODE_ENV=test`, `DB_NAME=competa_test`, `LOG_LEVEL=error`). O transform swc (metadata de decorator) saiu na F7: sem decorators, o esbuild do vitest basta — a suíte inteira roda em ~51s com ou sem ele.
 - `apps/api/test/support/boot.ts` — `bootApp()` boots the real app (`src/app.ts#createApp`, extracted from `main.ts`) on an ephemeral port. Characterization suites import ONLY this + fetch; the helper is reimplemented over Effect in the final phase.
 - `apps/api/test/support/db.ts` — `truncateAll()` truncates all public tables.
 - Test DB: `competa_test` in the `apps/api/docker-compose.yml` postgres (init script creates it). Migrate with `DB_NAME=competa_test pnpm db:migrate`.
@@ -58,10 +58,32 @@ Todos os 9 repositórios estão em Effect; o que resta é a CASCA. Sub-fases (ca
 4. **Crons** `@nestjs/schedule` → `Schedule.cron` + `forkScoped` (ver effect-v4-notes.md §5). **FEITA** (F5): `src/modules/requests/crons.ts` — `cronsLayer({deadlines, reminders})` entra no `Layer.mergeAll` do `ManagedRuntime` de `createApp`. As CLASSES `DeadlineCron`/`RemindersCron` continuam do container Nest (só os decorators `@Cron`/`@SentryCron` saíram); o que saiu do Nest foi o agendamento. `ScheduleModule.forRoot()` removido do `app.module.ts` — `@nestjs/schedule` não tem mais nenhum import em `src/`.
 5. **Mount do better-auth** direto no router Effect — **FEITO**: `src/http/auth-mount.ts` (`HttpRouter.add('*', '/api/auth/*')` → `HttpServerRequest.toWeb` → `auth.handler` → `HttpServerResponse.fromWeb`). Prova A/B contra o mount Nest (segundo `http.Server` ligado ao express do container): status, TODOS os headers, cada linha de `Set-Cookie` e corpo idênticos em sign-up (com e sem `x-internal-signup`), sign-in, magic-link verify, get-session, sign-out (3 cookies), 404 sob `/api/auth`, path base e preflight. `HttpServerResponse.fromWeb` **preserva** múltiplos `Set-Cookie` como linhas separadas e mantém o percent-encoding do valor (`Cookies.fromSetCookie` guarda o `valueEncoded`) — não foi preciso escrever no `ServerResponse` cru.
 6. **Ponte estranguladora removida** (`src/http/nest-bridge.ts` deletado) — **FEITO**: `src/http/fallback.ts` é o curinga `'*' '/*'` que roda a pilha global (helmet → origin-check → CORS → log) e, se ninguém respondeu, devolve o 404 `{"error":{"code":"NOT_FOUND",…}}` com ETag e `charset=utf-8` (byte a byte igual ao do `AppErrorFilter`). **Decisão da colisão `OPTIONS /*` × catch-all (design §4/§5): não existe rota `OPTIONS` separada.** find-my-way recusa método duplicado no mesmo padrão (`Method 'OPTIONS' already declared for route '/*'`), e o preflight nunca foi outra coisa além do `cors()` global, que encerra a resposta antes de qualquer roteamento. O curinga reproduz isso de graça.
-7. **Remoção das deps** `@nestjs/*`, `rxjs`, `reflect-metadata`, `@thallesp/nestjs-better-auth`; `main.ts` novo. Os seams de provider (Storage/messaging) e o registro órfão de `MessageProvider` morrem aqui — viram Layers.
+7. **Remoção das deps** `@nestjs/*`, `rxjs`, `reflect-metadata`, `@thallesp/nestjs-better-auth` — **FEITA (F7)**. Detalhe abaixo.
 8. `test-quality-audit` + `create-pr` único da branch.
 
-**O que ainda precisa do Nest** (nada disso é rota): `EventEmitter2` (os listeners de messaging estão registrados no container e o bug congelado #13 depende do `emitAsync`), `HealthRepository`, e as instâncias de `DeadlineCron`/`RemindersCron` com suas dependências (`RequestRepository`, `DocumentRepository`, `StorageProvider`). `BetterAuthModule.forRoot` continua no `app.module.ts` como mount morto — sai junto com o pacote na sub-fase 7.
+### F7 — o Nest saiu
+
+`grep -rE "@nestjs|from 'rxjs'" apps/api/src` vazio; nenhum `@nestjs/*` em `apps/api/package.json`. Suíte inalterada: 27 arquivos / 566 testes, verde em duas execuções sequenciais.
+
+**Apagado**: `app.module.ts`, os 23 `*.controller.ts`, os 11 `*.module.ts`, os 5 guards (`tenant`/`plan`/`session`/`contact`/`contact-upload`), `upload-token.guard.ts` (o erro `InvalidUploadLink` foi para `modules/auth/errors.ts`), `upload-throttler.guard.ts`, os 9 decorators de `modules/auth/`, `lib/app-error.filter.ts`, `lib/response.interceptor.ts` (o `paginated`/`ENVELOPED` foi para `http/envelope.ts`), `lib/origin-check.ts` (o gêmeo Express), `zip-flight.service.ts`, `database.module.ts`, `storage.module.ts`, `upload-link.repository.ts` (sem consumidor), `nest-cli.json`, e o `zodPipe` de `lib/zod-pipe.ts` (`zodParse` fica).
+
+**Cada consumidor de DI que sobrou**:
+
+| Antes (container Nest)                                             | Agora                                                                                                                                                                                      |
+| ------------------------------------------------------------------ | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
+| `EventEmitter2` (`EventEmitterModule.forRoot`)                     | `new EventEmitter2()` em `createApp` (uma por app) — `eventemitter2` é dep direta. Interop CJS em `src/lib/event-emitter.ts`                                                               |
+| `CollectionEventsListener` / `RequestCreatedListener` (`@OnEvent`) | `src/modules/messaging/listeners.ts` → `registerMessagingListeners(events)`, com o mesmo `try/catch` do `EventSubscribersLoader` (erro vira log, não rejeição) e a mesma ORDEM de registro |
+| `MessagingModule.onModuleInit` (magic link / reset)                | mesmo `registerMessagingListeners`                                                                                                                                                         |
+| `HealthRepository`                                                 | `src/health.ts` — `ping()` sobre o `Db` do runtime Effect                                                                                                                                  |
+| `DeadlineCron` / `RemindersCron`                                   | `new DeadlineCron(...)` / `new RemindersCron(...)` em `createApp`                                                                                                                          |
+| `StorageProvider` (`StorageModule`)                                | `src/infra/storage/storage.ts` — singleton de módulo                                                                                                                                       |
+| `MessageProvider` / `PushProvider`                                 | `src/modules/messaging/providers/providers.ts` — singletons de módulo                                                                                                                      |
+| `Logger` (`nestjs-pino`)                                           | `src/lib/logger.ts` — mesma superfície, um único `pinoHttp(...)` por processo (raiz + middleware de requisição)                                                                            |
+| `BetterAuthModule.forRoot` (mount morto)                           | apagado com o pacote                                                                                                                                                                       |
+
+**Pending cleanups fechados aqui**: seam de Storage (3 cópias da expressão → 1; fim dos dois `S3Client` em produção), seam de providers de messaging (2 cópias → 1; fim do segundo `new Resend()`), registro órfão de `MessageProvider` (morreu com `messaging.module.ts`), `type Executor` hoisted para `src/infra/database/effect.ts`.
+
+**Não fechados** (seguem como dívida): o ciclo ESM `runtime → message.repo → whatsapp.provider → whatsapp.repository → runtime` — o `await import()` memoizado continua em `providers.ts`, porque tirar o ciclo exige `WhatsappProvider` sem `run()`, o que é uma layer de providers de verdade e não cabia na remoção de deps; o `inFlight` global do zip (inofensivo: chaves são UUID); e as cópias mortas de `reminderCandidates`/`reminderSettingsByFirm` em `message.repo.ts` (apagá-las muda a contagem da suíte, que esta sub-fase tinha de manter).
 
 Gate de paridade: diff da lista de rotas antes/depois contra `docs/strip-nest/route-inventory.md` (97 handlers + `/api/auth/*`).
 
@@ -191,6 +213,35 @@ Cross-module seams the Effect composition must reproduce: event contract in `src
    `PUT /storage/local/:key` (lê o `IncomingMessage` cru) seguem fora do teto, exatamente
    como o `SkipBodyParsingMiddleware` os deixava de fora.
 
+6. **Logs de boot do Nest sumiram** (F7). As ~300 linhas de `InstanceLoader`/`RoutesResolver` por
+   restart deixaram de existir junto com o container — o hook `BOOT_CONTEXTS` de
+   `src/config/logger.ts` (WIP do usuário) virou código morto inofensivo e foi PRESERVADO
+   intacto. Os banners de escolha de provider continuam, com contexto novo: `[Storage]`,
+   `[MessageProviders]` (eram `[StorageModule]`, `[MessagingModule]`, `[WhatsappModule]`,
+   `[BillingModule]`). `[Bootstrap]` substitui o logger do Nest na linha de porta do `main.ts`.
+
+7. **`eventemitter2` precisa de interop explícito** (F7). O `.d.ts` do pacote declara
+   `export default` num CJS cujo `module.exports` É a classe: sob `nodenext` o import nomeado
+   typechecka e roda no vitest, mas `node dist/main.js` quebra com
+   "does not provide an export named 'EventEmitter2'". `src/lib/event-emitter.ts` é a tradução
+   (o `@nestjs/event-emitter` tinha um arquivo só para isso). **Lição: o gate de `pnpm build` +
+   bootar o `dist` pega o que a suíte não pega** — o vitest resolve interop CJS que o loader ESM
+   do node não resolve.
+
+8. **`pnpm build` deixou de ser incremental** (F7). `nest build` apagava o `outDir`; `tsc -p`
+   sozinho reusava o `tsconfig.build.tsbuildinfo` e emitia um `dist` PARCIAL depois de um
+   `rm -rf dist` (foi assim que o primeiro boot do `dist` falhou com MODULE_NOT_FOUND). O script
+   passou a ser `rm -rf dist && tsc -p tsconfig.build.json && tsc-alias …` com
+   `"incremental": false` no `tsconfig.build.json`.
+
+9. **Scripts de verificação apagados** (F7): `verify-com-148.ts` e `verify-com-150.ts` instanciavam
+   `InviteController`/`TeamController`/`AsaasWebhookController` direto. O que eles provavam está
+   coberto por `auth.e2e.spec.ts` e `billing.e2e.spec.ts` sobre HTTP real. `verify-plan-gates.ts`
+   (ligado em `pnpm check:plan-gates`) sobreviveu: o bloco do `PlanGuard` virou uma chamada a
+   `planAllows` + `PlanCapabilityRequired`, o mesmo teste que `resolveFirm` faz em
+   `src/http/middleware/auth.ts`. Os outros 5 shims `*.repository.ts` que só os scripts usam
+   (checklist/company/contact/period/subscription) ficaram, sem `@Injectable`.
+
 ## Achados da F5 (já corrigidos, não são dívida)
 
 - **`maxParamLength` do find-my-way (100) estava escondendo uma rota morta.** `PUT /storage/local/:storageKey`
@@ -205,6 +256,12 @@ Cross-module seams the Effect composition must reproduce: event contract in `src
 
 ## Known flakes (observar; não bloqueiam)
 
+- `auth-middleware.spec.ts` (+1 outro arquivo) falhou 1x na F7 com 29 testes em
+  `SyntaxError: Unexpected token 'C', "Client sen"... is not valid JSON` — corpo de resposta que
+  não é JSON. Não reproduziu em 5 execuções seguidas depois (incluindo a mesma sequência
+  `vitest run test/unit` → `vitest run` que a provocou). A string não existe em `src/`, `test/`
+  nem em `node_modules`. Se voltar, capturar o corpo cru antes do `JSON.parse` em
+  `test/unit/http/auth-middleware.spec.ts:105`.
 - `checklists.e2e.spec.ts > GET /document-types` já falhou 1x com 500 vindo do `registerFirm` (fixtures.ts). Limpo no re-run. `fileParallelism: false`, então não é contenção entre arquivos — suspeita: listener fire-and-forget de uma suite anterior ainda escrevendo quando a próxima roda `truncateAll()`+seed, ou pool não drenado no `app.close()`. Se reaparecer, instrumentar o `beforeAll` (aguardar quiesce do pool antes de truncar).
 
 ## Session notes

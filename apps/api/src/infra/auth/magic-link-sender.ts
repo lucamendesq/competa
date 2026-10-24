@@ -1,4 +1,4 @@
-import { Logger } from '@nestjs/common';
+import { Logger } from '../../lib/logger.js';
 import env from '../../config/env.js';
 
 type MagicLink = { email: string; url: string; token: string };

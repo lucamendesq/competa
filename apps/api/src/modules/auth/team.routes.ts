@@ -5,7 +5,7 @@ import {
   UpdateFirmBody,
   planAllows,
 } from '@competa/contracts';
-import type { EventEmitter2 } from '@nestjs/event-emitter';
+import type { EventEmitter2 } from '../../lib/event-emitter.js';
 import { addDays } from 'date-fns';
 import { Effect, Layer } from 'effect';
 import env from '../../config/env.js';

@@ -1,4 +1,3 @@
-import { PipeTransform } from '@nestjs/common';
 import * as z from 'zod';
 import { ValidationError } from './app-error.js';
 
@@ -18,7 +17,3 @@ export const zodParse = <T>(schema: z.ZodType<T>, value: unknown): T => {
 
   return result.data;
 };
-
-export const zodPipe = (schema: z.ZodType): PipeTransform => ({
-  transform: (value: unknown) => zodParse(schema, value),
-});

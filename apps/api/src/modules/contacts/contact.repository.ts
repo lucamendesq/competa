@@ -1,11 +1,9 @@
-import { Injectable } from '@nestjs/common';
 import { run } from '../../effect/runtime.js';
 import type { ContactScope, FirmScope } from '../auth/scope.js';
 import { ContactsRepo } from './contact.repo.js';
 
 /** Casca Nest sobre o serviço Effect (`contact.repo.ts`): mantém a DI dos controllers,
  *  guards e do CompaniesModule até cada consumidor migrar; morre na fase final. */
-@Injectable()
 export class ContactRepository {
   profile(scope: ContactScope) {
     return run(ContactsRepo.use((repo) => repo.profile(scope)));

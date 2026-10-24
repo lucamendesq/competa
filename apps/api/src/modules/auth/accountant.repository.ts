@@ -1,4 +1,3 @@
-import { Injectable } from '@nestjs/common';
 import { and, asc, eq, isNull, sql } from 'drizzle-orm';
 import { addDays } from 'date-fns';
 import { Database } from '../../infra/database/database.js';
@@ -21,7 +20,6 @@ type FirmPatch = Partial<{
   contactEmail: string | null;
 }>;
 
-@Injectable()
 export class AccountantRepository {
   constructor(private readonly db: Database) {}
 

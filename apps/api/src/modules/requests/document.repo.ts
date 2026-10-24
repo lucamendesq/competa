@@ -5,12 +5,10 @@ import type { Readable } from 'node:stream';
 import { fileTypeFromBuffer } from 'file-type';
 import { v7 as uuidv7 } from 'uuid';
 import type { PresignUploadBody } from '@competa/contracts';
-import env from '../../config/env.js';
-import { Db } from '../../infra/database/effect.js';
+import { Db, type Executor } from '../../infra/database/effect.js';
 import { document, period, request, requestItem } from '../../infra/database/schema/index.js';
-import { LocalStorage } from '../../infra/storage/local.storage.js';
-import { R2Storage } from '../../infra/storage/r2.storage.js';
-import { PRESIGN_TTL_SECONDS, type StorageProvider } from '../../infra/storage/storage.provider.js';
+import { storage } from '../../infra/storage/storage.js';
+import { PRESIGN_TTL_SECONDS } from '../../infra/storage/storage.provider.js';
 import { AppError, NotFound, ServiceUnavailable, ValidationError } from '../../lib/app-error.js';
 import type { UploadScope } from '../auth/scope.js';
 import {
@@ -22,9 +20,6 @@ import {
   rejectionReason,
   requestCapRefusal,
 } from './file-rules.js';
-
-/** Executor comum a `db.use` e às transações do drizzle (mesma forma do antigo `Database`). */
-type Executor = Omit<Db['Service']['raw'], '$client'>;
 
 export type ConfirmedDocument = {
   id: string;
@@ -60,11 +55,6 @@ const inspectAndHashStream = (stream: Readable): Promise<{ hash: string; firstCh
 
 const make = Effect.gen(function* () {
   const db = yield* Db;
-
-  /** Mesma escolha do `StorageModule` (R2 em produção, disco local fora dela): o serviço
-   *  Effect não passa pela DI do Nest e monta o provider por conta própria. */
-  const storage: StorageProvider =
-    env.NODE_ENV === 'production' ? new R2Storage() : new LocalStorage();
 
   const uploadContextOn = async (
     executor: Executor,

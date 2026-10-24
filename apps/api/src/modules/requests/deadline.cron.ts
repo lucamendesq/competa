@@ -1,12 +1,12 @@
-import { Injectable, Logger } from '@nestjs/common';
-import { EventEmitter2 } from '@nestjs/event-emitter';
+import { Logger } from '../../lib/logger.js';
+import type { EventEmitter2 } from '../../lib/event-emitter.js';
 import env from '../../config/env.js';
 import { brazilDay } from '../../lib/brazil-time.js';
 import { EVENTS, type DeadlineMissedEvent } from '../../lib/events.js';
 import { createToken } from '../../lib/token.js';
 import type { FirmScope } from '../auth/scope.js';
 import { subHours, subYears } from 'date-fns';
-import * as Sentry from '@sentry/nestjs';
+import * as Sentry from '@sentry/node';
 import { StorageProvider } from '../../infra/storage/storage.provider.js';
 import { DocumentRepository } from './document.repository.js';
 import { effectiveDueDate } from './review-rules.js';
@@ -24,7 +24,6 @@ const DEADLINE_CRON_LOCK_ID = 42002;
  *  "Já avisei este item" é `request_item.deadline_notified_at` (e não estado em memória):
  *  reiniciar a API não pode reavisar o cliente. A reabertura do Item limpa a marca, então
  *  um prazo estourado de novo volta a avisar. */
-@Injectable()
 export class DeadlineCron {
   private readonly logger = new Logger(DeadlineCron.name);
 

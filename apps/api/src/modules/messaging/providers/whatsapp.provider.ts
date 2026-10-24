@@ -1,4 +1,4 @@
-import { Injectable, Logger } from '@nestjs/common';
+import { Logger } from '../../../lib/logger.js';
 import { WhatsappCryptoService } from '../../whatsapp/whatsapp-crypto.service.js';
 import { WhatsappRepository } from '../../whatsapp/whatsapp.repository.js';
 import { MessageProvider, type MessageToSend } from './message.provider.js';
@@ -9,7 +9,6 @@ interface MetaSendResponse {
   error?: { message?: string };
 }
 
-@Injectable()
 export class WhatsappProvider extends MessageProvider {
   override readonly channel = 'whatsapp';
   private readonly logger = new Logger(WhatsappProvider.name);

@@ -13,7 +13,7 @@ import {
 } from '@competa/contracts';
 import * as z from 'zod';
 import { ValidationError } from '../../lib/app-error.js';
-import { Db } from '../../infra/database/effect.js';
+import { Db, type Executor } from '../../infra/database/effect.js';
 import {
   accountant,
   checklistTemplate,
@@ -25,9 +25,6 @@ import {
 import type { FirmScope } from '../auth/scope.js';
 
 import { parseCsvRecords } from './csv.js';
-
-/** Executor comum a `db.use` e às transações do drizzle (mesma forma do antigo `Database`). */
-type Executor = Omit<Db['Service']['raw'], '$client'>;
 
 export type ImportLineResult =
   | { line: number; status: 'created'; companyId: string; name: string; active: boolean }

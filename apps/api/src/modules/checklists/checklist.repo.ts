@@ -6,7 +6,7 @@ import type {
   CreateTemplateItemBody,
   UpdateTemplateItemBody,
 } from '@competa/contracts';
-import { Db } from '../../infra/database/effect.js';
+import { Db, type Executor } from '../../infra/database/effect.js';
 import {
   checklistTemplate,
   checklistTemplateItem,
@@ -22,9 +22,6 @@ import {
 } from './effective-checklist.js';
 import { ValidationError } from '../../lib/app-error.js';
 import { TemplateNameTaken } from './errors.js';
-
-/** Executor comum a `db.use` e às transações do drizzle (mesma forma do antigo `Database`). */
-type Executor = Omit<Db['Service']['raw'], '$client'>;
 
 const visibleTo = (scope: FirmScope, column: PgColumn) => or(isNull(column), eq(column, scope))!;
 

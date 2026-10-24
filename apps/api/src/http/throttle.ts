@@ -68,7 +68,7 @@ export const uploadTracker = (ip: string, token: string) => `${ip}:${token}`;
 
 type Entry = { hits: number[]; blockedUntil: number };
 
-/* ponytail: in-memory, como o storage default do @nestjs/throttler. Redis quando houver
+/* ponytail: in-memory, como o storage default do throttler do Nest. Redis quando houver
  * mais de uma instância. */
 export const makeThrottleStore = (now: () => number = Date.now) => {
   const entries = new Map<string, Entry>();
@@ -108,7 +108,7 @@ export const makeThrottleStore = (now: () => number = Date.now) => {
 
 export type ThrottleStore = ReturnType<typeof makeThrottleStore>;
 
-/* `getThrottlerSuffix` do @nestjs/throttler: o balde `default` não sufixa, os demais sim. */
+/* `getThrottlerSuffix` do throttler do Nest: o balde `default` não sufixa, os demais sim. */
 const suffix = (bucket: Bucket) => (bucket.name === 'default' ? '' : `-${bucket.name}`);
 
 /** Mesmos headers que o `ThrottlerGuard` escreve em TODA resposta (`setHeaders` default). */

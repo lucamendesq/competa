@@ -1,4 +1,3 @@
-import { Injectable } from '@nestjs/common';
 import type {
   CreateOverrideBody,
   CreateTemplateItemBody,
@@ -10,7 +9,6 @@ import { ChecklistsRepo } from './checklist.repo.js';
 
 /** Casca Nest sobre o serviço Effect (`checklist.repo.ts`): mantém a DI dos controllers e
  *  dos scripts de verificação até cada consumidor migrar; morre na fase final. */
-@Injectable()
 export class ChecklistRepository {
   listDocumentTypes(scope: FirmScope, query: { category?: string; page: number; perPage: number }) {
     return run(ChecklistsRepo.use((repo) => repo.listDocumentTypes(scope, query)));

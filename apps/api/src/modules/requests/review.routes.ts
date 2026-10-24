@@ -1,5 +1,5 @@
 import { IdParam, RejectDocumentBody, ReviewBatchBody, ReviewExtraBody } from '@competa/contracts';
-import type { EventEmitter2 } from '@nestjs/event-emitter';
+import type { EventEmitter2 } from '../../lib/event-emitter.js';
 import { Effect, Layer } from 'effect';
 import env from '../../config/env.js';
 import { fromRuntime } from '../../effect/runtime.js';

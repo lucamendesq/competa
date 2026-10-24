@@ -1,4 +1,3 @@
-import { Injectable } from '@nestjs/common';
 import { Resend } from 'resend';
 import env from '../../../config/env.js';
 import { emailLayout } from '../email-layout.js';
@@ -47,7 +46,6 @@ const backoffWithJitter = (attempt: number, baseMs = 250): number => {
 
 const sleep = (ms: number) => new Promise((resolve) => setTimeout(resolve, ms));
 
-@Injectable()
 export class ResendEmail extends MessageProvider {
   private readonly resend = new Resend(env.RESEND_API_KEY);
   private readonly from = env.EMAIL_FROM!;

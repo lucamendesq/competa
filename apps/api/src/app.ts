@@ -1,57 +1,21 @@
-import { NestFactory } from '@nestjs/core';
-import { EventEmitter2 } from '@nestjs/event-emitter';
-import type { NestExpressApplication } from '@nestjs/platform-express';
 import { Context, Layer, ManagedRuntime } from 'effect';
+import { EventEmitter2 } from './lib/event-emitter.js';
 import { HttpServer } from 'effect/http';
-import helmet from 'helmet';
-import { Logger } from 'nestjs-pino';
-import { AppModule } from './app.module.js';
-import env, { allowedOrigins } from './config/env.js';
-import { HealthRepository } from './health.repository.js';
+import env from './config/env.js';
+import { ping } from './health.js';
+import { storage } from './infra/storage/storage.js';
 import { serverLayer } from './http/server.js';
-import { AppErrorFilter } from './lib/app-error.filter.js';
-import { originCheck } from './lib/origin-check.js';
-import { ResponseInterceptor } from './lib/response.interceptor.js';
+import { registerMessagingListeners } from './modules/messaging/listeners.js';
 import { cronsLayer } from './modules/requests/crons.js';
 import { DeadlineCron } from './modules/requests/deadline.cron.js';
+import { DocumentRepository } from './modules/requests/document.repository.js';
 import { RemindersCron } from './modules/requests/reminders.cron.js';
+import { RequestRepository } from './modules/requests/request.repository.js';
 
 export interface RunningApp {
   readonly url: string;
-  /** Casca Nest ainda servindo as rotas não migradas; some com o estrangulamento. */
-  readonly nest: NestExpressApplication;
   runDeadlineSweep(): Promise<void>;
   close(): Promise<void>;
-}
-
-async function createNestApp(trustProxy: boolean): Promise<NestExpressApplication> {
-  const app = await NestFactory.create<NestExpressApplication>(AppModule, {
-    bodyParser: false,
-    bufferLogs: true,
-  });
-  app.useLogger(app.get(Logger));
-
-  /* Atrás de um reverse proxy o Express vê o IP DELE em `req.ip`, e todo @Throttle vira um
-   * balde único para o mundo inteiro — um cliente barulhento 429a a base. Só em produção:
-   * confiar no X-Forwarded-For sem proxy à frente deixa qualquer cliente forjar o próprio
-   * IP e escapar do limite. */
-  if (trustProxy) app.set('trust proxy', 1);
-
-  /* A API devolve conteúdo enviado por terceiros (`GET /documents/:id/content`). O
-   * `nosniff` e o CSP do helmet são a segunda barreira depois da allowlist de
-   * `content_type` — HTML que escape da allowlist ainda não executa script. */
-  app.use(helmet());
-  app.use(originCheck(allowedOrigins));
-
-  app.useGlobalFilters(new AppErrorFilter());
-  app.useGlobalInterceptors(new ResponseInterceptor());
-  app.enableCors({ origin: allowedOrigins, credentials: true });
-
-  /* `init()` e não `listen()`: quem é dono do socket é o servidor `effect/http`; o Express
-   * do Nest só recebe os objetos crus da rota curinga. */
-  await app.init();
-
-  return app;
 }
 
 export async function createApp(options?: {
@@ -59,21 +23,27 @@ export async function createApp(options?: {
   readonly trustProxy?: boolean;
 }): Promise<RunningApp> {
   const port = options?.port ?? env.PORT;
+  /* Atrás de um reverse proxy o processo vê o IP DELE, e todo balde de throttle vira um só
+   * para o mundo inteiro — um cliente barulhento 429a a base. Só em produção: confiar no
+   * X-Forwarded-For sem proxy à frente deixa qualquer cliente forjar o próprio IP. */
   const trustProxy = options?.trustProxy ?? env.NODE_ENV === 'production';
-  const nest = await createNestApp(trustProxy);
 
-  const health = nest.get(HealthRepository);
-  const deadlines = nest.get(DeadlineCron);
-  const reminders = nest.get(RemindersCron);
+  /* UMA instância por app: os listeners de messaging registram nela, e uma cópia engoliria
+   * todo evento emitido por rota. Mesmas opções do `EventEmitterModule.forRoot()`. */
+  const events = new EventEmitter2();
+  registerMessagingListeners(events);
+
+  const requests = new RequestRepository();
+  const deadlines = new DeadlineCron(requests, new DocumentRepository(), storage, events);
+  const reminders = new RemindersCron(requests, events);
+
   const runtime = ManagedRuntime.make(
     Layer.mergeAll(
       serverLayer({
         port,
         trustProxy,
-        ping: () => health.ping(),
-        events: nest.get(EventEmitter2),
-        /* Mesmo acoplamento ao DI do `runDeadlineSweep`: as duas classes de varredura ainda
-         * são do container Nest; o que saiu do Nest foi o AGENDAMENTO. */
+        ping,
+        events,
         scanDeadlines: (scope) => deadlines.scan(scope),
         runReminders: (scope) => reminders.run(scope),
       }),
@@ -88,14 +58,14 @@ export async function createApp(options?: {
 
   return {
     url,
-    nest,
-    /* O job diário não tem rota HTTP; o acoplamento ao DI mora aqui, nunca nas suites. */
+    /** O job diário não tem rota HTTP; as suites o chamam por aqui. */
     runDeadlineSweep: () => deadlines.daily(),
-    /* Dois crons e um pool de Postgres: sem isto, um SIGTERM do orquestrador derruba o
-     * processo no meio de uma varredura e deixa conexão pendurada. */
+    /* Dois crons e um socket: sem isto, um SIGTERM do orquestrador derruba o processo no
+     * meio de uma varredura. `removeAllListeners` é o que o `onApplicationShutdown` do
+     * do emissor de eventos do Nest fazia. */
     close: async () => {
       await runtime.dispose();
-      await nest.close();
+      events.removeAllListeners();
     },
   };
 }

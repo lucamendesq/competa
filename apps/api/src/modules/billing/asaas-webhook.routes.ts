@@ -1,4 +1,4 @@
-import { Logger } from '@nestjs/common';
+import { Logger } from '../../lib/logger.js';
 import { Effect, Layer } from 'effect';
 import { HttpServerRequest } from 'effect/http';
 import * as z from 'zod';

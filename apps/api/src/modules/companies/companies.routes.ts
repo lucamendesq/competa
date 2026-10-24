@@ -10,19 +10,18 @@ import {
   SendAccessInvitesBody,
   UpdateCompanyBody,
 } from '@competa/contracts';
-import type { EventEmitter2 } from '@nestjs/event-emitter';
+import type { EventEmitter2 } from '../../lib/event-emitter.js';
 import { addDays } from 'date-fns';
 import { Effect, Layer } from 'effect';
 import * as z from 'zod';
 import env from '../../config/env.js';
 import { fromRuntime, withDb } from '../../effect/runtime.js';
 import { FirmContext } from '../../http/context.js';
-import { handler } from '../../http/envelope.js';
+import { handler, paginated } from '../../http/envelope.js';
 import { firmRoute } from '../../http/middleware/auth.js';
 import { body, params, query, route } from '../../http/platform.js';
 import { NotFound, ValidationError } from '../../lib/app-error.js';
 import { EVENTS, type ContactInvitedEvent } from '../../lib/events.js';
-import { paginated } from '../../lib/response.interceptor.js';
 import { createToken } from '../../lib/token.js';
 import { AccountantRepository } from '../auth/accountant.repository.js';
 import { InviteRepository } from '../auth/invite.repository.js';

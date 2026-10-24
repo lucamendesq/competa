@@ -4,7 +4,6 @@ import { mkdir, open, rm, stat } from 'node:fs/promises';
 import { dirname, join, resolve, sep } from 'node:path';
 import { Transform, type Readable } from 'node:stream';
 import { pipeline } from 'node:stream/promises';
-import { Injectable } from '@nestjs/common';
 import env from '../../config/env.js';
 import { Forbidden, ServiceUnavailable } from '../../lib/app-error.js';
 import { PayloadTooLarge } from './errors.js';
@@ -17,7 +16,6 @@ const sign = (storageKey: string, expiresAt: number, sizeBytes: number) =>
     .update(`${storageKey}:${expiresAt}:${sizeBytes}`)
     .digest('hex');
 
-@Injectable()
 export class LocalStorage extends StorageProvider {
   async presignPut({ storageKey, sizeBytes }: PresignPutInput) {
     const expiresAt = Math.floor(Date.now() / 1000) + PRESIGN_TTL_SECONDS;

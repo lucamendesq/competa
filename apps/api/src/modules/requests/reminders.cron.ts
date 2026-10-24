@@ -1,6 +1,6 @@
-import { Injectable, Logger } from '@nestjs/common';
-import { EventEmitter2 } from '@nestjs/event-emitter';
-import * as Sentry from '@sentry/nestjs';
+import { Logger } from '../../lib/logger.js';
+import type { EventEmitter2 } from '../../lib/event-emitter.js';
+import * as Sentry from '@sentry/node';
 import env from '../../config/env.js';
 import { EVENTS, type ReminderDueEvent } from '../../lib/events.js';
 import { createToken } from '../../lib/token.js';
@@ -10,7 +10,6 @@ import { RequestRepository } from './request.repository.js';
 
 const REMINDERS_CRON_LOCK_ID = 42001;
 
-@Injectable()
 export class RemindersCron {
   private readonly logger = new Logger(RemindersCron.name);
 

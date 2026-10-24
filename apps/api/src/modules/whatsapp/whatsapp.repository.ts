@@ -1,11 +1,9 @@
-import { Injectable } from '@nestjs/common';
 import { run } from '../../effect/runtime.js';
 import type { FirmScope } from '../auth/scope.js';
 import { WhatsappRepo } from './whatsapp.repo.js';
 
 /** Casca Nest sobre o serviço Effect (`whatsapp.repo.ts`): mantém a DI dos controllers e do
  *  `WhatsappProvider` até cada consumidor migrar; morre na fase final. */
-@Injectable()
 export class WhatsappRepository {
   getIntegrationByFirm(scope: FirmScope) {
     return run(WhatsappRepo.use((repo) => repo.getIntegrationByFirm(scope)));

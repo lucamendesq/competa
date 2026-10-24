@@ -1,6 +1,6 @@
 import { createServer } from 'node:http';
 import { NodeHttpServer } from '@effect/platform-node';
-import type { EventEmitter2 } from '@nestjs/event-emitter';
+import type { EventEmitter2 } from '../lib/event-emitter.js';
 import { ByteSize, Effect, Layer } from 'effect';
 import { HttpIncomingMessage, HttpRouter } from 'effect/http';
 import { buildInfo } from '../build-info.js';

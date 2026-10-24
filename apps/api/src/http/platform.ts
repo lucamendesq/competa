@@ -4,12 +4,10 @@ import cors from 'cors';
 import { Context, Effect, Layer, type Types } from 'effect';
 import { HttpRouter, HttpServerError, HttpServerRequest, HttpServerResponse } from 'effect/http';
 import helmet from 'helmet';
-import { PinoLogger } from 'nestjs-pino';
-import { pinoHttp, type Options as PinoHttpOptions } from 'pino-http';
 import type * as z from 'zod';
 import { allowedOrigins } from '../config/env.js';
-import { pinoOptions } from '../config/logger.js';
 import { AppError, BadRequest } from '../lib/app-error.js';
+import { requestLogger } from '../lib/logger.js';
 import { zodParse } from '../lib/zod-pipe.js';
 import { applyEtag } from './envelope.js';
 import { handleCause } from './error-map.js';
@@ -46,15 +44,10 @@ const globalStack: NodeMiddleware[] = [
   cors({ origin: allowedOrigins, credentials: true }) as NodeMiddleware,
 ];
 
-/* pino-http só pode ser construído depois do boot do Nest: reusa a instância raiz do
- * nestjs-pino para não abrir um segundo destino (nem um segundo worker de pino-pretty). */
-let requestLog: NodeMiddleware | undefined;
+/* A MESMA instância de pino-http que o `Logger` usa como raiz: duas abririam um segundo
+ * destino (e um segundo worker de pino-pretty). Construída na primeira requisição. */
 const logRequest: NodeMiddleware = (request, response, next) => {
-  requestLog ??= pinoHttp({
-    ...(pinoOptions.pinoHttp as PinoHttpOptions),
-    logger: PinoLogger.root,
-  }) as NodeMiddleware;
-  requestLog(request, response, next);
+  (requestLogger() as unknown as NodeMiddleware)(request, response, next);
 };
 
 /** Roda a pilha Express contra os objetos node crus. `false` = algum middleware já

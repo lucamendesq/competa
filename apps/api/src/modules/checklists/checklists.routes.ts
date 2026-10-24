@@ -14,11 +14,10 @@ import {
 import { Effect, Layer } from 'effect';
 import { fromRuntime } from '../../effect/runtime.js';
 import { FirmContext } from '../../http/context.js';
-import { handler } from '../../http/envelope.js';
+import { handler, paginated } from '../../http/envelope.js';
 import { firmRoute } from '../../http/middleware/auth.js';
 import { body, params, query, route } from '../../http/platform.js';
 import { NotFound } from '../../lib/app-error.js';
-import { paginated } from '../../lib/response.interceptor.js';
 import type { FirmScope } from '../auth/scope.js';
 import { ChecklistsRepo } from './checklist.repo.js';
 import {

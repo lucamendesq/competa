@@ -3,7 +3,7 @@ import { addDays, addHours } from 'date-fns';
 import { and, asc, count, eq, inArray, ne, sql } from 'drizzle-orm';
 import env from '../../config/env.js';
 import { planAllows } from '@competa/contracts';
-import { Db } from '../../infra/database/effect.js';
+import { Db, type Executor } from '../../infra/database/effect.js';
 import {
   accountant,
   accountingFirm,
@@ -38,9 +38,6 @@ import {
   type RequestStatus,
   type ReviewStatus,
 } from './review-rules.js';
-
-/** Executor comum a `db.use` e às transações do drizzle (mesma forma do antigo `Database`). */
-type Executor = Omit<Db['Service']['raw'], '$client'>;
 
 const make = Effect.gen(function* () {
   const db = yield* Db;

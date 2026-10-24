@@ -1,5 +1,5 @@
 import { request as nodeRequest } from 'node:http';
-import { EventEmitter2 } from '@nestjs/event-emitter';
+import { EventEmitter2 } from '../../../src/lib/event-emitter.js';
 import { Context, ManagedRuntime } from 'effect';
 import { HttpServer } from 'effect/http';
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';

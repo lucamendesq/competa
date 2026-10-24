@@ -1,4 +1,4 @@
-import { Injectable, Logger } from '@nestjs/common';
+import { Logger } from '../../../lib/logger.js';
 import webpush from 'web-push';
 import env from '../../../config/env.js';
 import { reportChannelFailure } from '../../../lib/observability.js';
@@ -6,7 +6,6 @@ import { PushProvider, type PushMessage, type PushResult } from './push.provider
 
 export { PushProvider, type PushMessage, type PushResult };
 
-@Injectable()
 export class WebPushProvider extends PushProvider {
   private readonly logger = new Logger(WebPushProvider.name);
 
@@ -48,7 +47,6 @@ export class WebPushProvider extends PushProvider {
 
 export { WebPushProvider as WebPush };
 
-@Injectable()
 export class ConsolePushProvider extends PushProvider {
   private readonly logger = new Logger(ConsolePushProvider.name);
 

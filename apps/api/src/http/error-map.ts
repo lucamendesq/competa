@@ -1,5 +1,5 @@
-import { Logger } from '@nestjs/common';
-import * as Sentry from '@sentry/nestjs';
+import { Logger } from '../lib/logger.js';
+import * as Sentry from '@sentry/node';
 import { APIError } from 'better-auth/api';
 import { Cause, Effect } from 'effect';
 import { HttpServerError, HttpServerRequest, HttpServerResponse } from 'effect/http';

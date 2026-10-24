@@ -1,4 +1,3 @@
-import { Injectable } from '@nestjs/common';
 import { and, eq, gt, isNull, sql } from 'drizzle-orm';
 import { Database } from '../../infra/database/database.js';
 import { alias } from 'drizzle-orm/pg-core';
@@ -9,7 +8,6 @@ import { hashToken } from '../../lib/token.js';
 import { InviteAlreadyAccepted, InviteExpired, InviteNotFound } from './errors.js';
 import type { FirmScope } from './scope.js';
 
-@Injectable()
 export class InviteRepository {
   constructor(private readonly db: Database) {}
 

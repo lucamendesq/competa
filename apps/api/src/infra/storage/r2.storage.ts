@@ -8,13 +8,11 @@ import {
   S3ServiceException,
 } from '@aws-sdk/client-s3';
 import { getSignedUrl } from '@aws-sdk/s3-request-presigner';
-import { Injectable } from '@nestjs/common';
 import env from '../../config/env.js';
 import { NotFound, ServiceUnavailable } from '../../lib/app-error.js';
 
 import { PRESIGN_TTL_SECONDS, StorageProvider, type PresignPutInput } from './storage.provider.js';
 
-@Injectable()
 export class R2Storage extends StorageProvider {
   private readonly client = new S3Client({
     region: 'auto',

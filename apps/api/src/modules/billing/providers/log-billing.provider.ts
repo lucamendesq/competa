@@ -1,9 +1,8 @@
-import { Injectable, Logger } from '@nestjs/common';
+import { Logger } from '../../../lib/logger.js';
 import type { BillingCycle } from '@competa/contracts';
 import { BillingProvider } from './billing.provider.js';
 import { randomUUID } from 'node:crypto';
 
-@Injectable()
 export class LogBilling implements BillingProvider {
   readonly simulated = true;
   private readonly logger = new Logger(LogBilling.name);

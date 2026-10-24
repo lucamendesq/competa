@@ -1,16 +1,13 @@
 import type { ServerResponse } from 'node:http';
 import { Readable } from 'node:stream';
-import { Logger } from '@nestjs/common';
+import { Logger } from '../../lib/logger.js';
 import { NodeHttpServerRequest, NodeStream } from '@effect/platform-node';
 import { IdParam } from '@competa/contracts';
 import { ZipArchive } from 'archiver';
 import { Effect, Layer } from 'effect';
 import { HttpServerRequest, HttpServerResponse } from 'effect/http';
-import env from '../../config/env.js';
 import { fromRuntime } from '../../effect/runtime.js';
-import { LocalStorage } from '../../infra/storage/local.storage.js';
-import { R2Storage } from '../../infra/storage/r2.storage.js';
-import type { StorageProvider } from '../../infra/storage/storage.provider.js';
+import { storage } from '../../infra/storage/storage.js';
 import { FirmContext } from '../../http/context.js';
 import { handler } from '../../http/envelope.js';
 import { firmRoute } from '../../http/middleware/auth.js';
@@ -25,11 +22,6 @@ import { zipEntries, zipFileName, type ZipEntry } from './zip.js';
 const MAX_PERIOD_ZIP_ENTRIES = 2000;
 
 const logger = new Logger('ZipController');
-
-/* Mesma escolha do `StorageModule`, como em `document.repo.ts`: fora da DI do Nest cada
- * consumidor monta o provider. O seam único de `Storage` é a sub-fase F6. */
-const storage: StorageProvider =
-  env.NODE_ENV === 'production' ? new R2Storage() : new LocalStorage();
 
 /** Serializa downloads do MESMO zip (era o `ZipFlightService`): dois cliques concorrentes
  *  receberiam o mesmo `Readable` — que só pode ser consumido uma vez — e o segundo baixaria

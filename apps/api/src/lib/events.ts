@@ -1,4 +1,4 @@
-/** Contrato dos eventos síncronos entre módulos (`@nestjs/event-emitter`).
+/** Contrato dos eventos síncronos entre módulos (`eventemitter2`).
  *  Direção: registry → collection → messaging. Nomes PascalCase, verbo no
  *  passado. Este arquivo é a única fonte dos payloads: quem emite e quem
  *  escuta importam daqui — nunca redeclaram a forma.

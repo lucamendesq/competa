@@ -1,4 +1,3 @@
-import { Injectable } from '@nestjs/common';
 import type { OpenPeriodBody } from '@competa/contracts';
 import { run } from '../../effect/runtime.js';
 import type { ContactScope, FirmScope } from '../auth/scope.js';
@@ -7,7 +6,6 @@ import type { RequestPlan } from './fan-out.js';
 
 /** Casca Nest sobre o serviço Effect (`period.repo.ts`): mantém a DI dos controllers e do
  *  ContactsModule até cada consumidor migrar; morre na fase final. */
-@Injectable()
 export class PeriodRepository {
   openPeriod(scope: FirmScope, body: OpenPeriodBody) {
     return run(PeriodsRepo.use((repo) => repo.openPeriod(scope, body)));

@@ -1,10 +1,22 @@
 import { createHash } from 'node:crypto';
 import { Effect } from 'effect';
 import { HttpServerResponse } from 'effect/http';
-import { ENVELOPED, type Enveloped } from '../lib/response.interceptor.js';
 
 /** O que o `res.json()` do Express escreve — o charset faz parte dos bytes da resposta. */
 export const JSON_UTF8 = 'application/json; charset=utf-8';
+
+export const ENVELOPED = Symbol('enveloped');
+
+export type Meta = { page: number; perPage: number; total: number };
+
+export type Enveloped<T> = { data: T[]; meta: Meta; [ENVELOPED]: true };
+
+/** Marca o payload paginado para `toResponse` montar `{ data, meta }` em vez de `{ data }`. */
+export const paginated = <T>(data: T[], meta: Meta): Enveloped<T> => ({
+  data,
+  meta,
+  [ENVELOPED]: true,
+});
 
 /** ETag weak do Express (pacote `etag`): `W/"<tamanho em hex>-<sha1 base64, 27 chars>"`. */
 export const weakEtag = (body: Uint8Array) =>
@@ -46,8 +58,6 @@ export const applyEtag = (
   );
 };
 
-/* O símbolo vem do interceptor antigo de propósito: `paginated()` dos repositórios marca o
- * payload com ESTA instância de Symbol, e uma cópia local nunca casaria. */
 export const toResponse =
   (status: number) =>
   (payload: unknown): HttpServerResponse.HttpServerResponse => {

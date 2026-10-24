@@ -1,11 +1,11 @@
-import * as Sentry from '@sentry/nestjs';
+import * as Sentry from '@sentry/node';
 import { Effect, Layer, Schedule } from 'effect';
 
 /** O `timeZone` que os `@Cron(...)` passavam. Sem ele o fuso é o do processo, e a
  *  varredura andaria com o host. */
 export const CRON_TIMEZONE = 'America/Sao_Paulo';
 
-/** Mesma expressão do `CronExpression.EVERY_DAY_AT_7AM`/`_9AM` do `@nestjs/schedule`. */
+/** Mesma expressão do `CronExpression.EVERY_DAY_AT_7AM`/`_9AM` do agendador do Nest. */
 export const DEADLINE_CRON = '0 7 * * *';
 export const REMINDERS_CRON = '0 9 * * *';
 

@@ -1,4 +1,3 @@
-import { Injectable } from '@nestjs/common';
 import { and, eq, inArray, isNotNull } from 'drizzle-orm';
 import type { AudienceDeviceStats, DevicePlatform, DeviceStatsResponse } from '@competa/contracts';
 import { Database } from '../../infra/database/database.js';
@@ -37,7 +36,6 @@ const aggregateAudience = (
   return result;
 };
 
-@Injectable()
 export class UserDeviceRepository {
   constructor(private readonly db: Database) {}
 

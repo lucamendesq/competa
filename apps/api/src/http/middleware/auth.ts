@@ -1,7 +1,7 @@
 import type { IncomingMessage } from 'node:http';
-import { Logger } from '@nestjs/common';
+import { Logger } from '../../lib/logger.js';
 import { NodeHttpServerRequest } from '@effect/platform-node';
-import * as Sentry from '@sentry/nestjs';
+import * as Sentry from '@sentry/node';
 import { planAllows, type PlanCapability } from '@competa/contracts';
 import { isPast } from 'date-fns';
 import { Context, Effect } from 'effect';
@@ -18,9 +18,8 @@ import {
 } from '../../lib/app-error.js';
 import { hashToken } from '../../lib/token.js';
 import { AccountantRepository } from '../../modules/auth/accountant.repository.js';
-import { PlanCapabilityRequired } from '../../modules/auth/errors.js';
+import { InvalidUploadLink, PlanCapabilityRequired } from '../../modules/auth/errors.js';
 import { toContactScope, toFirmScope, toUploadScope } from '../../modules/auth/scope.js';
-import { InvalidUploadLink } from '../../modules/auth/upload-token.guard.js';
 import { ContactsRepo } from '../../modules/contacts/contact.repo.js';
 import { UploadLinksRepo } from '../../modules/requests/upload-link.repo.js';
 import { ContactContext, FirmContext, SessionContext, UploadContext } from '../context.js';

@@ -1,4 +1,3 @@
-import { Injectable } from '@nestjs/common';
 import { run } from '../../effect/runtime.js';
 import type { ContactScope, FirmScope } from '../auth/scope.js';
 import { RequestsRepo } from './request.repo.js';
@@ -6,7 +5,6 @@ import type { ReviewStatus } from './review-rules.js';
 
 /** Casca Nest sobre o serviço Effect (`request.repo.ts`): mantém a DI dos controllers, dos
  *  crons e dos scripts de verificação até cada consumidor migrar; morre na fase final. */
-@Injectable()
 export class RequestRepository {
   findById(scope: FirmScope, requestId: string) {
     return run(RequestsRepo.use((repo) => repo.findById(scope, requestId)));

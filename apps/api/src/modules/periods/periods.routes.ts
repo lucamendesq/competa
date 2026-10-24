@@ -1,16 +1,15 @@
 import { IdParam, OpenPeriodBody, PaginationQuery } from '@competa/contracts';
-import type { EventEmitter2 } from '@nestjs/event-emitter';
+import type { EventEmitter2 } from '../../lib/event-emitter.js';
 import { Effect, Layer } from 'effect';
 import { HttpServerRequest } from 'effect/http';
 import env from '../../config/env.js';
 import { fromRuntime } from '../../effect/runtime.js';
 import { FirmContext } from '../../http/context.js';
-import { handler } from '../../http/envelope.js';
+import { handler, paginated } from '../../http/envelope.js';
 import { firmRoute } from '../../http/middleware/auth.js';
 import { body, params, query, route } from '../../http/platform.js';
 import { NotFound } from '../../lib/app-error.js';
 import { EVENTS, type RequestCreatedEvent } from '../../lib/events.js';
-import { paginated } from '../../lib/response.interceptor.js';
 import { PeriodsRepo } from './period.repo.js';
 
 const open = (events: EventEmitter2) =>

@@ -1,8 +1,14 @@
 import { Effect } from 'effect';
 import { HttpServerResponse } from 'effect/http';
 import { describe, expect, it } from 'vitest';
-import { JSON_UTF8, applyEtag, handler, toResponse, weakEtag } from '../../../src/http/envelope.js';
-import { paginated } from '../../../src/lib/response.interceptor.js';
+import {
+  JSON_UTF8,
+  applyEtag,
+  handler,
+  paginated,
+  toResponse,
+  weakEtag,
+} from '../../../src/http/envelope.js';
 
 const bodyOf = (response: HttpServerResponse.HttpServerResponse): unknown => {
   const body = response.body;

@@ -1,20 +1,18 @@
 import './instrument.js';
 
-import { Logger } from 'nestjs-pino';
 import { createApp } from './app.js';
 import { buildInfo } from './build-info.js';
 import env from './config/env.js';
+import { Logger } from './lib/logger.js';
 
 const app = await createApp();
-app.nest
-  .get(Logger)
-  .log(
-    `API na porta ${env.PORT} — compilada em ${buildInfo.compiledAt}, processo iniciado em ${buildInfo.startedAt}`,
-  );
+new Logger('Bootstrap').log(
+  `API na porta ${env.PORT} — compilada em ${buildInfo.compiledAt}, processo iniciado em ${buildInfo.startedAt}`,
+);
 
-/* Substitui o `enableShutdownHooks()` do Nest, que fechava só o Nest: agora o socket é do
- * servidor Effect, e `close()` derruba os dois na ordem (servidor, depois crons e pool).
- * Mesma lista de sinais que o `ShutdownSignal` do Nest.
+/* Substitui o `enableShutdownHooks()` do Nest: o socket é do servidor Effect, e `close()`
+ * derruba o servidor e depois os crons. Mesma lista de sinais que o `ShutdownSignal` do
+ * Nest.
  *
  * O `process.exit` no fim NÃO é zelo: o pool do pg nunca recebe `end()` (não recebia nem
  * antes), então sempre sobra handle vivo e o node não sai sozinho. O Nest encerrava com

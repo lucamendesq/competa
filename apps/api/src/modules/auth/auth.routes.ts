@@ -1,4 +1,4 @@
-import { Logger } from '@nestjs/common';
+import { Logger } from '../../lib/logger.js';
 import { PLANS, RegisterDeviceBody, SignUpBody, type PlanName } from '@competa/contracts';
 import { APIError } from 'better-auth/api';
 import { Effect, Layer } from 'effect';

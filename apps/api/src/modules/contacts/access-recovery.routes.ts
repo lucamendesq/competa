@@ -1,5 +1,5 @@
-import { Logger } from '@nestjs/common';
-import type { EventEmitter2 } from '@nestjs/event-emitter';
+import { Logger } from '../../lib/logger.js';
+import type { EventEmitter2 } from '../../lib/event-emitter.js';
 import { RecoverAccessBody, RecoverAccessConfirmBody } from '@competa/contracts';
 import { Effect, Layer } from 'effect';
 import env from '../../config/env.js';

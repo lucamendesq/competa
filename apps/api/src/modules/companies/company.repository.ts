@@ -1,4 +1,3 @@
-import { Injectable } from '@nestjs/common';
 import type { ContactBody, CreateCompanyBody, UpdateCompanyBody } from '@competa/contracts';
 import { run } from '../../effect/runtime.js';
 import type { FirmScope } from '../auth/scope.js';
@@ -8,7 +7,6 @@ export type { ImportLineResult, ImportPreviewLine, PendingImportRow } from './co
 
 /** Casca Nest sobre o serviço Effect (`company.repo.ts`): mantém a DI do controller e dos
  *  scripts de verificação até cada consumidor migrar; morre na fase final. */
-@Injectable()
 export class CompanyRepository {
   templateIsVisible(scope: FirmScope, templateId: string) {
     return run(CompaniesRepo.use((repo) => repo.templateIsVisible(scope, templateId)));

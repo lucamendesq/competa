@@ -1,5 +1,5 @@
 import type { IncomingMessage, ServerResponse } from 'node:http';
-import { Logger } from '@nestjs/common';
+import { Logger } from '../lib/logger.js';
 import { NodeHttpServerRequest } from '@effect/platform-node';
 import { Effect } from 'effect';
 import { HttpRouter, HttpServerRequest, HttpServerResponse } from 'effect/http';

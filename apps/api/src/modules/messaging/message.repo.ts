@@ -1,9 +1,9 @@
-import { Logger } from '@nestjs/common';
+import { Logger } from '../../lib/logger.js';
 import { Context, Effect, Layer } from 'effect';
 import { and, count, desc, eq, gt, inArray, isNull, or, sql } from 'drizzle-orm';
 import { planAllows, type MessageListQuery } from '@competa/contracts';
 import env from '../../config/env.js';
-import { Db } from '../../infra/database/effect.js';
+import { Db, type Executor } from '../../infra/database/effect.js';
 import {
   accountingFirm,
   company,
@@ -35,17 +35,11 @@ import {
   requestCompletedEmail,
   reviewPublishedEmail,
 } from './email-body.js';
-import { LogEmail } from './providers/log-email.provider.js';
-import { MessageProvider } from './providers/message.provider.js';
-import { MockWhatsappProvider } from './providers/mock-whatsapp.provider.js';
-import { PushProvider } from './providers/push.provider.js';
-import { ResendEmail } from './providers/resend-email.provider.js';
-import { ConsolePushProvider, WebPushProvider } from './providers/web-push.provider.js';
+import type { MessageProvider } from './providers/message.provider.js';
+import { emailProvider, pushProvider, whatsappProviderOf } from './providers/providers.js';
 import type { ReminderCandidate, ReminderSettings } from './reminder-rules.js';
 
 const PENDING_ITEM_STATUS = ['pending', 'rejected'] as const;
-
-type Executor = Omit<Db['Service']['raw'], '$client'>;
 
 export type MessagePurpose = (typeof MESSAGE_PURPOSES)[number];
 
@@ -72,34 +66,6 @@ const logger = new Logger('MessageRepository');
 
 const make = Effect.gen(function* () {
   const db = yield* Db;
-
-  /** Mesmas escolhas do `MessagingModule`/`WhatsappModule` (Resend/WebPush em produção,
-   *  console fora dela): o serviço Effect não passa pela DI do Nest e monta os provedores
-   *  por conta própria — mesmo caminho do `StorageProvider` em `document.repo.ts`. */
-  const provider: MessageProvider =
-    env.NODE_ENV === 'production' ? new ResendEmail() : new LogEmail();
-  const push: PushProvider =
-    env.NODE_ENV === 'production' ? new WebPushProvider() : new ConsolePushProvider();
-
-  let whatsappProvider: MessageProvider | undefined =
-    env.NODE_ENV !== 'production' ? new MockWhatsappProvider() : undefined;
-
-  /* `import()` e não `import`: o `WhatsappProvider` de produção depende da casca
-   * `WhatsappRepository`, que depende do `runtime.ts`, que depende deste arquivo — estático,
-   * o ciclo quebra conforme quem for carregado primeiro. Só o ramo de produção paga. */
-  const whatsappProviderOf = async (): Promise<MessageProvider> => {
-    if (whatsappProvider) return whatsappProvider;
-
-    const [{ WhatsappProvider }, { WhatsappRepository }, { WhatsappCryptoService }] =
-      await Promise.all([
-        import('./providers/whatsapp.provider.js'),
-        import('../whatsapp/whatsapp.repository.js'),
-        import('../whatsapp/whatsapp-crypto.service.js'),
-      ]);
-
-    whatsappProvider = new WhatsappProvider(new WhatsappRepository(), new WhatsappCryptoService());
-    return whatsappProvider;
-  };
 
   const uploadLinkExpiry = Effect.fn('MessagesRepo.uploadLinkExpiry')(function* (
     requestId: string,
@@ -206,7 +172,7 @@ const make = Effect.gen(function* () {
   }) {
     return yield* Effect.promise(async () => {
       try {
-        await provider.send(input);
+        await emailProvider.send(input);
         return true;
       } catch (error) {
         logger.error(`envio para ${input.recipient} falhou`, error);
@@ -398,7 +364,7 @@ const make = Effect.gen(function* () {
     }: Delivery,
   ) => {
     const primaryProvider =
-      explicitProvider ?? (channel === 'whatsapp' ? await whatsappProviderOf() : provider);
+      explicitProvider ?? (channel === 'whatsapp' ? await whatsappProviderOf() : emailProvider);
 
     const { senderName, brandLogoUrl } = await brandOf(executor, requestId);
 
@@ -416,7 +382,7 @@ const make = Effect.gen(function* () {
     if (primaryDelivered) return true;
 
     const secondaryProvider =
-      fallbackProvider ?? (primaryProvider.channel === 'whatsapp' ? provider : undefined);
+      fallbackProvider ?? (primaryProvider.channel === 'whatsapp' ? emailProvider : undefined);
 
     if (secondaryProvider && secondaryProvider.channel !== primaryProvider.channel) {
       const secondaryRecipient =
@@ -575,7 +541,7 @@ const make = Effect.gen(function* () {
         row.purpose as MessagePurpose,
         subscriptions[0].endpoint,
         () =>
-          push.send({
+          pushProvider.send({
             title,
             body,
             url,

@@ -1,17 +1,15 @@
-import { Injectable, Logger } from '@nestjs/common';
-import { OnEvent } from '@nestjs/event-emitter';
-import {
-  EVENTS,
-  type AccessRecoveryRequestedEvent,
-  type ContactInvitedEvent,
-  type DeadlineMissedEvent,
-  type InviteCreatedEvent,
-  type ItemReopenedEvent,
-  type ReminderDueEvent,
-  type RequestCompletedEvent,
-  type RequestCreatedEvent,
-  type ReviewPublishedEvent,
-  type UploadLinkResentEvent,
+import { Logger } from '../../lib/logger.js';
+import type {
+  AccessRecoveryRequestedEvent,
+  ContactInvitedEvent,
+  DeadlineMissedEvent,
+  InviteCreatedEvent,
+  ItemReopenedEvent,
+  ReminderDueEvent,
+  RequestCompletedEvent,
+  RequestCreatedEvent,
+  ReviewPublishedEvent,
+  UploadLinkResentEvent,
 } from '../../lib/events.js';
 import {
   accessInviteEmail,
@@ -29,7 +27,6 @@ import {
 import { MessageRepository } from './message.repository.js';
 import { PushProvider } from './providers/push.provider.js';
 
-@Injectable()
 export class CollectionEventsListener {
   private readonly logger = new Logger(CollectionEventsListener.name);
 
@@ -81,7 +78,6 @@ export class CollectionEventsListener {
 
   /** Devolve se o email saiu — o controller do "perdi meu link" responde cego, mas não
    *  registra passo 1 concluído sem entrega. Sem linha em `message`: não há requestId. */
-  @OnEvent(EVENTS.AccessRecoveryRequested)
   async onAccessRecoveryRequested(event: AccessRecoveryRequestedEvent) {
     await this.messages.sendWithoutLog({
       recipient: event.email,
@@ -89,7 +85,6 @@ export class CollectionEventsListener {
     });
   }
 
-  @OnEvent(EVENTS.InviteCreated)
   async onInviteCreated(event: InviteCreatedEvent) {
     await this.messages.sendWithoutLog({
       recipient: event.email,
@@ -97,7 +92,6 @@ export class CollectionEventsListener {
     });
   }
 
-  @OnEvent(EVENTS.ContactInvited)
   async onContactInvited(event: ContactInvitedEvent) {
     await this.messages.sendWithoutLog({
       recipient: event.contactEmail,
@@ -106,7 +100,6 @@ export class CollectionEventsListener {
     });
   }
 
-  @OnEvent(EVENTS.UploadLinkResent)
   async onUploadLinkResent(event: UploadLinkResentEvent) {
     await this.messages.deliver({
       requestId: event.requestId,
@@ -119,7 +112,6 @@ export class CollectionEventsListener {
   /** F10-5: push de "novo pedido". O email do Link sai pelo `RequestCreatedListener`; aqui
    *  é só o aviso. No primeiro mês o contato ainda não tem inscrição e `notify` retorna
    *  cedo — quem recebe é o fan-out recorrente, onde a inscrição sobrevive ao mês. */
-  @OnEvent(EVENTS.RequestCreated)
   async onRequestCreated(event: RequestCreatedEvent) {
     await this.notify(
       event.requestId,
@@ -130,7 +122,6 @@ export class CollectionEventsListener {
     );
   }
 
-  @OnEvent(EVENTS.ItemReopened)
   async onItemReopened(event: ItemReopenedEvent) {
     await this.messages.deliver({
       requestId: event.requestId,
@@ -151,7 +142,6 @@ export class CollectionEventsListener {
   /** Uma entrega para a revisão inteira. `purpose: 'rejection'` é o mesmo do
    *  `ItemReopened`: para o Painel de Pendências e para o histórico de mensagens isto é
    *  uma recusa — só deixou de ser uma por documento. */
-  @OnEvent(EVENTS.ReviewPublished)
   async onReviewPublished(event: ReviewPublishedEvent) {
     await this.messages.deliver({
       requestId: event.requestId,
@@ -173,7 +163,6 @@ export class CollectionEventsListener {
     );
   }
 
-  @OnEvent(EVENTS.RequestCompleted)
   async onRequestCompleted(event: RequestCompletedEvent) {
     await this.messages.deliver({
       requestId: event.requestId,
@@ -194,7 +183,6 @@ export class CollectionEventsListener {
    *  email do RESPONSÁVEL saiu. O cron só marca `deadline_notified_at` com isso: marcar
    *  antes de confirmar a entrega significa que um provedor de email fora do ar faz o
    *  contato nunca ser avisado — e a marca impede a próxima varredura de tentar. */
-  @OnEvent(EVENTS.DeadlineMissed)
   async onDeadlineMissed(event: DeadlineMissedEvent) {
     try {
       const delivered = await this.messages.deliver({
@@ -232,7 +220,6 @@ export class CollectionEventsListener {
     }
   }
 
-  @OnEvent(EVENTS.ReminderDue)
   async onReminderDue(event: ReminderDueEvent) {
     try {
       await this.messages.deliver({
