@@ -42,10 +42,10 @@ Order: smallest first; auth last (better-auth plumbing is replaced in the final 
 | 2   | contacts   | 88688ab      | b6d3f52          | 6 specs    | done                  |
 | 3   | companies  | 3d24db1      | 92e47e5          | 12 specs   | done                  |
 | 4   | checklists | 34a7bfc      | fa59e11          | 23 specs   | done                  |
-| 5   | requests   | 3b53657      | —                | —          | tests done (62 specs) |
+| 5   | requests   | 3b53657      | 14c49f8          | 41 specs   | done                  |
 | 6   | messaging  | c3680ce      | —                | —          | tests done (33 specs) |
-| 7   | whatsapp   | 8c8ce40      | —                | —          | tests done (20 specs) |
-| 8   | billing    | 0c57b3b      | —                | —          | tests done (16 specs) |
+| 7   | whatsapp   | 8c8ce40      | b9f617d          | 6 specs    | done                  |
+| 8   | billing    | 0c57b3b      | b9f617d          | 5 specs    | done                  |
 | 9   | auth       | 3bc9cd4      | final phase      | —          | tests done (44 specs) |
 
 ## Dependency map (from codebase-map, 2026-10-23)
@@ -107,7 +107,14 @@ Cross-module seams the Effect composition must reproduce: event contract in `src
 
 - Hoist to `test/support/fixtures.ts`: `putFile` (3 cópias: contacts/requests/messaging), `rawRequest`+`cookieOf` (contacts/whatsapp/requests/billing/auth), `registerMember`/`addMember` (whatsapp/billing/auth), `openFirmWithCompanies` (contacts/messaging/requests variantes). As suites de auth já aterrissaram — pode fazer.
 - `type Executor` (`Omit<Db['Service']['raw'], '$client'>`) está duplicado em 4 repos (companies/checklists/requests×2) com o mesmo comentário — hoist para `src/infra/database/effect.ts`.
+- **Registro órfão de `MessageProvider`**: depois da migração de messaging, o token Nest `MessageProvider` (`messaging.module.ts`) perdeu o último injetor — o Nest ainda o CONSTRÓI no boot (segundo `new Resend(...)` em produção) e o log de boot do MessagingModule passa a mentir. Deletar junto com o seam de providers.
+- **Cópias mortas e DIVERGENTES de `reminderCandidates`/`reminderSettingsByFirm`**: existem em `message.repo.ts` E `request.repo.ts`. Só as do `RequestsRepo` têm chamador (`reminders.cron.ts`). As duas divergem: a de requests aplica o gate da capability `reminderTuning` + `DEFAULT_REMINDER_SETTINGS`, a de messaging devolve as colunas cruas — e o spec de unidade de messaging hoje CONGELA o comportamento sem gate ("devolve os knobs crus"), cimentando um bypass de plano como se fosse intencional. Apagar as duas de messaging + os 4 specs correspondentes.
+- **Seam de providers de messaging** (mesma forma do Storage): `MessagesRepo` constrói email/push/whatsapp dentro do `make`. O provider whatsapp de PRODUÇÃO só entra por `await import()` memoizado porque o import estático fecha um ciclo ESM (`runtime → message.repo → providers/whatsapp.provider → whatsapp.repository (shim) → runtime`) que quebra qualquer módulo que importe `message.repo.ts` direto. O ciclo só some quando `whatsapp.provider.ts` parar de depender do shim — resolver junto com o seam. Esse branch de produção não tem cobertura (é inalcançável hoje por causa do bug #14).
 - **Storage seam**: `DocumentsRepo` constrói o próprio provider (`env.NODE_ENV === 'production' ? new R2Storage() : new LocalStorage()`), duplicando a expressão do `storage.module.ts`. Em produção isso significa DOIS `S3Client` (o outro vem do `zip.controller.ts` via DI) e o log de boot do StorageModule passa a mentir. Criar um `Storage` `Context.Service` espelhando o padrão do `Db` (~10 linhas) resolve: instância única, expressão em um lugar só, e devolve o seam que o `verify-com-67-25.ts` teste 3 usava (bloco removido no commit da migração de requests — restaurar junto). Fazer antes da fase final.
+
+## Known flakes (observar; não bloqueiam)
+
+- `checklists.e2e.spec.ts > GET /document-types` já falhou 1x com 500 vindo do `registerFirm` (fixtures.ts). Limpo no re-run. `fileParallelism: false`, então não é contenção entre arquivos — suspeita: listener fire-and-forget de uma suite anterior ainda escrevendo quando a próxima roda `truncateAll()`+seed, ou pool não drenado no `app.close()`. Se reaparecer, instrumentar o `beforeAll` (aguardar quiesce do pool antes de truncar).
 
 ## Session notes
 

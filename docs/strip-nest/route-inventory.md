@@ -1,0 +1,106 @@
+# Route inventory — baseline Nest (antes da fase final)
+
+Gerado de `@Controller`/`@Get|@Post|@Patch|@Put|@Delete` em `apps/api/src`.
+A fase final DEVE reproduzir esta lista exatamente — diff antes/depois é o gate de paridade.
+
+Total: 97 handlers em 23 controllers, + as rotas montadas do better-auth em `/api/auth/*`.
+
+| Prefixo (@Controller)          | Método/rota                                    | Arquivo                           |
+| ------------------------------ | ---------------------------------------------- | --------------------------------- |
+| `health`                       | `@Get()`                                       | health.controller.ts              |
+| `storage/local`                | `@Put(:storageKey)`                            | local-storage.controller.ts       |
+| `auth`                         | `@Post(sign-up)`                               | auth.controller.ts                |
+| `auth`                         | `@Get(/me)`                                    | auth.controller.ts                |
+| `auth`                         | `@Patch(device)`                               | auth.controller.ts                |
+| `invites`                      | `@Post()`                                      | invite.controller.ts              |
+| `invites`                      | `@Get(:token)`                                 | invite.controller.ts              |
+| `auth/register, public-signup` | `@Post()`                                      | public-signup.controller.ts       |
+| `（raiz）`                     | `@Get(accountants)`                            | team.controller.ts                |
+| `（raiz）`                     | `@Delete(accountants/:id)`                     | team.controller.ts                |
+| `（raiz）`                     | `@Get(accounting-firm)`                        | team.controller.ts                |
+| `（raiz）`                     | `@Get(accounting-firm/device-stats)`           | team.controller.ts                |
+| `（raiz）`                     | `@Patch(accounting-firm)`                      | team.controller.ts                |
+| `（raiz）`                     | `@Get(invites)`                                | team.controller.ts                |
+| `（raiz）`                     | `@Delete(invites/:id)`                         | team.controller.ts                |
+| `billing/webhook`              | `@Post(asaas)`                                 | asaas-webhook.controller.ts       |
+| `billing`                      | `@Post(checkout)`                              | billing.controller.ts             |
+| `companies/:companyId`         | `@Get(checklist)`                              | checklist-overrides.controller.ts |
+| `companies/:companyId`         | `@Get(checklist-overrides)`                    | checklist-overrides.controller.ts |
+| `companies/:companyId`         | `@Put(checklist-overrides)`                    | checklist-overrides.controller.ts |
+| `companies/:companyId`         | `@Delete(checklist-overrides/:documentTypeId)` | checklist-overrides.controller.ts |
+| `checklist-templates`          | `@Get()`                                       | checklist-templates.controller.ts |
+| `checklist-templates`          | `@Get(:id)`                                    | checklist-templates.controller.ts |
+| `checklist-templates`          | `@Post()`                                      | checklist-templates.controller.ts |
+| `checklist-templates`          | `@Post(:id/derive)`                            | checklist-templates.controller.ts |
+| `checklist-templates`          | `@Patch(:id)`                                  | checklist-templates.controller.ts |
+| `checklist-templates`          | `@Delete(:id)`                                 | checklist-templates.controller.ts |
+| `checklist-templates`          | `@Post(:id/items)`                             | checklist-templates.controller.ts |
+| `checklist-templates`          | `@Patch(:id/items/:itemId)`                    | checklist-templates.controller.ts |
+| `checklist-templates`          | `@Delete(:id/items/:itemId)`                   | checklist-templates.controller.ts |
+| `document-types`               | `@Get()`                                       | document-types.controller.ts      |
+| `companies`                    | `@Get()`                                       | companies.controller.ts           |
+| `companies`                    | `@Get(:id)`                                    | companies.controller.ts           |
+| `companies`                    | `@Get(usage)`                                  | companies.controller.ts           |
+| `companies`                    | `@Post()`                                      | companies.controller.ts           |
+| `companies`                    | `@Post(access-invites)`                        | companies.controller.ts           |
+| `companies`                    | `@Post(apply-template)`                        | companies.controller.ts           |
+| `companies`                    | `@Post(import)`                                | companies.controller.ts           |
+| `companies`                    | `@Post(import/confirm)`                        | companies.controller.ts           |
+| `companies`                    | `@Post(activate)`                              | companies.controller.ts           |
+| `companies`                    | `@Get(:id)`                                    | companies.controller.ts           |
+| `companies`                    | `@Patch(:id)`                                  | companies.controller.ts           |
+| `companies`                    | `@Delete(:id)`                                 | companies.controller.ts           |
+| `companies`                    | `@Get(:id/contacts)`                           | companies.controller.ts           |
+| `companies`                    | `@Post(:id/contacts)`                          | companies.controller.ts           |
+| `companies`                    | `@Patch(:id/contacts/:contactId)`              | companies.controller.ts           |
+| `companies`                    | `@Delete(:id/contacts/:contactId)`             | companies.controller.ts           |
+| `companies`                    | `@Get(:id/contacts/access)`                    | companies.controller.ts           |
+| `companies`                    | `@Delete(:id/contacts/:contactId/access)`      | companies.controller.ts           |
+| `access/recover`               | `@Post()`                                      | access-recovery.controller.ts     |
+| `access/recover`               | `@Post(confirm)`                               | access-recovery.controller.ts     |
+| `upload/:token`                | `@Post(access)`                                | contact-access.controller.ts      |
+| `upload/:token`                | `@Post(push)`                                  | contact-access.controller.ts      |
+| `upload/:token`                | `@Post()`                                      | contact-access.controller.ts      |
+| `my`                           | `@Get(profile)`                                | contacts.controller.ts            |
+| `my`                           | `@Get(pending)`                                | contacts.controller.ts            |
+| `my`                           | `@Get(periods)`                                | contacts.controller.ts            |
+| `my`                           | `@Get(periods/:id)`                            | contacts.controller.ts            |
+| `my`                           | `@Get(documents/:id/content)`                  | contacts.controller.ts            |
+| `my`                           | `@Post(push/subscribe)`                        | contacts.controller.ts            |
+| `my`                           | `@Delete(push/subscribe)`                      | contacts.controller.ts            |
+| `my`                           | `@Post(password)`                              | contacts.controller.ts            |
+| `my`                           | `@Post()`                                      | contacts.controller.ts            |
+| `my`                           | `@Post(confirm)`                               | contacts.controller.ts            |
+| `messages`                     | `@Get()`                                       | messages.controller.ts            |
+| `messages`                     | `@Get(failures)`                               | messages.controller.ts            |
+| `messages`                     | `@Post(:id/resend)`                            | messages.controller.ts            |
+| `messages`                     | `@Post(reminders/run)`                         | messages.controller.ts            |
+| `messages`                     | `@Get(vapid-key)`                              | messages.controller.ts            |
+| `periods`                      | `@Post()`                                      | periods.controller.ts             |
+| `periods`                      | `@Get()`                                       | periods.controller.ts             |
+| `periods`                      | `@Get(:id)`                                    | periods.controller.ts             |
+| `periods`                      | `@Get(:id/requests)`                           | periods.controller.ts             |
+| `periods`                      | `@Get(:id/pending-panel)`                      | periods.controller.ts             |
+| `periods`                      | `@Post(:id/close)`                             | periods.controller.ts             |
+| `requests`                     | `@Get(:id)`                                    | requests.controller.ts            |
+| `requests`                     | `@Post(:id/upload-link)`                       | requests.controller.ts            |
+| `requests`                     | `@Post(:id/upload-link/resend)`                | requests.controller.ts            |
+| `requests`                     | `@Post(:id/close)`                             | requests.controller.ts            |
+| `（raiz）`                     | `@Post(request-items/:id/accept)`              | review.controller.ts              |
+| `（raiz）`                     | `@Post(requests/:id/review)`                   | review.controller.ts              |
+| `（raiz）`                     | `@Post(documents/:id/reject)`                  | review.controller.ts              |
+| `（raiz）`                     | `@Post(documents/:id/review-extra)`            | review.controller.ts              |
+| `（raiz）`                     | `@Post(request-items/:id/undo-accept)`         | review.controller.ts              |
+| `（raiz）`                     | `@Post(deadlines/scan)`                        | review.controller.ts              |
+| `upload/:token`                | `@Get()`                                       | upload.controller.ts              |
+| `upload/:token`                | `@Post(documents)`                             | upload.controller.ts              |
+| `upload/:token`                | `@Post(documents/confirm)`                     | upload.controller.ts              |
+| `（raiz）`                     | `@Get(requests/:id/zip)`                       | zip.controller.ts                 |
+| `（raiz）`                     | `@Get(periods/:id/zip)`                        | zip.controller.ts                 |
+| `（raiz）`                     | `@Get(documents/:id/content)`                  | zip.controller.ts                 |
+| `whatsapp`                     | `@Get(status)`                                 | whatsapp-settings.controller.ts   |
+| `whatsapp`                     | `@Post(onboard)`                               | whatsapp-settings.controller.ts   |
+| `whatsapp`                     | `@Post(test)`                                  | whatsapp-settings.controller.ts   |
+| `whatsapp`                     | `@Delete()`                                    | whatsapp-settings.controller.ts   |
+| `whatsapp/webhook`             | `@Get()`                                       | whatsapp-webhook.controller.ts    |
+| `whatsapp/webhook`             | `@Post()`                                      | whatsapp-webhook.controller.ts    |

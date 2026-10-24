@@ -4,6 +4,7 @@ import { SubscriptionsRepo } from '../modules/billing/subscription.repo.js';
 import { ChecklistsRepo } from '../modules/checklists/checklist.repo.js';
 import { CompaniesRepo } from '../modules/companies/company.repo.js';
 import { ContactsRepo } from '../modules/contacts/contact.repo.js';
+import { MessagesRepo } from '../modules/messaging/message.repo.js';
 import { PeriodsRepo } from '../modules/periods/period.repo.js';
 import { DocumentsRepo } from '../modules/requests/document.repo.js';
 import { RequestsRepo } from '../modules/requests/request.repo.js';
@@ -21,6 +22,7 @@ export const AppLayer = Layer.mergeAll(
   UploadLinksRepo.layerNoDeps,
   WhatsappRepo.layerNoDeps,
   SubscriptionsRepo.layerNoDeps,
+  MessagesRepo.layerNoDeps,
 ).pipe(Layer.provideMerge(ChecklistsRepo.layerNoDeps), Layer.provideMerge(Db.layer));
 
 export type AppContext = Layer.Success<typeof AppLayer>;
