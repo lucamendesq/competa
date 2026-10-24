@@ -303,9 +303,7 @@ export class CompaniesController {
       return { sent: false, reason: 'Este e-mail já tem uma conta cadastrada.' };
     }
 
-    if (await this.invites.pendingForContact(input.companyId, input.contact.email)) {
-      return { sent: false };
-    }
+    await this.invites.revokePendingForContact(input.companyId, input.contact.email);
 
     const { token, tokenHash } = createToken();
     const expiresAt = addDays(new Date(), env.INVITE_TTL_DAYS);

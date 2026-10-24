@@ -71,24 +71,20 @@ export class InviteRepository {
     return row;
   }
 
-  /** Convite de acesso ainda aberto para este email nesta Empresa — evita disparar um
-   *  segundo email a cada vez que o Contador salva a mesma Empresa. */
-  async pendingForContact(companyId: string, email: string) {
-    const [row] = await this.db
-      .select({ id: invite.id })
-      .from(invite)
+  /** Convidar de novo reemite: o Contador só clica porque o email anterior se perdeu. O
+   *  pendente morre aqui para não deixar dois links vivos para o mesmo Responsável. */
+  async revokePendingForContact(companyId: string, email: string) {
+    await this.db
+      .update(invite)
+      .set({ deletedAt: new Date() })
       .where(
         and(
           eq(invite.companyId, companyId),
           eq(invite.email, email),
           isNull(invite.acceptedAt),
           isNull(invite.deletedAt),
-          gt(invite.expiresAt, new Date()),
         ),
-      )
-      .limit(1);
-
-    return row;
+      );
   }
 
   async findByToken(token: string) {
