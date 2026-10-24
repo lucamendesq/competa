@@ -13,6 +13,8 @@ import { asaasWebhookRoutes } from '../modules/billing/asaas-webhook.routes.js';
 import { billingRoutes } from '../modules/billing/billing.routes.js';
 import { checklistsRoutes } from '../modules/checklists/checklists.routes.js';
 import { companiesRoutes } from '../modules/companies/companies.routes.js';
+import { accessRecoveryRoutes } from '../modules/contacts/access-recovery.routes.js';
+import { contactAccessRoutes } from '../modules/contacts/contact-access.routes.js';
 import { contactsRoutes } from '../modules/contacts/contacts.routes.js';
 import { pushRoutes } from '../modules/messaging/push.routes.js';
 import { periodsRoutes } from '../modules/periods/periods.routes.js';
@@ -68,6 +70,8 @@ export const serverLayer = (options: {
       teamRoutes(options.events),
       billingRoutes,
       contactsRoutes,
+      accessRecoveryRoutes(options.events),
+      contactAccessRoutes,
       uploadRoutes,
       nestFallback(options.fallback),
     ),

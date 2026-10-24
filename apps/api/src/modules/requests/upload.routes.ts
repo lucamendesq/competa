@@ -1,10 +1,12 @@
+import { ConfirmUploadBody, PresignUploadBody } from '@competa/contracts';
 import { Effect, Layer } from 'effect';
 import { fromRuntime } from '../../effect/runtime.js';
 import { UploadContext } from '../../http/context.js';
 import { handler } from '../../http/envelope.js';
-import { uploadTokenRoute } from '../../http/middleware/auth.js';
-import { route } from '../../http/platform.js';
+import { uploadPresignRoute, uploadTokenRoute } from '../../http/middleware/auth.js';
+import { body, route } from '../../http/platform.js';
 import { NotFound } from '../../lib/app-error.js';
+import { DocumentsRepo } from './document.repo.js';
 import { UploadLinksRepo } from './upload-link.repo.js';
 
 /* Superfície só-escrita: nome de arquivo e storage key NUNCA saem daqui — quem tem o link
@@ -47,4 +49,38 @@ const checklist = route(
   { auth: uploadTokenRoute({ uploadThrottle: true }) },
 );
 
-export const uploadRoutes = Layer.mergeAll(checklist);
+/* `@SkipThrottle({ short: true, default: true })` em cima do `UploadThrottlerGuard`: sobra
+ * só o balde de 60/60s por `ip:token`, que é o que autoriza o lote de arquivos. */
+const presign = route(
+  'POST',
+  '/upload/:token/documents',
+  handler(
+    'POST',
+    Effect.gen(function* () {
+      const { scope } = yield* UploadContext;
+      const input = yield* body(PresignUploadBody);
+
+      return yield* fromRuntime(DocumentsRepo.use((repo) => repo.presign(scope, input)));
+    }),
+  ),
+  { auth: uploadPresignRoute },
+);
+
+const confirm = route(
+  'POST',
+  '/upload/:token/documents/confirm',
+  handler(
+    'POST',
+    Effect.gen(function* () {
+      const { scope } = yield* UploadContext;
+      const input = yield* body(ConfirmUploadBody);
+
+      return yield* fromRuntime(
+        DocumentsRepo.use((repo) => repo.confirm(scope, input.documentIds)),
+      );
+    }),
+  ),
+  { auth: uploadTokenRoute({ uploadThrottle: true }) },
+);
+
+export const uploadRoutes = Layer.mergeAll(checklist, presign, confirm);

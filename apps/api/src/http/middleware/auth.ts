@@ -153,6 +153,13 @@ const resolveContactUpload: Resolved<UploadContext['Service']> = Effect.gen(func
   const session = yield* currentSession;
   const request = yield* HttpServerRequest.HttpServerRequest;
 
+  /* `ContactUploadController` empilha DOIS guards: `@ContactRoute()` (= `ContactGuard`) e
+   * `@UseGuards(ContactUploadGuard)`, nessa ordem. O 403 de "não é Responsável" sai do
+   * primeiro, ANTES de o segundo olhar o corpo — então quem não é Responsável leva 403
+   * mesmo mandando corpo vazio ou `requestId` lixo. Resolver o vínculo aqui primeiro é o
+   * que mantém essa precedência; é também a mesma consulta que o `ContactGuard` fazia. */
+  yield* resolveContact;
+
   /* Bug congelado #8: o guard lê o `requestId` CRU, antes do zodPipe, e um id não-uuid
    * estoura no Postgres (500) em vez de virar 422. `request.json` é memoizado, então o
    * handler relê o mesmo corpo depois.
@@ -170,15 +177,9 @@ const resolveContactUpload: Resolved<UploadContext['Service']> = Effect.gen(func
     ContactsRepo.use((repo) => repo.findUploadOwnership(session.user.id, requestId)),
   );
 
-  /* Distinguir "não é Responsável" de "Solicitação de outra Empresa": o primeiro é 403
-   * (conta errada), o segundo é 404 (não existe para ele). */
+  /* `resolveContact` já garantiu que a conta é de um Responsável com Empresa ativa, então
+   * aqui "não achou" só pode ser Solicitação de outra Empresa. */
   if (!owned) {
-    const exists = yield* fromRuntime(
-      ContactsRepo.use((repo) => repo.existsByAuthUser(session.user.id)),
-    );
-    if (!exists) {
-      return yield* Effect.fail(new Forbidden('Esta conta não é de um Responsável de Empresa.'));
-    }
     return yield* Effect.fail(new NotFound('Solicitação não encontrada.'));
   }
 

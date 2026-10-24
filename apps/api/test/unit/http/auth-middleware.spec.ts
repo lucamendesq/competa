@@ -474,13 +474,26 @@ describe('contactUploadRoute', () => {
     expect(response.body.error.code).toBe('UNAUTHENTICATED');
   });
 
-  it('corpo sem requestId, vazio ou ilegível → 422 (nunca 400 do parser)', async () => {
-    const { cookie } = await signUp('upload-sem-id');
+  it('Responsável com corpo sem requestId, vazio ou ilegível → 422 (nunca 400 do parser)', async () => {
+    const { userId, cookie } = await signUp('upload-sem-id');
+    await seedContact(userId);
 
     for (const opts of [{ body: {} }, {}, { rawBody: 'nao-e-json' }]) {
       const response = await call('POST', '/probe/contact-upload', { cookie, ...opts });
       expect(response.status, JSON.stringify(opts)).toBe(422);
       expect(response.body.error.code).toBe('VALIDATION_ERROR');
+    }
+  });
+
+  /* `@ContactRoute()` (ContactGuard) roda ANTES do `ContactUploadGuard` no Nest: quem não é
+   * Responsável leva 403 sem o corpo sequer ser lido. */
+  it('quem não é Responsável leva 403 antes do corpo ser olhado', async () => {
+    const { cookie } = await signUp('upload-sem-vinculo');
+
+    for (const opts of [{ body: {} }, {}, { body: { requestId: 'nao-e-uuid' } }]) {
+      const response = await call('POST', '/probe/contact-upload', { cookie, ...opts });
+      expect(response.status, JSON.stringify(opts)).toBe(403);
+      expect(response.body.error.code).toBe('FORBIDDEN');
     }
   });
 
