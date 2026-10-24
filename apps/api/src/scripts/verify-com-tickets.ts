@@ -1,4 +1,3 @@
-/* eslint-disable no-restricted-syntax */
 import assert from 'node:assert/strict';
 import { addDays } from 'date-fns';
 import { and, eq, sql } from 'drizzle-orm';
@@ -57,7 +56,7 @@ async function run() {
     owner: true,
   });
 
-  const companyRepo = new CompanyRepository(db);
+  const companyRepo = new CompanyRepository();
   const requestRepo = new RequestRepository(db);
   const accountantRepo = new AccountantRepository(db);
   const inviteRepo = new InviteRepository(db);

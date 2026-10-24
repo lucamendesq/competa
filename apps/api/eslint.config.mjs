@@ -97,7 +97,12 @@ export default tseslint.config(
    * diretiva `eslint-disable` no arquivo porque o `--fix` do lint-staged roda com a config
    * da raiz, que não tem este bloco, e apaga a diretiva por achá-la inútil. */
   {
-    files: ['src/scripts/verify-com-148.ts', 'src/scripts/verify-com-152.ts'],
+    files: [
+      'src/scripts/verify-com-148.ts',
+      'src/scripts/verify-com-152.ts',
+      'src/scripts/verify-clean-firm.ts',
+      'src/scripts/verify-com-tickets.ts',
+    ],
     rules: {
       'no-restricted-syntax': 'off',
     },

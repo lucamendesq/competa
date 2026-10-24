@@ -64,7 +64,7 @@ async function run() {
     status: 'ACTIVE',
   });
 
-  const repo = new CompanyRepository(db);
+  const repo = new CompanyRepository();
   const cap = PLANS.essencial.companyCap;
   const soft = planSoftCap(cap);
 

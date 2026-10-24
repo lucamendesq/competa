@@ -144,7 +144,7 @@ async function run() {
     owner: false,
   });
 
-  const companyRepo = new CompanyRepository(db as never);
+  const companyRepo = new CompanyRepository();
   const createdCompany = await companyRepo.create(firmScope, {
     name: 'Empresa Carteira Ana',
     responsibleAccountantId: acc2Id,
