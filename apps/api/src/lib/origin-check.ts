@@ -1,21 +1,12 @@
 import type { NextFunction, Request, Response } from 'express';
+import { FORBIDDEN_ORIGIN, originAllowed } from '../http/origin-check.js';
 
-const MUTATING = new Set(['POST', 'PUT', 'PATCH', 'DELETE']);
-
-/** Barreira CSRF complementar ao cookie `lax`: navegador manda `Origin` em toda requisição
- *  mutante cross-site, então Origin presente e fora da allowlist é forjado ou hostil.
- *  Origin ausente (curl, apps nativos, rotas token-based fora do navegador) passa — o que
- *  interessa barrar é o form-POST cross-site, que sempre carrega Origin. */
+/* Gêmeo Express do `src/http/origin-check.ts`: a REGRA (quem passa) mora lá e é
+ * compartilhada — aqui só muda a escrita, que depende do `res.json()` do Express. Morre
+ * junto com o Nest. */
 export const originCheck =
   (allowedOrigins: string[]) => (req: Request, res: Response, next: NextFunction) => {
-    if (!MUTATING.has(req.method)) return next();
+    if (originAllowed(req.method, req.headers.origin, allowedOrigins)) return next();
 
-    const origin = req.headers.origin;
-    if (origin && !allowedOrigins.includes(origin)) {
-      return res
-        .status(403)
-        .json({ error: { code: 'FORBIDDEN_ORIGIN', message: 'Origem não permitida.' } });
-    }
-
-    next();
+    return res.status(403).json(FORBIDDEN_ORIGIN);
   };
