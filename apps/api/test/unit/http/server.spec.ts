@@ -1,4 +1,4 @@
-import { request as nodeRequest, type ServerResponse } from 'node:http';
+import { request as nodeRequest } from 'node:http';
 import { EventEmitter2 } from '@nestjs/event-emitter';
 import { Context, ManagedRuntime } from 'effect';
 import { HttpServer } from 'effect/http';
@@ -17,10 +17,6 @@ const boot = async (ping: () => Promise<void>) => {
       events: new EventEmitter2(),
       scanDeadlines: () => Promise.resolve({}),
       runReminders: () => Promise.resolve({}),
-      fallback: (_request, response: ServerResponse) => {
-        response.statusCode = 418;
-        response.end();
-      },
     }),
   );
   const server = Context.get(await runtime.context(), HttpServer.HttpServer);
@@ -87,16 +83,20 @@ describe('GET /health servido pelo shell Effect', () => {
     expect(simple.headers.get('vary')).toContain('Origin');
   });
 
-  /* `route()` registra só o método da rota, então o preflight continua caindo no
-   * catch-all — onde o `cors()` do Nest responde exatamente o mesmo 204. Quando o
-   * catch-all sair, alguém precisa registrar OPTIONS no shell Effect. */
-  it('preflight ainda é do catch-all', async () => {
+  /* `route()` registra só o método da rota, então o preflight cai no curinga — onde o
+   * `cors()` da pilha global responde 204 e encerra, antes do 404. */
+  it('preflight é respondido pelo CORS no curinga', async () => {
     const preflight = await fetch(`${app.url}/health`, {
       method: 'OPTIONS',
       headers: { origin: 'http://localhost:5173', 'access-control-request-method': 'GET' },
     });
 
-    expect(preflight.status).toBe(418);
+    expect(preflight.status).toBe(204);
+    expect(preflight.headers.get('access-control-allow-origin')).toBe('http://localhost:5173');
+    expect(preflight.headers.get('access-control-allow-methods')).toBe(
+      'GET,HEAD,PUT,PATCH,POST,DELETE',
+    );
+    expect(preflight.headers.get('access-control-allow-credentials')).toBe('true');
   });
 
   it('origem fora da allowlist não ganha o header de CORS', async () => {
@@ -136,9 +136,25 @@ describe('GET /health servido pelo shell Effect', () => {
     expect(await conditionalGet(app.url, '/health', etag ?? '')).toBe(304);
   });
 
-  it('tudo que não é /health cai cru na casca Nest', async () => {
-    expect((await fetch(`${app.url}/nao-existe`)).status).toBe(418);
-    expect((await fetch(`${app.url}/health`, { method: 'POST' })).status).toBe(418);
+  it('caminho desconhecido e método errado caem no 404 do curinga', async () => {
+    const unknown = await fetch(`${app.url}/nao-existe`);
+    expect(unknown.status).toBe(404);
+    expect(await unknown.json()).toEqual({
+      error: { code: 'NOT_FOUND', message: 'Recurso não encontrado.' },
+    });
+
+    const wrongMethod = await fetch(`${app.url}/health`, { method: 'POST' });
+    expect(wrongMethod.status).toBe(404);
+    await wrongMethod.text();
+  });
+
+  it('o 404 do curinga não é contado no throttle', async () => {
+    const ip = '198.51.100.9';
+    for (let hit = 0; hit < 40; hit += 1) {
+      const miss = await fetch(`${app.url}/nao-existe`, { headers: { 'x-forwarded-for': ip } });
+      await miss.text();
+      expect(miss.status).toBe(404);
+    }
   });
 });
 

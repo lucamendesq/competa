@@ -1,7 +1,7 @@
 import { NestFactory } from '@nestjs/core';
 import { EventEmitter2 } from '@nestjs/event-emitter';
 import type { NestExpressApplication } from '@nestjs/platform-express';
-import { Context, ManagedRuntime } from 'effect';
+import { Context, Layer, ManagedRuntime } from 'effect';
 import { HttpServer } from 'effect/http';
 import helmet from 'helmet';
 import { Logger } from 'nestjs-pino';
@@ -12,6 +12,7 @@ import { serverLayer } from './http/server.js';
 import { AppErrorFilter } from './lib/app-error.filter.js';
 import { originCheck } from './lib/origin-check.js';
 import { ResponseInterceptor } from './lib/response.interceptor.js';
+import { cronsLayer } from './modules/requests/crons.js';
 import { DeadlineCron } from './modules/requests/deadline.cron.js';
 import { RemindersCron } from './modules/requests/reminders.cron.js';
 
@@ -65,17 +66,19 @@ export async function createApp(options?: {
   const deadlines = nest.get(DeadlineCron);
   const reminders = nest.get(RemindersCron);
   const runtime = ManagedRuntime.make(
-    serverLayer({
-      port,
-      trustProxy,
-      ping: () => health.ping(),
-      events: nest.get(EventEmitter2),
-      /* Mesmo acoplamento ao DI do `runDeadlineSweep`: as duas varreduras ainda são do
-       * container Nest (os crons são a sub-fase F5) e as rotas só as chamam. */
-      scanDeadlines: (scope) => deadlines.scan(scope),
-      runReminders: (scope) => reminders.run(scope),
-      fallback: nest.getHttpAdapter().getInstance(),
-    }),
+    Layer.mergeAll(
+      serverLayer({
+        port,
+        trustProxy,
+        ping: () => health.ping(),
+        events: nest.get(EventEmitter2),
+        /* Mesmo acoplamento ao DI do `runDeadlineSweep`: as duas classes de varredura ainda
+         * são do container Nest; o que saiu do Nest foi o AGENDAMENTO. */
+        scanDeadlines: (scope) => deadlines.scan(scope),
+        runReminders: (scope) => reminders.run(scope),
+      }),
+      cronsLayer({ deadlines, reminders }),
+    ),
   );
 
   const server = Context.get(await runtime.context(), HttpServer.HttpServer);

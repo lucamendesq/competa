@@ -55,9 +55,13 @@ Todos os 9 repositórios estão em Effect; o que resta é a CASCA. Sub-fases (ca
 1. **Plataforma**: servidor `effect/http` (core v4, NÃO `@effect/platform`), envelope de resposta, mapa de erros (equivalente ao `AppErrorFilter`), origin-check, helmet, CORS, throttling, mount do better-auth, paridade do `test/support/boot.ts`.
 2. **Guards → middleware Effect**: TenantGuard (sessão → FirmScope), PlanGuard, ContactGuard, ContactUploadGuard, UploadTokenGuard. Os escopos branded continuam nascendo só aqui.
 3. **Rotas por módulo** (97 handlers / 23 controllers — baseline em `route-inventory.md`), cada lote verificado contra a suíte do módulo.
-4. **Crons** `@nestjs/schedule` → `Schedule.cron` + `forkScoped` (ver effect-v4-notes.md §5).
-5. **Remoção das deps** `@nestjs/*`, `rxjs`, `reflect-metadata`, `@thallesp/nestjs-better-auth`; `main.ts` novo. Os seams de provider (Storage/messaging) e o registro órfão de `MessageProvider` morrem aqui — viram Layers.
-6. `test-quality-audit` + `create-pr` único da branch.
+4. **Crons** `@nestjs/schedule` → `Schedule.cron` + `forkScoped` (ver effect-v4-notes.md §5). **FEITA** (F5): `src/modules/requests/crons.ts` — `cronsLayer({deadlines, reminders})` entra no `Layer.mergeAll` do `ManagedRuntime` de `createApp`. As CLASSES `DeadlineCron`/`RemindersCron` continuam do container Nest (só os decorators `@Cron`/`@SentryCron` saíram); o que saiu do Nest foi o agendamento. `ScheduleModule.forRoot()` removido do `app.module.ts` — `@nestjs/schedule` não tem mais nenhum import em `src/`.
+5. **Mount do better-auth** direto no router Effect — **FEITO**: `src/http/auth-mount.ts` (`HttpRouter.add('*', '/api/auth/*')` → `HttpServerRequest.toWeb` → `auth.handler` → `HttpServerResponse.fromWeb`). Prova A/B contra o mount Nest (segundo `http.Server` ligado ao express do container): status, TODOS os headers, cada linha de `Set-Cookie` e corpo idênticos em sign-up (com e sem `x-internal-signup`), sign-in, magic-link verify, get-session, sign-out (3 cookies), 404 sob `/api/auth`, path base e preflight. `HttpServerResponse.fromWeb` **preserva** múltiplos `Set-Cookie` como linhas separadas e mantém o percent-encoding do valor (`Cookies.fromSetCookie` guarda o `valueEncoded`) — não foi preciso escrever no `ServerResponse` cru.
+6. **Ponte estranguladora removida** (`src/http/nest-bridge.ts` deletado) — **FEITO**: `src/http/fallback.ts` é o curinga `'*' '/*'` que roda a pilha global (helmet → origin-check → CORS → log) e, se ninguém respondeu, devolve o 404 `{"error":{"code":"NOT_FOUND",…}}` com ETag e `charset=utf-8` (byte a byte igual ao do `AppErrorFilter`). **Decisão da colisão `OPTIONS /*` × catch-all (design §4/§5): não existe rota `OPTIONS` separada.** find-my-way recusa método duplicado no mesmo padrão (`Method 'OPTIONS' already declared for route '/*'`), e o preflight nunca foi outra coisa além do `cors()` global, que encerra a resposta antes de qualquer roteamento. O curinga reproduz isso de graça.
+7. **Remoção das deps** `@nestjs/*`, `rxjs`, `reflect-metadata`, `@thallesp/nestjs-better-auth`; `main.ts` novo. Os seams de provider (Storage/messaging) e o registro órfão de `MessageProvider` morrem aqui — viram Layers.
+8. `test-quality-audit` + `create-pr` único da branch.
+
+**O que ainda precisa do Nest** (nada disso é rota): `EventEmitter2` (os listeners de messaging estão registrados no container e o bug congelado #13 depende do `emitAsync`), `HealthRepository`, e as instâncias de `DeadlineCron`/`RemindersCron` com suas dependências (`RequestRepository`, `DocumentRepository`, `StorageProvider`). `BetterAuthModule.forRoot` continua no `app.module.ts` como mount morto — sai junto com o pacote na sub-fase 7.
 
 Gate de paridade: diff da lista de rotas antes/depois contra `docs/strip-nest/route-inventory.md` (97 handlers + `/api/auth/*`).
 
@@ -162,6 +166,42 @@ Cross-module seams the Effect composition must reproduce: event contract in `src
    storage falhar durante um download. É a troca de um zip truncado que PARECE completo por
    uma falha visível, o que é mais seguro, mas é mudança de comportamento e está aqui por
    isso. `archive.destroy()` continua acontecendo, pelo `lazyRead`. Migrado no lote D.
+
+3. **Varredura que falha não derruba mais o processo.** O `@Cron` do `@nestjs/schedule` não
+   trata o retorno: `daily()`/`scheduled()` rejeitando virava unhandled rejection (e, no
+   default do node, queda do processo). No agendamento Effect o `Effect.catchCause` loga
+   (`cron <slug> falhou`) e o `Schedule.cron` continua de pé para o dia seguinte. Nenhum
+   spec alcança — exige o Postgres cair durante a varredura. É estritamente mais seguro,
+   mas é mudança de comportamento. Migrado na F5.
+
+4. **`Sentry.withMonitor` só embrulha a execução AGENDADA.** O `@SentryCron` embrulhava o
+   MÉTODO, então `runDeadlineSweep()` (handle de `createApp`, usado por
+   `requests.e2e.spec.ts:1707,1726`) também mandava check-in. Agora o monitor vive no
+   agendamento (`crons.ts`), como o design §7 pede. Invisível na suíte (o Sentry não é
+   inicializado em teste — `instrument.ts` só é importado por `main.ts`) e em produção
+   `runDeadlineSweep` não tem chamador. `POST /deadlines/scan` e
+   `POST /messages/reminders/run` chamam `scan`/`run`, que nunca tiveram monitor.
+
+5. **O teto de 2 MB passou a valer para qualquer content-type.** O `express.json({limit:'2mb'})`
+   do `BetterAuthModule.forRoot` só media corpo `application/json`; o
+   `HttpIncomingMessage.MaxBodySize` do shell mede todo corpo que uma rota leia
+   (`request.text`/`arrayBuffer`). É a mesma raiz da divergência 1 (o Express decidia por
+   `type-is`, o shell lê o corpo e pronto). Não afrouxa nada — antes desta sub-fase o shell
+   Effect estava SEM limite algum, que é o lado perigoso. `/api/auth/*` (corpo em stream) e
+   `PUT /storage/local/:key` (lê o `IncomingMessage` cru) seguem fora do teto, exatamente
+   como o `SkipBodyParsingMiddleware` os deixava de fora.
+
+## Achados da F5 (já corrigidos, não são dívida)
+
+- **`maxParamLength` do find-my-way (100) estava escondendo uma rota morta.** `PUT /storage/local/:storageKey`
+  recebe a chave inteira percent-encoded (`firm/<uuid>/period/<aaaa-mm>/request/<uuid>/<uuid>.ext`,
+  ~155 caracteres). O roteador Effect recusava o match desde o lote A e a ponte entregava o
+  request ao `LocalStorageController` do Nest — ou seja, a rota migrada nunca tinha rodado e
+  a suíte passava pelo caminho antigo. Deletar a ponte revelou isso (22 specs de
+  contacts/messaging/requests em 404). Corrigido com `routerConfig: { maxParamLength: 1024 }`
+  em `HttpRouter.serve` — o Express não tinha limite nenhum, então é paridade, não um
+  afrouxamento. Lição para a sub-fase 7: qualquer rota com parâmetro longo (chave de
+  storage, token) precisa de um spec que a ATINJA, não só de um 200 em algum lugar.
 
 ## Known flakes (observar; não bloqueiam)
 

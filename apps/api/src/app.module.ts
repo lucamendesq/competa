@@ -7,7 +7,6 @@ import { AuthModule as BetterAuthModule } from '@thallesp/nestjs-better-auth';
 import auth from './infra/auth/better-auth.js';
 import { ConfigModule } from '@nestjs/config';
 import { EventEmitterModule } from '@nestjs/event-emitter';
-import { ScheduleModule } from '@nestjs/schedule';
 import { ThrottlerGuard, ThrottlerModule, seconds } from '@nestjs/throttler';
 import { HealthController } from './health.controller.js';
 import { HealthRepository } from './health.repository.js';
@@ -32,7 +31,6 @@ import { BillingModule } from './modules/billing/billing.module.js';
       isGlobal: true,
     }),
     EventEmitterModule.forRoot(),
-    ScheduleModule.forRoot(),
     /* Rate limiting. Dois baldes: `short` corta rajada e `default` corta abuso sustentado.
      * A rota pública de upload é a superfície mais exposta (token no email, sem sessão) e
      * tem limite próprio via @Throttle no controller. */

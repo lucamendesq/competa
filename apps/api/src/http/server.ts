@@ -1,8 +1,8 @@
 import { createServer } from 'node:http';
 import { NodeHttpServer } from '@effect/platform-node';
 import type { EventEmitter2 } from '@nestjs/event-emitter';
-import { Effect, Layer } from 'effect';
-import { HttpRouter } from 'effect/http';
+import { ByteSize, Effect, Layer } from 'effect';
+import { HttpIncomingMessage, HttpRouter } from 'effect/http';
 import { buildInfo } from '../build-info.js';
 import { localStorageRoutes } from '../infra/storage/local-storage.routes.js';
 import { ServiceUnavailable } from '../lib/app-error.js';
@@ -25,8 +25,9 @@ import { uploadRoutes } from '../modules/requests/upload.routes.js';
 import { zipRoutes } from '../modules/requests/zip.routes.js';
 import { whatsappSettingsRoutes } from '../modules/whatsapp/whatsapp-settings.routes.js';
 import { whatsappWebhookRoutes } from '../modules/whatsapp/whatsapp-webhook.routes.js';
+import { authMountRoutes } from './auth-mount.js';
 import { handler } from './envelope.js';
-import { nestFallback, type NodeRequestListener } from './nest-bridge.js';
+import { fallbackRoutes } from './fallback.js';
 import { ThrottleStore, TrustProxy, route } from './platform.js';
 import { GLOBAL_BUCKETS, makeThrottleStore } from './throttle.js';
 
@@ -56,12 +57,11 @@ export const serverLayer = (options: {
   /** A MESMA instância do container Nest: os listeners de messaging estão registrados
    *  nela, e uma cópia engoliria todo evento emitido por rota migrada. */
   readonly events: EventEmitter2;
-  /** As duas varreduras continuam vindo do container Nest — os crons são a sub-fase F5. */
+  /** As varreduras com escopo de firma das rotas HTTP; o agendamento vive em `crons.ts`. */
   readonly scanDeadlines: ScanDeadlines;
   readonly runReminders: RunReminders;
-  readonly fallback: NodeRequestListener;
 }) =>
-  /* `nestFallback` é o curinga `'*' '/*'` e fica por último na leitura, mas find-my-way
+  /* `fallbackRoutes` é o curinga `'*' '/*'` e fica por último na leitura, mas find-my-way
    * prioriza estático > param > curinga: a ordem do merge não decide nada. */
   HttpRouter.serve(
     Layer.mergeAll(
@@ -86,15 +86,26 @@ export const serverLayer = (options: {
       reviewRoutes(options.events, options.scanDeadlines),
       messagesRoutes(options.runReminders),
       zipRoutes,
-      nestFallback(options.fallback),
+      authMountRoutes,
+      fallbackRoutes,
     ),
     {
-      // pino-http é chamado pela pilha de plataforma (rotas Effect) e pelo Nest (catch-all)
+      // o log de requisição é o pino-http, chamado pela pilha de plataforma
       disableLogger: true,
       disableListenLog: true,
+      /* O default do find-my-way é 100 caracteres por parâmetro, e o Express não tinha
+       * limite nenhum: `PUT /storage/local/:storageKey` recebe a chave inteira
+       * percent-encoded (`firm/<uuid>/period/<aaaa-mm>/request/<uuid>/<uuid>.ext`, ~155
+       * caracteres) e só não 404ava porque a ponte para o Nest pegava o resto. */
+      routerConfig: { maxParamLength: 1024 },
     },
   ).pipe(
     Layer.provideMerge(NodeHttpServer.layer(createServer, { port: options.port })),
     Layer.provideMerge(Layer.succeed(TrustProxy)(options.trustProxy)),
     Layer.provideMerge(Layer.sync(ThrottleStore)(() => makeThrottleStore())),
+    /* `bodyParser.json.limit: '2mb'` do `BetterAuthModule.forRoot` — o único freio contra
+     * OOM. `'2mb'` do pacote `bytes` é base 1024. Não alcança `/api/auth/*` (lá o corpo é
+     * stream) nem `PUT /storage/local/:key` (que lê o `IncomingMessage` cru), exatamente
+     * como o `SkipBodyParsingMiddleware` não alcançava. */
+    Layer.provideMerge(Layer.succeed(HttpIncomingMessage.MaxBodySize)(ByteSize.mebibytes(2))),
   );

@@ -1,7 +1,5 @@
 import { Injectable, Logger } from '@nestjs/common';
 import { EventEmitter2 } from '@nestjs/event-emitter';
-import { Cron, CronExpression } from '@nestjs/schedule';
-import { SentryCron } from '@sentry/nestjs';
 import * as Sentry from '@sentry/nestjs';
 import env from '../../config/env.js';
 import { EVENTS, type ReminderDueEvent } from '../../lib/events.js';
@@ -21,13 +19,8 @@ export class RemindersCron {
     private readonly events: EventEmitter2,
   ) {}
 
-  @Cron(CronExpression.EVERY_DAY_AT_9AM, { timeZone: 'America/Sao_Paulo' })
-  @SentryCron('reminders-daily', {
-    schedule: { type: 'crontab', value: '0 9 * * *' },
-    checkinMargin: 5,
-    maxRuntime: 30,
-    timezone: 'America/Sao_Paulo',
-  })
+  /** Agendada em `crons.ts` (`0 9 * * *`, America/Sao_Paulo). `run()` é a versão sem lock,
+   *  usada por `POST /messages/reminders/run` com escopo de firma. */
   async scheduled() {
     const ran = await this.requests.withAdvisoryLock(REMINDERS_CRON_LOCK_ID, async () => {
       await this.run();

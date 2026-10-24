@@ -58,13 +58,21 @@ const logRequest: NodeMiddleware = (request, response, next) => {
 };
 
 /** Roda a pilha Express contra os objetos node crus. `false` = algum middleware já
- *  respondeu (preflight do cors, 403 de origem) e a rota não deve rodar. */
-const runStack = (request: IncomingMessage, response: ServerResponse) =>
+ *  respondeu (preflight do cors, 403 de origem) e a rota não deve rodar.
+ *
+ *  `log: false` reproduz o mount do better-auth: o `httpAdapter.use(authHandler)` do
+ *  `@thallesp/nestjs-better-auth` entra na pilha Express ANTES do middleware do
+ *  nestjs-pino, então `/api/auth/*` nunca gerou linha de log de requisição. */
+export const runGlobalStack = (
+  request: IncomingMessage,
+  response: ServerResponse,
+  options?: { readonly log?: boolean },
+) =>
   new Promise<boolean>((resolve) => {
     const answered = () => resolve(false);
     response.once('finish', answered);
 
-    const stack = [...globalStack, logRequest];
+    const stack = options?.log === false ? globalStack : [...globalStack, logRequest];
     let index = 0;
     const next = () => {
       const middleware = stack[index++];
@@ -129,7 +137,7 @@ const platform = <Provides>(
       const nodeRequest = Node.request(request);
       const nodeResponse = Node.response(request);
 
-      const proceed = yield* Effect.promise(() => runStack(nodeRequest, nodeResponse));
+      const proceed = yield* Effect.promise(() => runGlobalStack(nodeRequest, nodeResponse));
       // o middleware escreveu a resposta; o que devolvermos é descartado (writableEnded)
       if (!proceed) return HttpServerResponse.empty();
 
@@ -203,10 +211,20 @@ export const route = <E extends Failure, R, Provides = never>(
  *  é observável: corpo VAZIO virava `{}` e o zod respondia 422 apontando o campo faltante,
  *  enquanto topo que não é objeto/array (`null`, `"texto"`, `3`) era recusado como 400 pelo
  *  parser antes de chegar ao zod. Sem isto cada rota migrada herdaria o desvio. */
+/** `limit: '2mb'` do `express.json()`: o `MaxBodySize` do servidor para a leitura e o mapa
+ *  de erros traduz para 413. Só este motivo sobe — o resto do canal continua virando corpo
+ *  vazio, como o parser fazia. */
+const bodyTooLarge = (error: unknown) =>
+  HttpServerError.isHttpServerError(error) &&
+  error.reason._tag === 'RequestParseError' &&
+  error.reason.reason === 'BodyTooLarge';
+
 export const body = <T>(schema: z.ZodType<T>) =>
   Effect.gen(function* () {
     const request = yield* HttpServerRequest.HttpServerRequest;
-    const text = yield* request.text.pipe(Effect.orElseSucceed(() => ''));
+    const text = yield* request.text.pipe(
+      Effect.catch((error) => (bodyTooLarge(error) ? Effect.fail(error) : Effect.succeed(''))),
+    );
 
     // corpo vazio chegava ao pipe como `{}`: quem responde é o schema (422), não o parser
     if (text.trim() === '') return yield* zodFail(schema, {});
