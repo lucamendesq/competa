@@ -88,6 +88,8 @@ Cross-module seams the Effect composition must reproduce: event contract in `src
 16. Rejeitar documento promete `linkRotated: true` mas o token antigo sobrevive 48h de graça — o docstring de `rotateLinkOnReopen` diz "mata o token anterior NA HORA / zerar previous_token_hash" e o código grava `previousTokenHash: current.tokenHash`. Congelado em `test/requests.e2e.spec.ts`.
 17. `POST /documents/:id/review-extra` ignora encerramento: `reviewExtraRefusal` recebe `requestStatus` e nunca o checa — Extra continua revisável com a Solicitação fechada (itens e documentos de item bloqueiam). Congelado em `test/requests.e2e.spec.ts`.
 18. (quirks congelados em `test/requests.e2e.spec.ts`) review-extra unitário com `accepted` + `rejectionReason` grava a reason (o lote anula); checklist só de itens opcionais nunca chega a `complete` (`allAccepted` exige required não-vazio); comentário obsoleto em `request.repository.ts` fala em 422 para o race de reject — é 409.
+19. `POST /billing/checkout` é write → firma OVERDUE/CANCELED/trial-expirado leva 402 PAYMENT_REQUIRED na PRÓPRIA rota que regularizaria o pagamento (em prod, firma inadimplente não se auto-recupera pelo checkout). Congelado em `test/billing.e2e.spec.ts`.
+20. (quirks congelados em `test/billing.e2e.spec.ts`) `startCheckout` é UPDATE sem upsert — firma sem linha de subscription recebe 201 e nada persiste; checkout nunca toca `status` (plano/ciclo mudam na intenção, ativação só via webhook); LogBilling devolve `checkoutUrl: ''`.
 
 ## Migration pattern (set by periods — follow for every module)
 
@@ -97,6 +99,10 @@ Cross-module seams the Effect composition must reproduce: event contract in `src
 - `src/effect/runtime.ts`: composition root `AppLayer` (add each migrated service with `Layer.mergeAll` + one `provideMerge(Db.layer)` at the root), `ManagedRuntime`, and `run()` which unwraps `DbError` → cause so `AppErrorFilter` sees raw driver errors. Runtime disposal intentionally unwired while `Db.layer` owns no resources.
 - Errors thrown inside `db.use` arrive wrapped as `DbError`; remap to typed fails with `catchTag('DbError', ...)` where business errors (AppError subclasses) are involved (see `openWithFanOut`, `closePeriod`).
 - Unit tests in `test/unit/<name>.repo.spec.ts` via `@effect/vitest` `layer(XRepo.layer)(...)`; seed direto no banco; `toFirmScope`/`toContactScope` permitidos lá via bloco no `apps/api/eslint.config.mjs` (`test/unit/**`). Exceções de lint SEMPRE em bloco de config (lint-staged roda com a config da raiz — diretivas inline somem no `--fix`).
+
+## Pending cleanups (fold into a dedicated commit, not into module commits)
+
+- Hoist to `test/support/fixtures.ts`: `putFile` (3 cópias: contacts/requests/messaging), `rawRequest`+`cookieOf` (contacts/whatsapp/requests/billing), `registerMember` (whatsapp/billing), `openFirmWithCompanies` (contacts/messaging/requests variantes). Fazer DEPOIS da suite de auth aterrissar; atualizar as suites committadas no mesmo commit.
 
 ## Session notes
 
