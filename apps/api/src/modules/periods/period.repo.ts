@@ -18,7 +18,7 @@ import {
   user,
 } from '../../infra/database/schema/index.js';
 import { companyIdsOf, type ContactScope, type FirmScope } from '../auth/scope.js';
-import { ChecklistRepository } from '../checklists/checklist.repository.js';
+import { ChecklistsRepo } from '../checklists/checklist.repo.js';
 import {
   appliesToFlags,
   mergeEffectiveChecklist,
@@ -42,7 +42,7 @@ const violatesPeriodUnique = (error: unknown): boolean => {
 
 const make = Effect.gen(function* () {
   const db = yield* Db;
-  const checklists = new ChecklistRepository(db.raw);
+  const checklists = yield* ChecklistsRepo;
 
   const activeCompanies = Effect.fn('PeriodsRepo.activeCompanies')(function* (scope: FirmScope) {
     return yield* db.use(async (d) => {
@@ -150,15 +150,16 @@ const make = Effect.gen(function* () {
       ...new Set(companies.map((c) => c.checklistTemplateId).filter(Boolean)),
     ] as string[];
 
-    const [templateItems, overrides] = yield* db.use(() =>
-      Promise.all([
-        templateIds.length ? checklists.listItemsForTemplates(templateIds) : [],
-        companyIds.length ? checklists.listOverridesForCompanies(scope, companyIds) : [],
-      ]),
+    const [templateItems, overrides] = yield* Effect.all(
+      [
+        checklists.listItemsForTemplates(templateIds),
+        checklists.listOverridesForCompanies(scope, companyIds),
+      ],
+      { concurrency: 2 },
     );
 
-    type CompanyOverride = Awaited<
-      ReturnType<ChecklistRepository['listOverridesForCompanies']>
+    type CompanyOverride = Effect.Success<
+      ReturnType<ChecklistsRepo['Service']['listOverridesForCompanies']>
     >[number];
 
     const itemsByTemplate = new Map<string, ChecklistLine[]>();
@@ -602,5 +603,8 @@ export class PeriodsRepo extends Context.Service<PeriodsRepo, Effect.Success<typ
   'competa/api/periods/PeriodsRepo',
 ) {
   static readonly layerNoDeps = Layer.effect(PeriodsRepo, make);
-  static readonly layer = this.layerNoDeps.pipe(Layer.provide(Db.layer));
+  static readonly layer = this.layerNoDeps.pipe(
+    Layer.provide(ChecklistsRepo.layerNoDeps),
+    Layer.provide(Db.layer),
+  );
 }

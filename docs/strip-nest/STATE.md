@@ -46,7 +46,7 @@ Order: smallest first; auth last (better-auth plumbing is replaced in the final 
 | 6   | messaging  | c3680ce      | —                | —          | tests done (33 specs) |
 | 7   | whatsapp   | 8c8ce40      | —                | —          | tests done (20 specs) |
 | 8   | billing    | 0c57b3b      | —                | —          | tests done (16 specs) |
-| 9   | auth       | —            | —                | —          | tests in flight       |
+| 9   | auth       | 3bc9cd4      | final phase      | —          | tests done (44 specs) |
 
 ## Dependency map (from codebase-map, 2026-10-23)
 
@@ -99,7 +99,7 @@ Cross-module seams the Effect composition must reproduce: event contract in `src
 - Effect service `<Module>Repo` in `src/modules/<module>/<name>.repo.ts`: `const make = Effect.gen(...)` returning the methods, `class XRepo extends Context.Service<XRepo, Effect.Success<typeof make>>()('competa/api/<module>/XRepo')` with `layerNoDeps = Layer.effect(XRepo, make)` and `layer = layerNoDeps.pipe(Layer.provide(Db.layer))`.
 - `Db` service (`src/infra/database/effect.ts`) wraps the infra drizzle instance; `db.use(f)` → `Effect<A, DbError>`; `db.raw` only for constructing not-yet-migrated plain repository classes.
 - Old Nest `@Injectable` repository becomes a thin shim delegating to `run(XRepo.use(...))` — keeps controllers and cross-module DI intact until consumers migrate.
-- `src/effect/runtime.ts`: composition root `AppLayer` (add each migrated service with `Layer.mergeAll` + one `provideMerge(Db.layer)` at the root), `ManagedRuntime`, and `run()` which unwraps `DbError` → cause so `AppErrorFilter` sees raw driver errors. Runtime disposal intentionally unwired while `Db.layer` owns no resources.
+- `src/effect/runtime.ts`: composition root `AppLayer` — serviços independentes entram por `Layer.mergeAll`; serviço que é DEPENDÊNCIA de outro (ex.: ChecklistsRepo ← PeriodsRepo) entra por `Layer.provideMerge` ANTES do `provideMerge(Db.layer)` final (mergeAll não alimenta um layer com outro). Memoização por referência garante instância única. `ManagedRuntime` + `run()` que desembrulha `DbError` → cause para o `AppErrorFilter` ver erros crus. Disposal do runtime fica para a fase final (Db.layer não possui recursos). Cada repo com dependência: `layer = layerNoDeps.pipe(Layer.provide(DepRepo.layerNoDeps), Layer.provide(Db.layer))` para os testes de unidade.
 - Errors thrown inside `db.use` arrive wrapped as `DbError`; remap to typed fails with `catchTag('DbError', ...)` where business errors (AppError subclasses) are involved (see `openWithFanOut`, `closePeriod`).
 - Unit tests in `test/unit/<name>.repo.spec.ts` via `@effect/vitest` `layer(XRepo.layer)(...)`; seed direto no banco; `toFirmScope`/`toContactScope` permitidos lá via bloco no `apps/api/eslint.config.mjs` (`test/unit/**`). Exceções de lint SEMPRE em bloco de config (lint-staged roda com a config da raiz — diretivas inline somem no `--fix`).
 

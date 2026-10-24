@@ -70,7 +70,7 @@ async function run() {
   const requestRepo = new RequestRepository(db);
   const accountantRepo = new AccountantRepository(db);
   const inviteRepo = new InviteRepository(db);
-  const checklistRepo = new ChecklistRepository(db);
+  const checklistRepo = new ChecklistRepository();
   const contactRepo = new ContactRepository();
 
   let periodId = '';
