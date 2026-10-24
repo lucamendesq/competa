@@ -40,13 +40,13 @@ Order: smallest first; auth last (better-auth plumbing is replaced in the final 
 | --- | ---------- | ------------ | ---------------- | ---------- | --------------------- |
 | 1   | periods    | 893d2c9      | 8c9a352          | 9 specs    | done                  |
 | 2   | contacts   | 88688ab      | b6d3f52          | 6 specs    | done                  |
-| 3   | companies  | 3d24db1      | —                | —          | tests done (55 specs) |
+| 3   | companies  | 3d24db1      | 92e47e5          | 12 specs   | done                  |
 | 4   | checklists | 34a7bfc      | —                | —          | tests done (50 specs) |
-| 5   | requests   | —            | —                | —          | tests in flight       |
-| 6   | messaging  | —            | —                | —          | tests in flight       |
+| 5   | requests   | 3b53657      | —                | —          | tests done (62 specs) |
+| 6   | messaging  | c3680ce      | —                | —          | tests done (33 specs) |
 | 7   | whatsapp   | 8c8ce40      | —                | —          | tests done (20 specs) |
-| 8   | billing    | —            | —                | —          | pending               |
-| 9   | auth       | —            | —                | —          | pending               |
+| 8   | billing    | 0c57b3b      | —                | —          | tests done (16 specs) |
+| 9   | auth       | —            | —                | —          | tests in flight       |
 
 ## Dependency map (from codebase-map, 2026-10-23)
 
@@ -90,6 +90,9 @@ Cross-module seams the Effect composition must reproduce: event contract in `src
 18. (quirks congelados em `test/requests.e2e.spec.ts`) review-extra unitário com `accepted` + `rejectionReason` grava a reason (o lote anula); checklist só de itens opcionais nunca chega a `complete` (`allAccepted` exige required não-vazio); comentário obsoleto em `request.repository.ts` fala em 422 para o race de reject — é 409.
 19. `POST /billing/checkout` é write → firma OVERDUE/CANCELED/trial-expirado leva 402 PAYMENT_REQUIRED na PRÓPRIA rota que regularizaria o pagamento (em prod, firma inadimplente não se auto-recupera pelo checkout). Congelado em `test/billing.e2e.spec.ts`.
 20. (quirks congelados em `test/billing.e2e.spec.ts`) `startCheckout` é UPDATE sem upsert — firma sem linha de subscription recebe 201 e nada persiste; checkout nunca toca `status` (plano/ciclo mudam na intenção, ativação só via webhook); LogBilling devolve `checkoutUrl: ''`.
+21. (segurança) Header `x-internal-signup` é forjável: qualquer cliente que o envie atravessa o hook do better-auth e cria conta órfã com sessão viva, sem convite — a conta leva 403 nas rotas de tenant mas ocupa o email para sempre (`/auth/register` passa a responder SIGNUP_REJECTED). Congelado em `test/auth.e2e.spec.ts`.
+22. Branch 409 morto em `POST /auth/sign-up`: email convidado que ganhou conta entre convite e aceite → better-auth com `asResponse: true` devolve o erro como Response, o adapter embrulha como sucesso com `userId: ''` e o insert de accountant estoura no Postgres (`invalid input syntax for type uuid: ""`) → 500 em vez do 409 EMAIL_ALREADY_REGISTERED que o controller pretende. Rollback preserva o convite. Congelado em `test/auth.e2e.spec.ts`.
+23. (quirk congelado em `test/auth.e2e.spec.ts`) `PATCH /auth/device` com `installed` omitido RESETA installed para false no upsert (default do zod vence a semântica de patch).
 
 ## Migration pattern (set by periods — follow for every module)
 
