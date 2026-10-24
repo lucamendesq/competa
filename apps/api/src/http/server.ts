@@ -16,9 +16,14 @@ import { companiesRoutes } from '../modules/companies/companies.routes.js';
 import { accessRecoveryRoutes } from '../modules/contacts/access-recovery.routes.js';
 import { contactAccessRoutes } from '../modules/contacts/contact-access.routes.js';
 import { contactsRoutes } from '../modules/contacts/contacts.routes.js';
+import { messagesRoutes, type RunReminders } from '../modules/messaging/messages.routes.js';
 import { pushRoutes } from '../modules/messaging/push.routes.js';
 import { periodsRoutes } from '../modules/periods/periods.routes.js';
+import { requestsRoutes } from '../modules/requests/requests.routes.js';
+import { reviewRoutes, type ScanDeadlines } from '../modules/requests/review.routes.js';
 import { uploadRoutes } from '../modules/requests/upload.routes.js';
+import { zipRoutes } from '../modules/requests/zip.routes.js';
+import { whatsappSettingsRoutes } from '../modules/whatsapp/whatsapp-settings.routes.js';
 import { whatsappWebhookRoutes } from '../modules/whatsapp/whatsapp-webhook.routes.js';
 import { handler } from './envelope.js';
 import { nestFallback, type NodeRequestListener } from './nest-bridge.js';
@@ -51,6 +56,9 @@ export const serverLayer = (options: {
   /** A MESMA instância do container Nest: os listeners de messaging estão registrados
    *  nela, e uma cópia engoliria todo evento emitido por rota migrada. */
   readonly events: EventEmitter2;
+  /** As duas varreduras continuam vindo do container Nest — os crons são a sub-fase F5. */
+  readonly scanDeadlines: ScanDeadlines;
+  readonly runReminders: RunReminders;
   readonly fallback: NodeRequestListener;
 }) =>
   /* `nestFallback` é o curinga `'*' '/*'` e fica por último na leitura, mas find-my-way
@@ -62,6 +70,7 @@ export const serverLayer = (options: {
       pushRoutes,
       asaasWebhookRoutes,
       whatsappWebhookRoutes,
+      whatsappSettingsRoutes,
       periodsRoutes(options.events),
       checklistsRoutes,
       companiesRoutes(options.events),
@@ -73,6 +82,10 @@ export const serverLayer = (options: {
       accessRecoveryRoutes(options.events),
       contactAccessRoutes,
       uploadRoutes,
+      requestsRoutes(options.events),
+      reviewRoutes(options.events, options.scanDeadlines),
+      messagesRoutes(options.runReminders),
+      zipRoutes,
       nestFallback(options.fallback),
     ),
     {

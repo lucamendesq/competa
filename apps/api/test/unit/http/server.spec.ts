@@ -15,6 +15,8 @@ const boot = async (ping: () => Promise<void>) => {
       trustProxy: true,
       ping,
       events: new EventEmitter2(),
+      scanDeadlines: () => Promise.resolve({}),
+      runReminders: () => Promise.resolve({}),
       fallback: (_request, response: ServerResponse) => {
         response.statusCode = 418;
         response.end();

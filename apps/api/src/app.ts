@@ -13,6 +13,7 @@ import { AppErrorFilter } from './lib/app-error.filter.js';
 import { originCheck } from './lib/origin-check.js';
 import { ResponseInterceptor } from './lib/response.interceptor.js';
 import { DeadlineCron } from './modules/requests/deadline.cron.js';
+import { RemindersCron } from './modules/requests/reminders.cron.js';
 
 export interface RunningApp {
   readonly url: string;
@@ -61,12 +62,18 @@ export async function createApp(options?: {
   const nest = await createNestApp(trustProxy);
 
   const health = nest.get(HealthRepository);
+  const deadlines = nest.get(DeadlineCron);
+  const reminders = nest.get(RemindersCron);
   const runtime = ManagedRuntime.make(
     serverLayer({
       port,
       trustProxy,
       ping: () => health.ping(),
       events: nest.get(EventEmitter2),
+      /* Mesmo acoplamento ao DI do `runDeadlineSweep`: as duas varreduras ainda são do
+       * container Nest (os crons são a sub-fase F5) e as rotas só as chamam. */
+      scanDeadlines: (scope) => deadlines.scan(scope),
+      runReminders: (scope) => reminders.run(scope),
       fallback: nest.getHttpAdapter().getInstance(),
     }),
   );
@@ -80,7 +87,7 @@ export async function createApp(options?: {
     url,
     nest,
     /* O job diário não tem rota HTTP; o acoplamento ao DI mora aqui, nunca nas suites. */
-    runDeadlineSweep: () => nest.get(DeadlineCron).daily(),
+    runDeadlineSweep: () => deadlines.daily(),
     /* Dois crons e um pool de Postgres: sem isto, um SIGTERM do orquestrador derruba o
      * processo no meio de uma varredura e deixa conexão pendurada. */
     close: async () => {

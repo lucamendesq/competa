@@ -71,6 +71,7 @@ Design completo em [`platform-design.md`](./platform-design.md) — recomendaç�
 4. `ContactUploadGuard` lendo o corpo antes da validação: **preservar** (é o bug congelado #8).
 5. IP do cliente em produção: **replicar `trust proxy: 1`**. Trocar para `fly-client-ip` é mais seguro, mas é mudança de comportamento → follow-up separado, não nesta branch.
 6. `zip.controller.ts` / `setErrorHandler`: **não decidível no papel.** Tentar paridade primeiro; `requests.e2e.spec.ts:1419` prova que a chave do single-flight libera no close do stream, não no retorno do handler. Se a paridade não sair, ESCALAR ao usuário em vez de escolher um comportamento novo.
+   → **RESOLVIDA no lote D (F4f).** A paridade saiu inteira para tudo que a suíte prende: a chave do voo único sai no `close` do `ZipArchive` (`archive.once('close'|'error', release)`, mesmo evento que o `ZipFlightService` usava) e o abort do cliente continua em `res.on('close')` sobre o `ServerResponse` de `NodeHttpServerRequest.toServerResponse`. Sobra só o rabo do `setErrorHandler` (divergência 2 abaixo), fora do alcance da suíte.
 
 ## Dependency map (from codebase-map, 2026-10-23)
 
@@ -134,11 +135,33 @@ Cross-module seams the Effect composition must reproduce: event contract in `src
 - **Registro órfão de `MessageProvider`**: depois da migração de messaging, o token Nest `MessageProvider` (`messaging.module.ts`) perdeu o último injetor — o Nest ainda o CONSTRÓI no boot (segundo `new Resend(...)` em produção) e o log de boot do MessagingModule passa a mentir. Deletar junto com o seam de providers.
 - **Cópias mortas e DIVERGENTES de `reminderCandidates`/`reminderSettingsByFirm`**: existem em `message.repo.ts` E `request.repo.ts`. Só as do `RequestsRepo` têm chamador (`reminders.cron.ts`). As duas divergem: a de requests aplica o gate da capability `reminderTuning` + `DEFAULT_REMINDER_SETTINGS`, a de messaging devolve as colunas cruas — e o spec de unidade de messaging hoje CONGELA o comportamento sem gate ("devolve os knobs crus"), cimentando um bypass de plano como se fosse intencional. Apagar as duas de messaging + os 4 specs correspondentes.
 - **Seam de providers de messaging** (mesma forma do Storage): `MessagesRepo` constrói email/push/whatsapp dentro do `make`. O provider whatsapp de PRODUÇÃO só entra por `await import()` memoizado porque o import estático fecha um ciclo ESM (`runtime → message.repo → providers/whatsapp.provider → whatsapp.repository (shim) → runtime`) que quebra qualquer módulo que importe `message.repo.ts` direto. O ciclo só some quando `whatsapp.provider.ts` parar de depender do shim — resolver junto com o seam. Esse branch de produção não tem cobertura (é inalcançável hoje por causa do bug #14).
+- **`inFlight` do zip é global de módulo** (`zip.routes.ts`), onde o `ZipFlightService` era `@Injectable()` por container. Mesma forma do problema que levou o `ThrottleStore` a virar `Context.Reference` por app — mas aqui a chave é UUID de request/period, então duas apps no mesmo processo nunca colidem e não há 409 falso. `runtime.dispose()` não limpa o Set. Virar referência por app junto com o seam de Storage.
 - **Storage seam**: `DocumentsRepo` constrói o próprio provider (`env.NODE_ENV === 'production' ? new R2Storage() : new LocalStorage()`), duplicando a expressão do `storage.module.ts`. Em produção isso significa DOIS `S3Client` (o outro vem do `zip.controller.ts` via DI) e o log de boot do StorageModule passa a mentir. Criar um `Storage` `Context.Service` espelhando o padrão do `Db` (~10 linhas) resolve: instância única, expressão em um lugar só, e devolve o seam que o `verify-com-67-25.ts` teste 3 usava (bloco removido no commit da migração de requests — restaurar junto). Fazer antes da fase final.
 
 ## Fase final — divergências (conhecidas e aceitas)
 
 1. **Webhooks e content-type (Asaas e WhatsApp).** O `express.json()` só parseava `application/json`; com outro content-type `req.body` ficava `{}` e, no WhatsApp, o `rawBody` nem era preenchido (HMAC falhava fechado). No shell Effect o corpo é lido independentemente do content-type. Dois efeitos, ambos ANTES da checagem de segredo/HMAC: corpo não-JSON passa a dar 400 em vez de 503/403, e JSON enviado sob content-type errado passa a ser processado onde o Nest ignorava. Não afrouxa nada — o HMAC/token continua sendo o portão de todo efeito — e é inalcançável na suíte (o 503 por `META_APP_SECRET`/`ASAAS_WEBHOOK_TOKEN` ausentes dispara antes do segredo ser comparado). Reproduzir o `type-is` do Express seria projeto próprio. Migrado no lote A.
+
+2. **Erro NO MEIO do stream do zip (`StreamableFile.setErrorHandler`).** Quando uma leitura
+   do storage falha com o zip já em transmissão, o Nest chamava o `setErrorHandler`:
+   `archive.destroy()` + `response.end()` — resposta encerrada limpa, com um zip truncado
+   que o cliente vê como completo. Em `effect/http` não existe equivalente (probe do §11 do
+   design): o `Stream.orDie` do `NodeHttpServer` cai no `handleCause`, que com `headersSent`
+   **destrói o socket** em vez de `end()` (o comentário do próprio pacote: "ending a started
+   response normally would make a partial body look complete").
+
+   O ramo `if (!response.headersSent) response.statusCode = 500` do handler antigo **era
+   alcançável no Nest**, ao contrário do que esta nota dizia antes: o `express-adapter` usa
+   `setHeader` (não `writeHead`), então `headersSent` só vira true no primeiro chunk — um
+   `error` do archiver antes do primeiro byte (ex.: `openRead` falhando na primeira entrada)
+   virava 500. No shell Effect o `HttpServerResponse.stream` escreve os headers antes, então
+   esse ramo é estruturalmente inalcançável.
+
+   Diferença observável, portanto: onde o Nest respondia 500 (erro antes do primeiro byte)
+   ou 200-truncado (erro no meio), o Effect aborta a conexão. Nenhum spec alcança — exige o
+   storage falhar durante um download. É a troca de um zip truncado que PARECE completo por
+   uma falha visível, o que é mais seguro, mas é mudança de comportamento e está aqui por
+   isso. `archive.destroy()` continua acontecendo, pelo `lazyRead`. Migrado no lote D.
 
 ## Known flakes (observar; não bloqueiam)
 
