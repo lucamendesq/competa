@@ -125,8 +125,8 @@ async function run() {
 
   const firmScope = toFirmScope(firmId);
   const uploadScope = toUploadScope(requestId, contactId);
-  const documents = new DocumentRepository(db, storage);
-  const requests = new RequestRepository(db);
+  const documents = new DocumentRepository();
+  const requests = new RequestRepository();
   const periods = new PeriodRepository();
 
   const itemStatus = async () => {

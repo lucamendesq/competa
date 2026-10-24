@@ -4,6 +4,9 @@ import { ChecklistsRepo } from '../modules/checklists/checklist.repo.js';
 import { CompaniesRepo } from '../modules/companies/company.repo.js';
 import { ContactsRepo } from '../modules/contacts/contact.repo.js';
 import { PeriodsRepo } from '../modules/periods/period.repo.js';
+import { DocumentsRepo } from '../modules/requests/document.repo.js';
+import { RequestsRepo } from '../modules/requests/request.repo.js';
+import { UploadLinksRepo } from '../modules/requests/upload-link.repo.js';
 
 /* ChecklistsRepo entra por provideMerge, não por mergeAll: PeriodsRepo depende dele e o
  * mergeAll não alimenta uma layer com a outra. */
@@ -11,6 +14,9 @@ export const AppLayer = Layer.mergeAll(
   PeriodsRepo.layerNoDeps,
   ContactsRepo.layerNoDeps,
   CompaniesRepo.layerNoDeps,
+  RequestsRepo.layerNoDeps,
+  DocumentsRepo.layerNoDeps,
+  UploadLinksRepo.layerNoDeps,
 ).pipe(Layer.provideMerge(ChecklistsRepo.layerNoDeps), Layer.provideMerge(Db.layer));
 
 export type AppContext = Layer.Success<typeof AppLayer>;

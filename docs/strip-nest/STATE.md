@@ -41,7 +41,7 @@ Order: smallest first; auth last (better-auth plumbing is replaced in the final 
 | 1   | periods    | 893d2c9      | 8c9a352          | 9 specs    | done                  |
 | 2   | contacts   | 88688ab      | b6d3f52          | 6 specs    | done                  |
 | 3   | companies  | 3d24db1      | 92e47e5          | 12 specs   | done                  |
-| 4   | checklists | 34a7bfc      | —                | —          | tests done (50 specs) |
+| 4   | checklists | 34a7bfc      | fa59e11          | 23 specs   | done                  |
 | 5   | requests   | 3b53657      | —                | —          | tests done (62 specs) |
 | 6   | messaging  | c3680ce      | —                | —          | tests done (33 specs) |
 | 7   | whatsapp   | 8c8ce40      | —                | —          | tests done (20 specs) |
@@ -105,7 +105,9 @@ Cross-module seams the Effect composition must reproduce: event contract in `src
 
 ## Pending cleanups (fold into a dedicated commit, not into module commits)
 
-- Hoist to `test/support/fixtures.ts`: `putFile` (3 cópias: contacts/requests/messaging), `rawRequest`+`cookieOf` (contacts/whatsapp/requests/billing), `registerMember` (whatsapp/billing), `openFirmWithCompanies` (contacts/messaging/requests variantes). Fazer DEPOIS da suite de auth aterrissar; atualizar as suites committadas no mesmo commit.
+- Hoist to `test/support/fixtures.ts`: `putFile` (3 cópias: contacts/requests/messaging), `rawRequest`+`cookieOf` (contacts/whatsapp/requests/billing/auth), `registerMember`/`addMember` (whatsapp/billing/auth), `openFirmWithCompanies` (contacts/messaging/requests variantes). As suites de auth já aterrissaram — pode fazer.
+- `type Executor` (`Omit<Db['Service']['raw'], '$client'>`) está duplicado em 4 repos (companies/checklists/requests×2) com o mesmo comentário — hoist para `src/infra/database/effect.ts`.
+- **Storage seam**: `DocumentsRepo` constrói o próprio provider (`env.NODE_ENV === 'production' ? new R2Storage() : new LocalStorage()`), duplicando a expressão do `storage.module.ts`. Em produção isso significa DOIS `S3Client` (o outro vem do `zip.controller.ts` via DI) e o log de boot do StorageModule passa a mentir. Criar um `Storage` `Context.Service` espelhando o padrão do `Db` (~10 linhas) resolve: instância única, expressão em um lugar só, e devolve o seam que o `verify-com-67-25.ts` teste 3 usava (bloco removido no commit da migração de requests — restaurar junto). Fazer antes da fase final.
 
 ## Session notes
 

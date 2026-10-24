@@ -116,7 +116,7 @@ async function checkReminderCadence() {
       .values({ id: uuidv7(), accountingFirmId: id, planName, status: 'ACTIVE' });
   }
 
-  const requests = new RequestRepository(db);
+  const requests = new RequestRepository();
   const resolve = () => requests.reminderSettingsByFirm(Object.values(firms));
 
   let settings = await resolve();

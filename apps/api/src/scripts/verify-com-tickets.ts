@@ -57,7 +57,7 @@ async function run() {
   });
 
   const companyRepo = new CompanyRepository();
-  const requestRepo = new RequestRepository(db);
+  const requestRepo = new RequestRepository();
   const accountantRepo = new AccountantRepository(db);
   const inviteRepo = new InviteRepository(db);
   const checklistRepo = new ChecklistRepository();
