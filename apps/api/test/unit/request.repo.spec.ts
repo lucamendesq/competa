@@ -335,12 +335,14 @@ layer(RequestsRepo.layer)('RequestsRepo', (it) => {
 
       expect(yield* itemRow(itemId)).toMatchObject({ status: 'pending', deadlineNotifiedAt: null });
 
-      /* Bug congelado #16: a resposta promete link rotacionado, mas o token anterior ganha
-       * 48h de carência em vez de morrer na hora. */
+      /* A resposta promete link rotacionado, então o anterior morre NA HORA — nada de 48h de
+       * carência, que é regra do lembrete e do reenvio, não de um ato do Contador sobre o
+       * link. `before` serve para provar que o token REALMENTE mudou. */
       const after = yield* linkRow(box.requestId);
       expect(after.tokenHash).toBe(hashToken(rejected!.token));
-      expect(after.previousTokenHash).toBe(before.tokenHash);
-      expect(after.previousExpiresAt).not.toBeNull();
+      expect(after.tokenHash).not.toBe(before.tokenHash);
+      expect(after.previousTokenHash).toBeNull();
+      expect(after.previousExpiresAt).toBeNull();
     }),
   );
 

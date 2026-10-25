@@ -15,6 +15,7 @@ import { addDays } from 'date-fns';
 import { Effect, Layer } from 'effect';
 import * as z from 'zod';
 import env from '../../config/env.js';
+import { Db } from '../../infra/database/effect.js';
 import { FirmContext } from '../../http/context.js';
 import { handler, paginated } from '../../http/envelope.js';
 import { firmRoute } from '../../http/middleware/auth.js';
@@ -434,8 +435,25 @@ const updateContact = route(
       // Bug congelado #3: mesma causa do #2, com `ContactBody.partial()`.
       const input = yield* body(ContactBody.partial());
 
-      const row = yield* CompaniesRepo.use((repo) =>
-        repo.updateContact(scope, id, contactId, input),
+      const db = yield* Db;
+
+      /* Trocar o e-mail é trocar a PESSOA. Sem revogar, o Link de Upload antigo continua
+       * valendo — e ele resolve pelo `contact.id` lendo o e-mail ao vivo, então o token que
+       * ficou com o antigo Responsável passaria a ativar conta no endereço do NOVO. A conta
+       * já vinculada também perde o vínculo. Os dois na mesma transação do UPDATE. */
+      const row = yield* db.withTransaction(
+        Effect.gen(function* () {
+          const updated = yield* CompaniesRepo.use((repo) =>
+            repo.updateContact(scope, id, contactId, input),
+          );
+          if (!updated) return undefined;
+
+          if (input.email !== undefined && input.email !== updated.previousEmail) {
+            yield* ContactsRepo.use((repo) => repo.revokeAccess(scope, id, contactId));
+          }
+
+          return updated.row;
+        }),
       );
       if (!row) return yield* Effect.fail(new NotFound('Responsável não encontrado.'));
 

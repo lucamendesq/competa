@@ -35,10 +35,25 @@ jobs:
         env:
           DATABASE_URL: ${{ secrets.BACKUP_DATABASE_URL }}
 
+      # O R2 cifra em repouso do lado dele, o que NÃO protege de quem tem a credencial do
+      # bucket: o dump traz a base inteira, com dado sujeito a LGPD. Cifrado aqui, a
+      # credencial sozinha não lê nada. Guarde BACKUP_AGE_PUBLIC_KEY e a chave privada FORA
+      # da Cloudflare — chave junto do cofre não é chave.
+      - name: Instalar age
+        run: sudo apt-get install -y -qq age
+
+      - name: Cifrar o dump
+        run: |
+          FILE="competa-$(date -u +%Y%m%d).dump"
+          age --encrypt --recipient "$AGE_RECIPIENT" --output "$FILE.age" "$FILE"
+          rm -f "$FILE"
+        env:
+          AGE_RECIPIENT: ${{ secrets.BACKUP_AGE_PUBLIC_KEY }}
+
       - name: Enviar para o bucket de backup (R2)
         run: |
-          aws s3 cp "competa-$(date -u +%Y%m%d).dump" \
-            "s3://competa-backups/$PREFIX/competa-$(date -u +%Y%m%d).dump" \
+          aws s3 cp "competa-$(date -u +%Y%m%d).dump.age" \
+            "s3://competa-backups/$PREFIX/competa-$(date -u +%Y%m%d).dump.age" \
             --endpoint-url "$R2_ENDPOINT"
         env:
           AWS_ACCESS_KEY_ID: ${{ secrets.BACKUP_R2_ACCESS_KEY_ID }}

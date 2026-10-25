@@ -467,13 +467,21 @@ const make = Effect.gen(function* () {
       const owned = await findOwnedIdOf(d, scope, companyId);
       if (!owned) return undefined;
 
+      /* O e-mail ANTERIOR volta junto porque trocá-lo é trocar a pessoa: quem chama precisa
+       * saber disso para revogar o acesso do antigo Responsável. */
+      const [before] = await d
+        .select({ email: contact.email })
+        .from(contact)
+        .where(and(eq(contact.id, contactId), eq(contact.companyId, owned)))
+        .limit(1);
+
       const [row] = await d
         .update(contact)
         .set(body)
         .where(and(eq(contact.id, contactId), eq(contact.companyId, owned)))
         .returning();
 
-      return row;
+      return row && { row, previousEmail: before?.email };
     });
   });
 
