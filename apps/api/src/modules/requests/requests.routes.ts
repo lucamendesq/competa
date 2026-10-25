@@ -77,9 +77,12 @@ const resendUploadLink = (events: EventEmitter2) =>
           uploadUrl: `${env.WEB_URL}/envio/${token}`,
         };
 
-        /* Bug congelado #13: `onUploadLinkResent` não devolve booleano, então o
-         * `includes(true)` nunca casa e a rota responde 503 DEPOIS de o email já ter
-         * saído — com um token que `applyUploadToken` nunca chega a oficializar. */
+        /* O token é oficializado ANTES do envio: o email carrega a URL dele, e mandar
+         * primeiro significaria entregar um link que ainda não vale — e que não valeria
+         * nunca, se a gravação falhasse. O link anterior sobrevive à carência, então um
+         * envio que falha não deixa o Responsável sem nada. */
+        yield* RequestsRepo.use((repo) => repo.applyUploadToken(id, tokenHash));
+
         const delivered = yield* Effect.promise(() =>
           events.emitAsync(EVENTS.UploadLinkResent, resent),
         );
@@ -90,8 +93,6 @@ const resendUploadLink = (events: EventEmitter2) =>
             ),
           );
         }
-
-        yield* RequestsRepo.use((repo) => repo.applyUploadToken(id, tokenHash));
 
         return { uploadUrl: resent.uploadUrl, contactEmail: context.contactEmail };
       }),

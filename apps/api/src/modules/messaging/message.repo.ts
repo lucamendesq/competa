@@ -582,6 +582,8 @@ const make = Effect.gen(function* () {
       );
 
       const delivered = yield* deliver({
+        // o reenvio sai pelo MESMO canal do original; sem isto caía sempre no provider default
+        channel: row.channel,
         requestId: row.requestId,
         purpose: 'completion',
         recipient: row.recipient,
@@ -617,6 +619,8 @@ const make = Effect.gen(function* () {
 
     if (row.purpose === 'link_delivery') {
       const delivered = yield* deliver({
+        // o reenvio sai pelo MESMO canal do original; sem isto caía sempre no provider default
+        channel: row.channel,
         requestId: row.requestId,
         purpose: 'link_delivery',
         recipient: row.recipient,
@@ -662,6 +666,8 @@ const make = Effect.gen(function* () {
       );
 
       const delivered = yield* deliver({
+        // o reenvio sai pelo MESMO canal do original; sem isto caía sempre no provider default
+        channel: row.channel,
         requestId: row.requestId,
         purpose: 'reminder',
         recipient: row.recipient,
@@ -723,6 +729,8 @@ const make = Effect.gen(function* () {
           });
 
       const delivered = yield* deliver({
+        // o reenvio sai pelo MESMO canal do original; sem isto caía sempre no provider default
+        channel: row.channel,
         requestId: row.requestId,
         purpose: 'rejection',
         recipient: row.recipient,
@@ -771,6 +779,8 @@ const make = Effect.gen(function* () {
           });
 
       const delivered = yield* deliver({
+        // o reenvio sai pelo MESMO canal do original; sem isto caía sempre no provider default
+        channel: row.channel,
         requestId: row.requestId,
         purpose: 'deadline_missed',
         recipient: row.recipient,

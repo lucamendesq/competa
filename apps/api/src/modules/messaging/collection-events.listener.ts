@@ -108,11 +108,14 @@ export const onContactInvited = (event: ContactInvitedEvent) =>
 /* Bug congelado #13: o resultado de `deliver` NÃO é devolvido, então o
  * `emitAsync(...).includes(true)` da rota de reenvio nunca casa — 503 com o email já
  * entregue e o token novo nunca aplicado. Não tocar. */
+/** Devolve SE entregou: a rota de reenvio espera esse booleano para decidir entre 200 e 503.
+ *  Sem ele o `includes(true)` nunca casava e a rota respondia 503 sempre — depois de o email
+ *  já ter saído. */
 export const onUploadLinkResent = (event: UploadLinkResentEvent) =>
   Effect.gen(function* () {
     const messages = yield* MessagesRepo;
 
-    yield* messages.deliver({
+    return yield* messages.deliver({
       requestId: event.requestId,
       purpose: 'resend',
       recipient: event.contactEmail,

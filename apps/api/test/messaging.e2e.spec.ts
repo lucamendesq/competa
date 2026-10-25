@@ -2,6 +2,7 @@ import { and, eq, inArray } from 'drizzle-orm';
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 import { bootApp, type RunningApp } from './support/boot.js';
 import { db, truncateAll } from './support/db.js';
+import { hashToken } from '../src/lib/token.js';
 import {
   accountingFirm,
   message,
@@ -494,7 +495,10 @@ describe('POST /messages/:id/resend', () => {
     expect(await messageRowsOf(openBox.requestId, 'resend')).toHaveLength(1);
   });
 
-  it('bug congelado: reenvio de mensagem whatsapp sai por EMAIL (deliver sem channel)', async () => {
+  /* O reenvio sai pelo MESMO canal do original. Antes o `resend` chamava `deliver` sem
+   * `channel` e tudo caía no provider default (email) — um lembrete de WhatsApp reenviado ia
+   * para um "endereço" que é número de telefone. */
+  it('reenvio de mensagem whatsapp sai por WHATSAPP', async () => {
     const seededId = await seedMessage({
       requestId: openBox.requestId,
       channel: 'whatsapp',
@@ -511,7 +515,7 @@ describe('POST /messages/:id/resend', () => {
     const reminders = await messageRowsOf(openBox.requestId, 'reminder');
     expect(reminders).toHaveLength(2);
     expect(reminders[1]).toMatchObject({
-      channel: 'email',
+      channel: 'whatsapp',
       recipient: '+5511988887777',
       status: 'sent',
     });
@@ -767,18 +771,15 @@ describe('RequestCreated — entrega do link por email e push adicional (F10-5)'
     expect(byChannel.push).toMatchObject({ recipient: body.endpoint, status: 'sent' });
   });
 
-  /* Bug congelado: `onUploadLinkResent` não devolve o boolean da entrega, então o
-   * `emitAsync` do controller vê `[undefined]` e responde 503 — mas o deliver JÁ rodou:
-   * o email com o link novo sai e fica registrado, e o token nunca é oficializado
-   * (`applyUploadToken` não é alcançado). O Responsável recebe um link morto. */
-  it('bug congelado: UploadLinkResent pelo Contador → 503, mas o email sai e o link não rotaciona', async () => {
+  /* O token é oficializado ANTES do envio, então o link que chega no email É o válido. E o
+   * listener devolve se entregou, que é o que a rota usa para escolher entre 200 e 503. */
+  it('reenvio do Contador: 200, email sai e o token do email vira o oficial', async () => {
     const hashBefore = await tokenHashOf(firstBox.requestId);
     const res = await fixture.firm.api.post(`/requests/${firstBox.requestId}/upload-link/resend`);
 
-    expect(res.status, JSON.stringify(res.body)).toBe(503);
-    expect(res.body.error.code).toBe('SERVICE_UNAVAILABLE');
+    expect(res.status, JSON.stringify(res.body)).toBe(201);
+    expect(res.body.data.contactEmail).toBe(firstBox.contactEmail);
 
-    /* emitAsync: a entrega é aguardada antes da resposta — sem retry aqui. */
     const rows = await messageRowsOf(firstBox.requestId, 'resend');
     expect(rows).toHaveLength(1);
     expect(rows[0]).toMatchObject({
@@ -787,9 +788,11 @@ describe('RequestCreated — entrega do link por email e push adicional (F10-5)'
       status: 'sent',
     });
 
-    expect(await tokenHashOf(firstBox.requestId), 'token do email nunca vira o oficial').toBe(
-      hashBefore,
-    );
+    const hashAfter = await tokenHashOf(firstBox.requestId);
+    expect(hashAfter, 'o token rotacionou').not.toBe(hashBefore);
+    /* O link do email é o oficial: é essa a diferença entre entregar acesso e entregar um
+     * link morto. */
+    expect(hashAfter).toBe(hashToken(res.body.data.uploadUrl.split('/envio/')[1]));
   });
 });
 
