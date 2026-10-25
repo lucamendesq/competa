@@ -5,6 +5,7 @@ import { FirmContext } from '../../http/context.js';
 import { handler } from '../../http/envelope.js';
 import { firmRoute } from '../../http/middleware/auth.js';
 import { body, route } from '../../http/platform.js';
+import { ServiceUnavailable } from '../../lib/app-error.js';
 import { AccountantsRepo } from '../auth/accountant.repo.js';
 import { OnlyOwnerCanManageTeam } from '../auth/errors.js';
 import type { FirmScope } from '../auth/scope.js';
@@ -14,14 +15,15 @@ import { WhatsappCryptoService } from './whatsapp-crypto.service.js';
 import { WhatsappRepo } from './whatsapp.repo.js';
 
 /* As mesmas instâncias que o `WhatsappModule` montava, com a mesma escolha por NODE_ENV e o
- * crypto como singleton compartilhado com o provider de produção. Bug congelado #11: sem
- * `WHATSAPP_ENCRYPTION_KEY` o crypto cai numa chave de zeros conhecida — não tocar. */
+ * crypto como singleton compartilhado com o provider de produção. */
 const crypto = new WhatsappCryptoService();
 const whatsapp =
   env.NODE_ENV === 'production' ? new WhatsappProvider(crypto) : new MockWhatsappProvider();
 
-/* Stub do Embedded Signup: o `code` recebido nunca é trocado por token na Meta — o que vai
- * para o banco é credencial mock, com ou sem META_APP_ID/META_APP_SECRET no ambiente. */
+/* Stub do Embedded Signup: o `code` recebido nunca é trocado por token na Meta. Fora de
+ * produção isso destrava o fluxo da tela; EM produção a rota recusa, porque gravar
+ * `status: 'active'` com token falso faz o envio falhar depois, longe da causa — e some com
+ * o sinal de que a integração nunca existiu. */
 const MOCK_INTEGRATION = {
   accessToken: 'mock_long_lived_token',
   wabaId: 'mock_waba_id',
@@ -72,6 +74,12 @@ const onboard = route(
       yield* body(whatsappOnboardSchema);
 
       yield* requireOwner(scope, session.user.id);
+
+      if (env.NODE_ENV === 'production') {
+        return yield* Effect.fail(
+          new ServiceUnavailable('Conexão com o WhatsApp ainda não disponível.'),
+        );
+      }
 
       yield* WhatsappRepo.use((repo) =>
         repo.upsertIntegration(scope, {

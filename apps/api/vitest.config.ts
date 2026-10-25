@@ -18,6 +18,9 @@ export default defineConfig({
        * a garantia era "o .env do dev não tem essa linha" — quem a preenchesse quebrava a
        * suíte, e só na máquina dele. */
       META_APP_SECRET: '',
+      /* Chave de teste, fixa para o cifrado ser reproduzível entre runs. O serviço deixou
+       * de ter fallback: sem isto o app nem sobe. */
+      WHATSAPP_ENCRYPTION_KEY: 'a'.repeat(64),
       /* Diretório próprio, apagado a cada run: apontar para o `.storage` do dev fazia cada
        * execução deixar lixo lá (chegou a 4,3 GB / ~5 mil arquivos) e ainda exercitava a
        * faxina de órfãos do cron contra sobras de runs antigas. */

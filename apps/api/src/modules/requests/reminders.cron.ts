@@ -11,7 +11,7 @@ import type { FirmScope } from '../auth/scope.js';
 import { pickReminders } from '../messaging/reminder-rules.js';
 import { RequestsRepo } from './request.repo.js';
 
-const REMINDERS_CRON_LOCK_ID = 42001;
+const REMINDERS_CRON_LEASE = 'reminders-sweep';
 
 const logger = new Logger('RemindersCron');
 
@@ -73,7 +73,7 @@ export const remindersCron = (events: EventEmitter2) => {
     Effect.gen(function* () {
       const requests = yield* RequestsRepo;
 
-      const ran = yield* requests.withAdvisoryLock(REMINDERS_CRON_LOCK_ID, () =>
+      const ran = yield* requests.withLease(REMINDERS_CRON_LEASE, () =>
         run(Effect.as(runSweep(), true)),
       );
 
