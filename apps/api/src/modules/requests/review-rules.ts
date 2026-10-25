@@ -45,6 +45,11 @@ export const reviewExtraRefusal = (input: {
   requestStatus: RequestStatus;
   reviewStatus: ReviewStatus;
 }) => {
+  /* `requestStatus` NÃO é checado aqui, e é de propósito: Solicitação encerrada continua
+   * aceitando Documento Extra (`database-schema.md`, seção de limites de envio). Se o Extra
+   * ainda chega depois do encerramento, ele precisa ser revisável — barrar aqui deixaria
+   * esses documentos em limbo. O parâmetro fica na assinatura para a simetria com as outras
+   * regras, que o usam. */
   if (input.reviewStatus === 'accepted') return 'Este documento já está aceito.';
   if (input.reviewStatus === 'rejected') return 'Este documento já foi rejeitado.';
 
