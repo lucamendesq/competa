@@ -11,6 +11,7 @@ import { storage } from '../../infra/storage/storage.js';
 import { PRESIGN_TTL_SECONDS } from '../../infra/storage/storage.provider.js';
 import { AppError, NotFound, ServiceUnavailable, ValidationError } from '../../lib/app-error.js';
 import type { UploadScope } from '../auth/scope.js';
+import type { DbError } from '../../infra/database/error.js';
 import {
   MAX_DOCS_PER_REQUEST,
   MAX_FILES_PER_UPLOAD,
@@ -52,6 +53,11 @@ const inspectAndHashStream = (stream: Readable): Promise<{ hash: string; firstCh
     stream.on('error', reject);
   });
 };
+
+/* Os `throw` acontecem dentro da transação e chegam embrulhados em DbError; sem este remap
+ * sumiriam de um catchTag tipado. O que não for nosso é defeito. */
+const appErrorOrDie = (error: DbError) =>
+  error.cause instanceof AppError ? Effect.fail(error.cause) : Effect.die(error);
 
 const make = Effect.gen(function* () {
   const db = yield* Db;
@@ -153,8 +159,8 @@ const make = Effect.gen(function* () {
     }
 
     return yield* db
-      .withTransaction(
-        db.use(async (tx) => {
+      .attemptTransaction(
+        db.attempt(async (tx) => {
           const [lockedRequest] = await tx
             .select({ id: request.id, status: request.status })
             .from(request)
@@ -259,13 +265,7 @@ const make = Effect.gen(function* () {
           return { files };
         }),
       )
-      .pipe(
-        /* Os `throw` acontecem dentro da transação: sem o remap chegariam embrulhados em
-         * DbError e sumiriam de um catchTag tipado. */
-        Effect.catchTag('DbError', (error) =>
-          Effect.fail(error.cause instanceof AppError ? error.cause : error),
-        ),
-      );
+      .pipe(Effect.catchTag('DbError', appErrorOrDie));
   });
 
   const confirm = Effect.fn('DocumentsRepo.confirm')(function* (
@@ -273,7 +273,7 @@ const make = Effect.gen(function* () {
     documentIds: string[],
   ) {
     return yield* db
-      .use(async (d) => {
+      .attempt(async (d) => {
         const pending = await pendingUploadOn(d, scope, documentIds);
         if (!pending.length) throw new NotFound('Nenhum documento deste envio foi encontrado.');
 
@@ -462,11 +462,7 @@ const make = Effect.gen(function* () {
           throw error;
         }
       })
-      .pipe(
-        Effect.catchTag('DbError', (error) =>
-          Effect.fail(error.cause instanceof AppError ? error.cause : error),
-        ),
-      );
+      .pipe(Effect.catchTag('DbError', appErrorOrDie));
   });
 
   const uploadContext = Effect.fn('DocumentsRepo.uploadContext')(function* (

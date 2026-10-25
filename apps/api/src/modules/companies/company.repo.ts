@@ -150,8 +150,8 @@ const make = Effect.gen(function* () {
     body: CreateCompanyBody,
   ) {
     return yield* db
-      .withTransaction(
-        db.use(async (tx) => {
+      .attemptTransaction(
+        db.attempt(async (tx) => {
           const { cap, current, limit } = await capacityOf(scope, tx);
           if (current + 1 > limit) throw new ValidationError(capExceeded(cap, current));
 
@@ -179,13 +179,11 @@ const make = Effect.gen(function* () {
       )
       .pipe(
         Effect.catchTag('DbError', (error) =>
-          Effect.fail(
-            violatesCompanyCnpjUnique(error.cause)
-              ? new ValidationError('Já existe uma empresa com este CNPJ.')
-              : error.cause instanceof ValidationError
-                ? error.cause
-                : error,
-          ),
+          violatesCompanyCnpjUnique(error.cause)
+            ? Effect.fail(new ValidationError('Já existe uma empresa com este CNPJ.'))
+            : error.cause instanceof ValidationError
+              ? Effect.fail(error.cause)
+              : Effect.die(error),
         ),
       );
   });
@@ -351,7 +349,7 @@ const make = Effect.gen(function* () {
       : body;
 
     return yield* db
-      .use(async (d) => {
+      .attempt(async (d) => {
         const [row] = await d
           .update(company)
           .set(values)
@@ -362,11 +360,9 @@ const make = Effect.gen(function* () {
       })
       .pipe(
         Effect.catchTag('DbError', (error) =>
-          Effect.fail(
-            violatesCompanyCnpjUnique(error.cause)
-              ? new ValidationError('Já existe uma empresa com este CNPJ.')
-              : error,
-          ),
+          violatesCompanyCnpjUnique(error.cause)
+            ? Effect.fail(new ValidationError('Já existe uma empresa com este CNPJ.'))
+            : Effect.die(error),
         ),
       );
   });
@@ -590,8 +586,8 @@ const make = Effect.gen(function* () {
     activeByLine: Map<number, boolean>,
   ) {
     return yield* db
-      .withTransaction(
-        db.use(async (tx): Promise<ImportLineResult[]> => {
+      .attemptTransaction(
+        db.attempt(async (tx): Promise<ImportLineResult[]> => {
           const withCnpj = pending.filter(({ body }) => body.cnpj);
           const withoutCnpj = pending.filter(({ body }) => !body.cnpj);
 

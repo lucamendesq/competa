@@ -27,10 +27,12 @@ const make = (drizzle: Drizzle) => {
     Option.getOrElse((): Executor => drizzle),
   );
 
-  const use = <A>(f: (d: Executor) => Promise<A>) =>
+  const attempt = <A>(f: (d: Executor) => Promise<A>) =>
     Effect.flatMap(ambient, (d) =>
       Effect.tryPromise({ try: () => f(d), catch: (cause) => new DbError({ cause }) }),
     );
+
+  const use = <A>(f: (d: Executor) => Promise<A>) => Effect.orDie(attempt(f));
 
   const transact = <A, E, R>(
     parent: Executor,
@@ -71,14 +73,23 @@ const make = (drizzle: Drizzle) => {
       });
     }).pipe(Effect.flatMap((exit) => exit));
 
-  const withTransaction = <A, E, R>(
+  const attemptTransaction = <A, E, R>(
     effect: Effect.Effect<A, E, R>,
   ): Effect.Effect<A, E | DbError, R> =>
     Effect.flatMap(ambient, (parent) =>
       Effect.flatMap(Effect.context<R>(), (services) => transact(parent, effect, services)),
     );
 
-  return { raw: drizzle, use, withTransaction };
+  /* Mata só o `DbError` da maquinaria, não o canal inteiro: o corpo da transação costuma ter
+   * erro de domínio, que é justamente o que o chamador trata. */
+  const withTransaction = <A, E, R>(effect: Effect.Effect<A, E, R>): Effect.Effect<A, E, R> =>
+    Effect.catchTag(
+      attemptTransaction(effect) as Effect.Effect<A, E | DbError, R>,
+      'DbError',
+      Effect.die,
+    ) as Effect.Effect<A, E, R>;
+
+  return { raw: drizzle, use, attempt, withTransaction, attemptTransaction };
 };
 
 /** Embrulha a instância de drizzle do processo — o pool continua sendo dela. `raw` existe
@@ -87,11 +98,18 @@ export class Db extends Context.Service<
   Db,
   {
     readonly raw: Drizzle;
-    /** Roda `f` no executor ambiente: a transação aberta, quando há uma; o pool, quando não. */
-    use<A>(f: (d: Executor) => Promise<A>): Effect.Effect<A, DbError>;
+    /** Roda `f` no executor ambiente: a transação aberta, quando há uma; o pool, quando não.
+     *  Erro de banco vira defeito, porque acima do repositório ninguém sabe tratá-lo. */
+    use<A>(f: (d: Executor) => Promise<A>): Effect.Effect<A>;
+    /** Para quem vai INSPECIONAR o erro do driver — violação de unicidade que vira erro de
+     *  domínio, ou erro de domínio que atravessou a transação embrulhado. */
+    attempt<A>(f: (d: Executor) => Promise<A>): Effect.Effect<A, DbError>;
     /** Roda `effect` numa transação — num SAVEPOINT quando já existe uma aberta. Commita no
      *  sucesso; desfaz na falha, no defeito e na interrupção, preservando o Exit original. */
-    withTransaction<A, E, R>(effect: Effect.Effect<A, E, R>): Effect.Effect<A, E | DbError, R>;
+    withTransaction<A, E, R>(effect: Effect.Effect<A, E, R>): Effect.Effect<A, E, R>;
+    /** Idem, com o `DbError` da maquinaria (BEGIN/COMMIT caindo) no canal. Quem usa `attempt`
+     *  no corpo precisa deste: `withTransaction` mataria os dois, que chegam com a mesma tag. */
+    attemptTransaction<A, E, R>(effect: Effect.Effect<A, E, R>): Effect.Effect<A, E | DbError, R>;
   }
 >()('competa/api/Db') {
   static readonly layer = Layer.sync(Db, () => Db.of(make(drizzleDb)));

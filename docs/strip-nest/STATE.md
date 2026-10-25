@@ -258,17 +258,22 @@ Cross-module seams the Effect composition must reproduce: event contract in `src
 
 ## Endurecimento Effect (pós-strip) — plano em `effect-hardening.md`
 
-| Onda | O que                                                                    | Estado      |
-| ---- | ------------------------------------------------------------------------ | ----------- |
-| 1    | Transação ambiente (`CurrentTransaction` + `withTransaction`)            | `3fd532b`   |
-| 2    | Fim das cascas: 5 shims órfãos, chamadores não-Effect, `withDb` morto    | `7a8452f`   |
-| 3    | Um runtime só: `fromRuntime` apagado, `appServices` na layer do servidor | este commit |
-| 4    | Canal de erro que diz a verdade (`catchTag('DbError', die)` na borda)    | pendente    |
-| 5    | `layerTest` ao lado do `layer`                                           | pendente    |
-| 6    | Desfecho como união tipada, não `{sent:false}`                           | pendente    |
+| Onda | O que                                                                            | Estado      |
+| ---- | -------------------------------------------------------------------------------- | ----------- |
+| 1    | Transação ambiente (`CurrentTransaction` + `withTransaction`)                    | `3fd532b`   |
+| 2    | Fim das cascas: 5 shims órfãos, chamadores não-Effect, `withDb` morto            | `7a8452f`   |
+| 3    | Um runtime só: `fromRuntime` apagado, `appServices` na layer do servidor         | este commit |
+| 4    | Canal de erro: `use`/`withTransaction` matam, `attempt`/`attemptTransaction` não | este commit |
+| 5    | `layerTest` ao lado do `layer`                                                   | pendente    |
+| 6    | Desfecho como união tipada, não `{sent:false}`                                   | pendente    |
 
-Dívida que a onda 3 deixou de propósito, para a onda 4 apagar: `DbError` está declarado na união
-`Failure` de `platform.ts`, no `Resolved` de `middleware/auth.ts` e na assinatura de `inviteToApp`.
+A dívida que a onda 3 deixou (`DbError` na união `Failure` de `platform.ts`, no `Resolved` de
+`middleware/auth.ts` e em `inviteToApp`) foi apagada pela onda 4.
+
+Armadilha que a onda 4 deixa para quem mexer em transação: `withTransaction` mata o `DbError`,
+então um corpo que use `db.attempt` e queira TRATAR o erro precisa de `db.attemptTransaction` —
+os dois `DbError` (o do corpo e o da maquinaria) têm a mesma tag e o `withTransaction` mataria
+ambos. Os 9 sítios que inspecionam já usam a variante certa.
 
 Fronteiras promise que SOBRARAM e são legítimas: listeners do eventemitter2, entradas de cron,
 scripts. A de `providers/whatsapp.provider.ts` NÃO é legítima — é o ciclo ESM já listado em

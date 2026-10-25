@@ -22,6 +22,7 @@ import {
 } from './effective-checklist.js';
 import { ValidationError } from '../../lib/app-error.js';
 import { TemplateNameTaken } from './errors.js';
+import type { DbError } from '../../infra/database/error.js';
 
 const visibleTo = (scope: FirmScope, column: PgColumn) => or(isNull(column), eq(column, scope))!;
 
@@ -53,6 +54,11 @@ const violatesTemplateNameUnique = (error: unknown): boolean => {
 
   return false;
 };
+
+const nameTakenOrDie = (error: DbError) =>
+  violatesTemplateNameUnique(error.cause)
+    ? Effect.fail(new TemplateNameTaken())
+    : Effect.die(error);
 
 const make = Effect.gen(function* () {
   const db = yield* Db;
@@ -304,12 +310,8 @@ const make = Effect.gen(function* () {
     input: { name: string; derivedFrom: string | null },
   ) {
     return yield* db
-      .use((d) => createTemplateOn(d, scope, input))
-      .pipe(
-        Effect.catchTag('DbError', (error) =>
-          Effect.fail(violatesTemplateNameUnique(error.cause) ? new TemplateNameTaken() : error),
-        ),
-      );
+      .attempt((d) => createTemplateOn(d, scope, input))
+      .pipe(Effect.catchTag('DbError', nameTakenOrDie));
   });
 
   const copyItemsOn = async (d: Executor, fromTemplateId: string, toTemplateId: string) => {
@@ -343,7 +345,7 @@ const make = Effect.gen(function* () {
     name: string,
   ) {
     return yield* db
-      .use(async (d) => {
+      .attempt(async (d) => {
         const [row] = await d
           .update(checklistTemplate)
           .set({ name })
@@ -362,11 +364,7 @@ const make = Effect.gen(function* () {
 
         return row;
       })
-      .pipe(
-        Effect.catchTag('DbError', (error) =>
-          Effect.fail(violatesTemplateNameUnique(error.cause) ? new TemplateNameTaken() : error),
-        ),
-      );
+      .pipe(Effect.catchTag('DbError', nameTakenOrDie));
   });
 
   const deriveTemplate = Effect.fn('ChecklistsRepo.deriveTemplate')(function* (
@@ -375,8 +373,8 @@ const make = Effect.gen(function* () {
     name?: string,
   ) {
     return yield* db
-      .withTransaction(
-        db.use(async (tx) => {
+      .attemptTransaction(
+        db.attempt(async (tx) => {
           const derived = await createTemplateOn(tx, scope, {
             name: name ?? source.name,
             derivedFrom: source.id,
@@ -387,11 +385,7 @@ const make = Effect.gen(function* () {
           return { ...derived, itemCount };
         }),
       )
-      .pipe(
-        Effect.catchTag('DbError', (error) =>
-          Effect.fail(violatesTemplateNameUnique(error.cause) ? new TemplateNameTaken() : error),
-        ),
-      );
+      .pipe(Effect.catchTag('DbError', nameTakenOrDie));
   });
 
   const addTemplateItem = Effect.fn('ChecklistsRepo.addTemplateItem')(function* (

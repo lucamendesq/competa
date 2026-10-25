@@ -8,7 +8,6 @@ import { Context, Effect } from 'effect';
 import { HttpRouter, HttpServerRequest, type HttpServerError } from 'effect/http';
 import { BetterAuthAdapter } from '../../infra/auth/better-auth.adapter.js';
 import type { AppContext } from '../../effect/runtime.js';
-import { DbError } from '../../infra/database/error.js';
 import {
   AppError,
   Forbidden,
@@ -32,7 +31,7 @@ import { GLOBAL_BUCKETS, UPLOAD_PRESIGN_BUCKET, type Bucket } from '../throttle.
 
 type Resolved<Value> = Effect.Effect<
   Value,
-  AppError | HttpServerError.HttpServerError | DbError,
+  AppError | HttpServerError.HttpServerError,
   HttpServerRequest.HttpServerRequest | HttpRouter.RouteContext | AppContext
 >;
 

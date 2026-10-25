@@ -90,8 +90,8 @@ const make = Effect.gen(function* () {
     plans: RequestPlan[],
   ) {
     return yield* db
-      .withTransaction(
-        db.use(async (tx) => {
+      .attemptTransaction(
+        db.attempt(async (tx) => {
           const [row] = await tx
             .insert(period)
             .values({
@@ -133,9 +133,9 @@ const make = Effect.gen(function* () {
       )
       .pipe(
         Effect.catchTag('DbError', (error) =>
-          Effect.fail(
-            violatesPeriodUnique(error.cause) ? new PeriodAlreadyOpen(input.referenceMonth) : error,
-          ),
+          violatesPeriodUnique(error.cause)
+            ? Effect.fail(new PeriodAlreadyOpen(input.referenceMonth))
+            : Effect.die(error),
         ),
       );
   });
@@ -376,8 +376,8 @@ const make = Effect.gen(function* () {
     });
 
     return yield* db
-      .withTransaction(
-        db.use(async (tx) => {
+      .attemptTransaction(
+        db.attempt(async (tx) => {
           const closedRequests = await tx
             .update(request)
             .set({ status: 'closed', closedAt: new Date() })
@@ -409,7 +409,7 @@ const make = Effect.gen(function* () {
         /* O throw do caminho concorrente acontece dentro da transação: sem o remap ele
          * chegaria embrulhado em DbError e sumiria de um catchTag tipado. */
         Effect.catchTag('DbError', (error) =>
-          Effect.fail(error.cause instanceof PeriodAlreadyClosed ? error.cause : error),
+          error.cause instanceof PeriodAlreadyClosed ? Effect.fail(error.cause) : Effect.die(error),
         ),
       );
   });

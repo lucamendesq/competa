@@ -27,6 +27,7 @@ import {
 } from '../messaging/reminder-rules.js';
 import { NotFound } from '../../lib/app-error.js';
 import { InvalidTransition } from './errors.js';
+import type { DbError } from '../../infra/database/error.js';
 import {
   acceptItemRefusal,
   reviewExtraRefusal,
@@ -38,6 +39,11 @@ import {
   type RequestStatus,
   type ReviewStatus,
 } from './review-rules.js';
+
+/* Erro de domínio lançado DENTRO da transação chega embrulhado em DbError; sem este remap
+ * ele sumiria de um catchTag tipado. O que não for nosso é defeito. */
+const invalidTransitionOrDie = (error: DbError) =>
+  error.cause instanceof InvalidTransition ? Effect.fail(error.cause) : Effect.die(error);
 
 const make = Effect.gen(function* () {
   const db = yield* Db;
@@ -206,8 +212,8 @@ const make = Effect.gen(function* () {
     if (refusal) return yield* Effect.fail(new InvalidTransition(refusal));
 
     return yield* db
-      .withTransaction(
-        db.use(async (tx) => {
+      .attemptTransaction(
+        db.attempt(async (tx) => {
           const accepted = await tx
             .update(document)
             .set({ reviewStatus: 'accepted', reviewedBy, reviewedAt: new Date() })
@@ -243,13 +249,7 @@ const make = Effect.gen(function* () {
           };
         }),
       )
-      .pipe(
-        /* O throw do caminho concorrente acontece dentro da transação: sem o remap ele
-         * chegaria embrulhado em DbError e sumiria de um catchTag tipado. */
-        Effect.catchTag('DbError', (error) =>
-          Effect.fail(error.cause instanceof InvalidTransition ? error.cause : error),
-        ),
-      );
+      .pipe(Effect.catchTag('DbError', invalidTransitionOrDie));
   });
 
   /** Rejeitar é por Documento e reabre o Item (`rejected → pending`). O token do Link é
@@ -325,8 +325,8 @@ const make = Effect.gen(function* () {
     const { token, tokenHash } = createToken();
 
     const requestStatus = yield* db
-      .withTransaction(
-        db.use(async (tx) => {
+      .attemptTransaction(
+        db.attempt(async (tx) => {
           /* Condicional, não check-then-act: duas revisões concorrentes no mesmo documento
            * serializam aqui — a segunda encontra 0 linhas e vira 422, em vez de rotacionar o
            * link de novo por cima de uma decisão já tomada (AUTHZ-5). */
@@ -355,11 +355,7 @@ const make = Effect.gen(function* () {
           return syncRequestStatusOn(tx, row.requestId);
         }),
       )
-      .pipe(
-        Effect.catchTag('DbError', (error) =>
-          Effect.fail(error.cause instanceof InvalidTransition ? error.cause : error),
-        ),
-      );
+      .pipe(Effect.catchTag('DbError', invalidTransitionOrDie));
 
     return {
       requestId: row.requestId,
@@ -529,8 +525,8 @@ const make = Effect.gen(function* () {
     const rotated = reopens ? createToken() : undefined;
 
     const applied = yield* db
-      .withTransaction(
-        db.use(async (tx) => {
+      .attemptTransaction(
+        db.attempt(async (tx) => {
           for (const itemId of input.acceptItemIds) {
             await tx
               .update(document)
@@ -599,11 +595,7 @@ const make = Effect.gen(function* () {
           return syncRequestStatusOn(tx, requestId);
         }),
       )
-      .pipe(
-        Effect.catchTag('DbError', (error) =>
-          Effect.fail(error.cause instanceof InvalidTransition ? error.cause : error),
-        ),
-      );
+      .pipe(Effect.catchTag('DbError', invalidTransitionOrDie));
 
     return {
       requestId,

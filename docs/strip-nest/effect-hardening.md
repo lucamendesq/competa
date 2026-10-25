@@ -52,9 +52,25 @@ de cron e scripts.
 
 Hoje todo método é `Effect<A, DbError>` — um erro que nenhum chamador pode tratar viaja pela
 pilha inteira, e a onda 3 ainda teve de declará-lo na união `Failure` da plataforma. Alvo:
-erro de infra morre na borda do repositório (`catchTag('DbError', die)`) e a assinatura lista
-só erro de domínio, como `Effect<Period, PeriodAlreadyOpen>` — o que apaga o `DbError` de
-`platform.ts`, de `middleware/auth.ts` e das anotações de rota.
+erro de infra morre na borda do repositório e a assinatura lista só erro de domínio, como
+`Effect<Period, PeriodAlreadyOpen>` — o que apaga o `DbError` de `platform.ts`, de
+`middleware/auth.ts` e das anotações de rota.
+
+A borda NÃO é cada método: nenhum deles anotava `DbError` explicitamente (tudo inferido), então
+mudar o `Db` basta e as ~100 assinaturas acompanham. O par fica assim:
+
+| Quando                 | Método                                 | Canal     |
+| ---------------------- | -------------------------------------- | --------- |
+| o normal               | `db.use` / `db.withTransaction`        | morre     |
+| vou INSPECIONAR o erro | `db.attempt` / `db.attemptTransaction` | `DbError` |
+
+`attemptTransaction` existe porque o `DbError` do corpo e o da maquinaria (BEGIN/COMMIT caindo)
+chegam com a MESMA tag: quem usa `attempt` no corpo e deixasse o `withTransaction` matar
+perderia o tratador — é o caso da importação de CSV em `company.repo`, cujo
+`ValidationError('Nada foi importado')` cobre as duas origens.
+
+O compilador faz a busca: `catchTag('DbError')` não compila num canal sem `DbError`, então ele
+enumera sozinho os sítios que precisam da variante que falha.
 
 ### 5. `layerTest` ao lado do `layer`
 

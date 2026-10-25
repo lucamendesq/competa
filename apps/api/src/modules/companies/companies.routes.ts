@@ -15,7 +15,6 @@ import { addDays } from 'date-fns';
 import { Effect, Layer } from 'effect';
 import * as z from 'zod';
 import env from '../../config/env.js';
-import type { DbError } from '../../infra/database/error.js';
 import { FirmContext } from '../../http/context.js';
 import { handler, paginated } from '../../http/envelope.js';
 import { firmRoute } from '../../http/middleware/auth.js';
@@ -63,7 +62,7 @@ const inviteToApp = (
     readonly contact: { id: string; name: string; email: string };
     readonly createdBy?: string;
   },
-): Effect.Effect<{ sent: boolean; reason?: string }, DbError, ContactsRepo | InvitesRepo> =>
+): Effect.Effect<{ sent: boolean; reason?: string }, never, ContactsRepo | InvitesRepo> =>
   Effect.gen(function* () {
     const taken = yield* ContactsRepo.use((repo) => repo.userByEmail(input.contact.email));
     if (taken) return { sent: false, reason: 'Este e-mail já tem uma conta cadastrada.' };
