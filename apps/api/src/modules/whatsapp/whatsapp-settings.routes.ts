@@ -1,7 +1,6 @@
 import { whatsappOnboardSchema, whatsappTestSendSchema } from '@competa/contracts';
 import { Effect, Layer } from 'effect';
 import env from '../../config/env.js';
-import { fromRuntime } from '../../effect/runtime.js';
 import { FirmContext } from '../../http/context.js';
 import { handler } from '../../http/envelope.js';
 import { firmRoute } from '../../http/middleware/auth.js';
@@ -31,14 +30,12 @@ const MOCK_INTEGRATION = {
 } as const;
 
 const integrationOf = (scope: FirmScope) =>
-  fromRuntime(WhatsappRepo.use((repo) => repo.getIntegrationByFirm(scope)));
+  WhatsappRepo.use((repo) => repo.getIntegrationByFirm(scope));
 
 /** `requireOwner` do controller: conectar e desconectar são atos do dono. */
 const requireOwner = (scope: FirmScope, authUserId: string) =>
   Effect.gen(function* () {
-    const owner = yield* fromRuntime(
-      AccountantsRepo.use((repo) => repo.isOwner(scope, authUserId)),
-    );
+    const owner = yield* AccountantsRepo.use((repo) => repo.isOwner(scope, authUserId));
     if (!owner) return yield* Effect.fail(new OnlyOwnerCanManageTeam());
   });
 
@@ -76,13 +73,11 @@ const onboard = route(
 
       yield* requireOwner(scope, session.user.id);
 
-      yield* fromRuntime(
-        WhatsappRepo.use((repo) =>
-          repo.upsertIntegration(scope, {
-            ...MOCK_INTEGRATION,
-            accessToken: crypto.encrypt(MOCK_INTEGRATION.accessToken),
-          }),
-        ),
+      yield* WhatsappRepo.use((repo) =>
+        repo.upsertIntegration(scope, {
+          ...MOCK_INTEGRATION,
+          accessToken: crypto.encrypt(MOCK_INTEGRATION.accessToken),
+        }),
       );
 
       return {
@@ -144,7 +139,7 @@ const disconnect = route(
       yield* requireOwner(scope, session.user.id);
 
       // idempotente: sem integração o DELETE também responde 200 `{success:true}`
-      yield* fromRuntime(WhatsappRepo.use((repo) => repo.deleteIntegration(scope)));
+      yield* WhatsappRepo.use((repo) => repo.deleteIntegration(scope));
 
       return { success: true };
     }),

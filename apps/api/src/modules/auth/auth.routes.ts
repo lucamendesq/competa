@@ -4,7 +4,7 @@ import { APIError } from 'better-auth/api';
 import { Effect, Layer } from 'effect';
 import { HttpServerRequest } from 'effect/http';
 import { BetterAuthAdapter } from '../../infra/auth/better-auth.adapter.js';
-import { fromRuntime, squashError } from '../../effect/runtime.js';
+import { squashError } from '../../infra/database/error.js';
 import { handler } from '../../http/envelope.js';
 import { FirmContext, SessionContext } from '../../http/context.js';
 import { firmRoute, sessionRoute } from '../../http/middleware/auth.js';
@@ -28,7 +28,7 @@ const signUp = route(
     Effect.gen(function* () {
       const input = yield* body(SignUpBody);
 
-      const found = yield* fromRuntime(InvitesRepo.use((repo) => repo.findUsable(input.token)));
+      const found = yield* InvitesRepo.use((repo) => repo.findUsable(input.token));
 
       if (found.email.toLowerCase() !== input.email.toLowerCase()) {
         return yield* Effect.fail(new InviteEmailMismatch());
@@ -59,29 +59,25 @@ const signUp = route(
        * preserva o convite. */
       const { userId } = created.value;
 
-      yield* fromRuntime(
-        AccountantsRepo.use((accountants) =>
-          accountants
-            .acceptInvite({ authUserId: userId, accountingFirmId, inviteId: found.id })
-            .pipe(
-              Effect.tapCause((cause) =>
-                accountants.deleteAuthUser(userId).pipe(
-                  Effect.catchCause((compensation) =>
-                    Effect.sync(() => {
-                      logger.error(
-                        `Falha ao compensar (apagar user ${userId}) após erro no signup`,
-                        squashError(compensation),
-                      );
-                    }),
-                  ),
-                  Effect.andThen(
-                    Effect.sync(() => {
-                      logger.error('Falha ao vincular convite ao accountant', squashError(cause));
-                    }),
-                  ),
-                ),
+      yield* AccountantsRepo.use((accountants) =>
+        accountants.acceptInvite({ authUserId: userId, accountingFirmId, inviteId: found.id }).pipe(
+          Effect.tapCause((cause) =>
+            accountants.deleteAuthUser(userId).pipe(
+              Effect.catchCause((compensation) =>
+                Effect.sync(() => {
+                  logger.error(
+                    `Falha ao compensar (apagar user ${userId}) após erro no signup`,
+                    squashError(compensation),
+                  );
+                }),
+              ),
+              Effect.andThen(
+                Effect.sync(() => {
+                  logger.error('Falha ao vincular convite ao accountant', squashError(cause));
+                }),
               ),
             ),
+          ),
         ),
       );
 
@@ -98,9 +94,7 @@ const me = route(
     Effect.gen(function* () {
       const { scope, session } = yield* FirmContext;
 
-      const row = yield* fromRuntime(
-        AccountantsRepo.use((repo) => repo.findMe(scope, session.user.id)),
-      );
+      const row = yield* AccountantsRepo.use((repo) => repo.findMe(scope, session.user.id));
       if (!row) return yield* Effect.fail(new NotFound());
 
       const plan = PLANS[(row.subscriptionPlanName ?? 'trial') as PlanName] ?? PLANS.trial;
@@ -146,16 +140,14 @@ const device = route(
       const input = yield* body(RegisterDeviceBody);
       const request = yield* HttpServerRequest.HttpServerRequest;
 
-      yield* fromRuntime(
-        UserDevicesRepo.use((repo) =>
-          repo.upsert({
-            userId: session.user.id,
-            deviceId: input.deviceId,
-            platform: input.platform,
-            installed: input.installed,
-            userAgent: request.headers['user-agent'],
-          }),
-        ),
+      yield* UserDevicesRepo.use((repo) =>
+        repo.upsert({
+          userId: session.user.id,
+          deviceId: input.deviceId,
+          platform: input.platform,
+          installed: input.installed,
+          userAgent: request.headers['user-agent'],
+        }),
       );
     }),
     204,

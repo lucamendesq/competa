@@ -3,7 +3,6 @@ import { Effect, Layer } from 'effect';
 import { HttpServerRequest } from 'effect/http';
 import * as z from 'zod';
 import env from '../../config/env.js';
-import { fromRuntime } from '../../effect/runtime.js';
 import { handler } from '../../http/envelope.js';
 import { body, route } from '../../http/platform.js';
 import { Forbidden, ServiceUnavailable } from '../../lib/app-error.js';
@@ -46,14 +45,12 @@ const processStatusUpdate = (statusObj: MetaStatusUpdate) => {
   const timestampStr = statusObj.timestamp;
   const date = timestampStr ? new Date(parseInt(timestampStr, 10) * 1000) : new Date();
 
-  return fromRuntime(
-    WhatsappRepo.use((repo) =>
-      repo.updateMessageDeliveryStatus(statusObj.id, {
-        status: statusObj.status,
-        error: statusObj.errors?.[0]?.message || 'Unknown webhook error',
-        date,
-      }),
-    ),
+  return WhatsappRepo.use((repo) =>
+    repo.updateMessageDeliveryStatus(statusObj.id, {
+      status: statusObj.status,
+      error: statusObj.errors?.[0]?.message || 'Unknown webhook error',
+      date,
+    }),
   );
 };
 

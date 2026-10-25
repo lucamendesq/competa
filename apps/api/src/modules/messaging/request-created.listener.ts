@@ -1,7 +1,7 @@
 import { Logger } from '../../lib/logger.js';
 import * as Sentry from '@sentry/node';
 import { Effect } from 'effect';
-import { squashError } from '../../effect/runtime.js';
+import { squashError } from '../../infra/database/error.js';
 import type { RequestCreatedEvent } from '../../lib/events.js';
 import { linkDeliveryEmail } from './email-body.js';
 import { MessagesRepo } from './message.repo.js';

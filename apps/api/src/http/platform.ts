@@ -6,6 +6,8 @@ import { HttpRouter, HttpServerError, HttpServerRequest, HttpServerResponse } fr
 import helmet from 'helmet';
 import type * as z from 'zod';
 import { allowedOrigins } from '../config/env.js';
+import type { AppContext } from '../effect/runtime.js';
+import { DbError } from '../infra/database/error.js';
 import { AppError, BadRequest } from '../lib/app-error.js';
 import { requestLogger } from '../lib/logger.js';
 import { zodParse } from '../lib/zod-pipe.js';
@@ -92,9 +94,11 @@ const Node = {
     NodeHttpServerRequest.toServerResponse(request) as ServerResponse,
 };
 
-/* Tudo que uma rota pode falhar e o mapa de erros sabe traduzir: os erros do app mais os
- * do próprio parse da requisição (corpo inválido → 400, corpo grande demais → 413). */
-type Failure = AppError | HttpServerError.HttpServerError;
+/* Tudo que uma rota pode falhar e o mapa de erros sabe traduzir: os erros do app, os do
+ * próprio parse da requisição (corpo inválido → 400, corpo grande demais → 413) e o
+ * `DbError` que todo repositório declara — o mapa o desembrulha para o erro cru do driver
+ * (`squashError`), que é o que o fallback 500 sempre descreveu. */
+type Failure = AppError | HttpServerError.HttpServerError | DbError;
 
 /**
  * Perfil de autorização de uma rota — o que os `@UseGuards`/`@ContactRoute()` diziam. Roda
@@ -105,7 +109,11 @@ export type RouteProfile<Provides> = {
   readonly throttle?: readonly Bucket[];
   readonly apply: <A, E>(
     inner: Effect.Effect<A, E, Provides>,
-  ) => Effect.Effect<A, E | Failure, HttpServerRequest.HttpServerRequest | HttpRouter.RouteContext>;
+  ) => Effect.Effect<
+    A,
+    E | Failure,
+    HttpServerRequest.HttpServerRequest | HttpRouter.RouteContext | AppContext
+  >;
 };
 
 /** Rota sem guard: `@PUBLIC()` / `@AllowAnonymous()`, ou simplesmente nenhum decorator. */
@@ -119,44 +127,57 @@ type Served = Effect.Effect<
   HttpServerRequest.HttpServerRequest | HttpRouter.RouteContext
 >;
 
+/* Os repositórios entram aqui, e não em cada rota, porque o `requires` de um middleware do
+ * HttpRouter tem de ser vazio — o que ele exige é exigido da LAYER, construída uma vez. */
 const platform = <Provides>(
   routeKey: string,
   buckets: readonly Bucket[],
   profile: RouteProfile<Provides>,
 ) =>
-  HttpRouter.middleware<{ handles: Failure; provides: Provides }>()((inner): Served =>
-    Effect.gen(function* () {
-      const request = yield* HttpServerRequest.HttpServerRequest;
-      const nodeRequest = Node.request(request);
-      const nodeResponse = Node.response(request);
+  HttpRouter.middleware<{ handles: Failure; provides: Provides }>()(
+    Effect.map(
+      Effect.context<AppContext>(),
+      (services) =>
+        (inner): Served =>
+          Effect.gen(function* () {
+            const request = yield* HttpServerRequest.HttpServerRequest;
+            const nodeRequest = Node.request(request);
+            const nodeResponse = Node.response(request);
 
-      const proceed = yield* Effect.promise(() => runGlobalStack(nodeRequest, nodeResponse));
-      // o middleware escreveu a resposta; o que devolvermos é descartado (writableEnded)
-      if (!proceed) return HttpServerResponse.empty();
+            const proceed = yield* Effect.promise(() => runGlobalStack(nodeRequest, nodeResponse));
+            // o middleware escreveu a resposta; o que devolvermos é descartado (writableEnded)
+            if (!proceed) return HttpServerResponse.empty();
 
-      const ip = callerIp(
-        nodeRequest.headers as Record<string, string | undefined>,
-        nodeRequest.socket.remoteAddress,
-        yield* TrustProxy,
-      );
-      const token = (yield* HttpRouter.params).token ?? '';
+            const ip = callerIp(
+              nodeRequest.headers as Record<string, string | undefined>,
+              nodeRequest.socket.remoteAddress,
+              yield* TrustProxy,
+            );
+            const token = (yield* HttpRouter.params).token ?? '';
 
-      for (const bucket of buckets) {
-        const tracker = bucket.byToken === true ? uploadTracker(ip, token) : ip;
-        const result = (yield* ThrottleStore).hit(throttleKey(routeKey, bucket, tracker), bucket);
-        for (const [name, value] of Object.entries(rateLimitHeaders(bucket, result))) {
-          nodeResponse.setHeader(name, value);
-        }
-        if (!result.ok) return yield* Effect.fail(new TooManyRequests(result.retryAfterSec));
-      }
+            for (const bucket of buckets) {
+              const tracker = bucket.byToken === true ? uploadTracker(ip, token) : ip;
+              const result = (yield* ThrottleStore).hit(
+                throttleKey(routeKey, bucket, tracker),
+                bucket,
+              );
+              for (const [name, value] of Object.entries(rateLimitHeaders(bucket, result))) {
+                nodeResponse.setHeader(name, value);
+              }
+              if (!result.ok) return yield* Effect.fail(new TooManyRequests(result.retryAfterSec));
+            }
 
-      return yield* profile.apply(inner);
-    }).pipe(
-      Effect.catchCause(handleCause),
-      // o ETag entra no fim, como no `res.send()` do Express: sucesso E erro o carregam
-      Effect.flatMap((response) =>
-        Effect.map(HttpServerRequest.HttpServerRequest, (request) => applyEtag(request, response)),
-      ),
+            return yield* profile.apply(inner);
+          }).pipe(
+            Effect.catchCause(handleCause),
+            // o ETag entra no fim, como no `res.send()` do Express: sucesso E erro o carregam
+            Effect.flatMap((response) =>
+              Effect.map(HttpServerRequest.HttpServerRequest, (request) =>
+                applyEtag(request, response),
+              ),
+            ),
+            Effect.provideContext(services),
+          ),
     ),
   );
 

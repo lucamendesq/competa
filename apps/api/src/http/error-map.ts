@@ -1,9 +1,11 @@
 import { Logger } from '../lib/logger.js';
 import * as Sentry from '@sentry/node';
 import { APIError } from 'better-auth/api';
-import { Cause, Effect } from 'effect';
+import type { Cause } from 'effect';
+import { Effect } from 'effect';
 import { HttpServerError, HttpServerRequest, HttpServerResponse } from 'effect/http';
 import env from '../config/env.js';
+import { squashError } from '../infra/database/error.js';
 import { AppError } from '../lib/app-error.js';
 import { JSON_UTF8 } from './envelope.js';
 
@@ -119,7 +121,7 @@ const loggedUrl = (originalUrl: string) => {
 export const handleCause = (cause: Cause.Cause<unknown>) =>
   Effect.gen(function* () {
     const request = yield* HttpServerRequest.HttpServerRequest;
-    const error = Cause.squash(cause);
+    const error = squashError(cause);
     const mapped = mapError(error);
 
     if (mapped.denial !== undefined) {

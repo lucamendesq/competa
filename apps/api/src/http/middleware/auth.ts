@@ -7,7 +7,8 @@ import { isPast } from 'date-fns';
 import { Context, Effect } from 'effect';
 import { HttpRouter, HttpServerRequest, type HttpServerError } from 'effect/http';
 import { BetterAuthAdapter } from '../../infra/auth/better-auth.adapter.js';
-import { fromRuntime } from '../../effect/runtime.js';
+import type { AppContext } from '../../effect/runtime.js';
+import { DbError } from '../../infra/database/error.js';
 import {
   AppError,
   Forbidden,
@@ -31,8 +32,8 @@ import { GLOBAL_BUCKETS, UPLOAD_PRESIGN_BUCKET, type Bucket } from '../throttle.
 
 type Resolved<Value> = Effect.Effect<
   Value,
-  AppError | HttpServerError.HttpServerError,
-  HttpServerRequest.HttpServerRequest | HttpRouter.RouteContext
+  AppError | HttpServerError.HttpServerError | DbError,
+  HttpServerRequest.HttpServerRequest | HttpRouter.RouteContext | AppContext
 >;
 
 /** Um perfil = resolver o contexto + entregá-lo ao handler. A ordem throttle → guard está
@@ -61,7 +62,7 @@ const currentSession = Effect.gen(function* () {
 });
 
 const findAccountant = (authUserId: string) =>
-  fromRuntime(AccountantsRepo.use((repo) => repo.findByAuthUserId(authUserId)));
+  AccountantsRepo.use((repo) => repo.findByAuthUserId(authUserId));
 
 const planLogger = new Logger('PlanGuard');
 
@@ -129,9 +130,7 @@ const resolveFirm = (requires?: PlanCapability): Resolved<FirmContext['Service']
 const resolveContact: Resolved<ContactContext['Service']> = Effect.gen(function* () {
   const session = yield* currentSession;
 
-  const rows = yield* fromRuntime(
-    ContactsRepo.use((repo) => repo.findMembershipsByAuthUser(session.user.id)),
-  );
+  const rows = yield* ContactsRepo.use((repo) => repo.findMembershipsByAuthUser(session.user.id));
   if (!rows.length) {
     return yield* Effect.fail(new Forbidden('Esta conta não é de um Responsável de Empresa.'));
   }
@@ -172,8 +171,8 @@ const resolveContactUpload: Resolved<UploadContext['Service']> = Effect.gen(func
     return yield* Effect.fail(new ValidationError('Informe a Solicitação (requestId) do envio.'));
   }
 
-  const owned = yield* fromRuntime(
-    ContactsRepo.use((repo) => repo.findUploadOwnership(session.user.id, requestId)),
+  const owned = yield* ContactsRepo.use((repo) =>
+    repo.findUploadOwnership(session.user.id, requestId),
   );
 
   /* `resolveContact` já garantiu que a conta é de um Responsável com Empresa ativa, então
@@ -194,9 +193,7 @@ const resolveUploadToken: Resolved<UploadContext['Service']> = Effect.gen(functi
   const token = (yield* HttpRouter.params).token;
   if (!token) return yield* Effect.fail(new InvalidUploadLink());
 
-  const link = yield* fromRuntime(
-    UploadLinksRepo.use((repo) => repo.findByTokenHash(hashToken(token))),
-  );
+  const link = yield* UploadLinksRepo.use((repo) => repo.findByTokenHash(hashToken(token)));
   if (!link || link.revoked || link.expiresAt.getTime() <= Date.now()) {
     return yield* Effect.fail(new InvalidUploadLink());
   }

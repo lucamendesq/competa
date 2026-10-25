@@ -2,7 +2,6 @@ import { IdParam } from '@competa/contracts';
 import type { EventEmitter2 } from '../../lib/event-emitter.js';
 import { Effect, Layer } from 'effect';
 import env from '../../config/env.js';
-import { fromRuntime } from '../../effect/runtime.js';
 import { FirmContext } from '../../http/context.js';
 import { handler } from '../../http/envelope.js';
 import { firmRoute } from '../../http/middleware/auth.js';
@@ -22,7 +21,7 @@ const get = route(
       const { scope } = yield* FirmContext;
       const { id } = yield* params(IdParam);
 
-      const row = yield* fromRuntime(RequestsRepo.use((repo) => repo.findById(scope, id)));
+      const row = yield* RequestsRepo.use((repo) => repo.findById(scope, id));
       if (!row) return yield* Effect.fail(new NotFound('Solicitação não encontrada.'));
 
       return row;
@@ -40,7 +39,7 @@ const uploadLink = route(
       const { scope } = yield* FirmContext;
       const { id } = yield* params(IdParam);
 
-      const link = yield* fromRuntime(RequestsRepo.use((repo) => repo.rotateUploadLink(scope, id)));
+      const link = yield* RequestsRepo.use((repo) => repo.rotateUploadLink(scope, id));
       if (!link) return yield* Effect.fail(new NotFound('Solicitação não encontrada.'));
 
       return { uploadUrl: `${env.WEB_URL}/envio/${link.token}`, contactEmail: link.contactEmail };
@@ -59,9 +58,7 @@ const resendUploadLink = (events: EventEmitter2) =>
         const { scope } = yield* FirmContext;
         const { id } = yield* params(IdParam);
 
-        const context = yield* fromRuntime(
-          RequestsRepo.use((repo) => repo.uploadLinkContext(scope, id)),
-        );
+        const context = yield* RequestsRepo.use((repo) => repo.uploadLinkContext(scope, id));
         if (!context) return yield* Effect.fail(new NotFound('Solicitação não encontrada.'));
         if (context.requestStatus === 'closed') {
           return yield* Effect.fail(
@@ -94,7 +91,7 @@ const resendUploadLink = (events: EventEmitter2) =>
           );
         }
 
-        yield* fromRuntime(RequestsRepo.use((repo) => repo.applyUploadToken(id, tokenHash)));
+        yield* RequestsRepo.use((repo) => repo.applyUploadToken(id, tokenHash));
 
         return { uploadUrl: resent.uploadUrl, contactEmail: context.contactEmail };
       }),
@@ -111,7 +108,7 @@ const close = route(
       const { scope } = yield* FirmContext;
       const { id } = yield* params(IdParam);
 
-      const closed = yield* fromRuntime(RequestsRepo.use((repo) => repo.closeRequest(scope, id)));
+      const closed = yield* RequestsRepo.use((repo) => repo.closeRequest(scope, id));
       if (!closed) return yield* Effect.fail(new NotFound('Solicitação não encontrada.'));
 
       return {

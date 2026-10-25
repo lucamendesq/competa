@@ -7,7 +7,6 @@ import {
 } from '@competa/contracts';
 import { APIError } from 'better-auth/api';
 import { Effect, Layer } from 'effect';
-import { fromRuntime } from '../../effect/runtime.js';
 import { BetterAuthAdapter } from '../../infra/auth/better-auth.adapter.js';
 import { UploadContext } from '../../http/context.js';
 import { handler } from '../../http/envelope.js';
@@ -40,7 +39,7 @@ const activate = route(
       const { scope } = yield* UploadContext;
       const input = yield* body(ActivateContactAccessBody);
 
-      const owner = yield* fromRuntime(UploadLinksRepo.use((repo) => repo.findContact(scope)));
+      const owner = yield* UploadLinksRepo.use((repo) => repo.findContact(scope));
       if (!owner) return yield* Effect.fail(new NotFound('Solicitação não encontrada.'));
       if (owner.authUserId) return yield* Effect.fail(new AccessAlreadyExists());
 
@@ -48,9 +47,7 @@ const activate = route(
        * vínculo entregaria a conta dela a quem controla o Link (AUTHZ-1). O front manda o
        * dono entrar em /minha-area/acesso. Conta contact-only passa: o vínculo só ADICIONA
        * esta Empresa ao mesmo Responsável (multi-empresa). */
-      const existing = yield* fromRuntime(
-        ContactsRepo.use((repo) => repo.userByEmail(owner.email)),
-      );
+      const existing = yield* ContactsRepo.use((repo) => repo.userByEmail(owner.email));
       if (existing && (existing.isAccountant || !existing.isContact)) {
         return yield* Effect.fail(new EmailAlreadyRegistered());
       }
@@ -77,15 +74,13 @@ const activate = route(
         }
 
         userId = created.value.userId;
-        yield* fromRuntime(
-          ContactsRepo.use((repo) => repo.markUserEmailVerified(created.value.userId)),
-        );
+        yield* ContactsRepo.use((repo) => repo.markUserEmailVerified(created.value.userId));
       }
 
       const linked = userId;
-      yield* fromRuntime(ContactsRepo.use((repo) => repo.linkAuthUser(owner.id, linked)));
+      yield* ContactsRepo.use((repo) => repo.linkAuthUser(owner.id, linked));
       // a tela informa que ativar implica no aceite dos Termos/Privacidade
-      yield* fromRuntime(ContactsRepo.use((repo) => repo.markTermsAccepted(linked)));
+      yield* ContactsRepo.use((repo) => repo.markTermsAccepted(linked));
 
       if (!hasProvidedPassword) {
         yield* Effect.promise(() => auth.sendSignInLink(owner.email));
@@ -110,9 +105,7 @@ const subscribe = route(
       const { scope } = yield* UploadContext;
       const input = yield* body(PushSubscriptionBody);
 
-      return yield* fromRuntime(
-        MessagesRepo.use((repo) => repo.savePushSubscription(scope, input)),
-      );
+      return yield* MessagesRepo.use((repo) => repo.savePushSubscription(scope, input));
     }),
   ),
   { auth: uploadTokenRoute() },
@@ -127,12 +120,12 @@ const acceptInvite = route(
       const token = yield* params(InviteTokenParam);
       const input = yield* body(AcceptContactInviteBody);
 
-      const found = yield* fromRuntime(InvitesRepo.use((repo) => repo.findUsable(token.token)));
+      const found = yield* InvitesRepo.use((repo) => repo.findUsable(token.token));
       const { companyId } = found;
       if (!companyId) return yield* Effect.fail(new InviteTargetUnsupported());
 
-      const owner = yield* fromRuntime(
-        ContactsRepo.use((repo) => repo.findByEmailInCompany(companyId, found.email)),
+      const owner = yield* ContactsRepo.use((repo) =>
+        repo.findByEmailInCompany(companyId, found.email),
       );
       if (!owner) {
         return yield* Effect.fail(new NotFound('Responsável não encontrado nesta Empresa.'));
@@ -141,12 +134,12 @@ const acceptInvite = route(
 
       /* Recusa ANTES de queimar o convite: é a falha comum, e queimá-la deixaria o dono do
        * email sem convite e sem conta. */
-      const taken = yield* fromRuntime(ContactsRepo.use((repo) => repo.userByEmail(owner.email)));
+      const taken = yield* ContactsRepo.use((repo) => repo.userByEmail(owner.email));
       if (taken) return yield* Effect.fail(new EmailAlreadyRegistered());
 
       /* Claim atômico (`isNull(acceptedAt)` no WHERE) antes de criar a conta: deixar para
        * depois fazia o uso único depender de o signUp detectar email duplicado. */
-      yield* fromRuntime(InvitesRepo.use((repo) => repo.markAccepted(found.id)));
+      yield* InvitesRepo.use((repo) => repo.markAccepted(found.id));
 
       const name = input.name?.trim() || owner.name;
       const signUp = yield* Effect.promise(() =>
@@ -160,12 +153,8 @@ const acceptInvite = route(
         return yield* Effect.die(signUp.error);
       }
 
-      yield* fromRuntime(
-        ContactsRepo.use((repo) => repo.markUserEmailVerified(signUp.value.userId)),
-      );
-      yield* fromRuntime(
-        ContactsRepo.use((repo) => repo.linkAuthUser(owner.id, signUp.value.userId)),
-      );
+      yield* ContactsRepo.use((repo) => repo.markUserEmailVerified(signUp.value.userId));
+      yield* ContactsRepo.use((repo) => repo.linkAuthUser(owner.id, signUp.value.userId));
 
       /* O front entra em seguida com o mesmo email e senha: a sessão não sai daqui para não
        * nascer de um link que circula por email. Da tela, é um passo só. */

@@ -1,6 +1,5 @@
 import { IdParam, MessageListQuery, PeriodIdQuery } from '@competa/contracts';
 import { Effect, Layer } from 'effect';
-import { fromRuntime } from '../../effect/runtime.js';
 import { FirmContext } from '../../http/context.js';
 import { handler, paginated } from '../../http/envelope.js';
 import { firmRoute } from '../../http/middleware/auth.js';
@@ -21,9 +20,7 @@ const list = route(
       const { scope } = yield* FirmContext;
       const filters = yield* query(MessageListQuery);
 
-      const { rows, total } = yield* fromRuntime(
-        MessagesRepo.use((repo) => repo.list(scope, filters)),
-      );
+      const { rows, total } = yield* MessagesRepo.use((repo) => repo.list(scope, filters));
 
       return paginated(rows, { page: filters.page, perPage: filters.perPage, total });
     }),
@@ -42,7 +39,7 @@ const failures = route(
       const { scope } = yield* FirmContext;
       const { periodId } = yield* query(PeriodIdQuery);
 
-      return yield* fromRuntime(MessagesRepo.use((repo) => repo.failuresByPeriod(scope, periodId)));
+      return yield* MessagesRepo.use((repo) => repo.failuresByPeriod(scope, periodId));
     }),
   ),
   { auth: firmRoute() },
@@ -59,7 +56,7 @@ const resend = route(
 
       /* Bug congelado #14: `resend()` chama `deliver()` sem `channel`, então o reenvio de
        * uma mensagem de whatsapp sai pelo provider default — email. */
-      const result = yield* fromRuntime(MessagesRepo.use((repo) => repo.resend(scope, id)));
+      const result = yield* MessagesRepo.use((repo) => repo.resend(scope, id));
       if (!result) return yield* Effect.fail(new NotFound('Mensagem não encontrada.'));
 
       return result;

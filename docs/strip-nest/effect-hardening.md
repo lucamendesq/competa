@@ -33,18 +33,35 @@ documentaram.
 - Migrar `accountant`/`invite`/`user-device` para serviços Effect e matar o `withDb`, que hoje
   devolve `Effect<A>` com canal de erro `never` (erro de banco vira defeito sem querer).
 
-### 3. Canal de erro que diz a verdade
+### 3. Um runtime só
+
+Hoje `fromRuntime` faz `Effect → Promise → Effect` em TODA chamada de repositório dentro de
+uma rota: apaga o canal de erro (o que sai é `Effect<A, never>`), perde interrupção e cruza
+fibra. Estreitar os erros antes disso não serviria de nada — a ponte apagaria os tipos novos
+na saída. Alvo: a rota chama o repositório direto, e o `AppLayer` entra uma vez na layer do
+servidor via `appServices`.
+
+Consequência aceita: o repositório agora corre na fibra da requisição, então **é
+interrompível**. Um abort do cliente no meio de uma transação passa a desfazê-la onde antes
+commitava. É o desfecho correto, e é mudança de comportamento — anotada em `STATE.md`.
+
+`run` sobrevive só onde a fronteira com promise é real: listeners do eventemitter2, entradas
+de cron e scripts.
+
+### 4. Canal de erro que diz a verdade
 
 Hoje todo método é `Effect<A, DbError>` — um erro que nenhum chamador pode tratar viaja pela
-pilha inteira. Alvo: erro de infra morre na borda do repositório (`catchTag('DbError', die)`) e
-a assinatura lista só erro de domínio, como `Effect<Period, PeriodAlreadyOpen>`.
+pilha inteira, e a onda 3 ainda teve de declará-lo na união `Failure` da plataforma. Alvo:
+erro de infra morre na borda do repositório (`catchTag('DbError', die)`) e a assinatura lista
+só erro de domínio, como `Effect<Period, PeriodAlreadyOpen>` — o que apaga o `DbError` de
+`platform.ts`, de `middleware/auth.ts` e das anotações de rota.
 
-### 4. `layerTest` ao lado do `layer`
+### 5. `layerTest` ao lado do `layer`
 
 Os 11 arquivos de teste de unidade batem no Postgres real. Um fake no mesmo arquivo do contrato
 não desatualiza e tira o banco do caminho onde ele não agrega.
 
-### 5. Resultado como união, não booleano
+### 6. Resultado como união, não booleano
 
 A terceira categoria de falha do summer: desfecho que o chamador não pode mudar é valor de
 sucesso tipado, não `{sent:false}` solto. É exatamente a forma do bug congelado #15.
@@ -53,7 +70,7 @@ sucesso tipado, não `{sent:false}` solto. É exatamente a forma do bug congelad
 
 - **Mapa erro→HTTP exaustivo por rota.** Excelente com ~6 rotas e erro rico de domínio; com 97
   rotas e status na classe `AppError`, exigir união declarada por rota é cerimônia. O ganho real
-  (saber o que pode falhar) vem da onda 3, de graça.
+  (saber o que pode falhar) vem da onda 4, de graça.
 - **`*.port.ts`.** Interface com uma implementação só. O próprio dialeto Effect deles aboliu.
 - **`BaseAggregate` com eventos** que nunca são despachados — a doc deles admite que é
   infraestrutura morta.

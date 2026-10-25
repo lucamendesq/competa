@@ -3,7 +3,6 @@ import type { EventEmitter2 } from '../../lib/event-emitter.js';
 import { RecoverAccessBody, RecoverAccessConfirmBody } from '@competa/contracts';
 import { Effect, Layer } from 'effect';
 import env from '../../config/env.js';
-import { fromRuntime } from '../../effect/runtime.js';
 import { BetterAuthAdapter } from '../../infra/auth/better-auth.adapter.js';
 import { handler } from '../../http/envelope.js';
 import { body, route } from '../../http/platform.js';
@@ -51,7 +50,7 @@ const pauseUntil = (deadline: number) =>
 type OpenRequests = Effect.Success<ReturnType<ContactsRepo['Service']['openRequestsForEmail']>>;
 
 const openRequestsForEmail = (email: string) =>
-  fromRuntime(ContactsRepo.use((repo) => repo.openRequestsForEmail(email)));
+  ContactsRepo.use((repo) => repo.openRequestsForEmail(email));
 
 const requestConfirmation = (events: EventEmitter2, email: string) =>
   Effect.gen(function* () {
@@ -97,10 +96,8 @@ const rotateAndSend = (events: EventEmitter2, openRequests: OpenRequests) =>
       };
 
       yield* Effect.promise(() => events.emitAsync(EVENTS.UploadLinkResent, resent));
-      const applied = yield* fromRuntime(
-        RequestsRepo.use((repo) =>
-          repo.applyUploadToken(row.requestId, tokenHash, row.contactId, { revokePrevious: true }),
-        ),
+      const applied = yield* RequestsRepo.use((repo) =>
+        repo.applyUploadToken(row.requestId, tokenHash, row.contactId, { revokePrevious: true }),
       );
 
       if (!applied) {

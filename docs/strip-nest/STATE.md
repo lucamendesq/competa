@@ -156,6 +156,12 @@ Cross-module seams the Effect composition must reproduce: event contract in `src
 
 ## Pending cleanups (fold into a dedicated commit, not into module commits)
 
+- **`docs/conventions.md` está podre, e não foi este ramo que o apodreceu.** Ele declara
+  **Angular** no frontend (o `apps/web` é Vue há muito) e NestJS no backend. O `AGENTS.md` já foi
+  corrigido para Effect neste ramo; o `conventions.md` precisa de uma passada própria, porque
+  arrumar só a metade de backend deixaria a de frontend mentindo. `AGENTS.md:55` aponta para ele
+  como "lista completa de anti-patterns", então não dá para abandonar.
+
 - Hoist to `test/support/fixtures.ts`: `putFile` (3 cópias: contacts/requests/messaging), `rawRequest`+`cookieOf` (contacts/whatsapp/requests/billing/auth), `registerMember`/`addMember` (whatsapp/billing/auth), `openFirmWithCompanies` (contacts/messaging/requests variantes). As suites de auth já aterrissaram — pode fazer.
 - `type Executor` (`Omit<Db['Service']['raw'], '$client'>`) está duplicado em 4 repos (companies/checklists/requests×2) com o mesmo comentário — hoist para `src/infra/database/effect.ts`.
 - **Registro órfão de `MessageProvider`**: depois da migração de messaging, o token Nest `MessageProvider` (`messaging.module.ts`) perdeu o último injetor — o Nest ainda o CONSTRÓI no boot (segundo `new Resend(...)` em produção) e o log de boot do MessagingModule passa a mentir. Deletar junto com o seam de providers.
@@ -241,6 +247,32 @@ Cross-module seams the Effect composition must reproduce: event contract in `src
    `planAllows` + `PlanCapabilityRequired`, o mesmo teste que `resolveFirm` faz em
    `src/http/middleware/auth.ts`. Os outros 5 shims `*.repository.ts` que só os scripts usam
    (checklist/company/contact/period/subscription) ficaram, sem `@Injectable`.
+
+10. **Repositório virou interrompível (onda 3 do endurecimento).** O `fromRuntime` rodava todo
+    repositório numa fibra destacada, fora do alcance de qualquer interrupção. Agora eles correm
+    na fibra da requisição, então um abort do cliente no meio de uma transação dispara o
+    finalizador do `Db.withTransaction` e **desfaz** onde antes commitava. É o desfecho correto e
+    foi pedido pela onda, mas é mudança de comportamento. **Sem teste**: provocar um abort no
+    instante certo de uma transação real é acoplado a tempo e flakaria; o rollback em si já está
+    coberto pelos testes de `withTransaction`. Aceita conscientemente.
+
+## Endurecimento Effect (pós-strip) — plano em `effect-hardening.md`
+
+| Onda | O que                                                                    | Estado      |
+| ---- | ------------------------------------------------------------------------ | ----------- |
+| 1    | Transação ambiente (`CurrentTransaction` + `withTransaction`)            | `3fd532b`   |
+| 2    | Fim das cascas: 5 shims órfãos, chamadores não-Effect, `withDb` morto    | `7a8452f`   |
+| 3    | Um runtime só: `fromRuntime` apagado, `appServices` na layer do servidor | este commit |
+| 4    | Canal de erro que diz a verdade (`catchTag('DbError', die)` na borda)    | pendente    |
+| 5    | `layerTest` ao lado do `layer`                                           | pendente    |
+| 6    | Desfecho como união tipada, não `{sent:false}`                           | pendente    |
+
+Dívida que a onda 3 deixou de propósito, para a onda 4 apagar: `DbError` está declarado na união
+`Failure` de `platform.ts`, no `Resolved` de `middleware/auth.ts` e na assinatura de `inviteToApp`.
+
+Fronteiras promise que SOBRARAM e são legítimas: listeners do eventemitter2, entradas de cron,
+scripts. A de `providers/whatsapp.provider.ts` NÃO é legítima — é o ciclo ESM já listado em
+"Pending cleanups"; morre junto com o seam de providers.
 
 ## Achados da F5 (já corrigidos, não são dívida)
 

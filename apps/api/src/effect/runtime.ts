@@ -1,5 +1,6 @@
-import { Cause, Effect, Exit, Layer, ManagedRuntime } from 'effect';
-import { Db, DbError } from '../infra/database/effect.js';
+import { Effect, Exit, Layer, ManagedRuntime } from 'effect';
+import { Db } from '../infra/database/effect.js';
+import { squashError } from '../infra/database/error.js';
 import { AccountantsRepo } from '../modules/auth/accountant.repo.js';
 import { InvitesRepo } from '../modules/auth/invite.repo.js';
 import { UserDevicesRepo } from '../modules/auth/user-device.repo.js';
@@ -33,26 +34,20 @@ export const AppLayer = Layer.mergeAll(
 
 export type AppContext = Layer.Success<typeof AppLayer>;
 
-export const runtime = ManagedRuntime.make(AppLayer);
+const runtime = ManagedRuntime.make(AppLayer);
 
-/** `DbError` é desembrulhado para o erro cru do driver: o mapa de erros e os logs veem
- *  exatamente o que viam antes da migração. */
-export const squashError = (cause: Cause.Cause<unknown>): unknown => {
-  const error = Cause.squash(cause);
+/** Não é `Layer.provide(AppLayer)` de propósito: assim os finalizadores continuam
+ *  pertencendo a este runtime, e o `dispose()` de uma app (a suíte sobe dezenas no mesmo
+ *  processo) não leva junto o pool que as próximas vão usar. Também é o que garante UMA
+ *  construção por processo — duas dariam um segundo provider de storage e um segundo
+ *  cliente de email. */
+export const appServices: Layer.Layer<AppContext> = Layer.effectContext(runtime.contextEffect);
 
-  return error instanceof DbError ? error.cause : error;
-};
-
-/** Fronteira promise→Effect, para quem ainda vive fora de um Effect (listeners de evento). */
+/** Fronteira Effect→promise, para quem vive fora de um Effect: listeners do eventemitter2,
+ *  as entradas dos crons e os scripts de verificação. */
 export async function run<A, E>(effect: Effect.Effect<A, E, AppContext>): Promise<A> {
   const exit = await runtime.runPromiseExit(effect);
   if (Exit.isSuccess(exit)) return exit.value;
 
   throw squashError(exit.cause);
 }
-
-/** Mesma fronteira, para quem já está DENTRO de um Effect (rotas e middleware). Mantém UM
- *  runtime no processo: dois construiriam um segundo provider de storage e um segundo
- *  cliente de email. O erro volta como defeito cru, que é o que o mapa de erros espera ver. */
-export const fromRuntime = <A, E>(effect: Effect.Effect<A, E, AppContext>): Effect.Effect<A> =>
-  Effect.promise(() => run(effect));

@@ -3,7 +3,6 @@ import { Effect, Layer } from 'effect';
 import { HttpServerRequest } from 'effect/http';
 import * as z from 'zod';
 import env from '../../config/env.js';
-import { fromRuntime } from '../../effect/runtime.js';
 import { handler } from '../../http/envelope.js';
 import { body, route } from '../../http/platform.js';
 import { Forbidden, ServiceUnavailable } from '../../lib/app-error.js';
@@ -55,13 +54,9 @@ const webhook = route(
       const subscriptionId = payload.payment.subscription;
 
       if (payload.event === 'PAYMENT_RECEIVED') {
-        yield* fromRuntime(
-          SubscriptionsRepo.use((repo) => repo.updateStatus(subscriptionId, 'ACTIVE')),
-        );
+        yield* SubscriptionsRepo.use((repo) => repo.updateStatus(subscriptionId, 'ACTIVE'));
       } else if (payload.event === 'PAYMENT_OVERDUE' || payload.event === 'PAYMENT_DELETED') {
-        yield* fromRuntime(
-          SubscriptionsRepo.use((repo) => repo.updateStatus(subscriptionId, 'OVERDUE')),
-        );
+        yield* SubscriptionsRepo.use((repo) => repo.updateStatus(subscriptionId, 'OVERDUE'));
       }
 
       return { received: true };

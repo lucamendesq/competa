@@ -9,7 +9,6 @@ import type { EventEmitter2 } from '../../lib/event-emitter.js';
 import { addDays } from 'date-fns';
 import { Effect, Layer } from 'effect';
 import env from '../../config/env.js';
-import { fromRuntime } from '../../effect/runtime.js';
 import { FirmContext } from '../../http/context.js';
 import { handler } from '../../http/envelope.js';
 import { firmRoute } from '../../http/middleware/auth.js';
@@ -33,9 +32,9 @@ import { UserDevicesRepo } from './user-device.repo.js';
 const REMINDER_FIELDS = ['reminderMax', 'reminderDueSoonDays', 'reminderGapDays'] as const;
 
 const isOwner = (scope: FirmScope, authUserId: string) =>
-  fromRuntime(AccountantsRepo.use((repo) => repo.isOwner(scope, authUserId)));
+  AccountantsRepo.use((repo) => repo.isOwner(scope, authUserId));
 
-const firmOf = (scope: FirmScope) => fromRuntime(AccountantsRepo.use((repo) => repo.firm(scope)));
+const firmOf = (scope: FirmScope) => AccountantsRepo.use((repo) => repo.firm(scope));
 
 /** Convidar é ato do dono: um Contador convidado não amplia o acesso ao tenant por conta
  *  própria. Sem isto, qualquer convidado convida — inclusive quem foi revogado em outro
@@ -54,27 +53,21 @@ const createInvite = (events: EventEmitter2) =>
           return yield* Effect.fail(new OnlyOwnerCanInvite());
         }
 
-        const taken = yield* fromRuntime(
-          AccountantsRepo.use((repo) => repo.userExistsByEmail(input.email)),
-        );
+        const taken = yield* AccountantsRepo.use((repo) => repo.userExistsByEmail(input.email));
         if (taken) return yield* Effect.fail(new EmailAlreadyRegistered());
 
-        const pending = yield* fromRuntime(
-          InvitesRepo.use((repo) => repo.pendingForFirm(scope, input.email)),
-        );
+        const pending = yield* InvitesRepo.use((repo) => repo.pendingForFirm(scope, input.email));
         if (pending) return yield* Effect.fail(new InviteAlreadyPending());
 
         const { token, tokenHash } = createToken();
         const expiresAt = addDays(new Date(), env.INVITE_TTL_DAYS);
-        const row = yield* fromRuntime(
-          InvitesRepo.use((repo) =>
-            repo.createForFirm(scope, {
-              email: input.email,
-              tokenHash,
-              expiresAt,
-              createdBy: accountantId,
-            }),
-          ),
+        const row = yield* InvitesRepo.use((repo) =>
+          repo.createForFirm(scope, {
+            email: input.email,
+            tokenHash,
+            expiresAt,
+            createdBy: accountantId,
+          }),
         );
 
         const url = `${env.WEB_URL}/convite/${token}`;
@@ -83,7 +76,7 @@ const createInvite = (events: EventEmitter2) =>
         // pode precisar passar o link por outro canal se o email não chegar.
         const created: InviteCreatedEvent = {
           email: row.email,
-          firmName: yield* fromRuntime(InvitesRepo.use((repo) => repo.firmName(scope))),
+          firmName: yield* InvitesRepo.use((repo) => repo.firmName(scope)),
           inviteUrl: url,
           expiresAt,
         };
@@ -104,7 +97,7 @@ const previewInvite = route(
     Effect.gen(function* () {
       const { token } = yield* params(InviteTokenParam);
 
-      const row = yield* fromRuntime(InvitesRepo.use((repo) => repo.findUsable(token)));
+      const row = yield* InvitesRepo.use((repo) => repo.findUsable(token));
 
       return {
         email: row.email,
@@ -124,7 +117,7 @@ const listAccountants = route(
     Effect.gen(function* () {
       const { scope } = yield* FirmContext;
 
-      return yield* fromRuntime(AccountantsRepo.use((repo) => repo.list(scope)));
+      return yield* AccountantsRepo.use((repo) => repo.list(scope));
     }),
   ),
   { auth: firmRoute() },
@@ -145,12 +138,12 @@ const removeAccountant = route(
         return yield* Effect.fail(new OnlyOwnerCanManageTeam());
       }
 
-      const target = yield* fromRuntime(AccountantsRepo.use((repo) => repo.findInFirm(scope, id)));
+      const target = yield* AccountantsRepo.use((repo) => repo.findInFirm(scope, id));
       if (!target) return yield* Effect.fail(new NotFound('Contador não encontrado.'));
       // cobre também o dono tentando se remover: o dono é sempre owner
       if (target.owner) return yield* Effect.fail(new CannotRemoveOwner());
 
-      yield* fromRuntime(AccountantsRepo.use((repo) => repo.deleteAuthUser(target.authUserId)));
+      yield* AccountantsRepo.use((repo) => repo.deleteAuthUser(target.authUserId));
 
       return { removed: true as const };
     }),
@@ -183,7 +176,7 @@ const deviceStats = route(
     Effect.gen(function* () {
       const { scope } = yield* FirmContext;
 
-      return yield* fromRuntime(UserDevicesRepo.use((repo) => repo.platformStats(scope)));
+      return yield* UserDevicesRepo.use((repo) => repo.platformStats(scope));
     }),
   ),
   { auth: firmRoute() },
@@ -209,7 +202,7 @@ const updateFirm = route(
         return yield* Effect.fail(new PlanCapabilityRequired('reminderTuning'));
       }
 
-      yield* fromRuntime(AccountantsRepo.use((repo) => repo.updateFirm(scope, input)));
+      yield* AccountantsRepo.use((repo) => repo.updateFirm(scope, input));
 
       return yield* firmOf(scope);
     }),
@@ -225,7 +218,7 @@ const listPendingInvites = route(
     Effect.gen(function* () {
       const { scope } = yield* FirmContext;
 
-      return yield* fromRuntime(InvitesRepo.use((repo) => repo.listPending(scope)));
+      return yield* InvitesRepo.use((repo) => repo.listPending(scope));
     }),
   ),
   { auth: firmRoute() },
@@ -244,7 +237,7 @@ const revokeInvite = route(
         return yield* Effect.fail(new OnlyOwnerCanManageTeam());
       }
 
-      const revoked = yield* fromRuntime(InvitesRepo.use((repo) => repo.revoke(scope, id)));
+      const revoked = yield* InvitesRepo.use((repo) => repo.revoke(scope, id));
       if (!revoked) return yield* Effect.fail(new NotFound('Convite não encontrado ou já usado.'));
 
       return { revoked: true as const };

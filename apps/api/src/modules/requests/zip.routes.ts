@@ -6,7 +6,6 @@ import { IdParam } from '@competa/contracts';
 import { ZipArchive } from 'archiver';
 import { Effect, Layer } from 'effect';
 import { HttpServerRequest, HttpServerResponse } from 'effect/http';
-import { fromRuntime } from '../../effect/runtime.js';
 import { storage } from '../../infra/storage/storage.js';
 import { FirmContext } from '../../http/context.js';
 import { handler } from '../../http/envelope.js';
@@ -107,9 +106,7 @@ const requestZip = route(
 
     return yield* withFlight(`requests:${id}`, (release) =>
       Effect.gen(function* () {
-        const found = yield* fromRuntime(
-          RequestsRepo.use((repo) => repo.documentsForRequestZip(scope, id)),
-        );
+        const found = yield* RequestsRepo.use((repo) => repo.documentsForRequestZip(scope, id));
         if (!found) return yield* Effect.fail(new NotFound('Solicitação não encontrada.'));
 
         return yield* streamZip(
@@ -136,9 +133,7 @@ const periodZip = route(
 
     return yield* withFlight(`periods:${id}`, (release) =>
       Effect.gen(function* () {
-        const found = yield* fromRuntime(
-          RequestsRepo.use((repo) => repo.documentsForPeriodZip(scope, id)),
-        );
+        const found = yield* RequestsRepo.use((repo) => repo.documentsForPeriodZip(scope, id));
         if (!found) return yield* Effect.fail(new NotFound('Competência não encontrada.'));
 
         /* Competência inteira de um escritório grande é uma requisição de horas segurando
@@ -172,7 +167,7 @@ const documentContent = route(
       const { scope } = yield* FirmContext;
       const { id } = yield* params(IdParam);
 
-      const found = yield* fromRuntime(RequestsRepo.use((repo) => repo.documentForRead(scope, id)));
+      const found = yield* RequestsRepo.use((repo) => repo.documentForRead(scope, id));
       if (!found) return yield* Effect.fail(new NotFound('Documento não encontrado.'));
 
       const { contentType, inline } = servedContentType(found.contentType);

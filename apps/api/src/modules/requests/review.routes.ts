@@ -2,7 +2,6 @@ import { IdParam, RejectDocumentBody, ReviewBatchBody, ReviewExtraBody } from '@
 import type { EventEmitter2 } from '../../lib/event-emitter.js';
 import { Effect, Layer } from 'effect';
 import env from '../../config/env.js';
-import { fromRuntime } from '../../effect/runtime.js';
 import { FirmContext } from '../../http/context.js';
 import { handler } from '../../http/envelope.js';
 import { firmRoute } from '../../http/middleware/auth.js';
@@ -31,9 +30,7 @@ const acceptItem = (events: EventEmitter2) =>
         const { scope, accountantId } = yield* FirmContext;
         const { id } = yield* params(IdParam);
 
-        const result = yield* fromRuntime(
-          RequestsRepo.use((repo) => repo.acceptItem(scope, id, accountantId)),
-        );
+        const result = yield* RequestsRepo.use((repo) => repo.acceptItem(scope, id, accountantId));
         if (!result) return yield* Effect.fail(new NotFound('Item não encontrado.'));
 
         if (result.completed) {
@@ -68,8 +65,8 @@ const publishReview = (events: EventEmitter2) =>
         const { id } = yield* params(IdParam);
         const input = yield* body(ReviewBatchBody);
 
-        const result = yield* fromRuntime(
-          RequestsRepo.use((repo) => repo.applyReview(scope, id, input, accountantId)),
+        const result = yield* RequestsRepo.use((repo) =>
+          repo.applyReview(scope, id, input, accountantId),
         );
         if (!result) return yield* Effect.fail(new NotFound('Solicitação não encontrada.'));
 
@@ -123,10 +120,8 @@ const rejectDocument = (events: EventEmitter2) =>
         const { id } = yield* params(IdParam);
         const input = yield* body(RejectDocumentBody);
 
-        const result = yield* fromRuntime(
-          RequestsRepo.use((repo) =>
-            repo.rejectDocument(scope, id, input.rejectionReason, accountantId),
-          ),
+        const result = yield* RequestsRepo.use((repo) =>
+          repo.rejectDocument(scope, id, input.rejectionReason, accountantId),
         );
         if (!result) return yield* Effect.fail(new NotFound('Documento não encontrado.'));
 
@@ -171,14 +166,12 @@ const reviewExtra = route(
       const { id } = yield* params(IdParam);
       const input = yield* body(ReviewExtraBody);
 
-      const result = yield* fromRuntime(
-        RequestsRepo.use((repo) =>
-          repo.reviewExtraDocument(
-            scope,
-            id,
-            { reviewStatus: input.decision, rejectionReason: input.rejectionReason },
-            accountantId,
-          ),
+      const result = yield* RequestsRepo.use((repo) =>
+        repo.reviewExtraDocument(
+          scope,
+          id,
+          { reviewStatus: input.decision, rejectionReason: input.rejectionReason },
+          accountantId,
         ),
       );
       if (!result) return yield* Effect.fail(new NotFound('Documento não encontrado.'));
@@ -198,7 +191,7 @@ const undoAccept = route(
       const { scope } = yield* FirmContext;
       const { id } = yield* params(IdParam);
 
-      const result = yield* fromRuntime(RequestsRepo.use((repo) => repo.undoAcceptItem(scope, id)));
+      const result = yield* RequestsRepo.use((repo) => repo.undoAcceptItem(scope, id));
       if (!result) return yield* Effect.fail(new NotFound('Item não encontrado.'));
 
       return result;

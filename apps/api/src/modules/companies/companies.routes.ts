@@ -15,7 +15,7 @@ import { addDays } from 'date-fns';
 import { Effect, Layer } from 'effect';
 import * as z from 'zod';
 import env from '../../config/env.js';
-import { fromRuntime } from '../../effect/runtime.js';
+import type { DbError } from '../../infra/database/error.js';
 import { FirmContext } from '../../http/context.js';
 import { handler, paginated } from '../../http/envelope.js';
 import { firmRoute } from '../../http/middleware/auth.js';
@@ -31,20 +31,12 @@ import { CompaniesRepo } from './company.repo.js';
 
 const ContactParam = z.object({ id: z.uuid(), contactId: z.uuid() });
 
-const useCompanies = <A, E>(f: (repo: CompaniesRepo['Service']) => Effect.Effect<A, E>) =>
-  fromRuntime(CompaniesRepo.use(f));
-
-const useContacts = <A, E>(f: (repo: ContactsRepo['Service']) => Effect.Effect<A, E>) =>
-  fromRuntime(ContactsRepo.use(f));
-
 /* `responsibleAccountantId` vem do corpo. Sem este filtro, um id de outra Contabilidade
  * é gravado e o `leftJoin` da listagem passa a devolver o NOME do funcionário dela —
  * enumeração de equipe alheia. */
 const requireAccountant = (scope: FirmScope, accountantId: string) =>
   Effect.gen(function* () {
-    const found = yield* fromRuntime(
-      AccountantsRepo.use((repo) => repo.findInFirm(scope, accountantId)),
-    );
+    const found = yield* AccountantsRepo.use((repo) => repo.findInFirm(scope, accountantId));
     if (!found) {
       return yield* Effect.fail(
         new ValidationError('Contador responsável inexistente ou de outra Contabilidade.'),
@@ -54,7 +46,7 @@ const requireAccountant = (scope: FirmScope, accountantId: string) =>
 
 const requireTemplate = (scope: FirmScope, templateId: string) =>
   Effect.gen(function* () {
-    const visible = yield* useCompanies((repo) => repo.templateIsVisible(scope, templateId));
+    const visible = yield* CompaniesRepo.use((repo) => repo.templateIsVisible(scope, templateId));
     if (!visible) {
       return yield* Effect.fail(
         new ValidationError('Template de checklist inexistente ou de outra Contabilidade.'),
@@ -71,28 +63,26 @@ const inviteToApp = (
     readonly contact: { id: string; name: string; email: string };
     readonly createdBy?: string;
   },
-): Effect.Effect<{ sent: boolean; reason?: string }> =>
+): Effect.Effect<{ sent: boolean; reason?: string }, DbError, ContactsRepo | InvitesRepo> =>
   Effect.gen(function* () {
-    const taken = yield* useContacts((repo) => repo.userByEmail(input.contact.email));
+    const taken = yield* ContactsRepo.use((repo) => repo.userByEmail(input.contact.email));
     if (taken) return { sent: false, reason: 'Este e-mail já tem uma conta cadastrada.' };
 
-    yield* fromRuntime(
-      InvitesRepo.use((repo) => repo.revokePendingForContact(input.companyId, input.contact.email)),
+    yield* InvitesRepo.use((repo) =>
+      repo.revokePendingForContact(input.companyId, input.contact.email),
     );
 
     const { token, tokenHash } = createToken();
     const expiresAt = addDays(new Date(), env.INVITE_TTL_DAYS);
 
-    yield* fromRuntime(
-      InvitesRepo.use((repo) =>
-        repo.createForCompany({
-          companyId: input.companyId,
-          email: input.contact.email,
-          tokenHash,
-          expiresAt,
-          createdBy: input.createdBy,
-        }),
-      ),
+    yield* InvitesRepo.use((repo) =>
+      repo.createForCompany({
+        companyId: input.companyId,
+        email: input.contact.email,
+        tokenHash,
+        expiresAt,
+        createdBy: input.createdBy,
+      }),
     );
 
     const invited: ContactInvitedEvent = {
@@ -100,7 +90,7 @@ const inviteToApp = (
       contactName: input.contact.name,
       contactEmail: input.contact.email,
       companyName: input.companyName,
-      firmName: yield* fromRuntime(InvitesRepo.use((repo) => repo.firmName(scope))),
+      firmName: yield* InvitesRepo.use((repo) => repo.firmName(scope)),
       inviteUrl: `${env.WEB_URL}/convite/${token}`,
       expiresAt,
     };
@@ -119,7 +109,7 @@ const list = route(
       const { scope } = yield* FirmContext;
       const page = yield* query(CompanyQuery);
 
-      const { rows, total } = yield* useCompanies((repo) => repo.list(scope, page));
+      const { rows, total } = yield* CompaniesRepo.use((repo) => repo.list(scope, page));
 
       return paginated(rows, { page: page.page, perPage: page.perPage, total });
     }),
@@ -137,7 +127,7 @@ const usage = route(
     Effect.gen(function* () {
       const { scope } = yield* FirmContext;
 
-      return yield* useCompanies((repo) => repo.usage(scope));
+      return yield* CompaniesRepo.use((repo) => repo.usage(scope));
     }),
   ),
   { auth: firmRoute() },
@@ -157,7 +147,7 @@ const create = route(
         yield* requireAccountant(scope, input.responsibleAccountantId);
       }
 
-      return yield* useCompanies((repo) => repo.create(scope, input));
+      return yield* CompaniesRepo.use((repo) => repo.create(scope, input));
     }),
   ),
   { auth: firmRoute() },
@@ -182,7 +172,7 @@ const sendAccessInvites = (events: EventEmitter2) =>
         }> = [];
 
         for (const companyId of input.companyIds) {
-          const found = yield* useCompanies((repo) => repo.findById(scope, companyId));
+          const found = yield* CompaniesRepo.use((repo) => repo.findById(scope, companyId));
           if (!found) {
             results.push({ companyId, status: 'error', reason: 'Empresa não encontrada.' });
             continue;
@@ -243,7 +233,7 @@ const applyTemplate = route(
       }> = [];
 
       for (const companyId of input.companyIds) {
-        const row = yield* useCompanies((repo) =>
+        const row = yield* CompaniesRepo.use((repo) =>
           repo.update(scope, companyId, { checklistTemplateId: input.checklistTemplateId }),
         );
 
@@ -271,7 +261,7 @@ const importCompanies = route(
     Effect.gen(function* () {
       const input = yield* body(ImportCompaniesBody);
 
-      return yield* useCompanies((repo) => repo.validateCsv(input.csv));
+      return yield* CompaniesRepo.use((repo) => repo.validateCsv(input.csv));
     }),
   ),
   { auth: firmRoute() },
@@ -312,7 +302,7 @@ const confirmImport = route(
         yield* requireAccountant(scope, accountantId);
       }
 
-      return yield* useCompanies((repo) =>
+      return yield* CompaniesRepo.use((repo) =>
         repo.confirmImport(scope, input.pending, input.activate),
       );
     }),
@@ -329,7 +319,7 @@ const activate = route(
       const { scope } = yield* FirmContext;
       const input = yield* body(ActivateCompaniesBody);
 
-      return yield* useCompanies((repo) => repo.activateMany(scope, input.companyIds));
+      return yield* CompaniesRepo.use((repo) => repo.activateMany(scope, input.companyIds));
     }),
   ),
   { auth: firmRoute() },
@@ -344,7 +334,7 @@ const get = route(
       const { scope } = yield* FirmContext;
       const { id } = yield* params(IdParam);
 
-      const row = yield* useCompanies((repo) => repo.findById(scope, id));
+      const row = yield* CompaniesRepo.use((repo) => repo.findById(scope, id));
       if (!row) return yield* Effect.fail(new NotFound('Empresa não encontrada.'));
 
       return row;
@@ -370,7 +360,7 @@ const update = route(
         yield* requireAccountant(scope, input.responsibleAccountantId);
       }
 
-      const row = yield* useCompanies((repo) => repo.update(scope, id, input));
+      const row = yield* CompaniesRepo.use((repo) => repo.update(scope, id, input));
       if (!row) return yield* Effect.fail(new NotFound('Empresa não encontrada.'));
 
       return row;
@@ -388,7 +378,7 @@ const deactivate = route(
       const { scope } = yield* FirmContext;
       const { id } = yield* params(IdParam);
 
-      const row = yield* useCompanies((repo) => repo.deactivate(scope, id));
+      const row = yield* CompaniesRepo.use((repo) => repo.deactivate(scope, id));
       if (!row) return yield* Effect.fail(new NotFound('Empresa não encontrada.'));
 
       return row;
@@ -406,10 +396,10 @@ const listContacts = route(
       const { scope } = yield* FirmContext;
       const { id } = yield* params(IdParam);
 
-      const owned = yield* useCompanies((repo) => repo.findOwnedId(scope, id));
+      const owned = yield* CompaniesRepo.use((repo) => repo.findOwnedId(scope, id));
       if (!owned) return yield* Effect.fail(new NotFound('Empresa não encontrada.'));
 
-      return yield* useCompanies((repo) => repo.listContacts(scope, id));
+      return yield* CompaniesRepo.use((repo) => repo.listContacts(scope, id));
     }),
   ),
   { auth: firmRoute() },
@@ -425,7 +415,7 @@ const addContact = route(
       const { id } = yield* params(IdParam);
       const input = yield* body(ContactBody);
 
-      const row = yield* useCompanies((repo) => repo.addContact(scope, id, input));
+      const row = yield* CompaniesRepo.use((repo) => repo.addContact(scope, id, input));
       if (!row) return yield* Effect.fail(new NotFound('Empresa não encontrada.'));
 
       return row;
@@ -445,7 +435,9 @@ const updateContact = route(
       // Bug congelado #3: mesma causa do #2, com `ContactBody.partial()`.
       const input = yield* body(ContactBody.partial());
 
-      const row = yield* useCompanies((repo) => repo.updateContact(scope, id, contactId, input));
+      const row = yield* CompaniesRepo.use((repo) =>
+        repo.updateContact(scope, id, contactId, input),
+      );
       if (!row) return yield* Effect.fail(new NotFound('Responsável não encontrado.'));
 
       return row;
@@ -463,7 +455,7 @@ const deleteContact = route(
       const { scope } = yield* FirmContext;
       const { id, contactId } = yield* params(ContactParam);
 
-      const row = yield* useCompanies((repo) => repo.deleteContact(scope, id, contactId));
+      const row = yield* CompaniesRepo.use((repo) => repo.deleteContact(scope, id, contactId));
       if (!row) return yield* Effect.fail(new NotFound('Responsável não encontrado.'));
     }),
     204,
@@ -480,10 +472,10 @@ const listContactAccess = route(
       const { scope } = yield* FirmContext;
       const { id } = yield* params(IdParam);
 
-      const owned = yield* useContacts((repo) => repo.findOwnedCompany(scope, id));
+      const owned = yield* ContactsRepo.use((repo) => repo.findOwnedCompany(scope, id));
       if (!owned) return yield* Effect.fail(new NotFound('Empresa não encontrada.'));
 
-      return yield* useContacts((repo) => repo.withAccess(scope, id));
+      return yield* ContactsRepo.use((repo) => repo.withAccess(scope, id));
     }),
   ),
   { auth: firmRoute() },
@@ -498,7 +490,7 @@ const revokeContactAccess = route(
       const { scope } = yield* FirmContext;
       const { id, contactId } = yield* params(ContactParam);
 
-      const result = yield* useContacts((repo) => repo.revokeAccess(scope, id, contactId));
+      const result = yield* ContactsRepo.use((repo) => repo.revokeAccess(scope, id, contactId));
       if (!result) return yield* Effect.fail(new NotFound('Responsável não encontrado.'));
 
       return result;

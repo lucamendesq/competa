@@ -5,7 +5,7 @@ import { RegisterFirmBody } from '@competa/contracts';
 import { APIError } from 'better-auth/api';
 import { Effect, Layer } from 'effect';
 import { HttpServerRequest } from 'effect/http';
-import { fromRuntime, squashError } from '../../effect/runtime.js';
+import { squashError } from '../../infra/database/error.js';
 import { handler } from '../../http/envelope.js';
 import { body, route } from '../../http/platform.js';
 import { isFailure } from '../../lib/either.js';
@@ -19,9 +19,7 @@ const auth = new BetterAuthAdapter();
 const register = Effect.gen(function* () {
   const input = yield* body(RegisterFirmBody);
 
-  const taken = yield* fromRuntime(
-    AccountantsRepo.use((repo) => repo.userExistsByEmail(input.email)),
-  );
+  const taken = yield* AccountantsRepo.use((repo) => repo.userExistsByEmail(input.email));
   if (taken) return yield* Effect.fail(new SignupRejected());
 
   const created = yield* Effect.promise(() =>
@@ -45,24 +43,22 @@ const register = Effect.gen(function* () {
 
   const { userId, setCookie } = created.value;
 
-  yield* fromRuntime(
-    AccountantsRepo.use((accountants) =>
-      accountants.provisionFirm({ authUserId: userId, firmName: input.firmName }).pipe(
-        Effect.tapCause((cause) =>
-          accountants.deleteAuthUser(userId).pipe(
-            Effect.catchCause((compensation) =>
-              Effect.sync(() => {
-                logger.error(
-                  `Falha ao compensar (apagar user ${userId}) após erro no public signup`,
-                  squashError(compensation),
-                );
-              }),
-            ),
-            Effect.andThen(
-              Effect.sync(() => {
-                logger.error('Falha ao provisionar firm', squashError(cause));
-              }),
-            ),
+  yield* AccountantsRepo.use((accountants) =>
+    accountants.provisionFirm({ authUserId: userId, firmName: input.firmName }).pipe(
+      Effect.tapCause((cause) =>
+        accountants.deleteAuthUser(userId).pipe(
+          Effect.catchCause((compensation) =>
+            Effect.sync(() => {
+              logger.error(
+                `Falha ao compensar (apagar user ${userId}) após erro no public signup`,
+                squashError(compensation),
+              );
+            }),
+          ),
+          Effect.andThen(
+            Effect.sync(() => {
+              logger.error('Falha ao provisionar firm', squashError(cause));
+            }),
           ),
         ),
       ),

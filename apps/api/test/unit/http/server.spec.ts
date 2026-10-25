@@ -1,14 +1,15 @@
 import { request as nodeRequest } from 'node:http';
 import { EventEmitter2 } from '../../../src/lib/event-emitter.js';
-import { Context, ManagedRuntime } from 'effect';
+import { Context, Effect, ManagedRuntime } from 'effect';
 import { HttpServer } from 'effect/http';
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 import { serverLayer } from '../../../src/http/server.js';
+import type { Db } from '../../../src/infra/database/effect.js';
 
 /* Sobe o servidor Effect sem Nest e sem banco: o que está sob teste é a pilha de
  * plataforma (helmet, origin-check, CORS, log, throttle, envelope, mapa de erros, ETag)
  * na rota /health, não o repositório. */
-const boot = async (ping: () => Promise<void>) => {
+const boot = async (ping: Effect.Effect<unknown, unknown, Db>) => {
   const runtime = ManagedRuntime.make(
     serverLayer({
       port: 0,
@@ -50,7 +51,7 @@ describe('GET /health servido pelo shell Effect', () => {
   let app: { url: string; close: () => Promise<void> };
 
   beforeAll(async () => {
-    app = await boot(() => Promise.resolve());
+    app = await boot(Effect.void);
   });
 
   afterAll(() => app.close());
@@ -162,7 +163,7 @@ describe('mapa de erros ligado na rota', () => {
   let app: { url: string; close: () => Promise<void> };
 
   beforeAll(async () => {
-    app = await boot(() => Promise.reject(new Error('pool morto')));
+    app = await boot(Effect.fail(new Error('pool morto')));
   });
 
   afterAll(() => app.close());
@@ -183,7 +184,7 @@ describe('throttle do shell Effect', () => {
   let app: { url: string; close: () => Promise<void> };
 
   beforeAll(async () => {
-    app = await boot(() => Promise.resolve());
+    app = await boot(Effect.void);
   });
 
   afterAll(() => app.close());

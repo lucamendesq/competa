@@ -1,14 +1,11 @@
-import { Context, Effect, Exit, Layer, Option, Schema } from 'effect';
+import { Context, Effect, Exit, Layer, Option } from 'effect';
+import { DbError } from './error.js';
 import { db as drizzleDb } from './index.js';
 
 type Drizzle = typeof drizzleDb;
 
 /** Executor comum a `db.use` e às transações do drizzle (mesma forma do antigo `Database`). */
 export type Executor = Omit<Drizzle, '$client'>;
-
-export class DbError extends Schema.TaggedError<DbError>()('DbError', {
-  cause: Schema.Defect(),
-}) {}
 
 /** A transação em que o trabalho corre, quando há uma. Como `Context.Reference` tem default,
  *  quem a LÊ nunca precisa declará-la como requisito — é isso que faz um repositório entrar

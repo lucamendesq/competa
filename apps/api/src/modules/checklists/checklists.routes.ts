@@ -12,7 +12,6 @@ import {
   UpdateTemplateItemBody,
 } from '@competa/contracts';
 import { Effect, Layer } from 'effect';
-import { fromRuntime } from '../../effect/runtime.js';
 import { FirmContext } from '../../http/context.js';
 import { handler, paginated } from '../../http/envelope.js';
 import { firmRoute } from '../../http/middleware/auth.js';
@@ -29,12 +28,9 @@ import {
   TemplateItemDuplicated,
 } from './errors.js';
 
-const use = <A, E>(f: (repo: ChecklistsRepo['Service']) => Effect.Effect<A, E>) =>
-  fromRuntime(ChecklistsRepo.use(f));
-
 const requireVisible = (scope: FirmScope, templateId: string) =>
   Effect.gen(function* () {
-    const template = yield* use((repo) => repo.findTemplate(scope, templateId));
+    const template = yield* ChecklistsRepo.use((repo) => repo.findTemplate(scope, templateId));
     if (!template) return yield* Effect.fail(new NotFound('Template não encontrado.'));
 
     return template;
@@ -50,7 +46,9 @@ const requireOwned = (scope: FirmScope, templateId: string) =>
 
 const requireCompany = (scope: FirmScope, companyId: string) =>
   Effect.gen(function* () {
-    const context = yield* use((repo) => repo.companyChecklistContext(scope, companyId));
+    const context = yield* ChecklistsRepo.use((repo) =>
+      repo.companyChecklistContext(scope, companyId),
+    );
     if (!context) return yield* Effect.fail(new NotFound('Empresa não encontrada.'));
 
     return context;
@@ -64,7 +62,7 @@ const listTemplates = route(
     Effect.gen(function* () {
       const { scope } = yield* FirmContext;
 
-      return yield* use((repo) => repo.listTemplates(scope));
+      return yield* ChecklistsRepo.use((repo) => repo.listTemplates(scope));
     }),
   ),
   { auth: firmRoute() },
@@ -81,7 +79,10 @@ const getTemplate = route(
 
       const template = yield* requireVisible(scope, id);
 
-      return { ...template, items: yield* use((repo) => repo.listTemplateItems(template.id)) };
+      return {
+        ...template,
+        items: yield* ChecklistsRepo.use((repo) => repo.listTemplateItems(template.id)),
+      };
     }),
   ),
   { auth: firmRoute() },
@@ -96,7 +97,7 @@ const createTemplate = route(
       const { scope } = yield* FirmContext;
       const input = yield* body(CreateTemplateBody);
 
-      const row = yield* use((repo) =>
+      const row = yield* ChecklistsRepo.use((repo) =>
         repo.createTemplate(scope, { name: input.name, derivedFrom: null }),
       );
 
@@ -119,7 +120,7 @@ const deriveTemplate = route(
       const source = yield* requireVisible(scope, id);
       if (source.accountingFirmId) return yield* Effect.fail(new TemplateAlreadyOwned());
 
-      return yield* use((repo) => repo.deriveTemplate(scope, source, input.name));
+      return yield* ChecklistsRepo.use((repo) => repo.deriveTemplate(scope, source, input.name));
     }),
   ),
   { auth: firmRoute() },
@@ -137,7 +138,7 @@ const renameTemplate = route(
 
       yield* requireOwned(scope, id);
 
-      return yield* use((repo) => repo.renameTemplate(scope, id, input.name));
+      return yield* ChecklistsRepo.use((repo) => repo.renameTemplate(scope, id, input.name));
     }),
   ),
   { auth: firmRoute() },
@@ -154,10 +155,12 @@ const deleteTemplate = route(
 
       yield* requireOwned(scope, id);
 
-      const count = yield* use((repo) => repo.countCompaniesUsingTemplate(scope, id));
+      const count = yield* ChecklistsRepo.use((repo) =>
+        repo.countCompaniesUsingTemplate(scope, id),
+      );
       if (count > 0) return yield* Effect.fail(new TemplateInUse(count));
 
-      const row = yield* use((repo) => repo.deleteTemplate(scope, id));
+      const row = yield* ChecklistsRepo.use((repo) => repo.deleteTemplate(scope, id));
       if (!row) return yield* Effect.fail(new NotFound('Template não encontrado.'));
     }),
     204,
@@ -177,12 +180,12 @@ const addItem = route(
 
       yield* requireOwned(scope, id);
 
-      const [visible] = yield* use((repo) =>
+      const [visible] = yield* ChecklistsRepo.use((repo) =>
         repo.documentTypesVisible(scope, [input.documentTypeId]),
       );
       if (!visible) return yield* Effect.fail(new DocumentTypeNotVisible());
 
-      const row = yield* use((repo) => repo.addTemplateItem(scope, id, input));
+      const row = yield* ChecklistsRepo.use((repo) => repo.addTemplateItem(scope, id, input));
       if (!row) return yield* Effect.fail(new TemplateItemDuplicated());
 
       return row;
@@ -203,7 +206,9 @@ const updateItem = route(
 
       yield* requireOwned(scope, id);
 
-      const row = yield* use((repo) => repo.updateTemplateItem(scope, id, itemId, input));
+      const row = yield* ChecklistsRepo.use((repo) =>
+        repo.updateTemplateItem(scope, id, itemId, input),
+      );
       if (!row) return yield* Effect.fail(new NotFound('Item do template não encontrado.'));
 
       return row;
@@ -223,7 +228,7 @@ const removeItem = route(
 
       yield* requireOwned(scope, id);
 
-      const row = yield* use((repo) => repo.deleteTemplateItem(scope, id, itemId));
+      const row = yield* ChecklistsRepo.use((repo) => repo.deleteTemplateItem(scope, id, itemId));
       if (!row) return yield* Effect.fail(new NotFound('Item do template não encontrado.'));
     }),
     204,
@@ -240,7 +245,9 @@ const effectiveChecklist = route(
       const { scope } = yield* FirmContext;
       const { companyId } = yield* params(CompanyIdParam);
 
-      const checklist = yield* use((repo) => repo.effectiveChecklist(scope, companyId));
+      const checklist = yield* ChecklistsRepo.use((repo) =>
+        repo.effectiveChecklist(scope, companyId),
+      );
       if (!checklist) return yield* Effect.fail(new NotFound('Empresa não encontrada.'));
 
       return checklist;
@@ -260,7 +267,7 @@ const listOverrides = route(
 
       yield* requireCompany(scope, companyId);
 
-      return yield* use((repo) => repo.listOverrides(scope, companyId));
+      return yield* ChecklistsRepo.use((repo) => repo.listOverrides(scope, companyId));
     }),
   ),
   { auth: firmRoute() },
@@ -278,7 +285,7 @@ const upsertOverride = route(
 
       yield* requireCompany(scope, companyId);
 
-      const [visible] = yield* use((repo) =>
+      const [visible] = yield* ChecklistsRepo.use((repo) =>
         repo.documentTypesVisible(scope, [input.documentTypeId]),
       );
       if (!visible) return yield* Effect.fail(new DocumentTypeNotVisible());
@@ -286,13 +293,15 @@ const upsertOverride = route(
       /* Remover o que não está no template gravava uma linha morta e o Contador saía da tela
        * achando que tinha tirado algo do checklist. */
       if (input.action === 'remove') {
-        const inTemplate = yield* use((repo) => repo.templateItemsForCompany(scope, companyId));
+        const inTemplate = yield* ChecklistsRepo.use((repo) =>
+          repo.templateItemsForCompany(scope, companyId),
+        );
         if (!inTemplate.some((line) => line.documentTypeId === input.documentTypeId)) {
           return yield* Effect.fail(new OverrideRemovesNothing());
         }
       }
 
-      return yield* use((repo) => repo.upsertOverride(scope, companyId, input));
+      return yield* ChecklistsRepo.use((repo) => repo.upsertOverride(scope, companyId, input));
     }),
   ),
   { auth: firmRoute() },
@@ -309,7 +318,9 @@ const removeOverride = route(
 
       yield* requireCompany(scope, companyId);
 
-      const row = yield* use((repo) => repo.deleteOverride(scope, companyId, documentTypeId));
+      const row = yield* ChecklistsRepo.use((repo) =>
+        repo.deleteOverride(scope, companyId, documentTypeId),
+      );
       if (!row) return yield* Effect.fail(new NotFound('Override não encontrado.'));
     }),
     204,
@@ -326,7 +337,9 @@ const listDocumentTypes = route(
       const { scope } = yield* FirmContext;
       const page = yield* query(DocumentTypeQuery);
 
-      const { rows, total } = yield* use((repo) => repo.listDocumentTypes(scope, page));
+      const { rows, total } = yield* ChecklistsRepo.use((repo) =>
+        repo.listDocumentTypes(scope, page),
+      );
 
       return paginated(rows, { page: page.page, perPage: page.perPage, total });
     }),

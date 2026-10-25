@@ -4,6 +4,8 @@ import type { EventEmitter2 } from '../lib/event-emitter.js';
 import { ByteSize, Effect, Layer } from 'effect';
 import { HttpIncomingMessage, HttpRouter } from 'effect/http';
 import { buildInfo } from '../build-info.js';
+import { appServices } from '../effect/runtime.js';
+import type { Db } from '../infra/database/effect.js';
 import { localStorageRoutes } from '../infra/storage/local-storage.routes.js';
 import { ServiceUnavailable } from '../lib/app-error.js';
 import { authRoutes } from '../modules/auth/auth.routes.js';
@@ -34,16 +36,18 @@ import { GLOBAL_BUCKETS, makeThrottleStore } from './throttle.js';
 /** O que um balanceador/orquestrador consulta antes de mandar tráfego. Toca o banco de
  *  propósito: processo vivo com pool morto responde 200 em qualquer healthcheck que só
  *  olhe o HTTP, e o deploy segue para uma instância que não atende ninguém. */
-const healthRoute = (ping: () => Promise<void>) =>
+const healthRoute = (ping: Effect.Effect<unknown, unknown, Db>) =>
   route(
     'GET',
     '/health',
     handler(
       'GET',
-      Effect.tryPromise({
-        try: ping,
-        catch: () => new ServiceUnavailable('Banco indisponível.'),
-      }).pipe(Effect.as({ status: 'ok' as const, ...buildInfo })),
+      ping.pipe(
+        /* `catchCause`, e não `catch`: a sonda respondia 503 para QUALQUER causa, porque o
+         * `tryPromise` que vivia aqui recebia defeito e falha pela mesma rejeição. */
+        Effect.catchCause(() => Effect.fail(new ServiceUnavailable('Banco indisponível.'))),
+        Effect.as({ status: 'ok' as const, ...buildInfo }),
+      ),
     ),
     /* `@SkipThrottle()` nu pula SÓ o balde `default`: a sonda bate a cada poucos segundos e
      * o balde de 120/60s a derrubaria, mas o `short` continua valendo. */
@@ -53,7 +57,7 @@ const healthRoute = (ping: () => Promise<void>) =>
 export const serverLayer = (options: {
   readonly port: number;
   readonly trustProxy: boolean;
-  readonly ping: () => Promise<void>;
+  readonly ping: Effect.Effect<unknown, unknown, Db>;
   /** A MESMA instância do container Nest: os listeners de messaging estão registrados
    *  nela, e uma cópia engoliria todo evento emitido por rota migrada. */
   readonly events: EventEmitter2;
@@ -108,4 +112,6 @@ export const serverLayer = (options: {
      * stream) nem `PUT /storage/local/:key` (que lê o `IncomingMessage` cru), exatamente
      * como o `SkipBodyParsingMiddleware` não alcançava. */
     Layer.provideMerge(Layer.succeed(HttpIncomingMessage.MaxBodySize)(ByteSize.mebibytes(2))),
+    // o `serve` converte o que a rota marca como `Requires` em requisito comum da layer
+    Layer.provide(appServices),
   );

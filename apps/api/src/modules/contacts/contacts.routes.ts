@@ -12,7 +12,6 @@ import { Effect, Layer } from 'effect';
 import { HttpServerRequest, HttpServerResponse } from 'effect/http';
 import * as z from 'zod';
 import env from '../../config/env.js';
-import { fromRuntime } from '../../effect/runtime.js';
 import { BetterAuthAdapter } from '../../infra/auth/better-auth.adapter.js';
 import { LocalStorage } from '../../infra/storage/local.storage.js';
 import { R2Storage } from '../../infra/storage/r2.storage.js';
@@ -47,7 +46,7 @@ const profile = route(
     Effect.gen(function* () {
       const { scope } = yield* ContactContext;
 
-      const row = yield* fromRuntime(ContactsRepo.use((repo) => repo.profile(scope)));
+      const row = yield* ContactsRepo.use((repo) => repo.profile(scope));
       if (!row) return yield* Effect.fail(new NotFound('Responsável não encontrado.'));
 
       return row;
@@ -64,7 +63,7 @@ const pending = route(
     Effect.gen(function* () {
       const { scope } = yield* ContactContext;
 
-      const rows = yield* fromRuntime(RequestsRepo.use((repo) => repo.pending(scope)));
+      const rows = yield* RequestsRepo.use((repo) => repo.pending(scope));
 
       return rows.map((row) => ({
         requestId: row.requestId,
@@ -96,9 +95,7 @@ const periods = route(
       const { scope } = yield* ContactContext;
       const page = yield* query(PaginationQuery);
 
-      const { rows, total } = yield* fromRuntime(
-        PeriodsRepo.use((repo) => repo.periods(scope, page)),
-      );
+      const { rows, total } = yield* PeriodsRepo.use((repo) => repo.periods(scope, page));
 
       return paginated(rows, { page: page.page, perPage: page.perPage, total });
     }),
@@ -116,9 +113,7 @@ const periodDetail = route(
       const { id } = yield* params(IdParam);
       const { companyId } = yield* query(PeriodDetailQuery);
 
-      const row = yield* fromRuntime(
-        PeriodsRepo.use((repo) => repo.periodDetail(scope, id, companyId)),
-      );
+      const row = yield* PeriodsRepo.use((repo) => repo.periodDetail(scope, id, companyId));
       if (!row) return yield* Effect.fail(new NotFound('Competência não encontrada.'));
 
       return row;
@@ -139,7 +134,7 @@ const documentContent = route(
       const { scope } = yield* ContactContext;
       const { id } = yield* params(IdParam);
 
-      const found = yield* fromRuntime(RequestsRepo.use((repo) => repo.documentForRead(scope, id)));
+      const found = yield* RequestsRepo.use((repo) => repo.documentForRead(scope, id));
       if (!found) return yield* Effect.fail(new NotFound('Documento não encontrado.'));
 
       const { contentType, inline } = servedContentType(found.contentType);
@@ -165,9 +160,7 @@ const subscribe = route(
       const { scope } = yield* ContactContext;
       const input = yield* body(PushSubscriptionBody);
 
-      return yield* fromRuntime(
-        MessagesRepo.use((repo) => repo.savePushSubscription(scope, input)),
-      );
+      return yield* MessagesRepo.use((repo) => repo.savePushSubscription(scope, input));
     }),
   ),
   { auth: contactRoute },
@@ -182,8 +175,8 @@ const unsubscribe = route(
       const { scope } = yield* ContactContext;
       const input = yield* body(PushSubscriptionBody.pick({ endpoint: true }));
 
-      const row = yield* fromRuntime(
-        MessagesRepo.use((repo) => repo.deletePushSubscription(scope, input.endpoint)),
+      const row = yield* MessagesRepo.use((repo) =>
+        repo.deletePushSubscription(scope, input.endpoint),
       );
       if (!row) return yield* Effect.fail(new NotFound('Inscrição não encontrada.'));
     }),
@@ -223,7 +216,7 @@ const presign = route(
       const { scope } = yield* UploadContext;
       const input = yield* body(MyPresignBody);
 
-      return yield* fromRuntime(DocumentsRepo.use((repo) => repo.presign(scope, input)));
+      return yield* DocumentsRepo.use((repo) => repo.presign(scope, input));
     }),
   ),
   { auth: contactUploadRoute },
@@ -240,9 +233,7 @@ const confirm = route(
         ConfirmUploadBody.extend({ requestId: MyPresignBody.shape.requestId }),
       );
 
-      return yield* fromRuntime(
-        DocumentsRepo.use((repo) => repo.confirm(scope, input.documentIds)),
-      );
+      return yield* DocumentsRepo.use((repo) => repo.confirm(scope, input.documentIds));
     }),
   ),
   { auth: contactUploadRoute },

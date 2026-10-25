@@ -1,6 +1,6 @@
 import { Logger } from '../../lib/logger.js';
 import { Effect } from 'effect';
-import { squashError } from '../../effect/runtime.js';
+import { squashError } from '../../infra/database/error.js';
 import type {
   AccessRecoveryRequestedEvent,
   ContactInvitedEvent,

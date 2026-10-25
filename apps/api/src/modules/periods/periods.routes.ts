@@ -3,7 +3,6 @@ import type { EventEmitter2 } from '../../lib/event-emitter.js';
 import { Effect, Layer } from 'effect';
 import { HttpServerRequest } from 'effect/http';
 import env from '../../config/env.js';
-import { fromRuntime } from '../../effect/runtime.js';
 import { FirmContext } from '../../http/context.js';
 import { handler, paginated } from '../../http/envelope.js';
 import { firmRoute } from '../../http/middleware/auth.js';
@@ -22,8 +21,8 @@ const open = (events: EventEmitter2) =>
         const { scope } = yield* FirmContext;
         const input = yield* body(OpenPeriodBody);
 
-        const { period, warnings, plans, requestIdByCompany } = yield* fromRuntime(
-          PeriodsRepo.use((repo) => repo.openPeriod(scope, input)),
+        const { period, warnings, plans, requestIdByCompany } = yield* PeriodsRepo.use((repo) =>
+          repo.openPeriod(scope, input),
         );
 
         const requests = plans.map((plan) => ({
@@ -71,7 +70,7 @@ const list = route(
       const { scope } = yield* FirmContext;
       const page = yield* query(PaginationQuery);
 
-      const { rows, total } = yield* fromRuntime(PeriodsRepo.use((repo) => repo.list(scope, page)));
+      const { rows, total } = yield* PeriodsRepo.use((repo) => repo.list(scope, page));
 
       return paginated(rows, { page: page.page, perPage: page.perPage, total });
     }),
@@ -88,7 +87,7 @@ const get = route(
       const { scope } = yield* FirmContext;
       const { id } = yield* params(IdParam);
 
-      const row = yield* fromRuntime(PeriodsRepo.use((repo) => repo.findById(scope, id)));
+      const row = yield* PeriodsRepo.use((repo) => repo.findById(scope, id));
       if (!row) return yield* Effect.fail(new NotFound('Competência não encontrada.'));
 
       return row;
@@ -107,16 +106,14 @@ const listRequests = route(
       const { id } = yield* params(IdParam);
       const rawQuery = yield* HttpServerRequest.ParsedSearchParams;
 
-      const owned = yield* fromRuntime(PeriodsRepo.use((repo) => repo.findOwnedId(scope, id)));
+      const owned = yield* PeriodsRepo.use((repo) => repo.findOwnedId(scope, id));
       if (!owned) return yield* Effect.fail(new NotFound('Competência não encontrada.'));
 
       if (rawQuery['page'] !== undefined || rawQuery['perPage'] !== undefined) {
         /* Bug congelado #1: `parse` CRU, fora do `zodPipe`. O `ZodError` não casa com
          * nenhum ramo do mapa de erros e vira 500 INTERNAL_ERROR em vez de 422. */
         const page = PaginationQuery.parse(rawQuery);
-        const result = yield* fromRuntime(
-          PeriodsRepo.use((repo) => repo.listRequests(scope, id, page)),
-        );
+        const result = yield* PeriodsRepo.use((repo) => repo.listRequests(scope, id, page));
         if ('rows' in result) {
           return paginated(result.rows, {
             page: page.page,
@@ -126,7 +123,7 @@ const listRequests = route(
         }
       }
 
-      return yield* fromRuntime(PeriodsRepo.use((repo) => repo.listRequests(scope, id)));
+      return yield* PeriodsRepo.use((repo) => repo.listRequests(scope, id));
     }),
   ),
   { auth: firmRoute() },
@@ -141,10 +138,10 @@ const pendingPanel = route(
       const { scope } = yield* FirmContext;
       const { id } = yield* params(IdParam);
 
-      const owned = yield* fromRuntime(PeriodsRepo.use((repo) => repo.findOwnedId(scope, id)));
+      const owned = yield* PeriodsRepo.use((repo) => repo.findOwnedId(scope, id));
       if (!owned) return yield* Effect.fail(new NotFound('Competência não encontrada.'));
 
-      return yield* fromRuntime(PeriodsRepo.use((repo) => repo.pendingPanel(scope, id)));
+      return yield* PeriodsRepo.use((repo) => repo.pendingPanel(scope, id));
     }),
   ),
   { auth: firmRoute() },
@@ -159,7 +156,7 @@ const close = route(
       const { scope } = yield* FirmContext;
       const { id } = yield* params(IdParam);
 
-      const closed = yield* fromRuntime(PeriodsRepo.use((repo) => repo.closePeriod(scope, id)));
+      const closed = yield* PeriodsRepo.use((repo) => repo.closePeriod(scope, id));
       if (!closed) return yield* Effect.fail(new NotFound('Competência não encontrada.'));
 
       return {

@@ -1,7 +1,6 @@
 import { CheckoutBody, PLANS, planPrice } from '@competa/contracts';
 import { Effect, Layer } from 'effect';
 import env from '../../config/env.js';
-import { fromRuntime } from '../../effect/runtime.js';
 import { FirmContext } from '../../http/context.js';
 import { handler } from '../../http/envelope.js';
 import { firmRoute } from '../../http/middleware/auth.js';
@@ -27,12 +26,10 @@ const checkout = route(
       const { scope, session } = yield* FirmContext;
       const input = yield* body(CheckoutBody);
 
-      const owner = yield* fromRuntime(
-        AccountantsRepo.use((repo) => repo.isOwner(scope, session.user.id)),
-      );
+      const owner = yield* AccountantsRepo.use((repo) => repo.isOwner(scope, session.user.id));
       if (!owner) return yield* Effect.fail(new OnlyOwnerCanManageTeam());
 
-      const firm = yield* fromRuntime(AccountantsRepo.use((repo) => repo.firm(scope)));
+      const firm = yield* AccountantsRepo.use((repo) => repo.firm(scope));
       if (!firm) return yield* Effect.die(new Error('Contabilidade não encontrada'));
 
       // 1. Obtém ou cria o cliente no Asaas
@@ -45,7 +42,7 @@ const checkout = route(
 
       // 2. Define o plano e cria a assinatura, respeitando a Oferta Fundador se houver
       const { planName, cycle } = input;
-      const current = yield* fromRuntime(SubscriptionsRepo.use((repo) => repo.findByFirm(firm.id)));
+      const current = yield* SubscriptionsRepo.use((repo) => repo.findByFirm(firm.id));
       const { subscriptionId, checkoutUrl } = yield* Effect.promise(() =>
         billing.createSubscription({
           customerId,
@@ -57,16 +54,14 @@ const checkout = route(
 
       /* 3. Salva no banco o plano, o ciclo e os IDs do gateway. Bug congelado #20: é UPDATE
        * sem upsert (firma sem linha de subscription não grava nada) e nunca toca `status`. */
-      yield* fromRuntime(
-        SubscriptionsRepo.use((repo) =>
-          repo.startCheckout({
-            firmId: firm.id,
-            planName,
-            cycle,
-            gatewayCustomerId: customerId,
-            gatewaySubscriptionId: subscriptionId,
-          }),
-        ),
+      yield* SubscriptionsRepo.use((repo) =>
+        repo.startCheckout({
+          firmId: firm.id,
+          planName,
+          cycle,
+          gatewayCustomerId: customerId,
+          gatewaySubscriptionId: subscriptionId,
+        }),
       );
 
       return { checkoutUrl, simulated: billing.simulated };

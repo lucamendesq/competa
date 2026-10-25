@@ -1,6 +1,5 @@
 import { ConfirmUploadBody, PresignUploadBody } from '@competa/contracts';
 import { Effect, Layer } from 'effect';
-import { fromRuntime } from '../../effect/runtime.js';
 import { UploadContext } from '../../http/context.js';
 import { handler } from '../../http/envelope.js';
 import { uploadPresignRoute, uploadTokenRoute } from '../../http/middleware/auth.js';
@@ -19,14 +18,12 @@ const checklist = route(
     Effect.gen(function* () {
       const { scope } = yield* UploadContext;
 
-      const [found, owner] = yield* fromRuntime(
-        Effect.all(
-          [
-            UploadLinksRepo.use((repo) => repo.findChecklist(scope)),
-            UploadLinksRepo.use((repo) => repo.findContact(scope)),
-          ],
-          { concurrency: 'unbounded' },
-        ),
+      const [found, owner] = yield* Effect.all(
+        [
+          UploadLinksRepo.use((repo) => repo.findChecklist(scope)),
+          UploadLinksRepo.use((repo) => repo.findContact(scope)),
+        ],
+        { concurrency: 'unbounded' },
       );
       if (!found) return yield* Effect.fail(new NotFound('Solicitação não encontrada.'));
 
@@ -60,7 +57,7 @@ const presign = route(
       const { scope } = yield* UploadContext;
       const input = yield* body(PresignUploadBody);
 
-      return yield* fromRuntime(DocumentsRepo.use((repo) => repo.presign(scope, input)));
+      return yield* DocumentsRepo.use((repo) => repo.presign(scope, input));
     }),
   ),
   { auth: uploadPresignRoute },
@@ -75,9 +72,7 @@ const confirm = route(
       const { scope } = yield* UploadContext;
       const input = yield* body(ConfirmUploadBody);
 
-      return yield* fromRuntime(
-        DocumentsRepo.use((repo) => repo.confirm(scope, input.documentIds)),
-      );
+      return yield* DocumentsRepo.use((repo) => repo.confirm(scope, input.documentIds));
     }),
   ),
   { auth: uploadTokenRoute({ uploadThrottle: true }) },
