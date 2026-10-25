@@ -1,6 +1,6 @@
 import * as z from 'zod';
 import { CompanyFlags } from './registry.js';
-import { email, plainName } from './common.js';
+import { email, nonEmptyPatch, plainName } from './common.js';
 import { PaginationQuery } from './pagination.js';
 
 /** Dígitos verificadores do CNPJ (módulo 11). Sem isto, 14 dígitos inventados entram na
@@ -79,6 +79,13 @@ export const UpdateCompanyBody = z
   })
   .partial();
 export type UpdateCompanyBody = z.infer<typeof UpdateCompanyBody>;
+
+/** O que a rota PATCH aceita: o parcial acima, menos o corpo vazio. */
+export const PatchCompanyBody = nonEmptyPatch(UpdateCompanyBody);
+
+/** Idem para o Responsável. Fica aqui, e não montado na rota, para a regra "PATCH precisa
+ *  mudar algo" ter um lugar só. */
+export const PatchContactBody = nonEmptyPatch(ContactBody.partial());
 
 export const ApplyTemplateBody = z.object({
   companyIds: z.array(z.uuid()).min(1).max(500),

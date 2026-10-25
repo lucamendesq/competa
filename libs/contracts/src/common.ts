@@ -37,3 +37,11 @@ export const plainName = (max: number, requiredMessage: string, maxMessage: stri
     .min(1, requiredMessage)
     .max(max, maxMessage)
     .refine((value) => !CONTROL_OR_MARKUP.test(value), { message: NAME_CHARSET_MESSAGE });
+
+/** Um PATCH tem de mudar alguma coisa. Sem isto, um corpo todo-opcional aceita `{}`, chega
+ *  ao drizzle sem campo nenhum e estoura `No values to set` — 500 para o que é erro do
+ *  cliente. Aplicado DEPOIS do `.partial()`. */
+export const nonEmptyPatch = <T extends z.ZodTypeAny>(schema: T) =>
+  schema.refine((value) => Object.keys(value as object).length > 0, {
+    message: 'Informe ao menos um campo para alterar.',
+  });

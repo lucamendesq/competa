@@ -8,7 +8,8 @@ import {
   ImportCompaniesBody,
   ImportConfirmBody,
   SendAccessInvitesBody,
-  UpdateCompanyBody,
+  PatchCompanyBody,
+  PatchContactBody,
 } from '@competa/contracts';
 import type { EventEmitter2 } from '../../lib/event-emitter.js';
 import { addDays } from 'date-fns';
@@ -351,9 +352,7 @@ const update = route(
     Effect.gen(function* () {
       const { scope } = yield* FirmContext;
       const { id } = yield* params(IdParam);
-      /* Bug congelado #2: `UpdateCompanyBody` é todo parcial, `{}` passa na validação e o
-       * drizzle estoura com `No values to set` → 500 em vez de 422. */
-      const input = yield* body(UpdateCompanyBody);
+      const input = yield* body(PatchCompanyBody);
 
       if (input.checklistTemplateId) yield* requireTemplate(scope, input.checklistTemplateId);
       if (input.responsibleAccountantId) {
@@ -432,8 +431,7 @@ const updateContact = route(
     Effect.gen(function* () {
       const { scope } = yield* FirmContext;
       const { id, contactId } = yield* params(ContactParam);
-      // Bug congelado #3: mesma causa do #2, com `ContactBody.partial()`.
-      const input = yield* body(ContactBody.partial());
+      const input = yield* body(PatchContactBody);
 
       const db = yield* Db;
 

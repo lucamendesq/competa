@@ -887,13 +887,16 @@ describe('upload logado (/my/documents) e leitura de conteúdo', () => {
     expect(missing.body.error.message).toContain('Informe a Solicitação');
   });
 
-  it('bug congelado: requestId que não é uuid → 500 INTERNAL_ERROR (query estoura no guard)', async () => {
+  it('requestId fora do formato uuid → 422, não 500', async () => {
+    /* O guard precisa do id antes do handler, então ele mesmo confere o formato: sem isso a
+     * consulta levava o valor cru ao Postgres e o `invalid input syntax for type uuid` virava
+     * erro do servidor. */
     const res = await session.api.post('/my/documents', {
       requestId: 'nao-e-uuid',
       files: [{ fileName: 'extrato.csv', contentType: 'text/csv', sizeBytes: 10 }],
     });
-    expect(res.status).toBe(500);
-    expect(res.body.error.code).toBe('INTERNAL_ERROR');
+    expect(res.status, JSON.stringify(res.body)).toBe(422);
+    expect(res.body.error.code).toBe('VALIDATION_ERROR');
   });
 
   it('arquivo de formato recusado volta accepted:false com motivo, sem reserva', async () => {

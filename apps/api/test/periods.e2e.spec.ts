@@ -273,10 +273,14 @@ describe('listagem, detalhe e encerramento', () => {
     expect(paged.body.data).toHaveLength(1);
   });
 
-  it('paginação mal formada em :id/requests → 500 (bug congelado: parse cru fora do zodPipe)', async () => {
+  /* Paginação inválida é erro DO CLIENTE: 422 com o caminho do campo, igual a toda outra
+   * rota. O 500 vinha de um `.parse()` cru, cujo `ZodError` não casa com nenhum ramo do mapa
+   * de erros. */
+  it('paginação mal formada em :id/requests → 422 com o campo apontado', async () => {
     const res = await api.get(`/periods/${periodId}/requests?page=abc`);
-    expect(res.status).toBe(500);
-    expect(res.body.error.code).toBe('INTERNAL_ERROR');
+    expect(res.status, JSON.stringify(res.body)).toBe(422);
+    expect(res.body.error.code).toBe('VALIDATION_ERROR');
+    expect(res.body.error.details?.some((issue: any) => issue.path.includes('page'))).toBe(true);
   });
 
   it('id desconhecido → 404 NOT_FOUND; id mal formado → 422', async () => {

@@ -4,6 +4,7 @@ import { NodeHttpServerRequest } from '@effect/platform-node';
 import * as Sentry from '@sentry/node';
 import { planAllows, type PlanCapability } from '@competa/contracts';
 import { isPast } from 'date-fns';
+import * as z from 'zod';
 import { Context, Effect } from 'effect';
 import { HttpRouter, HttpServerRequest, type HttpServerError } from 'effect/http';
 import { BetterAuthAdapter } from '../../infra/auth/better-auth.adapter.js';
@@ -28,6 +29,8 @@ import { GLOBAL_BUCKETS, UPLOAD_PRESIGN_BUCKET, type Bucket } from '../throttle.
 
 /* ÚNICO lugar do shell novo onde os escopos branded nascem — a regra que os guards do Nest
  * carregavam. A exceção de lint vive em `eslint.config.mjs`, não numa diretiva no arquivo. */
+
+const UUID = z.uuid();
 
 type Resolved<Value> = Effect.Effect<
   Value,
@@ -157,9 +160,8 @@ const resolveContactUpload: Resolved<UploadContext['Service']> = Effect.gen(func
    * que mantém essa precedência; é também a mesma consulta que o `ContactGuard` fazia. */
   yield* resolveContact;
 
-  /* Bug congelado #8: o guard lê o `requestId` CRU, antes do zodPipe, e um id não-uuid
-   * estoura no Postgres (500) em vez de virar 422. `request.json` é memoizado, então o
-   * handler relê o mesmo corpo depois.
+  /* O guard precisa do `requestId` antes do handler, então ele mesmo valida. `request.json`
+   * é memoizado, e o handler relê o mesmo corpo depois.
    *
    * Corpo ausente ou ilegível vira `{}` e não erro: o `express.json()` entregava `{}` ao
    * guard, que respondia 422 pelo `requestId` faltando. Deixar o `RequestParseError` subir
@@ -168,6 +170,13 @@ const resolveContactUpload: Resolved<UploadContext['Service']> = Effect.gen(func
   const requestId = (raw as { requestId?: unknown } | null)?.requestId;
   if (typeof requestId !== 'string') {
     return yield* Effect.fail(new ValidationError('Informe a Solicitação (requestId) do envio.'));
+  }
+
+  /* O formato é conferido AQUI porque a consulta abaixo usa o id direto: id fora do formato
+   * uuid estourava no Postgres (`invalid input syntax for type uuid`) e virava 500, quando é
+   * erro do cliente. */
+  if (!UUID.safeParse(requestId).success) {
+    return yield* Effect.fail(new ValidationError('Solicitação (requestId) inválida.'));
   }
 
   const owned = yield* ContactsRepo.use((repo) =>
