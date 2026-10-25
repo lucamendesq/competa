@@ -76,7 +76,9 @@ layer(SubscriptionsRepo.layer)('SubscriptionsRepo', (it) => {
     }),
   );
 
-  it.effect('startCheckout: grava plano, ciclo e ids do gateway sem tocar no status', () =>
+  /* O gate de capability lê `planName`. Se o checkout o gravasse, o plano pago valeria do
+   * clique até o estorno — a escolha fica como intenção e só o pagamento a promove. */
+  it.effect('startCheckout: grava INTENÇÃO; plano, ciclo e status ficam como estavam', () =>
     Effect.gen(function* () {
       const repo = yield* SubscriptionsRepo;
       const firm = yield* seedFirm('checkout');
@@ -91,12 +93,46 @@ layer(SubscriptionsRepo.layer)('SubscriptionsRepo', (it) => {
       });
 
       expect(yield* subscriptionRow(firm)).toMatchObject({
-        planName: 'profissional',
-        cycle: 'yearly',
+        pendingPlanName: 'profissional',
+        pendingCycle: 'yearly',
+        planName: 'trial',
+        cycle: 'monthly',
         gatewayCustomerId: 'cus_checkout',
         gatewaySubscriptionId: 'sub_checkout',
         status: 'trialing',
       });
+    }),
+  );
+
+  it.effect('updateStatus ACTIVE promove a intenção e abre o período do ciclo promovido', () =>
+    Effect.gen(function* () {
+      const repo = yield* SubscriptionsRepo;
+      const firm = yield* seedFirm('promove');
+      yield* seedSubscription(firm, { status: 'trialing', gatewaySubscriptionId: 'sub_promove' });
+
+      yield* repo.startCheckout({
+        firmId: firm,
+        planName: 'escritorio',
+        cycle: 'yearly',
+        gatewayCustomerId: 'cus_promove',
+        gatewaySubscriptionId: 'sub_promove',
+      });
+      yield* repo.updateStatus('sub_promove', 'ACTIVE');
+
+      const row = yield* subscriptionRow(firm);
+      expect(row).toMatchObject({
+        planName: 'escritorio',
+        cycle: 'yearly',
+        status: 'ACTIVE',
+        pendingPlanName: null,
+        pendingCycle: null,
+      });
+
+      /* O período segue o ciclo PROMOVIDO (anual), não o que estava na linha antes. */
+      expect(row.currentPeriodEnd?.getTime()).toBeCloseTo(
+        addYears(row.currentPeriodStart!, 1).getTime(),
+        -4,
+      );
     }),
   );
 

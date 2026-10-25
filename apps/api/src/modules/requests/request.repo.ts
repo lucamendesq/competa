@@ -1,3 +1,4 @@
+import { randomUUID } from 'node:crypto';
 import { Context, Effect, Layer } from 'effect';
 import { addDays, addHours } from 'date-fns';
 import { and, asc, count, eq, inArray, ne, sql } from 'drizzle-orm';
@@ -9,6 +10,7 @@ import {
   accountingFirm,
   company,
   contact,
+  cronLease,
   document,
   message,
   period,
@@ -44,6 +46,10 @@ import {
  * ele sumiria de um catchTag tipado. O que não for nosso é defeito. */
 const invalidTransitionOrDie = (error: DbError) =>
   error.cause instanceof InvalidTransition ? Effect.fail(error.cause) : Effect.die(error);
+
+/** Teto de quanto uma varredura pode segurar a lease. Generoso de propósito: só existe para
+ *  que uma instância morta no meio do caminho não bloqueie as próximas para sempre. */
+const LEASE_TTL_SECONDS = 30 * 60;
 
 const make = Effect.gen(function* () {
   const db = yield* Db;
@@ -1282,22 +1288,41 @@ const make = Effect.gen(function* () {
     );
   });
 
-  const withAdvisoryLock = <T>(lockId: number, task: () => Promise<T>) =>
+  /** Voo único das varreduras. Devolve `null` quando outra instância segura a lease.
+   *
+   *  Lease em linha, e não `pg_advisory_lock`: o advisory é de SESSÃO, e `db.use` tira um
+   *  checkout novo do pool a cada `execute` — o unlock caía numa conexão diferente da do lock
+   *  e vazava. Com `min: 5` no pool, a conexão nunca era reciclada, então a lease ficava presa
+   *  e toda varredura seguinte era pulada em silêncio. Aqui tomar é um `INSERT … ON CONFLICT
+   *  … WHERE expires_at < now()`, atômico num statement só e sem depender de sessão. */
+  const withLease = <T>(name: string, task: () => Promise<T>) =>
     db.use(async (d): Promise<T | null> => {
-      const result = await d.execute<{ acquired: boolean }>(
-        sql`SELECT pg_try_advisory_lock(${lockId}) AS acquired`,
-      );
+      const holder = randomUUID();
+      /* Todo o tempo vem do BANCO (`now()`), nunca do relógio do Node: gravar `expires_at`
+       * com um relógio e compará-lo com o outro deixa a lease presa sempre que as máquinas
+       * divergem alguns milissegundos. */
+      const expiry = sql`now() + make_interval(secs => ${LEASE_TTL_SECONDS})`;
+      const taken = await d
+        .insert(cronLease)
+        .values({ name, holder, expiresAt: expiry })
+        .onConflictDoUpdate({
+          target: cronLease.name,
+          set: { holder, expiresAt: expiry },
+          setWhere: sql`${cronLease.expiresAt} < now()`,
+        })
+        .returning({ name: cronLease.name });
 
-      const rawRows =
-        (result as unknown as { rows?: { acquired: boolean }[] }).rows ??
-        (result as unknown as { acquired: boolean }[]);
-      const acquired = Boolean(rawRows?.[0]?.acquired);
-      if (!acquired) return null;
+      if (taken.length === 0) return null;
 
       try {
         return await task();
       } finally {
-        await d.execute(sql`SELECT pg_advisory_unlock(${lockId})`);
+        /* `holder` no WHERE: se a varredura estourar o TTL e outra instância tomar a lease, a
+         * nossa liberação não pode derrubar a dela. */
+        await d
+          .update(cronLease)
+          .set({ expiresAt: sql`now() - interval '1 second'` })
+          .where(and(eq(cronLease.name, name), eq(cronLease.holder, holder)));
       }
     });
 
@@ -1322,7 +1347,7 @@ const make = Effect.gen(function* () {
     undoAcceptItem,
     reminderCandidates,
     reminderSettingsByFirm,
-    withAdvisoryLock,
+    withLease,
   };
 });
 

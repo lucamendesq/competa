@@ -5,10 +5,19 @@ export class WhatsappCryptoService {
   private readonly algorithm = 'aes-256-gcm';
   private readonly key: Buffer;
 
+  /* Sem chave NÃO há fallback: o anterior era `'0'.repeat(64)`, uma chave conhecida e
+   * pública, e o comentário que o acompanhava dizia "fallback to random" — não era. Token da
+   * Meta cifrado com ela é decifrável por qualquer um que leia o banco. Falhar aqui é alto e
+   * cedo; o `env.ts` ainda exige a variável em produção, então isto é a segunda barreira. */
   constructor() {
-    // Requires a 32-byte hex string (64 chars) or base64.
-    // Fallback to random if not set in dev, but it means tokens won't survive restarts if not set.
-    const secret = env.WHATSAPP_ENCRYPTION_KEY || '0'.repeat(64);
+    const secret = env.WHATSAPP_ENCRYPTION_KEY;
+    if (!secret) {
+      throw new Error(
+        'WHATSAPP_ENCRYPTION_KEY ausente: sem ela os tokens da Meta ficariam cifrados com uma chave conhecida.',
+      );
+    }
+
+    // 32 bytes: hex de 64 caracteres, ou os 32 primeiros bytes do texto cru
     this.key = Buffer.from(secret, secret.length === 64 ? 'hex' : 'utf-8').subarray(0, 32);
   }
 

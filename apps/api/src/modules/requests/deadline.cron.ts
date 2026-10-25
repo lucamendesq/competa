@@ -19,7 +19,7 @@ import { RequestsRepo } from './request.repo.js';
  *  grandes numa conexão ruim. */
 const STALE_UPLOAD_HOURS = 24;
 
-const DEADLINE_CRON_LOCK_ID = 42002;
+const DEADLINE_CRON_LEASE = 'deadline-sweep';
 
 const logger = new Logger('DeadlineCron');
 
@@ -175,9 +175,8 @@ export const deadlineCron = (events: EventEmitter2) => {
     Effect.gen(function* () {
       const requests = yield* RequestsRepo;
 
-      /* O lock é tomado numa conexão do pool e a varredura corre fora dela: o `task` do
-       * `withAdvisoryLock` é uma promise, então a volta ao runtime é aqui. */
-      const ran = yield* requests.withAdvisoryLock(DEADLINE_CRON_LOCK_ID, () =>
+      // o `task` da lease é uma promise, então a volta ao runtime é aqui
+      const ran = yield* requests.withLease(DEADLINE_CRON_LEASE, () =>
         run(
           Effect.gen(function* () {
             const { overdue, notified } = yield* scan(null);

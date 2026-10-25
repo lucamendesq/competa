@@ -257,6 +257,12 @@ export const subscription = pgTable(
     gatewayCustomerId: text('gateway_customer_id'),
     gatewaySubscriptionId: text('gateway_subscription_id'),
     planName: text('plan_name').notNull().default('trial'),
+    /** Plano/ciclo ESCOLHIDOS no checkout e ainda não pagos. Ficam aqui, e não em
+     *  `plan_name`, porque o gate de capability lê `plan_name`: gravar a escolha lá liberava
+     *  recurso pago no instante em que o checkout começava, antes de qualquer dinheiro
+     *  entrar. O webhook de pagamento promove para `plan_name`. */
+    pendingPlanName: text('pending_plan_name'),
+    pendingCycle: text('pending_cycle'),
     /** `monthly` | `yearly`. O anual é 10× o mensal (2 meses grátis) e é cobrado em boleto
      *  com Pix embutido — o Asaas não faz recorrência Pix pura. */
     cycle: text('cycle').notNull().default('monthly'),

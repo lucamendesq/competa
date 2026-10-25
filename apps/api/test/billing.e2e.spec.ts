@@ -111,10 +111,17 @@ describe('POST /billing/checkout — fluxo com LogBilling', () => {
     expect(res.body).toEqual({ data: { checkoutUrl: '', simulated: true } });
   });
 
-  it('grava plano, ciclo e ids mock do gateway — mas o status CONTINUA trialing', async () => {
+  /* O checkout grava INTENÇÃO, não plano. O gate de capability lê `planName`, então gravar
+   * a escolha lá liberaria recurso pago antes de o dinheiro entrar. */
+  it('grava a intenção e os ids do gateway; plano e status ficam como estavam', async () => {
     const rows = await subscriptionRows(firmId);
     expect(rows).toHaveLength(1);
-    expect(rows[0]).toMatchObject({ planName: 'profissional', cycle: 'yearly' });
+    expect(rows[0]).toMatchObject({
+      pendingPlanName: 'profissional',
+      pendingCycle: 'yearly',
+      planName: 'trial',
+      cycle: 'monthly',
+    });
     expect(rows[0].gatewayCustomerId).toMatch(/^mock_cus_/);
     expect(rows[0].gatewaySubscriptionId).toMatch(/^mock_sub_/);
 
@@ -134,7 +141,7 @@ describe('POST /billing/checkout — fluxo com LogBilling', () => {
     const rows = await subscriptionRows(firmId);
     expect(rows).toHaveLength(1);
     expect(rows[0].id).toBe(before.id);
-    expect(rows[0]).toMatchObject({ planName: 'essencial', cycle: 'monthly' });
+    expect(rows[0]).toMatchObject({ pendingPlanName: 'essencial', pendingCycle: 'monthly' });
     expect(rows[0].gatewayCustomerId).not.toBe(before.gatewayCustomerId);
     expect(rows[0].gatewaySubscriptionId).not.toBe(before.gatewaySubscriptionId);
   });
@@ -204,10 +211,11 @@ describe('isolamento entre firmas', () => {
     expect(res.status).toBe(201);
 
     const [rowA] = await subscriptionRows(firmA);
-    expect(rowA.planName).toBe('escritorio');
+    expect(rowA.pendingPlanName).toBe('escritorio');
 
     const [rowB] = await subscriptionRows(firmB);
     expect(rowB).toMatchObject({
+      pendingPlanName: null,
       planName: 'trial',
       status: 'trialing',
       gatewayCustomerId: null,
