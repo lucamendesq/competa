@@ -54,17 +54,22 @@ const activate = route(
 
       const name = input.name?.trim() || owner.name;
 
-      /* A conta nasce sem senha utilizável: o acesso só se completa pelo magic link que vai
-       * para a caixa do Responsável. Devolver a sessão aqui tornaria o Link de Upload — que
-       * circula por email encaminhado, histórico e log de proxy — equivalente à senha,
-       * dando a quem o tivesse o acervo inteiro da Empresa por `/my/documents/:id/content`. */
-      const hasProvidedPassword = Boolean(input.password);
-      const password = input.password || randomBytes(32).toString('base64url');
-
+      /* A conta nasce sem credencial utilizável: o acesso só se completa pelo magic link que
+       * vai para a caixa do Responsável. O Link de Upload circula por email encaminhado,
+       * histórico e log de proxy — aceitar senha aqui o tornaria equivalente à senha, dando a
+       * quem o tivesse o acervo inteiro da Empresa por `/my/documents/:id/content`.
+       *
+       * O `signUpEmail` do better-auth exige uma senha, então ela nasce aleatória e a linha de
+       * credencial é apagada em seguida. Isso também destrava o `POST /my/password`, que
+       * recusa trocar senha existente (`PASSWORD_ALREADY_SET`) mas sabe criar a primeira. */
       let userId = existing?.id;
       if (!userId) {
         const created = yield* Effect.promise(() =>
-          auth.signUpEmail({ name, email: owner.email, password }),
+          auth.signUpEmail({
+            name,
+            email: owner.email,
+            password: randomBytes(32).toString('base64url'),
+          }),
         );
         if (isFailure(created)) {
           if (isDuplicateEmail(created.error)) {
@@ -74,7 +79,7 @@ const activate = route(
         }
 
         userId = created.value.userId;
-        yield* ContactsRepo.use((repo) => repo.markUserEmailVerified(created.value.userId));
+        yield* ContactsRepo.use((repo) => repo.dropCredential(created.value.userId));
       }
 
       const linked = userId;
@@ -82,15 +87,12 @@ const activate = route(
       // a tela informa que ativar implica no aceite dos Termos/Privacidade
       yield* ContactsRepo.use((repo) => repo.markTermsAccepted(linked));
 
-      if (!hasProvidedPassword) {
-        yield* Effect.promise(() => auth.sendSignInLink(owner.email));
-      }
+      /* Quem marca `emailVerified` é o magic link (o better-auth promove a conta não provada
+       * ao consumir o token). Marcá-lo aqui seria afirmar, a partir de um link encaminhável,
+       * um controle de caixa que ninguém provou. */
+      yield* Effect.promise(() => auth.sendSignInLink(owner.email));
 
-      return {
-        email: owner.email,
-        name,
-        nextStep: hasProvidedPassword ? ('password_set' as const) : ('check_email' as const),
-      };
+      return { email: owner.email, name, nextStep: 'check_email' as const };
     }),
   ),
   { auth: uploadTokenRoute(), throttle: SIGNUP_THROTTLE },

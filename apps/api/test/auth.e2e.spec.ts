@@ -289,12 +289,10 @@ describe('hook x-internal-signup (POST /api/auth/sign-up/email direto)', () => {
     ).toEqual([]);
   });
 
-  /* Bug congelado (segurança): o header x-internal-signup é forjável por qualquer cliente —
-   * basta mandá-lo para atravessar o hook e criar conta better-auth SEM convite. A conta
-   * nasce órfã (sem accountant/firma) e toma 403 nas rotas de tenant, mas existe, tem
-   * sessão e ocupa o email para sempre (o /auth/register passa a responder SIGNUP_REJECTED
-   * para ele). */
-  it('bug congelado: header forjado atravessa o hook e cria conta órfã com sessão', async () => {
+  /* O header só é posto pelo `BetterAuthAdapter`, numa chamada em processo; vindo de fora é
+   * forjado. O mount o remove antes do handler, então o hook recusa como recusaria qualquer
+   * cadastro aberto — e o email continua livre para o dono. */
+  it('header forjado não atravessa o hook: sem conta e sem email ocupado', async () => {
     const email = uniqueEmail('forjada');
     const res = await rawPost(
       '/api/auth/sign-up/email',
@@ -302,29 +300,23 @@ describe('hook x-internal-signup (POST /api/auth/sign-up/email direto)', () => {
       { 'x-internal-signup': 'true' },
     );
 
-    expect(res.status).toBe(200);
-    const cookie = cookieOf(res.headers);
-    expect(cookie).toContain('session_token');
+    expect(res.status).toBe(404);
+    expect(cookieOf(res.headers)).not.toContain('session_token');
 
     const rows = await db
       .select({ id: authUser.id })
       .from(authUser)
       .where(eq(authUser.email, email));
-    expect(rows).toHaveLength(1);
+    expect(rows, 'nenhuma conta pode nascer do header forjado').toHaveLength(0);
 
-    const me = await apiClient(app.url, { cookie }).get('/auth/me');
-    expect(me.status).toBe(403);
-    expect(me.body.error.code).toBe('FORBIDDEN');
-    expect(me.body.error.message).toContain('não pertence a uma Contabilidade');
-
-    const reuse = await apiClient(app.url).post('/auth/register', {
+    /* A grilagem do email morre junto: quem é dono dele ainda consegue se cadastrar. */
+    const legitimate = await apiClient(app.url).post('/auth/register', {
       firmName: 'Tentativa',
       userName: 'Tentativa',
       email,
       password: PASSWORD,
     });
-    expect(reuse.status).toBe(422);
-    expect(reuse.body.error.code).toBe('SIGNUP_REJECTED');
+    expect(legitimate.status, JSON.stringify(legitimate.body)).toBe(201);
   });
 });
 
@@ -413,20 +405,6 @@ describe('PATCH /auth/device', () => {
     expect(await deviceRows(firm.userId)).toEqual([
       { deviceId: 'device-1', platform: 'desktop', installed: false },
     ]);
-  });
-
-  it('qualquer sessão serve: conta sem Contabilidade também registra (rota de sessão)', async () => {
-    const email = uniqueEmail('orfa');
-    const signedUp = await rawPost(
-      '/api/auth/sign-up/email',
-      { name: 'Órfã', email, password: PASSWORD },
-      { 'x-internal-signup': 'true' },
-    );
-    expect(signedUp.status).toBe(200);
-    const orphan = apiClient(app.url, { cookie: cookieOf(signedUp.headers) });
-
-    const res = await orphan.patch('/auth/device', { deviceId: 'device-orfa', platform: 'other' });
-    expect(res.status).toBe(204);
   });
 
   it('validação: platform fora do enum e deviceId vazio → 422', async () => {

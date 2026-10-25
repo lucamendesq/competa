@@ -76,8 +76,10 @@ export const confirmFiles = (token: string, documentIds: string[]) =>
 export const subscribePush = (token: string, subscription: PushSubscriptionPayload) =>
   api.post<{ id: string }>(`/upload/${token}/push`, subscription);
 
-export const activateAccess = (token: string, body?: { name?: string; password?: string }) =>
-  api.post<{ email: string; name: string; nextStep: 'check_email' | 'password_set' }>(
+/** Ativar NÃO devolve sessão nem aceita senha: o Link de Upload circula por email
+ *  encaminhado e log de proxy. A resposta é sempre "confira seu email". */
+export const activateAccess = (token: string, body?: { name?: string }) =>
+  api.post<{ email: string; name: string; nextStep: 'check_email' }>(
     `/upload/${token}/access`,
     body ?? {},
   );

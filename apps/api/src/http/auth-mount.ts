@@ -34,6 +34,12 @@ export const authMountRoutes = HttpRouter.add('*', '/api/auth/*', (request) =>
     );
     if (!proceed) return HttpServerResponse.empty();
 
+    /* `x-internal-signup` é o que libera `/sign-up/email` no hook do better-auth, e quem o
+     * põe é o `BetterAuthAdapter`, numa chamada EM PROCESSO (`auth.api.*`) — ele nunca
+     * trafega pela rede. Chegando de fora, é forjado: vale cadastro aberto para qualquer
+     * email. Some aqui, antes de o handler olhar. */
+    delete nodeRequest.headers['x-internal-signup'];
+
     const webRequest = yield* HttpServerRequest.toWeb(request);
     const webResponse = yield* Effect.promise(() => auth.handler(webRequest));
 

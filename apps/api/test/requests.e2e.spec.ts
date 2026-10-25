@@ -14,6 +14,7 @@ import {
   contactBody,
   createCompany,
   createTemplate,
+  contactSessionByMagicLink,
   registerFirm,
   uniqueIp,
   type Api,
@@ -22,7 +23,6 @@ import {
 /* Competência fixa: 2026-09, offset default 1 → vencimento 2026-10-05 (seg). */
 const REFERENCE_MONTH = '2026-09';
 const GHOST_ID = '018f0000-0000-7000-8000-00000000dead';
-const PASSWORD = 'senha-do-responsavel-1';
 const REASON = 'Documento ilegível';
 
 const PNG_1X1 = Buffer.from(
@@ -56,12 +56,6 @@ const rawRequest = (method: string, path: string, opts: { cookie?: string; body?
 /** Sessão da firma num balde de throttle novo — describes longos estouram o short (30/10s)
  *  se tudo sair do mesmo IP do registerFirm. */
 const sessionClient = (cookie: string) => apiClient(app.url, { cookie });
-
-const cookieOf = (res: Response) =>
-  res.headers
-    .getSetCookie()
-    .map((value) => value.split(';')[0])
-    .join('; ');
 
 /** O LocalStorage assina a URL com env.PORT (3000); em teste o app sobe em porta efêmera —
  *  trocar só a origem preserva a assinatura, que cobre caminho e query. */
@@ -298,16 +292,11 @@ describe('autorização', () => {
 
   it('sessão de Responsável não revisa: 403 FORBIDDEN', async () => {
     const box = fixture.boxes.Autoriza;
-    const activated = await apiClient(app.url).post(`/upload/${box.uploadToken}/access`, {
-      password: PASSWORD,
-    });
-    expect(activated.status, JSON.stringify(activated.body)).toBe(201);
-
-    const signedIn = await rawRequest('POST', '/api/auth/sign-in/email', {
-      body: { email: box.contactEmail, password: PASSWORD },
-    });
-    expect(signedIn.status).toBe(200);
-    const contactApi = apiClient(app.url, { cookie: cookieOf(signedIn) });
+    const { api: contactApi } = await contactSessionByMagicLink(
+      app.url,
+      box.uploadToken,
+      box.contactEmail,
+    );
 
     for (const res of await Promise.all([
       contactApi.get(`/requests/${box.requestId}`),
