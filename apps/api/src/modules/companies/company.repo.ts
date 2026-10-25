@@ -606,6 +606,7 @@ const make = Effect.gen(function* () {
                   withCnpj.map(({ line, body }) => ({
                     accountingFirmId: scope,
                     checklistTemplateId: body.checklistTemplateId ?? null,
+                    responsibleAccountantId: body.responsibleAccountantId ?? null,
                     name: body.name,
                     cnpj: body.cnpj,
                     flags: body.flags,
@@ -620,6 +621,9 @@ const make = Effect.gen(function* () {
                   set: {
                     name: sql`excluded.name`,
                     checklistTemplateId: sql`excluded.checklist_template_id`,
+                    /* Acompanha `name`/`flags` porque é coluna da planilha, não ajuste
+                     * manual: o `active` é a exceção, e ela está dita acima. */
+                    responsibleAccountantId: sql`excluded.responsible_accountant_id`,
                     flags: sql`excluded.flags`,
                   },
                 })
@@ -638,6 +642,7 @@ const make = Effect.gen(function* () {
                   withoutCnpj.map(({ line, body }) => ({
                     accountingFirmId: scope,
                     checklistTemplateId: body.checklistTemplateId ?? null,
+                    responsibleAccountantId: body.responsibleAccountantId ?? null,
                     name: body.name,
                     cnpj: null,
                     flags: body.flags,

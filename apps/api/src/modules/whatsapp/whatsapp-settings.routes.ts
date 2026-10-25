@@ -8,6 +8,7 @@ import { body, route } from '../../http/platform.js';
 import { ServiceUnavailable } from '../../lib/app-error.js';
 import { AccountantsRepo } from '../auth/accountant.repo.js';
 import { OnlyOwnerCanManageTeam } from '../auth/errors.js';
+import { WhatsappNotConnected } from './errors.js';
 import type { FirmScope } from '../auth/scope.js';
 import { MockWhatsappProvider } from '../messaging/providers/mock-whatsapp.provider.js';
 import { WhatsappProvider } from '../messaging/providers/whatsapp.provider.js';
@@ -109,10 +110,8 @@ const sendTest = route(
       const input = yield* body(whatsappTestSendSchema);
 
       const integration = yield* integrationOf(scope);
-      /* Bug congelado #10: `Error` cru, sem status — cai no fallback 500 INTERNAL_ERROR do
-       * mapa de erros, que expõe a mensagem em `details`. Deveria ser 4xx tipado. */
       if (!integration || integration.status !== 'active') {
-        return yield* Effect.die(new Error('Integração não ativa'));
+        return yield* Effect.fail(new WhatsappNotConnected());
       }
 
       yield* Effect.promise(() =>
