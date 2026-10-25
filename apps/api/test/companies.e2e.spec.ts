@@ -437,9 +437,12 @@ describe('POST /companies/import/confirm — gravação', () => {
     });
   });
 
-  it('bug congelado: responsibleAccountantId da planilha é validado mas nunca gravado', async () => {
+  /* Validar um campo a cada importação e nunca gravá-lo é pior que não aceitá-lo: a planilha
+   * diz quem responde pela Empresa e a tela mostrava ninguém. */
+  it('responsibleAccountantId da planilha é gravado', async () => {
+    const mine = await accountantIdOf(userId);
     const got = await api.get(`/companies/${importedId}`);
-    expect(got.body.data.responsibleAccountantId).toBeNull();
+    expect(got.body.data.responsibleAccountantId).toBe(mine);
   });
 
   it('reenvio do mesmo CNPJ faz upsert: renomeia sem duplicar e reporta "created"', async () => {

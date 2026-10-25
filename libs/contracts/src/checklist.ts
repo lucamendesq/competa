@@ -1,6 +1,8 @@
 import * as z from 'zod';
 import { COMPANY_FLAGS, OVERRIDE_ACTIONS, Periodicity } from './registry.js';
 
+/* Item de template: as colunas `periodicity` e `due_month_offset` são NOT NULL no banco,
+ * então o default pertence aqui mesmo. */
 const scheduling = {
   periodicity: Periodicity.default('monthly'),
   annualMonth: z.number().int().min(1).max(12).nullish(),
@@ -8,6 +10,19 @@ const scheduling = {
   dueMonthOffset: z.number().int().min(0).max(11).default(1),
   conditionFlag: z.enum(COMPANY_FLAGS).nullish(),
   required: z.boolean().default(true),
+};
+
+/* Override: as MESMAS colunas são anuláveis, e nulo quer dizer "herda do template". Default
+ * aqui seria destrutivo — preencheria o campo que o Contador deixou em branco e derrotaria a
+ * herança do `mergeEffectiveChecklist`, transformando item anual em mensal só porque o
+ * override veio parcial. */
+const schedulingOverride = {
+  periodicity: Periodicity.optional(),
+  annualMonth: z.number().int().min(1).max(12).nullish(),
+  dueDay: z.number().int().min(1).max(31).nullish(),
+  dueMonthOffset: z.number().int().min(0).max(11).optional(),
+  conditionFlag: z.enum(COMPANY_FLAGS).nullish(),
+  required: z.boolean().optional(),
 };
 
 const annualNeedsMonth = <T extends { periodicity?: string; annualMonth?: number | null }>(v: T) =>
@@ -54,7 +69,7 @@ export const TemplateItemParam = z.object({ id: z.uuid(), itemId: z.uuid() });
 export type TemplateItemParam = z.infer<typeof TemplateItemParam>;
 
 export const CreateOverrideBody = z
-  .object({ documentTypeId: z.uuid(), action: z.enum(OVERRIDE_ACTIONS), ...scheduling })
+  .object({ documentTypeId: z.uuid(), action: z.enum(OVERRIDE_ACTIONS), ...schedulingOverride })
   .refine(annualNeedsMonth, annualMessage);
 export type CreateOverrideBody = z.infer<typeof CreateOverrideBody>;
 

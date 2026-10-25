@@ -245,11 +245,15 @@ describe('POST /whatsapp/test', () => {
     ({ api } = await registerFirm(app.url));
   });
 
-  it('sem integração ativa → 500 INTERNAL_ERROR (bug congelado: Error cru, deveria ser 4xx tipado)', async () => {
+  /* Falta de integração é conflito de ESTADO — o Contador precisa conectar antes —, não
+   * falha do servidor. Vinha como `Error` cru, que o mapa de erros só sabia tratar como 500
+   * e ainda expunha a mensagem interna em `details`. */
+  it('sem integração ativa → 409 WHATSAPP_NOT_CONNECTED', async () => {
     const res = await api.post('/whatsapp/test', { phone: '11999998888' });
-    expect(res.status).toBe(500);
-    expect(res.body.error.code).toBe('INTERNAL_ERROR');
-    expect(res.body.error.details.message).toBe('Integração não ativa');
+    expect(res.status, JSON.stringify(res.body)).toBe(409);
+    expect(res.body.error.code).toBe('WHATSAPP_NOT_CONNECTED');
+    expect(res.body.error.message).toContain('Conecte o WhatsApp');
+    expect(res.body.error.details, 'erro tipado não vaza interno').toBeUndefined();
   });
 
   it('com integração ativa o mock envia e responde success', async () => {

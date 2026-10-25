@@ -639,7 +639,10 @@ describe('checklist efetivo da empresa', () => {
     });
   });
 
-  it('bug congelado: add parcial sobre item anual do template vira mensal — os defaults do contrato (periodicity/dueMonthOffset/required) atropelam a herança; só annualMonth/dueDay/conditionFlag herdam', async () => {
+  /* `add` sobre tipo que JÁ está no template substitui a linha dele, e o que o override não
+   * preencher HERDA do template — não do default global. O Contador mudou só o dia de
+   * vencimento; a periodicidade anual e o offset do template continuam valendo. */
+  it('add parcial sobre item anual herda o que não foi preenchido', async () => {
     const put = await api.put(`/companies/${companyId}/checklist-overrides`, {
       documentTypeId: annualType.id,
       action: 'add',
@@ -650,10 +653,12 @@ describe('checklist efetivo da empresa', () => {
     const res = await api.get(`/companies/${companyId}/checklist`);
     expect(itemByType(res, annualType.id)).toMatchObject({
       source: 'override',
-      periodicity: 'monthly',
-      annualMonth: 12,
+      // do override
       dueDay: 10,
-      dueMonthOffset: 1,
+      // herdados do item ANUAL do template
+      periodicity: 'annual',
+      annualMonth: 12,
+      dueMonthOffset: 2,
       required: true,
     });
   });
@@ -675,7 +680,9 @@ describe('checklist efetivo da empresa', () => {
       conditionFlag: null,
       required: null,
     });
-    expect(byType[outsideType.id]).toMatchObject({ action: 'add', periodicity: 'monthly' });
+    /* NULL na linha é o que significa "herda": preencher aqui era justamente o que derrotava
+     * a herança. Tipo fora do template cai no default global na hora de montar o efetivo. */
+    expect(byType[outsideType.id]).toMatchObject({ action: 'add', periodicity: null });
     expect(byType[annualType.id]).toMatchObject({ action: 'add', dueDay: 10 });
   });
 
@@ -727,10 +734,11 @@ describe('overrides — upsert e validação', () => {
       companyId,
       documentTypeId: docs[1],
       action: 'add',
-      periodicity: 'monthly',
       dueDay: 7,
-      dueMonthOffset: 1,
-      required: true,
+      // nulo = herda; só o que o Contador enviou fica gravado
+      periodicity: null,
+      dueMonthOffset: null,
+      required: null,
     });
 
     const second = await api.put(`/companies/${companyId}/checklist-overrides`, {
