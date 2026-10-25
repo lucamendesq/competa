@@ -136,7 +136,7 @@ Cross-module seams the Effect composition must reproduce: event contract in `src
 13. `POST /requests/:id/upload-link/resend` SEMPRE responde 503 — e o email já saiu com link MORTO: `onUploadLinkResent` não devolve o boolean que o `emitAsync(...).includes(true)` do controller espera, então `applyUploadToken` nunca roda (o token novo não é gravado) mas a entrega foi feita e logada como `resend/sent`. Congelado em `test/messaging.e2e.spec.ts`.
 14. Reenvio (`POST /messages/:id/resend`) de mensagem whatsapp sai por EMAIL: `resend()` chama `deliver()` sem `channel` e cai no provider default. Congelado em `test/messaging.e2e.spec.ts`.
 15. (quirks congelados em `test/messaging.e2e.spec.ts`) resend não checa status (mensagem `sent` duplica à vontade); row `purpose=resend` não tem branch → `{sent:false}` silencioso; resend push sem inscrição devolve `{sent:false}` ANTES do 409 de request fechada; `/messages/failures` com periodId alheio/desconhecido devolve `[]` e não 404.
-16. Rejeitar documento promete `linkRotated: true` mas o token antigo sobrevive 48h de graça — o docstring de `rotateLinkOnReopen` diz "mata o token anterior NA HORA / zerar previous_token_hash" e o código grava `previousTokenHash: current.tokenHash`. Congelado em `test/requests.e2e.spec.ts`.
+16. ~~Rejeitar documento promete `linkRotated: true` mas o token antigo sobrevive 48h~~ **CORRIGIDO no ramo `security-followup`.** `rotateLinkOnReopenOn` zera `previous_token_hash`/`previous_expires_at`, como o docstring dele sempre disse. A carência de 48h continua valendo onde faz sentido — lembrete e reenvio, em que o Responsável pode estar com o link velho aberto.
 17. `POST /documents/:id/review-extra` ignora encerramento: `reviewExtraRefusal` recebe `requestStatus` e nunca o checa — Extra continua revisável com a Solicitação fechada (itens e documentos de item bloqueiam). Congelado em `test/requests.e2e.spec.ts`.
 18. (quirks congelados em `test/requests.e2e.spec.ts`) review-extra unitário com `accepted` + `rejectionReason` grava a reason (o lote anula); checklist só de itens opcionais nunca chega a `complete` (`allAccepted` exige required não-vazio); comentário obsoleto em `request.repository.ts` fala em 422 para o race de reject — é 409.
 19. `POST /billing/checkout` é write → firma OVERDUE/CANCELED/trial-expirado leva 402 PAYMENT_REQUIRED na PRÓPRIA rota que regularizaria o pagamento (em prod, firma inadimplente não se auto-recupera pelo checkout). Congelado em `test/billing.e2e.spec.ts`.
@@ -310,3 +310,37 @@ propósito. `Db.layerTest` é trava, não dublê: satisfaz o tipo e mata qualque
 
 - The working tree carries the user's uncommitted WIP (apps/web files + `apps/api/src/config/logger.ts`, `modules/auth/invite.repository.ts`, `modules/companies/companies.controller.ts`, `modules/messaging/providers/log-email.provider.ts` — invite re-send semantics changed). NEVER stage these. If the WIP is discarded later, re-check characterization suites for auth/companies/messaging.
 - `pnpm-lock.yaml` contains both the user's prior changes and the strip-nest dep additions; committing it is required and acceptable.
+
+## Revisão externa (2026-10-25) — o que foi corrigido e o que NÃO foi
+
+Um revisor externo auditou `a1c8289` (antes da migração) e levantou 14 achados. Sete já estavam
+nesta lista como bugs congelados; sete eram novos e a suíte de caracterização **não tinha como
+encontrá-los**, porque são de infra e de semântica de pool/agendamento, não de comportamento
+HTTP. Corrigidos no ramo `security-followup`.
+
+### Dois achados dele que estavam errados no mecanismo
+
+- **Cadeia de tomada de conta.** Ele descreveu vínculo automático quando um escritório real
+  cadastra um e-mail já existente. Não existe: `company.repo.ts` `addContact` nunca escreve
+  `authUserId`, e o convite até RECUSA e-mail já cadastrado. O que existia de verdade era a
+  senha na ativação — sem ela, o atacante cria a conta mas quem recebe o magic link é a vítima.
+- **"Os crons travam para sempre."** O advisory lock vazava mesmo, mas é
+  `pg_try_advisory_lock`, não o bloqueante: não travava — **pulava a varredura em silêncio**,
+  que operacionalmente é pior, porque não aparece em lugar nenhum.
+
+### Deliberadamente NÃO corrigidos, com o motivo
+
+- **Lembrete gira o token antes de saber se o e-mail saiu.** Inverter a ordem é PIOR: o e-mail
+  sairia com um token ainda não persistido e, se a gravação falhasse, o link chegaria morto —
+  exatamente a forma do bug #13. Fazer a rotação condicional exigiria que `onReminderDue`
+  parasse de engolir falha e que o despacho deixasse de ser por evento. E o sistema já se cura:
+  entrega falhada grava `status: 'failed'`, que o teto de lembrete exclui, então a rodada
+  seguinte tenta de novo — com a carência de 48h cobrindo o intervalo.
+- **Confirmação de upload lê o arquivo inteiro.** O tamanho já usa `HeadObject`; o `GetObject`
+  completo existe para o sha256. Delegar ao R2 (`ChecksumSHA256`, que `r2.storage.ts` já
+  suporta) obriga o navegador a hashear antes de enviar — mudança de front com risco próprio em
+  arquivo grande. É custo de egresso, não correção; vale decidir com número de uso na mão.
+- **Vínculo oportunista na ativação.** Com a senha fora, o residual é: criar escritório é
+  self-service, então qualquer um dispara conta + magic link para um e-mail arbitrário (5/min
+  por IP). Fechar isso é decisão de produto — exigir verificação para criar escritório — e não
+  correção pontual.

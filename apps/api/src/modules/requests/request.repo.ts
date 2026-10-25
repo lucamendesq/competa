@@ -92,23 +92,17 @@ const make = Effect.gen(function* () {
    *  a LINHA inteira, derrubaria junto o token que acabou de ser emitido e ninguém a
    *  reseta. */
   const rotateLinkOnReopenOn = async (tx: Executor, uploadLinkId: string, tokenHash: string) => {
-    const [current] = await tx
-      .select({ tokenHash: uploadLink.tokenHash, expiresAt: uploadLink.expiresAt })
-      .from(uploadLink)
-      .where(eq(uploadLink.id, uploadLinkId));
-
-    const now = new Date();
-    const graceExpiresAt = current
-      ? new Date(Math.min(current.expiresAt.getTime(), addHours(now, 48).getTime()))
-      : null;
-
     await tx
       .update(uploadLink)
       .set({
         tokenHash,
-        expiresAt: addDays(now, env.UPLOAD_LINK_TTL_DAYS),
-        previousTokenHash: current?.tokenHash ?? null,
-        previousExpiresAt: graceExpiresAt,
+        expiresAt: addDays(new Date(), env.UPLOAD_LINK_TTL_DAYS),
+        /* Zerado de propósito, e não com o token anterior + 48h de carência: a carência é do
+         * lembrete e do reenvio, onde o Responsável pode ter o link velho aberto. Aqui o
+         * Contador acabou de agir SOBRE o link e a resposta promete `linkRotated: true` —
+         * deixar o antigo valendo mais 48h é exatamente o que a promessa nega. */
+        previousTokenHash: null,
+        previousExpiresAt: null,
       })
       .where(eq(uploadLink.id, uploadLinkId));
   };
@@ -1210,8 +1204,14 @@ const make = Effect.gen(function* () {
       const stats = await d
         .select({
           requestId: message.requestId,
+          /* `channel <> 'push'` porque um lembrete grava DUAS linhas quando o Responsável
+           * tem o app: a entrega (`deliver`) e o empurrão (`notify`). Contando as duas, quem
+           * instalou o app recebia metade dos lembretes — o teto de 2 enchia na primeira
+           * rodada. O que conta é o despacho, não os canais em que ele saiu. */
           reminderCount: sql<number>`count(*) filter (
-            where ${message.purpose} = 'reminder' and ${message.status} <> 'failed'
+            where ${message.purpose} = 'reminder'
+              and ${message.status} <> 'failed'
+              and ${message.channel} <> 'push'
           )::int`,
           lastMessageAt: sql<Date | null>`max(${message.createdAt})`,
         })

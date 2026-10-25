@@ -57,6 +57,14 @@ const rawRequest = (method: string, path: string, opts: { cookie?: string; body?
  *  se tudo sair do mesmo IP do registerFirm. */
 const sessionClient = (cookie: string) => apiClient(app.url, { cookie });
 
+/** Rejeitar rotaciona o Link e MATA o anterior na hora (é o que `linkRotated: true` promete).
+ *  Quem for enviar depois de uma rejeição precisa do token novo. */
+async function freshUploadToken(api: Api, requestId: string) {
+  const res = await api.post(`/requests/${requestId}/upload-link`);
+  expect(res.status, JSON.stringify(res.body)).toBe(201);
+  return res.body.data.uploadUrl.split('/envio/')[1] as string;
+}
+
 /** O LocalStorage assina a URL com env.PORT (3000); em teste o app sobe em porta efêmera —
  *  trocar só a origem preserva a assinatura, que cobre caminho e query. */
 async function putFile(presignUrl: string, content: Buffer | string) {
@@ -653,11 +661,15 @@ describe('revisão unitária — aceite, desfazer e rejeição', () => {
     ]);
   });
 
-  it('bug congelado: linkRotated prometido, mas o token antigo segue válido na carência', async () => {
-    /* rotateLinkOnReopen diz "mata o token anterior NA HORA", porém grava previousTokenHash
-     * com carência de até 48h — o link que o Contador acabou de invalidar continua abrindo. */
+  it('linkRotated: o token anterior morre na hora', async () => {
+    /* A carência de 48h é do lembrete e do reenvio, onde o Responsável pode estar com o link
+     * velho aberto. Aqui o Contador acabou de agir SOBRE o link. */
     const res = await apiClient(app.url).get(`/upload/${box.uploadToken}`);
-    expect(res.status).toBe(200);
+    expect(res.status).toBe(404);
+    expect(res.body.error.code).toBe('UPLOAD_LINK_INVALID');
+
+    box.uploadToken = await freshUploadToken(fixture.firm.api, box.requestId);
+    expect((await apiClient(app.url).get(`/upload/${box.uploadToken}`)).status).toBe(200);
   });
 
   it('rejeitar de novo → 409; motivo curto → 422', async () => {
@@ -896,6 +908,8 @@ describe('revisão em lote — POST /requests/:id/review', () => {
 
   it('decisão inválida recusa o lote inteiro (tudo ou nada)', async () => {
     const api = sessionClient(fixture.firm.cookie);
+    // a rejeição do lote anterior rotacionou o Link e matou o token velho
+    box.uploadToken = await freshUploadToken(api, box.requestId);
     const { confirmed } = await uploadVia(
       box.uploadToken,
       { fileName: 'extrato-corrigido.png', content: PNG_1X1, contentType: 'image/png' },

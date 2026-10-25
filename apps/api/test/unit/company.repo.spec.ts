@@ -392,7 +392,9 @@ layer(CompaniesRepo.layer)('CompaniesRepo', (it) => {
       });
 
       const edited = yield* repo.updateContact(firmId, companyId, added!.id, { name: 'Resp R2' });
-      expect(edited).toMatchObject({ id: added!.id, name: 'Resp R2' });
+      expect(edited?.row).toMatchObject({ id: added!.id, name: 'Resp R2' });
+      // o e-mail anterior volta junto: trocá-lo é trocar a pessoa, e quem chama revoga
+      expect(edited?.previousEmail).toBe(added!.email);
       expect(
         yield* repo.updateContact(otherFirmId, companyId, added!.id, { name: 'X' }),
       ).toBeUndefined();
