@@ -15,7 +15,7 @@ import { addDays } from 'date-fns';
 import { Effect, Layer } from 'effect';
 import * as z from 'zod';
 import env from '../../config/env.js';
-import { fromRuntime, withDb } from '../../effect/runtime.js';
+import { fromRuntime } from '../../effect/runtime.js';
 import { FirmContext } from '../../http/context.js';
 import { handler, paginated } from '../../http/envelope.js';
 import { firmRoute } from '../../http/middleware/auth.js';
@@ -23,8 +23,8 @@ import { body, params, query, route } from '../../http/platform.js';
 import { NotFound, ValidationError } from '../../lib/app-error.js';
 import { EVENTS, type ContactInvitedEvent } from '../../lib/events.js';
 import { createToken } from '../../lib/token.js';
-import { AccountantRepository } from '../auth/accountant.repository.js';
-import { InviteRepository } from '../auth/invite.repository.js';
+import { AccountantsRepo } from '../auth/accountant.repo.js';
+import { InvitesRepo } from '../auth/invite.repo.js';
 import type { FirmScope } from '../auth/scope.js';
 import { ContactsRepo } from '../contacts/contact.repo.js';
 import { CompaniesRepo } from './company.repo.js';
@@ -42,8 +42,8 @@ const useContacts = <A, E>(f: (repo: ContactsRepo['Service']) => Effect.Effect<A
  * enumeração de equipe alheia. */
 const requireAccountant = (scope: FirmScope, accountantId: string) =>
   Effect.gen(function* () {
-    const found = yield* withDb((db) =>
-      new AccountantRepository(db).findInFirm(scope, accountantId),
+    const found = yield* fromRuntime(
+      AccountantsRepo.use((repo) => repo.findInFirm(scope, accountantId)),
     );
     if (!found) {
       return yield* Effect.fail(
@@ -76,21 +76,23 @@ const inviteToApp = (
     const taken = yield* useContacts((repo) => repo.userByEmail(input.contact.email));
     if (taken) return { sent: false, reason: 'Este e-mail já tem uma conta cadastrada.' };
 
-    yield* withDb((db) =>
-      new InviteRepository(db).revokePendingForContact(input.companyId, input.contact.email),
+    yield* fromRuntime(
+      InvitesRepo.use((repo) => repo.revokePendingForContact(input.companyId, input.contact.email)),
     );
 
     const { token, tokenHash } = createToken();
     const expiresAt = addDays(new Date(), env.INVITE_TTL_DAYS);
 
-    yield* withDb((db) =>
-      new InviteRepository(db).createForCompany({
-        companyId: input.companyId,
-        email: input.contact.email,
-        tokenHash,
-        expiresAt,
-        createdBy: input.createdBy,
-      }),
+    yield* fromRuntime(
+      InvitesRepo.use((repo) =>
+        repo.createForCompany({
+          companyId: input.companyId,
+          email: input.contact.email,
+          tokenHash,
+          expiresAt,
+          createdBy: input.createdBy,
+        }),
+      ),
     );
 
     const invited: ContactInvitedEvent = {
@@ -98,7 +100,7 @@ const inviteToApp = (
       contactName: input.contact.name,
       contactEmail: input.contact.email,
       companyName: input.companyName,
-      firmName: yield* withDb((db) => new InviteRepository(db).firmName(scope)),
+      firmName: yield* fromRuntime(InvitesRepo.use((repo) => repo.firmName(scope))),
       inviteUrl: `${env.WEB_URL}/convite/${token}`,
       expiresAt,
     };

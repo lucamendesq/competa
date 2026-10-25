@@ -1,28 +1,25 @@
 import { whatsappOnboardSchema, whatsappTestSendSchema } from '@competa/contracts';
 import { Effect, Layer } from 'effect';
 import env from '../../config/env.js';
-import { fromRuntime, withDb } from '../../effect/runtime.js';
+import { fromRuntime } from '../../effect/runtime.js';
 import { FirmContext } from '../../http/context.js';
 import { handler } from '../../http/envelope.js';
 import { firmRoute } from '../../http/middleware/auth.js';
 import { body, route } from '../../http/platform.js';
-import { AccountantRepository } from '../auth/accountant.repository.js';
+import { AccountantsRepo } from '../auth/accountant.repo.js';
 import { OnlyOwnerCanManageTeam } from '../auth/errors.js';
 import type { FirmScope } from '../auth/scope.js';
 import { MockWhatsappProvider } from '../messaging/providers/mock-whatsapp.provider.js';
 import { WhatsappProvider } from '../messaging/providers/whatsapp.provider.js';
 import { WhatsappCryptoService } from './whatsapp-crypto.service.js';
 import { WhatsappRepo } from './whatsapp.repo.js';
-import { WhatsappRepository } from './whatsapp.repository.js';
 
 /* As mesmas instâncias que o `WhatsappModule` montava, com a mesma escolha por NODE_ENV e o
  * crypto como singleton compartilhado com o provider de produção. Bug congelado #11: sem
  * `WHATSAPP_ENCRYPTION_KEY` o crypto cai numa chave de zeros conhecida — não tocar. */
 const crypto = new WhatsappCryptoService();
 const whatsapp =
-  env.NODE_ENV === 'production'
-    ? new WhatsappProvider(new WhatsappRepository(), crypto)
-    : new MockWhatsappProvider();
+  env.NODE_ENV === 'production' ? new WhatsappProvider(crypto) : new MockWhatsappProvider();
 
 /* Stub do Embedded Signup: o `code` recebido nunca é trocado por token na Meta — o que vai
  * para o banco é credencial mock, com ou sem META_APP_ID/META_APP_SECRET no ambiente. */
@@ -39,7 +36,9 @@ const integrationOf = (scope: FirmScope) =>
 /** `requireOwner` do controller: conectar e desconectar são atos do dono. */
 const requireOwner = (scope: FirmScope, authUserId: string) =>
   Effect.gen(function* () {
-    const owner = yield* withDb((db) => new AccountantRepository(db).isOwner(scope, authUserId));
+    const owner = yield* fromRuntime(
+      AccountantsRepo.use((repo) => repo.isOwner(scope, authUserId)),
+    );
     if (!owner) return yield* Effect.fail(new OnlyOwnerCanManageTeam());
   });
 

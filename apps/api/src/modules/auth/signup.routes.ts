@@ -5,12 +5,12 @@ import { RegisterFirmBody } from '@competa/contracts';
 import { APIError } from 'better-auth/api';
 import { Effect, Layer } from 'effect';
 import { HttpServerRequest } from 'effect/http';
-import { withDb } from '../../effect/runtime.js';
+import { fromRuntime, squashError } from '../../effect/runtime.js';
 import { handler } from '../../http/envelope.js';
 import { body, route } from '../../http/platform.js';
 import { isFailure } from '../../lib/either.js';
 import { BetterAuthAdapter } from '../../infra/auth/better-auth.adapter.js';
-import { AccountantRepository } from './accountant.repository.js';
+import { AccountantsRepo } from './accountant.repo.js';
 import { SignupRejected } from './errors.js';
 
 const logger = new Logger('PublicSignupController');
@@ -19,7 +19,9 @@ const auth = new BetterAuthAdapter();
 const register = Effect.gen(function* () {
   const input = yield* body(RegisterFirmBody);
 
-  const taken = yield* withDb((db) => new AccountantRepository(db).userExistsByEmail(input.email));
+  const taken = yield* fromRuntime(
+    AccountantsRepo.use((repo) => repo.userExistsByEmail(input.email)),
+  );
   if (taken) return yield* Effect.fail(new SignupRejected());
 
   const created = yield* Effect.promise(() =>
@@ -43,25 +45,29 @@ const register = Effect.gen(function* () {
 
   const { userId, setCookie } = created.value;
 
-  yield* withDb(async (db) => {
-    const accountants = new AccountantRepository(db);
-
-    try {
-      await accountants.provisionFirm({ authUserId: userId, firmName: input.firmName });
-    } catch (error) {
-      try {
-        await accountants.deleteAuthUser(userId);
-      } catch (compensationError) {
-        logger.error(
-          `Falha ao compensar (apagar user ${userId}) após erro no public signup`,
-          compensationError,
-        );
-      }
-
-      logger.error('Falha ao provisionar firm', error);
-      throw error;
-    }
-  });
+  yield* fromRuntime(
+    AccountantsRepo.use((accountants) =>
+      accountants.provisionFirm({ authUserId: userId, firmName: input.firmName }).pipe(
+        Effect.tapCause((cause) =>
+          accountants.deleteAuthUser(userId).pipe(
+            Effect.catchCause((compensation) =>
+              Effect.sync(() => {
+                logger.error(
+                  `Falha ao compensar (apagar user ${userId}) após erro no public signup`,
+                  squashError(compensation),
+                );
+              }),
+            ),
+            Effect.andThen(
+              Effect.sync(() => {
+                logger.error('Falha ao provisionar firm', squashError(cause));
+              }),
+            ),
+          ),
+        ),
+      ),
+    ),
+  );
 
   if (setCookie) {
     const request = yield* HttpServerRequest.HttpServerRequest;

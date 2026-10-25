@@ -2,15 +2,13 @@ import { Context, Layer, ManagedRuntime } from 'effect';
 import { EventEmitter2 } from './lib/event-emitter.js';
 import { HttpServer } from 'effect/http';
 import env from './config/env.js';
+import { run } from './effect/runtime.js';
 import { ping } from './health.js';
-import { storage } from './infra/storage/storage.js';
 import { serverLayer } from './http/server.js';
 import { registerMessagingListeners } from './modules/messaging/listeners.js';
 import { cronsLayer } from './modules/requests/crons.js';
-import { DeadlineCron } from './modules/requests/deadline.cron.js';
-import { DocumentRepository } from './modules/requests/document.repository.js';
-import { RemindersCron } from './modules/requests/reminders.cron.js';
-import { RequestRepository } from './modules/requests/request.repository.js';
+import { deadlineCron } from './modules/requests/deadline.cron.js';
+import { remindersCron } from './modules/requests/reminders.cron.js';
 
 export interface RunningApp {
   readonly url: string;
@@ -33,9 +31,8 @@ export async function createApp(options?: {
   const events = new EventEmitter2();
   registerMessagingListeners(events);
 
-  const requests = new RequestRepository();
-  const deadlines = new DeadlineCron(requests, new DocumentRepository(), storage, events);
-  const reminders = new RemindersCron(requests, events);
+  const deadlines = deadlineCron(events);
+  const reminders = remindersCron(events);
 
   const runtime = ManagedRuntime.make(
     Layer.mergeAll(
@@ -44,10 +41,13 @@ export async function createApp(options?: {
         trustProxy,
         ping,
         events,
-        scanDeadlines: (scope) => deadlines.scan(scope),
-        runReminders: (scope) => reminders.run(scope),
+        scanDeadlines: (scope) => run(deadlines.scan(scope)),
+        runReminders: (scope) => run(reminders.run(scope)),
       }),
-      cronsLayer({ deadlines, reminders }),
+      cronsLayer({
+        deadlines: { daily: () => run(deadlines.daily()) },
+        reminders: { scheduled: () => run(reminders.scheduled()) },
+      }),
     ),
   );
 
@@ -59,7 +59,7 @@ export async function createApp(options?: {
   return {
     url,
     /** O job diário não tem rota HTTP; as suites o chamam por aqui. */
-    runDeadlineSweep: () => deadlines.daily(),
+    runDeadlineSweep: () => run(deadlines.daily()),
     /* Dois crons e um socket: sem isto, um SIGTERM do orquestrador derruba o processo no
      * meio de uma varredura. `removeAllListeners` é o que o `onApplicationShutdown` do
      * do emissor de eventos do Nest fazia. */

@@ -10,7 +10,8 @@ const { db } = await import('../infra/database/index.js');
 const { accountingFirm, subscription } = await import('../infra/database/schema/index.js');
 const { PlanCapabilityRequired } = await import('../modules/auth/errors.js');
 const { emailLayout } = await import('../modules/messaging/email-layout.js');
-const { RequestRepository } = await import('../modules/requests/request.repository.js');
+const { RequestsRepo } = await import('../modules/requests/request.repo.js');
+const { run } = await import('../effect/runtime.js');
 const { DEFAULT_REMINDER_SETTINGS } = await import('../modules/messaging/reminder-rules.js');
 
 /* O mesmo teste do `resolveFirm` em `src/http/middleware/auth.ts`: rota sem capability
@@ -91,8 +92,8 @@ async function checkReminderCadence() {
       .values({ id: uuidv7(), accountingFirmId: id, planName, status: 'ACTIVE' });
   }
 
-  const requests = new RequestRepository();
-  const resolve = () => requests.reminderSettingsByFirm(Object.values(firms));
+  const resolve = () =>
+    run(RequestsRepo.use((repo) => repo.reminderSettingsByFirm(Object.values(firms))));
 
   let settings = await resolve();
   assert.deepEqual(

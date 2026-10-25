@@ -1,5 +1,8 @@
 import { Cause, Effect, Exit, Layer, ManagedRuntime } from 'effect';
 import { Db, DbError } from '../infra/database/effect.js';
+import { AccountantsRepo } from '../modules/auth/accountant.repo.js';
+import { InvitesRepo } from '../modules/auth/invite.repo.js';
+import { UserDevicesRepo } from '../modules/auth/user-device.repo.js';
 import { SubscriptionsRepo } from '../modules/billing/subscription.repo.js';
 import { ChecklistsRepo } from '../modules/checklists/checklist.repo.js';
 import { CompaniesRepo } from '../modules/companies/company.repo.js';
@@ -23,31 +26,33 @@ export const AppLayer = Layer.mergeAll(
   WhatsappRepo.layerNoDeps,
   SubscriptionsRepo.layerNoDeps,
   MessagesRepo.layerNoDeps,
+  AccountantsRepo.layerNoDeps,
+  InvitesRepo.layerNoDeps,
+  UserDevicesRepo.layerNoDeps,
 ).pipe(Layer.provideMerge(ChecklistsRepo.layerNoDeps), Layer.provideMerge(Db.layer));
 
 export type AppContext = Layer.Success<typeof AppLayer>;
 
 export const runtime = ManagedRuntime.make(AppLayer);
 
-/** Fronteira Nest→Effect. `DbError` é desembrulhado para o erro cru do driver: o
- *  `AppErrorFilter` e os logs continuam vendo exatamente o que viam antes da migração. */
+/** `DbError` é desembrulhado para o erro cru do driver: o mapa de erros e os logs veem
+ *  exatamente o que viam antes da migração. */
+export const squashError = (cause: Cause.Cause<unknown>): unknown => {
+  const error = Cause.squash(cause);
+
+  return error instanceof DbError ? error.cause : error;
+};
+
+/** Fronteira promise→Effect, para quem ainda vive fora de um Effect (listeners de evento). */
 export async function run<A, E>(effect: Effect.Effect<A, E, AppContext>): Promise<A> {
   const exit = await runtime.runPromiseExit(effect);
   if (Exit.isSuccess(exit)) return exit.value;
 
-  const error = Cause.squash(exit.cause);
-  throw error instanceof DbError ? error.cause : error;
+  throw squashError(exit.cause);
 }
 
-/** Mesma fronteira, para quem já está DENTRO de um Effect (rotas e middleware do shell
- *  novo). Mantém UM runtime no processo enquanto a casca Nest existir: dois construiriam
- *  um segundo provider de storage e um segundo cliente de email. O erro volta como defeito
- *  cru, que é o que o mapa de erros espera ver. */
+/** Mesma fronteira, para quem já está DENTRO de um Effect (rotas e middleware). Mantém UM
+ *  runtime no processo: dois construiriam um segundo provider de storage e um segundo
+ *  cliente de email. O erro volta como defeito cru, que é o que o mapa de erros espera ver. */
 export const fromRuntime = <A, E>(effect: Effect.Effect<A, E, AppContext>): Effect.Effect<A> =>
   Effect.promise(() => run(effect));
-
-/** Para os repositórios que ainda NÃO têm versão Effect (módulo auth): classes simples
- *  sobre o drizzle, construídas sobre a MESMA instância que o `Db` expõe, sem container
- *  Nest. Some quando o módulo auth migrar. */
-export const withDb = <A>(f: (db: Db['Service']['raw']) => Promise<A>): Effect.Effect<A> =>
-  fromRuntime(Effect.flatMap(Db, (db) => Effect.promise(() => f(db.raw))));

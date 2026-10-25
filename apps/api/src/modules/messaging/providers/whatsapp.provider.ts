@@ -1,6 +1,7 @@
 import { Logger } from '../../../lib/logger.js';
+import { run } from '../../../effect/runtime.js';
 import { WhatsappCryptoService } from '../../whatsapp/whatsapp-crypto.service.js';
-import { WhatsappRepository } from '../../whatsapp/whatsapp.repository.js';
+import { WhatsappRepo } from '../../whatsapp/whatsapp.repo.js';
 import { MessageProvider, type MessageToSend } from './message.provider.js';
 import env from '../../../config/env.js';
 
@@ -13,10 +14,9 @@ export class WhatsappProvider extends MessageProvider {
   override readonly channel = 'whatsapp';
   private readonly logger = new Logger(WhatsappProvider.name);
 
-  constructor(
-    private readonly repository: WhatsappRepository,
-    private readonly crypto: WhatsappCryptoService,
-  ) {
+  /* Este arquivo pode importar o runtime porque `providers.ts` só o carrega por
+   * `await import()`: é o que mantém `runtime → message.repo → providers` sem volta. */
+  constructor(private readonly crypto: WhatsappCryptoService) {
     super();
   }
 
@@ -24,9 +24,13 @@ export class WhatsappProvider extends MessageProvider {
     let integration;
 
     if (message.tenantId) {
-      integration = await this.repository.getIntegrationByTenantId(message.tenantId);
+      const tenantId = message.tenantId;
+      integration = await run(WhatsappRepo.use((repo) => repo.getIntegrationByTenantId(tenantId)));
     } else if (message.requestId) {
-      integration = await this.repository.getIntegrationByRequestId(message.requestId);
+      const requestId = message.requestId;
+      integration = await run(
+        WhatsappRepo.use((repo) => repo.getIntegrationByRequestId(requestId)),
+      );
     } else {
       throw new Error(
         'WhatsappProvider exige requestId ou tenantId para identificar a Contabilidade (tenant).',

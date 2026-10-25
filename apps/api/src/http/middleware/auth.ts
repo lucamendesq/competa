@@ -7,7 +7,7 @@ import { isPast } from 'date-fns';
 import { Context, Effect } from 'effect';
 import { HttpRouter, HttpServerRequest, type HttpServerError } from 'effect/http';
 import { BetterAuthAdapter } from '../../infra/auth/better-auth.adapter.js';
-import { fromRuntime, withDb } from '../../effect/runtime.js';
+import { fromRuntime } from '../../effect/runtime.js';
 import {
   AppError,
   Forbidden,
@@ -17,7 +17,7 @@ import {
   ValidationError,
 } from '../../lib/app-error.js';
 import { hashToken } from '../../lib/token.js';
-import { AccountantRepository } from '../../modules/auth/accountant.repository.js';
+import { AccountantsRepo } from '../../modules/auth/accountant.repo.js';
 import { InvalidUploadLink, PlanCapabilityRequired } from '../../modules/auth/errors.js';
 import { toContactScope, toFirmScope, toUploadScope } from '../../modules/auth/scope.js';
 import { ContactsRepo } from '../../modules/contacts/contact.repo.js';
@@ -61,7 +61,7 @@ const currentSession = Effect.gen(function* () {
 });
 
 const findAccountant = (authUserId: string) =>
-  withDb((db) => new AccountantRepository(db).findByAuthUserId(authUserId));
+  fromRuntime(AccountantsRepo.use((repo) => repo.findByAuthUserId(authUserId)));
 
 const planLogger = new Logger('PlanGuard');
 

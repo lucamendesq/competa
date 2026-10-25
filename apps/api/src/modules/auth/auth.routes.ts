@@ -4,17 +4,17 @@ import { APIError } from 'better-auth/api';
 import { Effect, Layer } from 'effect';
 import { HttpServerRequest } from 'effect/http';
 import { BetterAuthAdapter } from '../../infra/auth/better-auth.adapter.js';
-import { withDb } from '../../effect/runtime.js';
+import { fromRuntime, squashError } from '../../effect/runtime.js';
 import { handler } from '../../http/envelope.js';
 import { FirmContext, SessionContext } from '../../http/context.js';
 import { firmRoute, sessionRoute } from '../../http/middleware/auth.js';
 import { body, route } from '../../http/platform.js';
 import { NotFound } from '../../lib/app-error.js';
 import { isFailure } from '../../lib/either.js';
-import { AccountantRepository } from './accountant.repository.js';
+import { AccountantsRepo } from './accountant.repo.js';
 import { EmailAlreadyRegistered, InviteEmailMismatch, InviteTargetUnsupported } from './errors.js';
-import { InviteRepository } from './invite.repository.js';
-import { UserDeviceRepository } from './user-device.repository.js';
+import { InvitesRepo } from './invite.repo.js';
+import { UserDevicesRepo } from './user-device.repo.js';
 
 const logger = new Logger('AuthController');
 const auth = new BetterAuthAdapter();
@@ -28,7 +28,7 @@ const signUp = route(
     Effect.gen(function* () {
       const input = yield* body(SignUpBody);
 
-      const found = yield* withDb((db) => new InviteRepository(db).findUsable(input.token));
+      const found = yield* fromRuntime(InvitesRepo.use((repo) => repo.findUsable(input.token)));
 
       if (found.email.toLowerCase() !== input.email.toLowerCase()) {
         return yield* Effect.fail(new InviteEmailMismatch());
@@ -59,29 +59,31 @@ const signUp = route(
        * preserva o convite. */
       const { userId } = created.value;
 
-      yield* withDb(async (db) => {
-        const accountants = new AccountantRepository(db);
-
-        try {
-          await accountants.acceptInvite({
-            authUserId: userId,
-            accountingFirmId,
-            inviteId: found.id,
-          });
-        } catch (error) {
-          try {
-            await accountants.deleteAuthUser(userId);
-          } catch (compensationError) {
-            logger.error(
-              `Falha ao compensar (apagar user ${userId}) após erro no signup`,
-              compensationError,
-            );
-          }
-
-          logger.error('Falha ao vincular convite ao accountant', error);
-          throw error;
-        }
-      });
+      yield* fromRuntime(
+        AccountantsRepo.use((accountants) =>
+          accountants
+            .acceptInvite({ authUserId: userId, accountingFirmId, inviteId: found.id })
+            .pipe(
+              Effect.tapCause((cause) =>
+                accountants.deleteAuthUser(userId).pipe(
+                  Effect.catchCause((compensation) =>
+                    Effect.sync(() => {
+                      logger.error(
+                        `Falha ao compensar (apagar user ${userId}) após erro no signup`,
+                        squashError(compensation),
+                      );
+                    }),
+                  ),
+                  Effect.andThen(
+                    Effect.sync(() => {
+                      logger.error('Falha ao vincular convite ao accountant', squashError(cause));
+                    }),
+                  ),
+                ),
+              ),
+            ),
+        ),
+      );
 
       return { userId };
     }),
@@ -96,8 +98,8 @@ const me = route(
     Effect.gen(function* () {
       const { scope, session } = yield* FirmContext;
 
-      const row = yield* withDb((db) =>
-        new AccountantRepository(db).findMe(scope, session.user.id),
+      const row = yield* fromRuntime(
+        AccountantsRepo.use((repo) => repo.findMe(scope, session.user.id)),
       );
       if (!row) return yield* Effect.fail(new NotFound());
 
@@ -144,14 +146,16 @@ const device = route(
       const input = yield* body(RegisterDeviceBody);
       const request = yield* HttpServerRequest.HttpServerRequest;
 
-      yield* withDb((db) =>
-        new UserDeviceRepository(db).upsert({
-          userId: session.user.id,
-          deviceId: input.deviceId,
-          platform: input.platform,
-          installed: input.installed,
-          userAgent: request.headers['user-agent'],
-        }),
+      yield* fromRuntime(
+        UserDevicesRepo.use((repo) =>
+          repo.upsert({
+            userId: session.user.id,
+            deviceId: input.deviceId,
+            platform: input.platform,
+            installed: input.installed,
+            userAgent: request.headers['user-agent'],
+          }),
+        ),
       );
     }),
     204,

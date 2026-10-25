@@ -1,12 +1,12 @@
 import { CheckoutBody, PLANS, planPrice } from '@competa/contracts';
 import { Effect, Layer } from 'effect';
 import env from '../../config/env.js';
-import { fromRuntime, withDb } from '../../effect/runtime.js';
+import { fromRuntime } from '../../effect/runtime.js';
 import { FirmContext } from '../../http/context.js';
 import { handler } from '../../http/envelope.js';
 import { firmRoute } from '../../http/middleware/auth.js';
 import { body, route } from '../../http/platform.js';
-import { AccountantRepository } from '../auth/accountant.repository.js';
+import { AccountantsRepo } from '../auth/accountant.repo.js';
 import { OnlyOwnerCanManageTeam } from '../auth/errors.js';
 import { AsaasBilling } from './providers/asaas-billing.provider.js';
 import { LogBilling } from './providers/log-billing.provider.js';
@@ -27,12 +27,12 @@ const checkout = route(
       const { scope, session } = yield* FirmContext;
       const input = yield* body(CheckoutBody);
 
-      const owner = yield* withDb((db) =>
-        new AccountantRepository(db).isOwner(scope, session.user.id),
+      const owner = yield* fromRuntime(
+        AccountantsRepo.use((repo) => repo.isOwner(scope, session.user.id)),
       );
       if (!owner) return yield* Effect.fail(new OnlyOwnerCanManageTeam());
 
-      const firm = yield* withDb((db) => new AccountantRepository(db).firm(scope));
+      const firm = yield* fromRuntime(AccountantsRepo.use((repo) => repo.firm(scope)));
       if (!firm) return yield* Effect.die(new Error('Contabilidade não encontrada'));
 
       // 1. Obtém ou cria o cliente no Asaas

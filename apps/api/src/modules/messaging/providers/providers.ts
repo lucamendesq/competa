@@ -25,20 +25,17 @@ export const pushProvider: PushProvider = useWebPush
 
 let whatsapp: MessageProvider | undefined = useResend ? undefined : new MockWhatsappProvider();
 
-/* `import()` e não `import`: o `WhatsappProvider` de produção depende de
- * `WhatsappRepository`, que depende do `runtime.ts`, que depende do `message.repo.ts`, que
- * depende deste arquivo — estático, o ciclo quebra conforme quem carregue primeiro. Só o
- * ramo de produção paga. */
+/* `import()` e não `import`: o `WhatsappProvider` de produção depende do `runtime.ts`, que
+ * depende do `message.repo.ts`, que depende deste arquivo — estático, o ciclo quebra
+ * conforme quem carregue primeiro. Só o ramo de produção paga. */
 export const whatsappProviderOf = async (): Promise<MessageProvider> => {
   if (whatsapp) return whatsapp;
 
-  const [{ WhatsappProvider }, { WhatsappRepository }, { WhatsappCryptoService }] =
-    await Promise.all([
-      import('./whatsapp.provider.js'),
-      import('../../whatsapp/whatsapp.repository.js'),
-      import('../../whatsapp/whatsapp-crypto.service.js'),
-    ]);
+  const [{ WhatsappProvider }, { WhatsappCryptoService }] = await Promise.all([
+    import('./whatsapp.provider.js'),
+    import('../../whatsapp/whatsapp-crypto.service.js'),
+  ]);
 
-  whatsapp = new WhatsappProvider(new WhatsappRepository(), new WhatsappCryptoService());
+  whatsapp = new WhatsappProvider(new WhatsappCryptoService());
   return whatsapp;
 };

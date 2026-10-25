@@ -20,9 +20,10 @@ import {
   uploadLink,
   user,
 } from '../infra/database/schema/index.js';
-import { DocumentRepository } from '../modules/requests/document.repository.js';
-import { RequestRepository } from '../modules/requests/request.repository.js';
-import { PeriodRepository } from '../modules/periods/period.repository.js';
+import { run as runEffect } from '../effect/runtime.js';
+import { DocumentsRepo } from '../modules/requests/document.repo.js';
+import { RequestsRepo } from '../modules/requests/request.repo.js';
+import { PeriodsRepo } from '../modules/periods/period.repo.js';
 import { toFirmScope, toUploadScope } from '../modules/auth/scope.js';
 import { zipEntries } from '../modules/requests/zip.js';
 import { createToken } from '../lib/token.js';
@@ -38,15 +39,18 @@ const PDF = Buffer.from(
 const storage = new LocalStorage();
 
 async function uploadOne(
-  documents: DocumentRepository,
   scope: ReturnType<typeof toUploadScope>,
   requestItemId: string,
   fileName: string,
 ) {
-  const presigned = await documents.presign(scope, {
-    requestItemId,
-    files: [{ fileName, contentType: 'application/pdf', sizeBytes: PDF.byteLength }],
-  });
+  const presigned = await runEffect(
+    DocumentsRepo.use((repo) =>
+      repo.presign(scope, {
+        requestItemId,
+        files: [{ fileName, contentType: 'application/pdf', sizeBytes: PDF.byteLength }],
+      }),
+    ),
+  );
 
   const [file] = presigned.files;
   assert.ok(file.accepted, `presign recusou ${fileName}: ${file.reason}`);
@@ -60,7 +64,9 @@ async function uploadOne(
     body: Readable.from(PDF),
   });
 
-  const result = await documents.confirm(scope, [file.documentId!]);
+  const result = await runEffect(
+    DocumentsRepo.use((repo) => repo.confirm(scope, [file.documentId!])),
+  );
   assert.equal(
     result.confirmed,
     1,
@@ -125,10 +131,6 @@ async function run() {
 
   const firmScope = toFirmScope(firmId);
   const uploadScope = toUploadScope(requestId, contactId);
-  const documents = new DocumentRepository();
-  const requests = new RequestRepository();
-  const periods = new PeriodRepository();
-
   const itemStatus = async () => {
     const [row] = await db
       .select({ status: requestItem.status })
@@ -144,17 +146,19 @@ async function run() {
     return row.status;
   };
   const zipFileNames = async () => {
-    const found = await requests.documentsForRequestZip(firmScope, requestId);
+    const found = await runEffect(
+      RequestsRepo.use((repo) => repo.documentsForRequestZip(firmScope, requestId)),
+    );
     return zipEntries(found!.documents, false).map((entry) => entry.path);
   };
   const panelItem = async () => {
-    const rows = await periods.pendingPanel(firmScope, periodId);
+    const rows = await runEffect(PeriodsRepo.use((repo) => repo.pendingPanel(firmScope, periodId)));
     return rows[0]?.missing.find((row) => row.id === itemId);
   };
 
   try {
     console.log('1. Envio inicial');
-    const firstDocumentId = await uploadOne(documents, uploadScope, itemId, 'extrato.pdf');
+    const firstDocumentId = await uploadOne(uploadScope, itemId, 'extrato.pdf');
     assert.equal(await itemStatus(), 'submitted');
     console.log('  ✓ presign + gravação + confirmação → Item em `submitted`');
     assert.deepEqual(
@@ -165,11 +169,15 @@ async function run() {
     console.log('  ✓ zip já entrega o pendente: coleta aberta é pacote de trabalho');
 
     console.log('\n2. Recusa');
-    const rejected = await requests.rejectDocument(
-      firmScope,
-      firstDocumentId,
-      'Extrato ilegível, reenvie em PDF nítido.',
-      accountantId,
+    const rejected = await runEffect(
+      RequestsRepo.use((repo) =>
+        repo.rejectDocument(
+          firmScope,
+          firstDocumentId,
+          'Extrato ilegível, reenvie em PDF nítido.',
+          accountantId,
+        ),
+      ),
     );
     assert.ok(rejected, 'recusa devolveu contexto');
     assert.equal(await itemStatus(), 'pending', 'Item recusado reabre para reenvio');
@@ -188,7 +196,7 @@ async function run() {
     console.log('  ✓ painel mostra o Item como recusado, aguardando reenvio');
 
     console.log('\n5. Reenvio');
-    const secondDocumentId = await uploadOne(documents, uploadScope, itemId, 'extrato-v2.pdf');
+    const secondDocumentId = await uploadOne(uploadScope, itemId, 'extrato-v2.pdf');
     assert.notEqual(secondDocumentId, firstDocumentId);
     assert.equal(await itemStatus(), 'submitted', 'reenvio devolve o Item para conferência');
     assert.equal((await panelItem())?.resent, true, 'painel marca que é reenvio');
@@ -200,7 +208,9 @@ async function run() {
     console.log('  ✓ Item em `submitted`, marcado como reenvio, zip com o reenvio');
 
     console.log('\n6. Novo aceite');
-    const accepted = await requests.acceptItem(firmScope, itemId, accountantId);
+    const accepted = await runEffect(
+      RequestsRepo.use((repo) => repo.acceptItem(firmScope, itemId, accountantId)),
+    );
     assert.ok(accepted);
     assert.equal(await itemStatus(), 'accepted');
     assert.equal(accepted.completed, true, 'único Item obrigatório aceito fecha a Solicitação');

@@ -1,12 +1,13 @@
+import type { Effect } from 'effect';
 import type { EventEmitter2 } from '../../lib/event-emitter.js';
+import { run, type AppContext } from '../../effect/runtime.js';
 import { setMagicLinkSender, setResetPasswordSender } from '../../infra/auth/magic-link-sender.js';
 import { EVENTS, type EventPayloads } from '../../lib/events.js';
 import { Logger } from '../../lib/logger.js';
-import { CollectionEventsListener } from './collection-events.listener.js';
+import * as collection from './collection-events.listener.js';
 import { magicLinkEmail, resetPasswordEmail } from './email-body.js';
-import { MessageRepository } from './message.repository.js';
-import { pushProvider } from './providers/providers.js';
-import { RequestCreatedListener } from './request-created.listener.js';
+import { MessagesRepo } from './message.repo.js';
+import { deliverUploadLink } from './request-created.listener.js';
 
 const logger = new Logger('Event');
 
@@ -26,21 +27,24 @@ const guard =
     }
   };
 
+const sendWithoutLog = (input: { recipient: string; subject: string; body: string }) =>
+  run(MessagesRepo.use((repo) => repo.sendWithoutLog(input)));
+
 /** O que o `MessagingModule` fazia no boot: registrar os dois listeners na MESMA
  *  `EventEmitter2` que as rotas usam e plugar os senders de magic link / reset de senha.
  *  A ordem de registro é a da lista `providers` do módulo — `RequestCreated` entrega o
  *  email antes de disparar o push. */
 export const registerMessagingListeners = (events: EventEmitter2) => {
-  const messages = new MessageRepository();
-  const requestCreated = new RequestCreatedListener(messages);
-  const collection = new CollectionEventsListener(messages, pushProvider);
-
-  const on = <Name extends keyof EventPayloads>(
+  const on = <Name extends keyof EventPayloads, E>(
     event: Name,
-    handle: (payload: EventPayloads[Name]) => Promise<unknown>,
-  ) => events.on(event, guard<Name>(handle));
+    handle: (payload: EventPayloads[Name]) => Effect.Effect<unknown, E, AppContext>,
+  ) =>
+    events.on(
+      event,
+      guard<Name>((payload) => run(handle(payload))),
+    );
 
-  on(EVENTS.RequestCreated, (event) => requestCreated.deliverUploadLink(event));
+  on(EVENTS.RequestCreated, (event) => deliverUploadLink(event));
 
   on(EVENTS.AccessRecoveryRequested, (event) => collection.onAccessRecoveryRequested(event));
   on(EVENTS.InviteCreated, (event) => collection.onInviteCreated(event));
@@ -54,9 +58,9 @@ export const registerMessagingListeners = (events: EventEmitter2) => {
   on(EVENTS.ReminderDue, (event) => collection.onReminderDue(event));
 
   setMagicLinkSender(async ({ email, url }) => {
-    await messages.sendWithoutLog({ recipient: email, ...magicLinkEmail({ email, url }) });
+    await sendWithoutLog({ recipient: email, ...magicLinkEmail({ email, url }) });
   });
   setResetPasswordSender(async ({ email, url }) => {
-    await messages.sendWithoutLog({ recipient: email, ...resetPasswordEmail({ url }) });
+    await sendWithoutLog({ recipient: email, ...resetPasswordEmail({ url }) });
   });
 };

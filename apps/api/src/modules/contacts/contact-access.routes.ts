@@ -7,7 +7,7 @@ import {
 } from '@competa/contracts';
 import { APIError } from 'better-auth/api';
 import { Effect, Layer } from 'effect';
-import { fromRuntime, withDb } from '../../effect/runtime.js';
+import { fromRuntime } from '../../effect/runtime.js';
 import { BetterAuthAdapter } from '../../infra/auth/better-auth.adapter.js';
 import { UploadContext } from '../../http/context.js';
 import { handler } from '../../http/envelope.js';
@@ -17,7 +17,7 @@ import { throttleDefault } from '../../http/throttle.js';
 import { NotFound } from '../../lib/app-error.js';
 import { isFailure } from '../../lib/either.js';
 import { EmailAlreadyRegistered, InviteTargetUnsupported } from '../auth/errors.js';
-import { InviteRepository } from '../auth/invite.repository.js';
+import { InvitesRepo } from '../auth/invite.repo.js';
 import { MessagesRepo } from '../messaging/message.repo.js';
 import { UploadLinksRepo } from '../requests/upload-link.repo.js';
 import { ContactsRepo } from './contact.repo.js';
@@ -127,7 +127,7 @@ const acceptInvite = route(
       const token = yield* params(InviteTokenParam);
       const input = yield* body(AcceptContactInviteBody);
 
-      const found = yield* withDb((db) => new InviteRepository(db).findUsable(token.token));
+      const found = yield* fromRuntime(InvitesRepo.use((repo) => repo.findUsable(token.token)));
       const { companyId } = found;
       if (!companyId) return yield* Effect.fail(new InviteTargetUnsupported());
 
@@ -146,7 +146,7 @@ const acceptInvite = route(
 
       /* Claim atômico (`isNull(acceptedAt)` no WHERE) antes de criar a conta: deixar para
        * depois fazia o uso único depender de o signUp detectar email duplicado. */
-      yield* withDb((db) => new InviteRepository(db).markAccepted(found.id));
+      yield* fromRuntime(InvitesRepo.use((repo) => repo.markAccepted(found.id)));
 
       const name = input.name?.trim() || owner.name;
       const signUp = yield* Effect.promise(() =>

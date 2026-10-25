@@ -17,11 +17,12 @@ import {
   requestItem,
   user,
 } from '../infra/database/schema/index.js';
-import { CompanyRepository } from '../modules/companies/company.repository.js';
-import { RequestRepository } from '../modules/requests/request.repository.js';
-import { AccountantRepository } from '../modules/auth/accountant.repository.js';
-import { InviteRepository } from '../modules/auth/invite.repository.js';
-import { ChecklistRepository } from '../modules/checklists/checklist.repository.js';
+import { run as runEffect } from '../effect/runtime.js';
+import { CompaniesRepo } from '../modules/companies/company.repo.js';
+import { RequestsRepo } from '../modules/requests/request.repo.js';
+import { AccountantsRepo } from '../modules/auth/accountant.repo.js';
+import { InvitesRepo } from '../modules/auth/invite.repo.js';
+import { ChecklistsRepo } from '../modules/checklists/checklist.repo.js';
 import { rejectionReason } from '../modules/requests/file-rules.js';
 import { PresignUploadBody } from '@competa/contracts';
 import { toFirmScope } from '../modules/auth/scope.js';
@@ -56,11 +57,6 @@ async function run() {
     owner: true,
   });
 
-  const companyRepo = new CompanyRepository();
-  const requestRepo = new RequestRepository();
-  const accountantRepo = new AccountantRepository(db);
-  const inviteRepo = new InviteRepository(db);
-  const checklistRepo = new ChecklistRepository();
   let periodId = '';
   let requestId = '';
 
@@ -82,21 +78,27 @@ async function run() {
     ];
 
     // Primeira inserção
-    const result1 = await companyRepo.confirmImport(firmScope, importRows);
+    const result1 = await runEffect(
+      CompaniesRepo.use((repo) => repo.confirmImport(firmScope, importRows)),
+    );
     assert.equal(result1.created, 1, 'Deveria ter importado 1 empresa');
     assert.equal(result1.lines[0].status, 'created');
 
     // Segunda inserção com mesmo CNPJ (upsert)
-    const result2 = await companyRepo.confirmImport(firmScope, [
-      {
-        line: 2,
-        body: {
-          name: 'Empresa Teste CNPJ Renomeada',
-          cnpj: cnpjTest,
-          flags: {},
-        },
-      },
-    ]);
+    const result2 = await runEffect(
+      CompaniesRepo.use((repo) =>
+        repo.confirmImport(firmScope, [
+          {
+            line: 2,
+            body: {
+              name: 'Empresa Teste CNPJ Renomeada',
+              cnpj: cnpjTest,
+              flags: {},
+            },
+          },
+        ]),
+      ),
+    );
     assert.equal(result2.created, 1, 'Upsert por CNPJ deveria ter sucesso');
 
     const [updatedCompany] = await db
@@ -111,16 +113,20 @@ async function run() {
 
     // Testar mensagem de erro genérica em caso de falha de banco
     try {
-      await companyRepo.confirmImport(firmScope, [
-        {
-          line: 2,
-          body: {
-            name: null as unknown as string, // força erro no DB
-            cnpj: cnpjTest,
-            flags: {},
-          },
-        },
-      ]);
+      await runEffect(
+        CompaniesRepo.use((repo) =>
+          repo.confirmImport(firmScope, [
+            {
+              line: 2,
+              body: {
+                name: null as unknown as string, // força erro no DB
+                cnpj: cnpjTest,
+                flags: {},
+              },
+            },
+          ]),
+        ),
+      );
       assert.fail('Deveria ter lançado ValidationError');
     } catch (err) {
       assert(err instanceof ValidationError, 'Erro deve ser ValidationError');
@@ -176,7 +182,7 @@ async function run() {
 
     // Disparar 5 aceites concorrentes
     const acceptPromises = Array.from({ length: 5 }, () =>
-      requestRepo.acceptItem(firmScope, itemId, ownerAccountantId),
+      runEffect(RequestsRepo.use((repo) => repo.acceptItem(firmScope, itemId, ownerAccountantId))),
     );
     const acceptResults = await Promise.allSettled(acceptPromises);
 
@@ -211,16 +217,20 @@ async function run() {
     });
 
     // Simular que a revogação ocorreu primeiro
-    const revoked = await inviteRepo.revoke(firmScope, inviteId1);
+    const revoked = await runEffect(InvitesRepo.use((repo) => repo.revoke(firmScope, inviteId1)));
     assert.ok(revoked, 'Revogação deve ter sucesso');
 
     // Agora tentar aceitar o convite revogado
     try {
-      await accountantRepo.acceptInvite({
-        authUserId: uuidv7(),
-        accountingFirmId: firmId,
-        inviteId: inviteId1,
-      });
+      await runEffect(
+        AccountantsRepo.use((repo) =>
+          repo.acceptInvite({
+            authUserId: uuidv7(),
+            accountingFirmId: firmId,
+            inviteId: inviteId1,
+          }),
+        ),
+      );
       assert.fail('Aceite de convite revogado não deve ter sucesso');
     } catch (err: any) {
       assert.equal(err.code, 'INVITE_NOT_FOUND', 'Deve recusar com INVITE_NOT_FOUND');
@@ -288,11 +298,13 @@ async function run() {
       expiresAt: addDays(new Date(), 7),
     });
 
-    const isPending = await inviteRepo.pendingForFirm(firmScope, dupEmail);
+    const isPending = await runEffect(
+      InvitesRepo.use((repo) => repo.pendingForFirm(firmScope, dupEmail)),
+    );
     assert.equal(isPending, true, 'pendingForFirm deve detectar o convite pendente');
 
     // Simulação da verificação no InviteController:
-    if (await inviteRepo.pendingForFirm(firmScope, dupEmail)) {
+    if (await runEffect(InvitesRepo.use((repo) => repo.pendingForFirm(firmScope, dupEmail)))) {
       try {
         throw new InviteAlreadyPending();
       } catch (err: any) {
@@ -315,11 +327,13 @@ async function run() {
       emailVerified: true,
     });
 
-    const userExists = await accountantRepo.userExistsByEmail(existingEmail);
+    const userExists = await runEffect(
+      AccountantsRepo.use((repo) => repo.userExistsByEmail(existingEmail)),
+    );
     assert.equal(userExists, true, 'userExistsByEmail deve identificar conta existente');
 
     // Simulação do guard no InviteController
-    if (await accountantRepo.userExistsByEmail(existingEmail)) {
+    if (await runEffect(AccountantsRepo.use((repo) => repo.userExistsByEmail(existingEmail)))) {
       try {
         throw new EmailAlreadyRegistered();
       } catch (err: any) {
@@ -359,7 +373,9 @@ async function run() {
       .set({ checklistTemplateId: customTemplateId })
       .where(eq(company.id, updatedCompany.id));
 
-    const countUsing = await checklistRepo.countCompaniesUsingTemplate(firmScope, customTemplateId);
+    const countUsing = await runEffect(
+      ChecklistsRepo.use((repo) => repo.countCompaniesUsingTemplate(firmScope, customTemplateId)),
+    );
     assert.equal(countUsing, 1, 'Deve detectar 1 empresa usando o template');
 
     if (countUsing > 0) {
@@ -378,11 +394,15 @@ async function run() {
       .set({ checklistTemplateId: null })
       .where(eq(company.id, updatedCompany.id));
 
-    const deletedRow = await checklistRepo.deleteTemplate(firmScope, customTemplateId);
+    const deletedRow = await runEffect(
+      ChecklistsRepo.use((repo) => repo.deleteTemplate(firmScope, customTemplateId)),
+    );
     assert.equal(deletedRow.id, customTemplateId, 'Template deve ser excluído');
 
     // Verificar se itens do template também foram removidos
-    const remainingItems = await checklistRepo.listTemplateItems(customTemplateId);
+    const remainingItems = await runEffect(
+      ChecklistsRepo.use((repo) => repo.listTemplateItems(customTemplateId)),
+    );
     assert.equal(remainingItems.length, 0, 'Itens do template devem ter sido excluídos em cascata');
 
     // 3. Tentar excluir template do produto (sem accountingFirmId)

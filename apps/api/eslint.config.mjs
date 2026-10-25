@@ -1,12 +1,6 @@
 import tseslint from 'typescript-eslint';
 import base from '../../eslint.config.mjs';
 
-const DATABASE_IMPORT = {
-  group: ['**/infra/database/database', '**/infra/database/database.js'],
-  message:
-    'Database só pode ser injetado em *.repository.ts ou *.guard.ts. Controller consulta via repositório, para que o FirmScope seja exigido por assinatura.',
-};
-
 const DB_INSTANCE_IMPORT = {
   group: ['**/infra/database/index', '**/infra/database/index.js'],
   importNames: ['db'],
@@ -45,15 +39,8 @@ export default tseslint.config(
   {
     files: ['**/*.ts'],
     rules: {
-      'no-restricted-imports': ['error', { patterns: [DATABASE_IMPORT, DB_INSTANCE_IMPORT] }],
-      'no-restricted-syntax': ['error', SCOPE_CONSTRUCTOR_IMPORT, SCOPE_CAST],
-    },
-  },
-
-  {
-    files: ['**/*.repository.ts', '**/*.guard.ts'],
-    rules: {
       'no-restricted-imports': ['error', { patterns: [DB_INSTANCE_IMPORT] }],
+      'no-restricted-syntax': ['error', SCOPE_CONSTRUCTOR_IMPORT, SCOPE_CAST],
     },
   },
 
