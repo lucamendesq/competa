@@ -415,27 +415,25 @@ describe('rotação do Link de Upload (upload-link e resend)', () => {
     expect(graced.status, 'token anterior vive na carência de 48h').toBe(200);
   });
 
-  it('bug congelado: resend sempre responde 503, mas o email sai — com link morto', async () => {
+  /* O reenvio oficializa o token ANTES de mandar o email, então o link que o Responsável
+   * recebe é o que vale. E o listener devolve se entregou, que é o que separa 201 de 503. */
+  it('resend: 201, email sai e o link entregue é o que vale', async () => {
     const box = fixture.boxes.Rotativa;
     const hashBefore = await linkHashOf(box.requestId);
 
-    /* onUploadLinkResent faz `await deliver(...)` sem RETORNAR o boolean: o emitAsync
-     * devolve [undefined], `delivered.includes(true)` nunca é true e o controller joga
-     * ServiceUnavailable SEMPRE. O email já saiu (linha `resend` sent) carregando um token
-     * que o applyUploadToken nunca oficializa — o Responsável recebe um link morto. */
     const res = await fixture.firm.api.post(`/requests/${box.requestId}/upload-link/resend`);
-    expect(res.status).toBe(503);
-    expect(res.body.error.code).toBe('SERVICE_UNAVAILABLE');
-    expect(res.body.error.message).toBe(
-      'Não foi possível entregar o novo link por email. Tente novamente.',
-    );
+    expect(res.status, JSON.stringify(res.body)).toBe(201);
 
     const deliveries = await messagesFor(box.requestId, 'resend');
     expect(deliveries).toEqual([
       { purpose: 'resend', recipient: box.contactEmail, status: 'sent' },
     ]);
 
-    expect(await linkHashOf(box.requestId), 'o token do email nunca é aplicado').toBe(hashBefore);
+    expect(await linkHashOf(box.requestId), 'o token rotacionou').not.toBe(hashBefore);
+
+    const token = res.body.data.uploadUrl.split('/envio/')[1];
+    const opened = await apiClient(app.url).get(`/upload/${token}`);
+    expect(opened.status, 'o link entregue abre').toBe(200);
   });
 
   it('solicitação encerrada não rotaciona nem reenvia → 409 INVALID_TRANSITION', async () => {
