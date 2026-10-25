@@ -262,10 +262,10 @@ Cross-module seams the Effect composition must reproduce: event contract in `src
 | ---- | -------------------------------------------------------------------------------- | ----------- |
 | 1    | Transação ambiente (`CurrentTransaction` + `withTransaction`)                    | `3fd532b`   |
 | 2    | Fim das cascas: 5 shims órfãos, chamadores não-Effect, `withDb` morto            | `7a8452f`   |
-| 3    | Um runtime só: `fromRuntime` apagado, `appServices` na layer do servidor         | este commit |
-| 4    | Canal de erro: `use`/`withTransaction` matam, `attempt`/`attemptTransaction` não | este commit |
-| 5    | `layerTest` ao lado do `layer`                                                   | pendente    |
-| 6    | Desfecho como união tipada, não `{sent:false}`                                   | pendente    |
+| 3    | Um runtime só: `fromRuntime` apagado, `appServices` na layer do servidor         | `9978d1a`   |
+| 4    | Canal de erro: `use`/`withTransaction` matam, `attempt`/`attemptTransaction` não | `15e28d0`   |
+| 5    | `Db.layerTest` como trava sem banco; repositórios seguem no Postgres real        | este commit |
+| 6    | `ResendOutcome`: os 4 desfechos do reenvio saem do booleano                      | este commit |
 
 A dívida que a onda 3 deixou (`DbError` na união `Failure` de `platform.ts`, no `Resolved` de
 `middleware/auth.ts` e em `inviteToApp`) foi apagada pela onda 4.
@@ -278,6 +278,11 @@ ambos. Os 9 sítios que inspecionam já usam a variante certa.
 Fronteiras promise que SOBRARAM e são legítimas: listeners do eventemitter2, entradas de cron,
 scripts. A de `providers/whatsapp.provider.ts` NÃO é legítima — é o ciclo ESM já listado em
 "Pending cleanups"; morre junto com o seam de providers.
+
+O que a onda 5 deliberadamente NÃO fez: dublê in-memory de repositório. Os nossos são SQL
+(escopo, joins, violação de unicidade) e um dublê apagaria a única cobertura do isolamento por
+Contabilidade — regra dura 2. Os 13 specs de repositório continuam no Postgres real, de
+propósito. `Db.layerTest` é trava, não dublê: satisfaz o tipo e mata qualquer consulta.
 
 ## Achados da F5 (já corrigidos, não são dívida)
 

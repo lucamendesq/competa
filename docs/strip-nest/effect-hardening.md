@@ -74,13 +74,29 @@ enumera sozinho os sítios que precisam da variante que falha.
 
 ### 5. `layerTest` ao lado do `layer`
 
-Os 11 arquivos de teste de unidade batem no Postgres real. Um fake no mesmo arquivo do contrato
-não desatualiza e tira o banco do caminho onde ele não agrega.
+O `layerTest` do summer NÃO é dublê com dados canned: todo método **morre** ("Every method
+dies, so no call returns something its lifted signature doesn't describe"). É trava, não dublê.
+
+Aplicado aqui só no `Db`. Dublê in-memory de repositório, que eles fazem no `throttleState`,
+cabe lá porque aquele repositório é um contador — a semântica inteira cabe em memória. Os
+nossos são SQL: escopo (`where accounting_firm_id = scope`), joins e detecção de violação de
+unicidade. Um dublê deles provaria o dublê, e apagaria a ÚNICA cobertura do isolamento por
+Contabilidade (regra dura 2, LGPD). Os 13 specs de repositório continuam no Postgres real.
+
+Ganho concreto: `test/unit/http/server.spec.ts` dizia "sem banco" num comentário e construía o
+`AppLayer` inteiro, abrindo pool. Agora usa `AppReposWithoutDb` e a frase virou propriedade
+provada — verificada por mutação: uma consulta no caminho da plataforma derruba 2 testes.
 
 ### 6. Resultado como união, não booleano
 
 A terceira categoria de falha do summer: desfecho que o chamador não pode mudar é valor de
 sucesso tipado, não `{sent:false}` solto. É exatamente a forma do bug congelado #15.
+
+`MessagesRepo.resend` achatava QUATRO desfechos num booleano: entregue, provider recusou, push
+sem inscrição, e purpose sem branch (o "silencioso" do #15). Viraram `ResendOutcome`.
+
+O fio NÃO muda — o #15 é congelado e o e2e usa `toEqual({sent: ...})`. Quem achata agora é a
+rota, numa linha à vista, em vez de o repositório, em dois `return` escondidos.
 
 ## O que NÃO trazer
 

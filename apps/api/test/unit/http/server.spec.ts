@@ -4,17 +4,20 @@ import { Context, Effect, ManagedRuntime } from 'effect';
 import { HttpServer } from 'effect/http';
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 import { serverLayer } from '../../../src/http/server.js';
+import { AppReposWithoutDb } from '../../../src/effect/runtime.js';
 import type { Db } from '../../../src/infra/database/effect.js';
 
-/* Sobe o servidor Effect sem Nest e sem banco: o que está sob teste é a pilha de
- * plataforma (helmet, origin-check, CORS, log, throttle, envelope, mapa de erros, ETag)
- * na rota /health, não o repositório. */
+/* Sobe o servidor Effect sem banco, e isso é PROVADO, não prometido: `AppReposWithoutDb`
+ * monta os repositórios de verdade sobre um `Db` cujas consultas morrem. O que está sob
+ * teste é a pilha de plataforma (helmet, origin-check, CORS, log, throttle, envelope, mapa
+ * de erros, ETag) na rota /health — se ela passar a consultar, estes testes quebram. */
 const boot = async (ping: Effect.Effect<unknown, unknown, Db>) => {
   const runtime = ManagedRuntime.make(
     serverLayer({
       port: 0,
       trustProxy: true,
       ping,
+      services: AppReposWithoutDb,
       events: new EventEmitter2(),
       scanDeadlines: () => Promise.resolve({}),
       runReminders: () => Promise.resolve({}),

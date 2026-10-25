@@ -56,10 +56,12 @@ const resend = route(
 
       /* Bug congelado #14: `resend()` chama `deliver()` sem `channel`, então o reenvio de
        * uma mensagem de whatsapp sai pelo provider default — email. */
-      const result = yield* MessagesRepo.use((repo) => repo.resend(scope, id));
-      if (!result) return yield* Effect.fail(new NotFound('Mensagem não encontrada.'));
+      const outcome = yield* MessagesRepo.use((repo) => repo.resend(scope, id));
+      if (!outcome) return yield* Effect.fail(new NotFound('Mensagem não encontrada.'));
 
-      return result;
+      /* Bug congelado #15: as quatro causas de "não enviou" existem no tipo mas o fio só
+       * carrega o booleano. Distingui-las na resposta é follow-up, não esta migração. */
+      return { sent: outcome._tag === 'Delivered' };
     }),
   ),
   { auth: firmRoute() },

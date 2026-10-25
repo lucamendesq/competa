@@ -64,6 +64,18 @@ type ReminderRow = ReminderCandidate & {
 
 const logger = new Logger('MessageRepository');
 
+/** Desfecho do reenvio. União tipada, e não `{sent:boolean}`, porque "não enviou" tem quatro
+ *  causas distintas que o booleano achatava — inclusive o silêncio do bug congelado #15
+ *  (purpose sem branch). O fio continua `{sent}`: a rota é quem achata, agora à vista. */
+export type ResendOutcome =
+  | { readonly _tag: 'Delivered' }
+  | { readonly _tag: 'ProviderRefused' }
+  | { readonly _tag: 'NoPushSubscription' }
+  | { readonly _tag: 'PurposeNotResendable'; readonly purpose: string };
+
+const outcomeOf = (ok: boolean): ResendOutcome =>
+  ok ? { _tag: 'Delivered' } : { _tag: 'ProviderRefused' };
+
 const make = Effect.gen(function* () {
   const db = yield* Db;
 
@@ -503,7 +515,7 @@ const make = Effect.gen(function* () {
     if (row.channel === 'push') {
       const subscriptions = yield* subscriptionsForRequest(row.requestId);
       if (subscriptions.length === 0) {
-        return { sent: false };
+        return { _tag: 'NoPushSubscription' } as const;
       }
 
       let title = 'Aviso de documentos';
@@ -556,7 +568,7 @@ const make = Effect.gen(function* () {
         yield* deletePushSubscriptionByEndpoint(endpoint);
       }
 
-      return { sent: Boolean(result && result.sent > 0) };
+      return outcomeOf(Boolean(result && result.sent > 0));
     }
 
     if (row.purpose === 'completion') {
@@ -581,7 +593,7 @@ const make = Effect.gen(function* () {
         }),
       });
 
-      return { sent: delivered };
+      return outcomeOf(delivered);
     }
 
     if (row.requestStatus === 'closed') {
@@ -618,7 +630,7 @@ const make = Effect.gen(function* () {
           uploadUrl,
         }),
       });
-      return { sent: delivered };
+      return outcomeOf(delivered);
     }
 
     if (row.purpose === 'reminder') {
@@ -666,7 +678,7 @@ const make = Effect.gen(function* () {
           uploadUrl,
         }),
       });
-      return { sent: delivered };
+      return outcomeOf(delivered);
     }
 
     if (row.purpose === 'rejection') {
@@ -716,7 +728,7 @@ const make = Effect.gen(function* () {
         recipient: row.recipient,
         ...emailData,
       });
-      return { sent: delivered };
+      return outcomeOf(delivered);
     }
 
     if (row.purpose === 'deadline_missed') {
@@ -764,10 +776,10 @@ const make = Effect.gen(function* () {
         recipient: row.recipient,
         ...emailData,
       });
-      return { sent: delivered };
+      return outcomeOf(delivered);
     }
 
-    return { sent: false };
+    return { _tag: 'PurposeNotResendable', purpose: row.purpose } as const;
   });
 
   const failuresByPeriod = Effect.fn('MessagesRepo.failuresByPeriod')(function* (

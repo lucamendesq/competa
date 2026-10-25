@@ -89,15 +89,13 @@ const make = (drizzle: Drizzle) => {
       Effect.die,
     ) as Effect.Effect<A, E, R>;
 
-  return { raw: drizzle, use, attempt, withTransaction, attemptTransaction };
+  return { use, attempt, withTransaction, attemptTransaction };
 };
 
-/** Embrulha a instância de drizzle do processo — o pool continua sendo dela. `raw` existe
- *  para construir classes ainda não migradas (módulo auth) e morre junto delas. */
+/** Embrulha a instância de drizzle do processo — o pool continua sendo dela. */
 export class Db extends Context.Service<
   Db,
   {
-    readonly raw: Drizzle;
     /** Roda `f` no executor ambiente: a transação aberta, quando há uma; o pool, quando não.
      *  Erro de banco vira defeito, porque acima do repositório ninguém sabe tratá-lo. */
     use<A>(f: (d: Executor) => Promise<A>): Effect.Effect<A>;
@@ -113,4 +111,17 @@ export class Db extends Context.Service<
   }
 >()('competa/api/Db') {
   static readonly layer = Layer.sync(Db, () => Db.of(make(drizzleDb)));
+
+  /** Satisfaz o tipo sem abrir pool, e toda consulta MORRE. É trava, não dublê: quem diz não
+   *  tocar o banco passa a PROVAR isso, e quebra alto no dia em que passar a tocar. As duas
+   *  transações rodam o corpo direto — se ele consultar, morre lá dentro do mesmo jeito. */
+  static readonly layerTest = Layer.succeed(
+    Db,
+    Db.of({
+      use: () => Effect.die(new Error('Db.layerTest: nenhuma consulta pode rodar')),
+      attempt: () => Effect.die(new Error('Db.layerTest: nenhuma consulta pode rodar')),
+      withTransaction: (effect) => effect,
+      attemptTransaction: (effect) => effect,
+    }),
+  );
 }

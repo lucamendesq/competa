@@ -17,7 +17,7 @@ import { WhatsappRepo } from '../modules/whatsapp/whatsapp.repo.js';
 
 /* ChecklistsRepo entra por provideMerge, não por mergeAll: PeriodsRepo depende dele e o
  * mergeAll não alimenta uma layer com a outra. */
-export const AppLayer = Layer.mergeAll(
+export const AppRepos = Layer.mergeAll(
   PeriodsRepo.layerNoDeps,
   ContactsRepo.layerNoDeps,
   CompaniesRepo.layerNoDeps,
@@ -30,7 +30,14 @@ export const AppLayer = Layer.mergeAll(
   AccountantsRepo.layerNoDeps,
   InvitesRepo.layerNoDeps,
   UserDevicesRepo.layerNoDeps,
-).pipe(Layer.provideMerge(ChecklistsRepo.layerNoDeps), Layer.provideMerge(Db.layer));
+).pipe(Layer.provideMerge(ChecklistsRepo.layerNoDeps));
+
+/** A MESMA árvore de repositórios sobre a trava sem banco (`Db.layerTest`), para quem testa o
+ *  que não deve consultar. Montada aqui porque a ordem do `provideMerge` acima é a parte que
+ *  desatualizaria se o teste a copiasse. */
+export const AppReposWithoutDb = AppRepos.pipe(Layer.provideMerge(Db.layerTest));
+
+export const AppLayer = AppRepos.pipe(Layer.provideMerge(Db.layer));
 
 export type AppContext = Layer.Success<typeof AppLayer>;
 

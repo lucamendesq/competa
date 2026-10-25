@@ -4,7 +4,7 @@ import type { EventEmitter2 } from '../lib/event-emitter.js';
 import { ByteSize, Effect, Layer } from 'effect';
 import { HttpIncomingMessage, HttpRouter } from 'effect/http';
 import { buildInfo } from '../build-info.js';
-import { appServices } from '../effect/runtime.js';
+import { appServices, type AppContext } from '../effect/runtime.js';
 import type { Db } from '../infra/database/effect.js';
 import { localStorageRoutes } from '../infra/storage/local-storage.routes.js';
 import { ServiceUnavailable } from '../lib/app-error.js';
@@ -58,6 +58,9 @@ export const serverLayer = (options: {
   readonly port: number;
   readonly trustProxy: boolean;
   readonly ping: Effect.Effect<unknown, unknown, Db>;
+  /** Sobrescreve os serviços do app. Só os testes passam isto, para provar que a plataforma
+   *  não consulta o banco (`AppReposWithoutDb`). */
+  readonly services?: Layer.Layer<AppContext>;
   /** A MESMA instância do container Nest: os listeners de messaging estão registrados
    *  nela, e uma cópia engoliria todo evento emitido por rota migrada. */
   readonly events: EventEmitter2;
@@ -113,5 +116,5 @@ export const serverLayer = (options: {
      * como o `SkipBodyParsingMiddleware` não alcançava. */
     Layer.provideMerge(Layer.succeed(HttpIncomingMessage.MaxBodySize)(ByteSize.mebibytes(2))),
     // o `serve` converte o que a rota marca como `Requires` em requisito comum da layer
-    Layer.provide(appServices),
+    Layer.provide(options.services ?? appServices),
   );

@@ -555,7 +555,10 @@ layer(MessagesRepo.layer)('MessagesRepo', (it) => {
         purpose: 'resend',
         recipient: box.contactEmail,
       });
-      expect(yield* repo.resend(box.firmId, orphanId)).toEqual({ sent: false });
+      expect(yield* repo.resend(box.firmId, orphanId)).toEqual({
+        _tag: 'PurposeNotResendable',
+        purpose: 'resend',
+      });
       expect(yield* messageRows(box.requestId)).toHaveLength(1);
     }),
   );
@@ -570,7 +573,7 @@ layer(MessagesRepo.layer)('MessagesRepo', (it) => {
         status: 'sent',
       });
 
-      expect(yield* repo.resend(box.firmId, sentId)).toEqual({ sent: true });
+      expect(yield* repo.resend(box.firmId, sentId)).toEqual({ _tag: 'Delivered' });
 
       const rows = yield* messageRows(box.requestId);
       expect(rows).toHaveLength(2);
@@ -610,9 +613,9 @@ layer(MessagesRepo.layer)('MessagesRepo', (it) => {
         recipient: box.contactEmail,
       });
 
-      expect(yield* repo.resend(box.firmId, reminderId)).toEqual({ sent: true });
-      expect(yield* repo.resend(box.firmId, rejectionId)).toEqual({ sent: true });
-      expect(yield* repo.resend(box.firmId, deadlineId)).toEqual({ sent: true });
+      expect(yield* repo.resend(box.firmId, reminderId)).toEqual({ _tag: 'Delivered' });
+      expect(yield* repo.resend(box.firmId, rejectionId)).toEqual({ _tag: 'Delivered' });
+      expect(yield* repo.resend(box.firmId, deadlineId)).toEqual({ _tag: 'Delivered' });
 
       const rows = yield* messageRows(box.requestId);
       expect(rows).toHaveLength(6);
@@ -638,11 +641,11 @@ layer(MessagesRepo.layer)('MessagesRepo', (it) => {
       const refused = yield* repo.resend(box.firmId, linkId).pipe(Effect.flip);
       expect(refused).toBeInstanceOf(InvalidTransition);
 
-      expect(yield* repo.resend(box.firmId, completionId)).toEqual({ sent: true });
+      expect(yield* repo.resend(box.firmId, completionId)).toEqual({ _tag: 'Delivered' });
     }),
   );
 
-  it.effect('resend: push sem inscrição devolve { sent: false } ANTES do 409 da encerrada', () =>
+  it.effect('resend: push sem inscrição devolve NoPushSubscription ANTES do 409 da encerrada', () =>
     Effect.gen(function* () {
       const repo = yield* MessagesRepo;
       const box = yield* openBox('resendpushdead', { requestStatus: 'closed' });
@@ -652,7 +655,7 @@ layer(MessagesRepo.layer)('MessagesRepo', (it) => {
         recipient: `https://push.example.com/dead-${box.tag}`,
       });
 
-      expect(yield* repo.resend(box.firmId, pushId)).toEqual({ sent: false });
+      expect(yield* repo.resend(box.firmId, pushId)).toEqual({ _tag: 'NoPushSubscription' });
       expect(yield* messageRows(box.requestId)).toHaveLength(1);
     }),
   );
@@ -669,7 +672,7 @@ layer(MessagesRepo.layer)('MessagesRepo', (it) => {
         recipient: endpoint,
       });
 
-      expect(yield* repo.resend(box.firmId, pushId)).toEqual({ sent: true });
+      expect(yield* repo.resend(box.firmId, pushId)).toEqual({ _tag: 'Delivered' });
 
       const rows = yield* messageRows(box.requestId);
       expect(rows).toHaveLength(2);
