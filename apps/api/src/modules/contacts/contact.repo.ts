@@ -162,6 +162,18 @@ const make = Effect.gen(function* () {
     );
   });
 
+  /** Apaga a credencial email+senha da conta. O `signUpEmail` do better-auth EXIGE uma senha,
+   *  então a ativação por Link de Upload cria com uma aleatória e a remove aqui: quem segura o
+   *  Link não ganha login, e o `POST /my/password` passa a funcionar — ele recusa TROCAR senha
+   *  existente, mas sabe criar a primeira quando não há credencial. */
+  const dropCredential = Effect.fn('ContactsRepo.dropCredential')(function* (userId: string) {
+    yield* db.use((d) =>
+      d
+        .delete(account)
+        .where(and(eq(account.userId, userId), eq(account.providerId, 'credential'))),
+    );
+  });
+
   /** Aceite dos Termos no fluxo passwordless (a conta nasce/vincula pelo Link). */
   const markTermsAccepted = Effect.fn('ContactsRepo.markTermsAccepted')(function* (userId: string) {
     yield* db.use((d) =>
@@ -337,6 +349,7 @@ const make = Effect.gen(function* () {
     openRequestsForEmail,
     userByEmail,
     markUserEmailVerified,
+    dropCredential,
     markTermsAccepted,
     linkAuthUser,
     revokeAccess,
