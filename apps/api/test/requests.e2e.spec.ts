@@ -485,7 +485,7 @@ describe('POST /requests/:id/close', () => {
     expect(res.body.error.message).toBe('Esta solicitação já foi encerrada.');
   });
 
-  it('encerrada bloqueia accept, undo e reject — mas NÃO o review-extra (bug congelado)', async () => {
+  it('encerrada bloqueia accept, undo e reject — mas NÃO o review-extra', async () => {
     const api = sessionClient(fixture.firm.cookie);
     const box = fixture.boxes.Encerrada;
     const detail = await requestDetail(api, box.requestId);
@@ -510,12 +510,13 @@ describe('POST /requests/:id/close', () => {
       'Esta solicitação foi encerrada: os documentos não podem mais ser revisados.',
     );
 
-    /* Bug congelado: reviewExtraRefusal recebe requestStatus e ignora — Extra continua
-     * revisável depois do encerramento, ao contrário de item e documento de item. */
+    /* NÃO é bug: `database-schema.md` diz que Solicitação encerrada continua ACEITANDO
+     * Documento Extra. Se ele ainda chega, tem de poder ser revisado — senão esses
+     * documentos ficariam em limbo. A assimetria com Item é intencional. */
     const extraReviewed = await api.post(`/documents/${extraId}/review-extra`, {
       decision: 'accepted',
     });
-    expect(extraReviewed.status).toBe(201);
+    expect(extraReviewed.status, JSON.stringify(extraReviewed.body)).toBe(201);
     expect(extraReviewed.body.data.reviewStatus).toBe('accepted');
   });
 
