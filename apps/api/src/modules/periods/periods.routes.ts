@@ -7,6 +7,7 @@ import { FirmContext } from '../../http/context.js';
 import { handler, paginated } from '../../http/envelope.js';
 import { firmRoute } from '../../http/middleware/auth.js';
 import { body, params, query, route } from '../../http/platform.js';
+import { zodParse } from '../../lib/zod-pipe.js';
 import { NotFound } from '../../lib/app-error.js';
 import { EVENTS, type RequestCreatedEvent } from '../../lib/events.js';
 import { PeriodsRepo } from './period.repo.js';
@@ -110,9 +111,10 @@ const listRequests = route(
       if (!owned) return yield* Effect.fail(new NotFound('Competência não encontrada.'));
 
       if (rawQuery['page'] !== undefined || rawQuery['perPage'] !== undefined) {
-        /* Bug congelado #1: `parse` CRU, fora do `zodPipe`. O `ZodError` não casa com
-         * nenhum ramo do mapa de erros e vira 500 INTERNAL_ERROR em vez de 422. */
-        const page = PaginationQuery.parse(rawQuery);
+        /* `zodParse`, e não `.parse()` cru: o `ZodError` do zod não casa com nenhum ramo do
+         * mapa de erros e cairia no 500. O `zodParse` traduz para `ValidationError`, que é
+         * 422 com o `path` de cada campo — o mesmo que toda outra rota devolve. */
+        const page = zodParse(PaginationQuery, rawQuery);
         const result = yield* PeriodsRepo.use((repo) => repo.listRequests(scope, id, page));
         if ('rows' in result) {
           return paginated(result.rows, {
