@@ -124,6 +124,30 @@ export class AsaasBilling implements BillingProvider {
     throw new Error('Falha na integração de pagamento');
   }
 
+  /* `updatePendingPayments: true` conserta a cobrança JÁ emitida em vez de deixar o cliente
+   * com um boleto do plano antigo. Verificado no sandbox: a mesma fatura muda de valor
+   * (`pay_...` idêntico antes e depois), então o link que ele já tem continua valendo.
+   *
+   * O `value` NÃO está no OpenAPI do Asaas, nem no PT nem no EN — só no FAQ. Testado contra
+   * o sandbox antes de entrar aqui: 100 → 250 → 1890, relendo a assinatura a cada passo. */
+  async changeSubscriptionPlan(
+    subscriptionId: string,
+    input: { planName: string; cycle: BillingCycle; value: number },
+  ) {
+    const yearly = input.cycle === 'yearly';
+
+    await this.call<unknown>(`/subscriptions/${subscriptionId}`, {
+      method: 'PUT',
+      body: JSON.stringify({
+        value: input.value,
+        cycle: yearly ? 'YEARLY' : 'MONTHLY',
+        billingType: yearly ? 'BOLETO' : 'UNDEFINED',
+        description: `Plano ${input.planName} (${yearly ? 'anual' : 'mensal'}) - Competa`,
+        updatePendingPayments: true,
+      }),
+    });
+  }
+
   /* `status: INACTIVE` e não `DELETE`: remover a assinatura apaga junto as cobranças
    * pendentes e vencidas dela (FAQ de assinaturas do Asaas), e um boleto em aberto viraria
    * receita perdida na troca de plano. Inativa para de gerar cobrança nova e mantém as que

@@ -26,9 +26,16 @@ export abstract class BillingProvider {
     externalReference: string;
   }): Promise<{ subscriptionId: string; checkoutUrl: string }>;
 
-  /** Para de gerar cobranças NOVAS, preservando as já emitidas. É o que a troca de plano
-   *  precisa: remover a assinatura apagaria as cobranças pendentes e vencidas dela, e um
-   *  boleto em aberto viraria receita perdida. */
+  /** Troca plano e ciclo NA assinatura existente, e corrige a cobrança em aberto junto.
+   *  Verificado no sandbox: a mesma fatura é atualizada, não nasce uma nova. É assim que a
+   *  troca de plano deve ser feita — criar outra assinatura deixava duas vivas. */
+  abstract changeSubscriptionPlan(
+    subscriptionId: string,
+    input: { planName: string; cycle: BillingCycle; value: number },
+  ): Promise<void>;
+
+  /** Para de gerar cobranças NOVAS, preservando as já emitidas. Sobra para o caso em que a
+   *  assinatura antiga não dá para reaproveitar. */
   abstract deactivateSubscription(subscriptionId: string): Promise<void>;
 
   /** Encerra de vez e APAGA as cobranças pendentes/vencidas. Só para o encerramento
