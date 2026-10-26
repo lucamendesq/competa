@@ -131,7 +131,11 @@ describe('POST /billing/checkout — fluxo com LogBilling', () => {
     expect(rows[0].currentPeriodEnd).toBeNull();
   });
 
-  it('cycle omitido vira monthly; novo checkout sobrescreve plano e ids na mesma linha', async () => {
+  /* Trocar de plano REAPROVEITA a assinatura do gateway. Criar outra deixava as duas vivas:
+   * a antiga seguia cobrando e os webhooks dela paravam de casar com qualquer linha, porque
+   * o checkout só sobrescrevia o id. Verificado no sandbox do Asaas: o PUT atualiza valor,
+   * ciclo e a cobrança em aberto, mantendo a MESMA fatura. */
+  it('cycle omitido vira monthly; a troca reusa a assinatura em vez de criar outra', async () => {
     const [before] = await subscriptionRows(firmId);
 
     const res = await api.post('/billing/checkout', { planName: 'essencial' });
@@ -142,8 +146,9 @@ describe('POST /billing/checkout — fluxo com LogBilling', () => {
     expect(rows).toHaveLength(1);
     expect(rows[0].id).toBe(before.id);
     expect(rows[0]).toMatchObject({ pendingPlanName: 'essencial', pendingCycle: 'monthly' });
-    expect(rows[0].gatewayCustomerId).not.toBe(before.gatewayCustomerId);
-    expect(rows[0].gatewaySubscriptionId).not.toBe(before.gatewaySubscriptionId);
+    expect(rows[0].gatewaySubscriptionId, 'mesma assinatura no gateway').toBe(
+      before.gatewaySubscriptionId,
+    );
   });
 
   it('sem linha de subscription o checkout é no-op silencioso: 201 e nada gravado (quirk congelado)', async () => {

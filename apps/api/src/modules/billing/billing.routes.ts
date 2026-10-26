@@ -46,40 +46,68 @@ const checkout = route(
         }),
       );
 
-      // 2. Define o plano e cria a assinatura, respeitando a Oferta Fundador se houver
+      // 2. Define o plano, respeitando a Oferta Fundador se houver
       const { planName, cycle } = input;
       const current = yield* SubscriptionsRepo.use((repo) => repo.findByFirm(firm.id));
-      const { subscriptionId, checkoutUrl } = yield* Effect.promise(() =>
-        billing.createSubscription({
-          customerId,
-          planName,
-          cycle,
-          value: planPrice(PLANS[planName], cycle, current?.priceOverride?.[planName]),
-          externalReference: firm.id,
-        }),
-      );
-
-      /* 3. A assinatura ANTERIOR para de cobrar aqui. Sem isto ela seguia viva para sempre: o
-       * checkout só sobrescrevia o id no banco, e os webhooks dela deixavam de casar com
-       * qualquer linha — o cliente pagava os dois planos e ninguém via.
-       *
-       * INATIVAR, e não remover: remover apaga as cobranças pendentes e vencidas da
-       * assinatura, então um boleto em aberto viraria receita perdida na troca de plano.
-       *
-       * Falhar aqui não derruba o checkout: a nova assinatura já existe, e cobrança dupla
-       * que se resolve depois é melhor que firma sem plano nenhum. */
+      const value = planPrice(PLANS[planName], cycle, current?.priceOverride?.[planName]);
       const previous = current?.gatewaySubscriptionId;
-      if (previous && previous !== subscriptionId) {
-        yield* Effect.promise(() => billing.deactivateSubscription(previous)).pipe(
-          Effect.catchCause((cause) =>
-            Effect.sync(() => {
-              logger.error(
-                `Assinatura anterior ${previous} da firma ${firm.id} segue ativa no gateway`,
-                squashError(cause),
-              );
-            }),
-          ),
+
+      /* 3. Já existe assinatura no gateway → TROCA no lugar. Criar outra deixava duas vivas
+       * (o checkout só sobrescrevia o id no banco, e os webhooks da antiga paravam de casar
+       * com qualquer linha — o cliente pagava os dois planos e ninguém via). A troca também
+       * conserta a cobrança em aberto, então o boleto que ele já tem passa a valer o preço
+       * novo em vez de virar receita perdida.
+       *
+       * Se a troca falhar, cai para o caminho antigo: inativa a anterior e cria uma nova.
+       * Mais caro, mas o Contador não fica sem conseguir assinar. */
+      const changed = previous
+        ? yield* Effect.promise(() =>
+            billing.changeSubscriptionPlan(previous, { planName, cycle, value }),
+          ).pipe(
+            Effect.as(true),
+            Effect.catchCause((cause) =>
+              Effect.sync(() => {
+                logger.error(
+                  `Troca de plano em ${previous} falhou; recriando a assinatura da firma ${firm.id}`,
+                  squashError(cause),
+                );
+                return false;
+              }),
+            ),
+          )
+        : false;
+
+      let subscriptionId = previous!;
+      let checkoutUrl = '';
+
+      if (changed) {
+        /* A fatura é a MESMA de antes, com o valor corrigido — não nasce cobrança nova. */
+        checkoutUrl = (yield* Effect.promise(() => billing.pendingInvoiceUrl(previous!))) ?? '';
+      } else {
+        const created = yield* Effect.promise(() =>
+          billing.createSubscription({
+            customerId,
+            planName,
+            cycle,
+            value,
+            externalReference: firm.id,
+          }),
         );
+        subscriptionId = created.subscriptionId;
+        checkoutUrl = created.checkoutUrl;
+
+        if (previous && previous !== subscriptionId) {
+          yield* Effect.promise(() => billing.deactivateSubscription(previous)).pipe(
+            Effect.catchCause((cause) =>
+              Effect.sync(() => {
+                logger.error(
+                  `Assinatura anterior ${previous} da firma ${firm.id} segue ativa no gateway`,
+                  squashError(cause),
+                );
+              }),
+            ),
+          );
+        }
       }
 
       // 4. Grava a INTENÇÃO e os ids do gateway; quem promove o plano é o webhook.

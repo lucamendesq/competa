@@ -32,6 +32,15 @@ export class LogBilling implements BillingProvider {
     return { subscriptionId: `mock_sub_${randomUUID()}`, checkoutUrl: '' };
   }
 
+  async changeSubscriptionPlan(
+    subscriptionId: string,
+    input: { planName: string; cycle: BillingCycle; value: number },
+  ) {
+    this.logger.log(
+      `Mock: Trocando ${subscriptionId} para ${input.planName} ${input.cycle} (R$ ${input.value})`,
+    );
+  }
+
   async deactivateSubscription(subscriptionId: string) {
     this.logger.log(`Mock: Inativando assinatura ${subscriptionId}`);
   }
