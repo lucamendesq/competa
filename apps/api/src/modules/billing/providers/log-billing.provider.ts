@@ -32,7 +32,16 @@ export class LogBilling implements BillingProvider {
     return { subscriptionId: `mock_sub_${randomUUID()}`, checkoutUrl: '' };
   }
 
+  async deactivateSubscription(subscriptionId: string) {
+    this.logger.log(`Mock: Inativando assinatura ${subscriptionId}`);
+  }
+
   async cancelSubscription(subscriptionId: string) {
     this.logger.log(`Mock: Cancelando assinatura ${subscriptionId}`);
+  }
+
+  async pendingInvoiceUrl(subscriptionId: string) {
+    this.logger.log(`Mock: Fatura em aberto de ${subscriptionId}`);
+    return null;
   }
 }
