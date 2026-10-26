@@ -104,6 +104,21 @@ layer(SubscriptionsRepo.layer)('SubscriptionsRepo', (it) => {
     }),
   );
 
+  /* O Asaas reenvia em qualquer resposta não-2xx e pode repetir uma entrega bem-sucedida.
+   * Sem a reivindicação, um `PAYMENT_RECEIVED` repetido reabriria o período de cobrança a
+   * partir do novo `now()` — o cliente ganharia tempo de assinatura de graça. */
+  it.effect('claimEvent: o primeiro leva; reenvio do mesmo evento não', () =>
+    Effect.gen(function* () {
+      const repo = yield* SubscriptionsRepo;
+      const eventId = `evt_${next()}_${Date.now()}`;
+
+      expect(yield* repo.claimEvent(eventId, 'PAYMENT_RECEIVED')).toBe(true);
+      expect(yield* repo.claimEvent(eventId, 'PAYMENT_RECEIVED')).toBe(false);
+      // e um evento diferente segue passando
+      expect(yield* repo.claimEvent(`${eventId}-outro`, 'PAYMENT_OVERDUE')).toBe(true);
+    }),
+  );
+
   it.effect('updateStatus ACTIVE promove a intenção e abre o período do ciclo promovido', () =>
     Effect.gen(function* () {
       const repo = yield* SubscriptionsRepo;

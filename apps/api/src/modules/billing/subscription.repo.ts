@@ -3,7 +3,7 @@ import { addMonths, addYears } from 'date-fns';
 import { eq } from 'drizzle-orm';
 import type { BillingCycle, PaidPlanName } from '@competa/contracts';
 import { Db } from '../../infra/database/effect.js';
-import { subscription } from '../../infra/database/schema/index.js';
+import { billingWebhookEvent, subscription } from '../../infra/database/schema/index.js';
 
 const make = Effect.gen(function* () {
   const db = yield* Db;
@@ -93,7 +93,25 @@ const make = Effect.gen(function* () {
     );
   });
 
-  return { findByFirm, startCheckout, updateStatus };
+  /** Reivindica o evento do gateway. `true` = primeira vez (pode processar); `false` = já
+   *  veio antes. `onConflictDoNothing` resolve a corrida entre duas entregas simultâneas:
+   *  quem inserir ganha, o outro vê zero linhas. */
+  const claimEvent = Effect.fn('SubscriptionsRepo.claimEvent')(function* (
+    eventId: string,
+    event: string,
+  ) {
+    const claimed = yield* db.use((d) =>
+      d
+        .insert(billingWebhookEvent)
+        .values({ id: eventId, event })
+        .onConflictDoNothing()
+        .returning({ id: billingWebhookEvent.id }),
+    );
+
+    return claimed.length > 0;
+  });
+
+  return { findByFirm, startCheckout, updateStatus, claimEvent };
 });
 
 export class SubscriptionsRepo extends Context.Service<

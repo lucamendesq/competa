@@ -14,3 +14,13 @@ export const cronLease = pgTable('cron_lease', {
   expiresAt: timestamp('expires_at', { withTimezone: true }).notNull(),
   ...timestamps,
 }).enableRLS();
+
+/** Eventos de webhook já processados. O Asaas reenvia em qualquer resposta não-2xx e pode
+ *  repetir uma entrega bem-sucedida; sem esta linha, um `PAYMENT_RECEIVED` repetido
+ *  reabria o período de cobrança a partir do novo `now()`. A chave é o `id` do evento
+ *  (`evt_...`), que vem no topo do payload. */
+export const billingWebhookEvent = pgTable('billing_webhook_event', {
+  id: text('id').primaryKey(),
+  event: text('event').notNull(),
+  ...timestamps,
+}).enableRLS();
