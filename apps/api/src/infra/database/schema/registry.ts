@@ -17,6 +17,7 @@ import {
   DOCUMENT_CATEGORIES,
   OVERRIDE_ACTIONS,
   PERIODICITIES,
+  SUBSCRIPTION_STATUSES,
   type CompanyFlags,
   type PriceOverride,
 } from '@competa/contracts';
@@ -277,7 +278,10 @@ export const subscription = pgTable(
     currentPeriodEnd: timestamp('current_period_end', { withTimezone: true }),
     ...timestamps,
   },
-  (t) => [index('subscription_firm_idx').on(t.accountingFirmId)],
+  (t) => [
+    index('subscription_firm_idx').on(t.accountingFirmId),
+    check('subscription_status_chk', oneOf(sql`${t.status}`, SUBSCRIPTION_STATUSES)),
+  ],
 ).enableRLS();
 
 export const whatsappIntegration = pgTable(
