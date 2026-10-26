@@ -202,6 +202,64 @@ describe('permissões de equipe (dono vs membro)', () => {
   });
 });
 
+describe('GET /billing/subscription', () => {
+  let api: Api;
+  let firmId: string;
+
+  beforeAll(async () => {
+    ({ api } = await registerFirm(app.url));
+    firmId = await firmIdOf(api);
+  });
+
+  it('firma em trial: plano vigente, sem intenção e sem fatura', async () => {
+    const res = await api.get('/billing/subscription');
+
+    expect(res.status, JSON.stringify(res.body)).toBe(200);
+    expect(res.body.data).toMatchObject({
+      planName: 'trial',
+      status: 'trialing',
+      pendingPlanName: null,
+      pendingCycle: null,
+      /* Sem assinatura no gateway não há o que consultar — e o FAQ do Asaas pede para não
+       * usar GET como polling. */
+      invoiceUrl: null,
+    });
+    expect(res.body.data.trialEndsAt).toBeTruthy();
+  });
+
+  /* A tela precisa separar "contratou" de "está valendo": entre o checkout e o pagamento, o
+   * plano vigente ainda é o antigo. */
+  it('após o checkout mostra a intenção sem mudar o plano vigente', async () => {
+    const checkout = await api.post('/billing/checkout', {
+      planName: 'profissional',
+      cycle: 'yearly',
+    });
+    expect(checkout.status, JSON.stringify(checkout.body)).toBe(201);
+
+    const res = await api.get('/billing/subscription');
+    expect(res.body.data).toMatchObject({
+      planName: 'trial',
+      status: 'trialing',
+      pendingPlanName: 'profissional',
+      pendingCycle: 'yearly',
+    });
+  });
+
+  it('exige sessão de Contabilidade', async () => {
+    const anon = await apiClient(app.url).get('/billing/subscription');
+    expect(anon.status).toBe(401);
+  });
+
+  it('não vaza a assinatura de outra Contabilidade', async () => {
+    const other = await registerFirm(app.url);
+    const res = await other.api.get('/billing/subscription');
+
+    expect(res.status).toBe(200);
+    expect(res.body.data.planName).toBe('trial');
+    expect(await firmIdOf(other.api)).not.toBe(firmId);
+  });
+});
+
 describe('isolamento entre firmas', () => {
   it('checkout de uma firma não toca a assinatura da outra', async () => {
     const [a, b] = await Promise.all([registerFirm(app.url), registerFirm(app.url)]);

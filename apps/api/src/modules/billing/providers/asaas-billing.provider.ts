@@ -124,7 +124,26 @@ export class AsaasBilling implements BillingProvider {
     throw new Error('Falha na integração de pagamento');
   }
 
+  /* `status: INACTIVE` e não `DELETE`: remover a assinatura apaga junto as cobranças
+   * pendentes e vencidas dela (FAQ de assinaturas do Asaas), e um boleto em aberto viraria
+   * receita perdida na troca de plano. Inativa para de gerar cobrança nova e mantém as que
+   * já existem. */
+  async deactivateSubscription(subscriptionId: string) {
+    await this.call<unknown>(`/subscriptions/${subscriptionId}`, {
+      method: 'PUT',
+      body: JSON.stringify({ status: 'INACTIVE' }),
+    });
+  }
+
   async cancelSubscription(subscriptionId: string) {
     await this.call<unknown>(`/subscriptions/${subscriptionId}`, { method: 'DELETE' });
+  }
+
+  async pendingInvoiceUrl(subscriptionId: string) {
+    const payments = await this.call<AsaasList<AsaasPayment>>(
+      `/subscriptions/${subscriptionId}/payments?status=PENDING`,
+    );
+
+    return payments.data?.[0]?.invoiceUrl ?? null;
   }
 }

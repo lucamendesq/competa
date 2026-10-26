@@ -26,7 +26,17 @@ export abstract class BillingProvider {
     externalReference: string;
   }): Promise<{ subscriptionId: string; checkoutUrl: string }>;
 
-  /** Encerra a assinatura no gateway. Sem isto, trocar de plano deixa a anterior viva e o
-   *  cliente passa a ser cobrado pelas duas. */
+  /** Para de gerar cobranças NOVAS, preservando as já emitidas. É o que a troca de plano
+   *  precisa: remover a assinatura apagaria as cobranças pendentes e vencidas dela, e um
+   *  boleto em aberto viraria receita perdida. */
+  abstract deactivateSubscription(subscriptionId: string): Promise<void>;
+
+  /** Encerra de vez e APAGA as cobranças pendentes/vencidas. Só para o encerramento
+   *  deliberado — na troca de plano use `deactivateSubscription`. */
   abstract cancelSubscription(subscriptionId: string): Promise<void>;
+
+  /** Link da cobrança em aberto da assinatura, para o Contador pagar ou trocar a forma de
+   *  pagamento NA PÁGINA DO ASAAS. É assim que a troca de cartão acontece sem que dado de
+   *  cartão passe por nós — o que nos manteria no escopo do PCI-DSS. */
+  abstract pendingInvoiceUrl(subscriptionId: string): Promise<string | null>;
 }
