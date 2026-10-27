@@ -196,9 +196,11 @@ export const route = <E extends Failure, R, Provides = never>(
     | ((
         request: HttpServerRequest.HttpServerRequest,
       ) => Effect.Effect<HttpServerResponse.HttpServerResponse, E, R>),
-  options?: {
+  options: {
     readonly throttle?: readonly Bucket[];
-    readonly auth?: RouteProfile<Provides>;
+    /** Obrigatório de propósito: rota sem perfil seria pública em silêncio. A pública declara
+     *  `publicRoute`. */
+    readonly auth: RouteProfile<Provides>;
     /** Balde compartilhado entre caminhos que no Nest eram O MESMO handler (a chave de lá é
      *  `Classe-handler`, não o path): `POST /auth/register` e `POST /public-signup`. */
     readonly throttleKey?: string;
@@ -208,15 +210,15 @@ export const route = <E extends Failure, R, Provides = never>(
     readonly uninterruptible?: boolean;
   },
 ) => {
-  const profile = options?.auth ?? (publicRoute as unknown as RouteProfile<Provides>);
+  const profile = options.auth;
 
   return HttpRouter.add(method, path, handler, {
-    uninterruptible: options?.uninterruptible ?? method !== 'GET',
+    uninterruptible: options.uninterruptible ?? method !== 'GET',
   }).pipe(
     Layer.provide(
       platform(
-        options?.throttleKey ?? `${method} ${path}`,
-        options?.throttle ?? profile.throttle ?? GLOBAL_BUCKETS,
+        options.throttleKey ?? `${method} ${path}`,
+        options.throttle ?? profile.throttle ?? GLOBAL_BUCKETS,
         profile,
       ).layer,
     ),

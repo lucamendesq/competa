@@ -7,7 +7,7 @@ import { Effect, Layer } from 'effect';
 import { HttpServerRequest } from 'effect/http';
 import { squashError } from '../../infra/database/error.js';
 import { handler } from '../../http/envelope.js';
-import { body, route } from '../../http/platform.js';
+import { body, publicRoute, route } from '../../http/platform.js';
 import { isFailure } from '../../lib/either.js';
 import { BetterAuthAdapter } from '../../infra/auth/better-auth.adapter.js';
 import { AccountantsRepo } from './accountant.repo.js';
@@ -82,6 +82,9 @@ const register = Effect.gen(function* () {
 /* Um handler, dois caminhos (`@Controller(['auth/register', 'public-signup'])`). A chave de
  * throttle é compartilhada porque no Nest o balde era por classe+handler, não por path. */
 const at = (path: '/auth/register' | '/public-signup') =>
-  route('POST', path, handler('POST', register), { throttleKey: 'POST auth/register' });
+  route('POST', path, handler('POST', register), {
+    auth: publicRoute,
+    throttleKey: 'POST auth/register',
+  });
 
 export const signupRoutes = Layer.mergeAll(at('/auth/register'), at('/public-signup'));

@@ -30,7 +30,7 @@ import { whatsappWebhookRoutes } from '../modules/whatsapp/whatsapp-webhook.rout
 import { authMountRoutes } from './auth-mount.js';
 import { handler } from './envelope.js';
 import { fallbackRoutes } from './fallback.js';
-import { ThrottleStore, TrustProxy, route } from './platform.js';
+import { ThrottleStore, TrustProxy, publicRoute, route } from './platform.js';
 import { GLOBAL_BUCKETS, makeThrottleStore } from './throttle.js';
 
 /** O que um balanceador/orquestrador consulta antes de mandar tráfego. Toca o banco de
@@ -51,7 +51,7 @@ const healthRoute = (ping: Effect.Effect<unknown, unknown, Db>) =>
     ),
     /* `@SkipThrottle()` nu pula SÓ o balde `default`: a sonda bate a cada poucos segundos e
      * o balde de 120/60s a derrubaria, mas o `short` continua valendo. */
-    { throttle: GLOBAL_BUCKETS.filter((bucket) => bucket.name !== 'default') },
+    { auth: publicRoute, throttle: GLOBAL_BUCKETS.filter((bucket) => bucket.name !== 'default') },
   );
 
 export const serverLayer = (options: {

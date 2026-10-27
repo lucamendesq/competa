@@ -12,7 +12,7 @@ import env from '../../config/env.js';
 import { FirmContext } from '../../http/context.js';
 import { handler } from '../../http/envelope.js';
 import { firmRoute } from '../../http/middleware/auth.js';
-import { body, params, route } from '../../http/platform.js';
+import { body, params, publicRoute, route } from '../../http/platform.js';
 import { NotFound } from '../../lib/app-error.js';
 import { EVENTS, type InviteCreatedEvent } from '../../lib/events.js';
 import { createToken } from '../../lib/token.js';
@@ -107,6 +107,7 @@ const previewInvite = route(
       };
     }),
   ),
+  { auth: publicRoute },
 );
 
 const listAccountants = route(
