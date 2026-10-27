@@ -28,18 +28,6 @@ import { summarizePending, type PanelRow } from '../requests/review-rules.js';
 import { PeriodAlreadyClosed, PeriodAlreadyOpen } from './errors.js';
 import { planFanOut, type RequestPlan } from './fan-out.js';
 
-/** O driver embrulha o erro do Postgres; procuramos a constraint na cadeia de causas
- *  para devolver 409 de negócio em vez de 500. */
-const violatesPeriodUnique = (error: unknown): boolean => {
-  for (let cause: unknown = error; cause instanceof Error; cause = cause.cause) {
-    const pg = cause as { constraint?: string; code?: string };
-    if (pg.constraint === 'period_firm_month_uidx') return true;
-    if (pg.code === '23505' && cause.message.includes('period_firm_month_uidx')) return true;
-  }
-
-  return false;
-};
-
 const make = Effect.gen(function* () {
   const db = yield* Db;
   const checklists = yield* ChecklistsRepo;
@@ -90,7 +78,7 @@ const make = Effect.gen(function* () {
     plans: RequestPlan[],
   ) {
     return yield* db
-      .attemptTransaction(
+      .withTransaction(
         db.attempt(async (tx) => {
           const [row] = await tx
             .insert(period)
@@ -132,10 +120,10 @@ const make = Effect.gen(function* () {
         }),
       )
       .pipe(
-        Effect.catchTag('DbError', (error) =>
-          violatesPeriodUnique(error.cause)
+        Effect.catchTag('UniqueViolation', (violation) =>
+          violation.constraint === 'period_firm_month_uidx'
             ? Effect.fail(new PeriodAlreadyOpen(input.referenceMonth))
-            : Effect.die(error),
+            : Effect.die(violation.cause),
         ),
       );
   });
@@ -375,18 +363,20 @@ const make = Effect.gen(function* () {
       return value;
     });
 
-    return yield* db
-      .attemptTransaction(
-        db.attempt(async (tx) => {
-          const closedRequests = await tx
+    return yield* db.withTransaction(
+      Effect.gen(function* () {
+        const closedRequests = yield* db.use((tx) =>
+          tx
             .update(request)
             .set({ status: 'closed', closedAt: new Date() })
             .where(and(eq(request.periodId, periodId), ne(request.status, 'closed')))
-            .returning({ id: request.id });
+            .returning({ id: request.id }),
+        );
 
-          /* `ne(status, 'closed')` no WHERE: a leitura acima é check-then-update e dois cliques
-           * simultâneos passavam os dois. */
-          const [closed] = await tx
+        /* `ne(status, 'closed')` no WHERE: a leitura acima é check-then-update e dois cliques
+         * simultâneos passavam os dois. */
+        const [closed] = yield* db.use((tx) =>
+          tx
             .update(period)
             .set({ status: 'closed' })
             .where(and(eq(period.id, periodId), ne(period.status, 'closed')))
@@ -394,24 +384,18 @@ const make = Effect.gen(function* () {
               id: period.id,
               referenceMonth: period.referenceMonth,
               status: period.status,
-            });
+            }),
+        );
 
-          if (!closed) throw new PeriodAlreadyClosed();
+        if (!closed) return yield* new PeriodAlreadyClosed();
 
-          return {
-            ...closed,
-            closedRequestCount: closedRequests.length,
-            pendingItemCount: pending.value,
-          };
-        }),
-      )
-      .pipe(
-        /* O throw do caminho concorrente acontece dentro da transação: sem o remap ele
-         * chegaria embrulhado em DbError e sumiria de um catchTag tipado. */
-        Effect.catchTag('DbError', (error) =>
-          error.cause instanceof PeriodAlreadyClosed ? Effect.fail(error.cause) : Effect.die(error),
-        ),
-      );
+        return {
+          ...closed,
+          closedRequestCount: closedRequests.length,
+          pendingItemCount: pending.value,
+        };
+      }),
+    );
   });
 
   const listRequests = Effect.fn('PeriodsRepo.listRequests')(function* (

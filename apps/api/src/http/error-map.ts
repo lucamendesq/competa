@@ -1,11 +1,10 @@
 import { Logger } from '../lib/logger.js';
 import * as Sentry from '@sentry/node';
 import { APIError } from 'better-auth/api';
-import type { Cause } from 'effect';
-import { Effect } from 'effect';
+import { Cause, Effect } from 'effect';
 import { HttpServerError, HttpServerRequest, HttpServerResponse } from 'effect/http';
 import env from '../config/env.js';
-import { squashError } from '../infra/database/error.js';
+import { DbUnavailable } from '../infra/database/error.js';
 import { isAppError } from '../lib/app-error.js';
 import { JSON_UTF8 } from './envelope.js';
 
@@ -66,6 +65,13 @@ export const mapError = (error: unknown): MappedError => {
     }
   }
 
+  if (error instanceof DbUnavailable) {
+    return {
+      status: 503,
+      body: { code: 'SERVICE_UNAVAILABLE', message: 'Banco indisponível. Tente novamente.' },
+    };
+  }
+
   const reason = reasonOf(error);
   const tag = tagOf(reason);
 
@@ -121,7 +127,7 @@ const loggedUrl = (originalUrl: string) => {
 export const handleCause = (cause: Cause.Cause<unknown>) =>
   Effect.gen(function* () {
     const request = yield* HttpServerRequest.HttpServerRequest;
-    const error = squashError(cause);
+    const error = Cause.squash(cause);
     const mapped = mapError(error);
 
     if (mapped.denial !== undefined) {

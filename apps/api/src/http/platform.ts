@@ -7,6 +7,7 @@ import helmet from 'helmet';
 import type * as z from 'zod';
 import { allowedOrigins } from '../config/env.js';
 import type { AppContext } from '../effect/runtime.js';
+import type { DbUnavailable } from '../infra/database/error.js';
 import { AppError, BadRequest } from '../lib/app-error.js';
 import { requestLogger } from '../lib/logger.js';
 import { zodParse } from '../lib/zod-pipe.js';
@@ -93,10 +94,10 @@ const Node = {
     NodeHttpServerRequest.toServerResponse(request) as ServerResponse,
 };
 
-/* Tudo que uma rota pode falhar e o mapa de erros sabe traduzir: os erros do app mais os do
- * próprio parse da requisição (corpo inválido → 400, corpo grande demais → 413). Erro de
- * banco NÃO entra aqui: ele morre como defeito na borda do repositório. */
-type Failure = AppError | HttpServerError.HttpServerError;
+/* Tudo que uma rota pode falhar e o mapa de erros sabe traduzir: os erros do app, os do
+ * próprio parse da requisição (corpo inválido → 400, corpo grande demais → 413) e o banco
+ * fora do ar (503). Qualquer outro erro de banco morre como defeito no repositório. */
+type Failure = AppError | HttpServerError.HttpServerError | DbUnavailable;
 
 /**
  * Perfil de autorização de uma rota — o que os `@UseGuards`/`@ContactRoute()` diziam. Roda

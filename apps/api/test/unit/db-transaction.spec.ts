@@ -3,7 +3,7 @@ import { eq } from 'drizzle-orm';
 import { Cause, Effect, Exit, Fiber, Latch, Layer } from 'effect';
 import { beforeAll, expect } from 'vitest';
 import { Db } from '../../src/infra/database/effect.js';
-import { DbError } from '../../src/infra/database/error.js';
+import { DbUnavailable } from '../../src/infra/database/error.js';
 import { accountingFirm, company } from '../../src/infra/database/schema/index.js';
 import { toFirmScope } from '../../src/modules/auth/scope.js';
 import { ChecklistsRepo } from '../../src/modules/checklists/checklist.repo.js';
@@ -74,7 +74,7 @@ layer(TestLayer)('Db.withTransaction', (it) => {
         .pipe(Effect.flip);
 
       expect(error).toBeInstanceOf(Boom);
-      expect(error).not.toBeInstanceOf(DbError);
+      expect(error).not.toBeInstanceOf(DbUnavailable);
       expect(yield* committedFirms('tx-fail')).toBe(0);
     }),
   );
