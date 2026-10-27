@@ -103,6 +103,21 @@ describe('GET /health servido pelo shell Effect', () => {
     expect(preflight.headers.get('access-control-allow-credentials')).toBe('true');
   });
 
+  it('HEAD é servido pela rota GET, sem corpo', async () => {
+    const response = await fetch(`${app.url}/health`, { method: 'HEAD' });
+
+    expect(response.status).toBe(200);
+    expect(response.headers.get('content-type')).toBe('application/json; charset=utf-8');
+    expect(await response.text()).toBe('');
+  });
+
+  it('HEAD em caminho desconhecido é 404 e passa pela pilha global', async () => {
+    const response = await fetch(`${app.url}/nao-existe`, { method: 'HEAD' });
+
+    expect(response.status).toBe(404);
+    expect(response.headers.get('x-content-type-options')).toBe('nosniff');
+  });
+
   it('origem fora da allowlist não ganha o header de CORS', async () => {
     const response = await fetch(`${app.url}/health`, { headers: { origin: 'https://evil.com' } });
     await response.text();

@@ -1,7 +1,7 @@
 import type { IncomingMessage, ServerResponse } from 'node:http';
 import { NodeHttpServerRequest } from '@effect/platform-node';
 import { Effect } from 'effect';
-import { HttpRouter, HttpServerRequest, HttpServerResponse } from 'effect/http';
+import { HttpMethod, HttpRouter, HttpServerRequest, HttpServerResponse } from 'effect/http';
 import { JSON_UTF8, applyEtag } from './envelope.js';
 import { runGlobalStack } from './platform.js';
 
@@ -18,7 +18,7 @@ import { runGlobalStack } from './platform.js';
  *
  * Sem throttle: o `ThrottlerGuard` era um APP_GUARD e só rodava em handler casado.
  */
-export const fallbackRoutes = HttpRouter.add('*', '/*', (request) =>
+const fallback = (request: HttpServerRequest.HttpServerRequest) =>
   Effect.gen(function* () {
     const nodeRequest = NodeHttpServerRequest.toIncomingMessage(request) as IncomingMessage;
     const nodeResponse = NodeHttpServerRequest.toServerResponse(request) as ServerResponse;
@@ -33,5 +33,12 @@ export const fallbackRoutes = HttpRouter.add('*', '/*', (request) =>
         { status: 404, contentType: JSON_UTF8 },
       ),
     );
-  }),
+  });
+
+/* Um curinga por método, e nunca HEAD: o roteador só serve HEAD pelo GET quando nada casa
+ * HEAD, e um `'*'` casaria — toda rota GET responderia 404 a HEAD. */
+export const fallbackRoutes = HttpRouter.addAll(
+  [...HttpMethod.all]
+    .filter((method) => method !== 'HEAD')
+    .map((method) => HttpRouter.route(method, '/*', fallback)),
 );
