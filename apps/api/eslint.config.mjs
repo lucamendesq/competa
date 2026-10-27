@@ -50,10 +50,17 @@ export default tseslint.config(
     },
   },
 
-  /* A plataforma monta a árvore de serviços e a sonda de saúde pinga o banco; nenhum dos dois
-   * consulta dado de tenant. */
+  /* As raízes de composição montam a árvore de serviços e a sonda de saúde pinga o banco;
+   * nenhum deles consulta dado de tenant. */
   {
-    files: ['**/*.repo.ts', 'src/effect/**/*.ts', 'src/health.ts', 'src/http/server.ts'],
+    files: [
+      '**/*.repo.ts',
+      'src/effect/**/*.ts',
+      'src/app.ts',
+      'src/main.ts',
+      'src/health.ts',
+      'src/http/server.ts',
+    ],
     rules: {
       'no-restricted-imports': ['error', { patterns: [DB_INSTANCE_IMPORT] }],
     },

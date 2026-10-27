@@ -3,7 +3,7 @@ import { S3ServiceException } from '@aws-sdk/client-s3';
 import { v7 as uuidv7 } from 'uuid';
 import { db } from '../infra/database/index.js';
 import { accountant, accountingFirm, user } from '../infra/database/schema/index.js';
-import { run as runEffect } from '../effect/runtime.js';
+import { run as runEffect } from '../effect/script.js';
 import { CompaniesRepo } from '../modules/companies/company.repo.js';
 import { PeriodsRepo } from '../modules/periods/period.repo.js';
 import { LocalStorage } from '../infra/storage/local.storage.js';

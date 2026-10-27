@@ -5,7 +5,8 @@ import { Context, Effect, Layer, ManagedRuntime } from 'effect';
 import { HttpRouter, HttpServer } from 'effect/http';
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 import { BetterAuthAdapter } from '../../../src/infra/auth/better-auth.adapter.js';
-import { appServices } from '../../../src/effect/runtime.js';
+import { AppLayer } from '../../../src/effect/runtime.js';
+import { DbPool } from '../../../src/infra/database/effect.js';
 import {
   ContactContext,
   FirmContext,
@@ -72,7 +73,7 @@ const boot = async () => {
       Layer.provideMerge(NodeHttpServer.layer(createServer, { port: 0 })),
       Layer.provideMerge(Layer.succeed(TrustProxy)(true)),
       Layer.provideMerge(Layer.sync(ThrottleStore)(() => makeThrottleStore())),
-      Layer.provide(appServices),
+      Layer.provide(AppLayer.pipe(Layer.provide(DbPool.layerBorrowed))),
     ),
   );
   const server = Context.get(await runtime.context(), HttpServer.HttpServer);

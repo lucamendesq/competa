@@ -1308,35 +1308,42 @@ const make = Effect.gen(function* () {
    *  e vazava. Com `min: 5` no pool, a conexão nunca era reciclada, então a lease ficava presa
    *  e toda varredura seguinte era pulada em silêncio. Aqui tomar é um `INSERT … ON CONFLICT
    *  … WHERE expires_at < now()`, atômico num statement só e sem depender de sessão. */
-  const withLease = <T>(name: string, task: () => Promise<T>) =>
-    db.use(async (d): Promise<T | null> => {
+  const withLease = <A, E, R>(name: string, task: Effect.Effect<A, E, R>) =>
+    Effect.gen(function* () {
       const holder = randomUUID();
       /* Todo o tempo vem do BANCO (`now()`), nunca do relógio do Node: gravar `expires_at`
        * com um relógio e compará-lo com o outro deixa a lease presa sempre que as máquinas
        * divergem alguns milissegundos. */
       const expiry = sql`now() + make_interval(secs => ${LEASE_TTL_SECONDS})`;
-      const taken = await d
-        .insert(cronLease)
-        .values({ name, holder, expiresAt: expiry })
-        .onConflictDoUpdate({
-          target: cronLease.name,
-          set: { holder, expiresAt: expiry },
-          setWhere: sql`${cronLease.expiresAt} < now()`,
-        })
-        .returning({ name: cronLease.name });
+      const taken = yield* db.use((d) =>
+        d
+          .insert(cronLease)
+          .values({ name, holder, expiresAt: expiry })
+          .onConflictDoUpdate({
+            target: cronLease.name,
+            set: { holder, expiresAt: expiry },
+            setWhere: sql`${cronLease.expiresAt} < now()`,
+          })
+          .returning({ name: cronLease.name }),
+      );
 
       if (taken.length === 0) return null;
 
-      try {
-        return await task();
-      } finally {
-        /* `holder` no WHERE: se a varredura estourar o TTL e outra instância tomar a lease, a
-         * nossa liberação não pode derrubar a dela. */
-        await d
-          .update(cronLease)
-          .set({ expiresAt: sql`now() - interval '1 second'` })
-          .where(and(eq(cronLease.name, name), eq(cronLease.holder, holder)));
-      }
+      /* `ensuring` libera também na interrupção (o shutdown no meio da varredura). Se a
+       * liberação falhar, o TTL devolve a lease. `holder` no WHERE: se a varredura estourar o
+       * TTL e outra instância tomar a lease, a nossa liberação não pode derrubar a dela. */
+      return yield* task.pipe(
+        Effect.ensuring(
+          db
+            .use((d) =>
+              d
+                .update(cronLease)
+                .set({ expiresAt: sql`now() - interval '1 second'` })
+                .where(and(eq(cronLease.name, name), eq(cronLease.holder, holder))),
+            )
+            .pipe(Effect.ignore),
+        ),
+      );
     });
 
   return {

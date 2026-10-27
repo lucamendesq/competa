@@ -1,3 +1,4 @@
+import { Effect } from 'effect';
 import env from '../../../config/env.js';
 import { Logger } from '../../../lib/logger.js';
 import { LogEmail } from './log-email.provider.js';
@@ -6,6 +7,9 @@ import { MockWhatsappProvider } from './mock-whatsapp.provider.js';
 import type { PushProvider } from './push.provider.js';
 import { ResendEmail } from './resend-email.provider.js';
 import { ConsolePushProvider, WebPushProvider } from './web-push.provider.js';
+import { WhatsappProvider, type WhatsappIntegrations } from './whatsapp.provider.js';
+import { WhatsappCryptoService } from '../../whatsapp/whatsapp-crypto.service.js';
+import type { WhatsappRepo } from '../../whatsapp/whatsapp.repo.js';
 
 const useResend = env.NODE_ENV === 'production';
 const useWebPush = env.NODE_ENV === 'production';
@@ -23,19 +27,15 @@ export const pushProvider: PushProvider = useWebPush
   ? new WebPushProvider()
   : new ConsolePushProvider();
 
-let whatsapp: MessageProvider | undefined = useResend ? undefined : new MockWhatsappProvider();
+/** As consultas de integração de um `WhatsappRepo` já montado, na forma que o provider usa. */
+export const integrationsFrom = (repo: WhatsappRepo['Service']): WhatsappIntegrations => ({
+  byTenant: (tenantId) => Effect.runPromise(repo.getIntegrationByTenantId(tenantId)),
+  byRequest: (requestId) => Effect.runPromise(repo.getIntegrationByRequestId(requestId)),
+});
 
-/* `import()` e não `import`: o `WhatsappProvider` de produção depende do `runtime.ts`, que
- * depende do `message.repo.ts`, que depende deste arquivo — estático, o ciclo quebra
- * conforme quem carregue primeiro. Só o ramo de produção paga. */
-export const whatsappProviderOf = async (): Promise<MessageProvider> => {
-  if (whatsapp) return whatsapp;
-
-  const [{ WhatsappProvider }, { WhatsappCryptoService }] = await Promise.all([
-    import('./whatsapp.provider.js'),
-    import('../../whatsapp/whatsapp-crypto.service.js'),
-  ]);
-
-  whatsapp = new WhatsappProvider(new WhatsappCryptoService());
-  return whatsapp;
-};
+/** Fora de produção o WhatsApp é o mock; em produção, o provider real sobre as integrações
+ *  que quem chama sabe consultar. */
+export const makeWhatsappProvider = (integrations: WhatsappIntegrations): MessageProvider =>
+  useResend
+    ? new WhatsappProvider(new WhatsappCryptoService(), integrations)
+    : new MockWhatsappProvider();

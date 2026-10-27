@@ -1,5 +1,4 @@
 import { Logger } from '../../lib/logger.js';
-import type { EventEmitter2 } from '../../lib/event-emitter.js';
 import { RecoverAccessBody, RecoverAccessConfirmBody } from '@competa/contracts';
 import { Effect, Layer } from 'effect';
 import env from '../../config/env.js';
@@ -12,6 +11,7 @@ import {
   type AccessRecoveryRequestedEvent,
   type UploadLinkResentEvent,
 } from '../../lib/events.js';
+import { Events } from '../../lib/events.service.js';
 import {
   createToken,
   recoveryFingerprint,
@@ -52,8 +52,9 @@ type OpenRequests = Effect.Success<ReturnType<ContactsRepo['Service']['openReque
 const openRequestsForEmail = (email: string) =>
   ContactsRepo.use((repo) => repo.openRequestsForEmail(email));
 
-const requestConfirmation = (events: EventEmitter2, email: string) =>
+const requestConfirmation = (email: string) =>
   Effect.gen(function* () {
+    const events = yield* Events;
     const openRequests = yield* openRequestsForEmail(email);
     if (!openRequests.length) return;
 
@@ -71,14 +72,15 @@ const requestConfirmation = (events: EventEmitter2, email: string) =>
       confirmUrl: `${env.WEB_URL}/perdi-meu-link/confirmar?token=${token}`,
     };
 
-    yield* Effect.promise(() => events.emitAsync(EVENTS.AccessRecoveryRequested, requested));
+    yield* events.emitAsync(EVENTS.AccessRecoveryRequested, requested);
   });
 
 /** Rotação sem janela de tempo, de propósito: a posse do email já está provada pelo token
  *  HMAC do passo 2, que é de uso único (a rotação troca os hashes e o fingerprint deixa de
  *  bater). O freio contra pedir em loop é o passo 1, anônimo e com limite por IP. */
-const rotateAndSend = (events: EventEmitter2, openRequests: OpenRequests) =>
+const rotateAndSend = (openRequests: OpenRequests) =>
   Effect.gen(function* () {
+    const events = yield* Events;
     for (const row of openRequests) {
       /* O token vai para o email ANTES de virar o token oficial: `applyUploadToken` só
        * grava depois que a entrega confirma. Rotacionar primeiro deixaria o Responsável
@@ -95,7 +97,7 @@ const rotateAndSend = (events: EventEmitter2, openRequests: OpenRequests) =>
         uploadUrl: `${env.WEB_URL}/envio/${token}`,
       };
 
-      yield* Effect.promise(() => events.emitAsync(EVENTS.UploadLinkResent, resent));
+      yield* events.emitAsync(EVENTS.UploadLinkResent, resent);
       const applied = yield* RequestsRepo.use((repo) =>
         repo.applyUploadToken(row.requestId, tokenHash, row.contactId, { revokePrevious: true }),
       );
@@ -106,56 +108,53 @@ const rotateAndSend = (events: EventEmitter2, openRequests: OpenRequests) =>
     }
   });
 
-const recover = (events: EventEmitter2) =>
-  route(
+const recover = route(
+  'POST',
+  '/access/recover',
+  handler(
     'POST',
-    '/access/recover',
-    handler(
-      'POST',
-      Effect.gen(function* () {
-        const input = yield* body(RecoverAccessBody);
-        const startedAt = Date.now();
+    Effect.gen(function* () {
+      const input = yield* body(RecoverAccessBody);
+      const startedAt = Date.now();
 
-        yield* requestConfirmation(events, input.email.toLowerCase());
-        yield* pauseUntil(startedAt + MINIMUM_DURATION_MS);
+      yield* requestConfirmation(input.email.toLowerCase());
+      yield* pauseUntil(startedAt + MINIMUM_DURATION_MS);
 
-        return SAME_ANSWER;
-      }),
-    ),
-    { auth: publicRoute, throttle: RECOVERY_THROTTLE },
-  );
+      return SAME_ANSWER;
+    }),
+  ),
+  { auth: publicRoute, throttle: RECOVERY_THROTTLE },
+);
 
 /** Passo 2: o token prova posse do email — aí sim rotaciona. Resposta igualmente cega:
  *  token inválido/expirado responde o mesmo que sucesso. */
-const confirm = (events: EventEmitter2) =>
-  route(
+const confirm = route(
+  'POST',
+  '/access/recover/confirm',
+  handler(
     'POST',
-    '/access/recover/confirm',
-    handler(
-      'POST',
-      Effect.gen(function* () {
-        const input = yield* body(RecoverAccessConfirmBody);
-        const startedAt = Date.now();
+    Effect.gen(function* () {
+      const input = yield* body(RecoverAccessConfirmBody);
+      const startedAt = Date.now();
 
-        const confirmed = verifyRecoveryToken(input.token);
-        if (confirmed) {
-          const openRequests = yield* openRequestsForEmail(confirmed.email);
+      const confirmed = verifyRecoveryToken(input.token);
+      if (confirmed) {
+        const openRequests = yield* openRequestsForEmail(confirmed.email);
 
-          /* Uso único sem tabela: o token foi assinado sobre os Links vigentes naquele
-           * momento. A rotação troca esses hashes, então o mesmo token não confirma duas
-           * vezes. */
-          if (recoveryFingerprint(openRequests) === confirmed.fingerprint) {
-            yield* rotateAndSend(events, openRequests);
-          }
+        /* Uso único sem tabela: o token foi assinado sobre os Links vigentes naquele
+         * momento. A rotação troca esses hashes, então o mesmo token não confirma duas
+         * vezes. */
+        if (recoveryFingerprint(openRequests) === confirmed.fingerprint) {
+          yield* rotateAndSend(openRequests);
         }
+      }
 
-        yield* pauseUntil(startedAt + MINIMUM_DURATION_MS);
+      yield* pauseUntil(startedAt + MINIMUM_DURATION_MS);
 
-        return SAME_ANSWER;
-      }),
-    ),
-    { auth: publicRoute, throttle: RECOVERY_THROTTLE },
-  );
+      return SAME_ANSWER;
+    }),
+  ),
+  { auth: publicRoute, throttle: RECOVERY_THROTTLE },
+);
 
-export const accessRecoveryRoutes = (events: EventEmitter2) =>
-  Layer.mergeAll(recover(events), confirm(events));
+export const accessRecoveryRoutes = Layer.mergeAll(recover, confirm);

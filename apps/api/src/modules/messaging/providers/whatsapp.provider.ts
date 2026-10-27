@@ -1,9 +1,18 @@
 import { Logger } from '../../../lib/logger.js';
-import { run } from '../../../effect/runtime.js';
-import { WhatsappCryptoService } from '../../whatsapp/whatsapp-crypto.service.js';
-import { WhatsappRepo } from '../../whatsapp/whatsapp.repo.js';
+import type { WhatsappCryptoService } from '../../whatsapp/whatsapp-crypto.service.js';
 import { MessageProvider, type MessageToSend } from './message.provider.js';
 import env from '../../../config/env.js';
+
+type Integration =
+  | { readonly accessToken: string; readonly phoneNumberId: string; readonly status: string }
+  | undefined;
+
+/** De onde sai a integração da Contabilidade. Vem de quem monta o provider (`MessagesRepo`),
+ *  para que ele não precise alcançar repositório nenhum por conta própria. */
+export type WhatsappIntegrations = {
+  byTenant(tenantId: string): Promise<Integration>;
+  byRequest(requestId: string): Promise<Integration>;
+};
 
 interface MetaSendResponse {
   messages?: Array<{ id?: string }>;
@@ -14,9 +23,10 @@ export class WhatsappProvider extends MessageProvider {
   override readonly channel = 'whatsapp';
   private readonly logger = new Logger(WhatsappProvider.name);
 
-  /* Este arquivo pode importar o runtime porque `providers.ts` só o carrega por
-   * `await import()`: é o que mantém `runtime → message.repo → providers` sem volta. */
-  constructor(private readonly crypto: WhatsappCryptoService) {
+  constructor(
+    private readonly crypto: WhatsappCryptoService,
+    private readonly integrations: WhatsappIntegrations,
+  ) {
     super();
   }
 
@@ -25,12 +35,10 @@ export class WhatsappProvider extends MessageProvider {
 
     if (message.tenantId) {
       const tenantId = message.tenantId;
-      integration = await run(WhatsappRepo.use((repo) => repo.getIntegrationByTenantId(tenantId)));
+      integration = await this.integrations.byTenant(tenantId);
     } else if (message.requestId) {
       const requestId = message.requestId;
-      integration = await run(
-        WhatsappRepo.use((repo) => repo.getIntegrationByRequestId(requestId)),
-      );
+      integration = await this.integrations.byRequest(requestId);
     } else {
       throw new Error(
         'WhatsappProvider exige requestId ou tenantId para identificar a Contabilidade (tenant).',

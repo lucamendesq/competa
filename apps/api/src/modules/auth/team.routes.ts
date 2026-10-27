@@ -5,7 +5,6 @@ import {
   UpdateFirmBody,
   planAllows,
 } from '@competa/contracts';
-import type { EventEmitter2 } from '../../lib/event-emitter.js';
 import { addDays } from 'date-fns';
 import { Effect, Layer } from 'effect';
 import env from '../../config/env.js';
@@ -15,6 +14,7 @@ import { firmRoute } from '../../http/middleware/auth.js';
 import { body, params, publicRoute, route } from '../../http/platform.js';
 import { NotFound } from '../../lib/app-error.js';
 import { EVENTS, type InviteCreatedEvent } from '../../lib/events.js';
+import { Events } from '../../lib/events.service.js';
 import { createToken } from '../../lib/token.js';
 import { AccountantsRepo } from './accountant.repo.js';
 import {
@@ -39,55 +39,55 @@ const firmOf = (scope: FirmScope) => AccountantsRepo.use((repo) => repo.firm(sco
 /** Convidar é ato do dono: um Contador convidado não amplia o acesso ao tenant por conta
  *  própria. Sem isto, qualquer convidado convida — inclusive quem foi revogado em outro
  *  canal e ainda tem sessão. */
-const createInvite = (events: EventEmitter2) =>
-  route(
+const createInvite = route(
+  'POST',
+  '/invites',
+  handler(
     'POST',
-    '/invites',
-    handler(
-      'POST',
-      Effect.gen(function* () {
-        const { scope, accountantId, session } = yield* FirmContext;
-        const input = yield* body(CreateInviteBody);
+    Effect.gen(function* () {
+      const events = yield* Events;
+      const { scope, accountantId, session } = yield* FirmContext;
+      const input = yield* body(CreateInviteBody);
 
-        if (!(yield* isOwner(scope, session.user.id))) {
-          return yield* Effect.fail(new OnlyOwnerCanInvite());
-        }
+      if (!(yield* isOwner(scope, session.user.id))) {
+        return yield* Effect.fail(new OnlyOwnerCanInvite());
+      }
 
-        const taken = yield* AccountantsRepo.use((repo) => repo.userExistsByEmail(input.email));
-        if (taken) return yield* Effect.fail(new EmailAlreadyRegistered());
+      const taken = yield* AccountantsRepo.use((repo) => repo.userExistsByEmail(input.email));
+      if (taken) return yield* Effect.fail(new EmailAlreadyRegistered());
 
-        const pending = yield* InvitesRepo.use((repo) => repo.pendingForFirm(scope, input.email));
-        if (pending) return yield* Effect.fail(new InviteAlreadyPending());
+      const pending = yield* InvitesRepo.use((repo) => repo.pendingForFirm(scope, input.email));
+      if (pending) return yield* Effect.fail(new InviteAlreadyPending());
 
-        const { token, tokenHash } = createToken();
-        const expiresAt = addDays(new Date(), env.INVITE_TTL_DAYS);
-        const row = yield* InvitesRepo.use((repo) =>
-          repo.createForFirm(scope, {
-            email: input.email,
-            tokenHash,
-            expiresAt,
-            createdBy: accountantId,
-          }),
-        );
-
-        const url = `${env.WEB_URL}/convite/${token}`;
-
-        // messaging entrega o convite (Fase 5). A URL continua na resposta porque o Contador
-        // pode precisar passar o link por outro canal se o email não chegar.
-        const created: InviteCreatedEvent = {
-          email: row.email,
-          firmName: yield* InvitesRepo.use((repo) => repo.firmName(scope)),
-          inviteUrl: url,
+      const { token, tokenHash } = createToken();
+      const expiresAt = addDays(new Date(), env.INVITE_TTL_DAYS);
+      const row = yield* InvitesRepo.use((repo) =>
+        repo.createForFirm(scope, {
+          email: input.email,
+          tokenHash,
           expiresAt,
-        };
+          createdBy: accountantId,
+        }),
+      );
 
-        events.emit(EVENTS.InviteCreated, created);
+      const url = `${env.WEB_URL}/convite/${token}`;
 
-        return { id: row.id, email: row.email, url };
-      }),
-    ),
-    { auth: firmRoute() },
-  );
+      // messaging entrega o convite (Fase 5). A URL continua na resposta porque o Contador
+      // pode precisar passar o link por outro canal se o email não chegar.
+      const created: InviteCreatedEvent = {
+        email: row.email,
+        firmName: yield* InvitesRepo.use((repo) => repo.firmName(scope)),
+        inviteUrl: url,
+        expiresAt,
+      };
+
+      yield* events.emit(EVENTS.InviteCreated, created);
+
+      return { id: row.id, email: row.email, url };
+    }),
+  ),
+  { auth: firmRoute() },
+);
 
 const previewInvite = route(
   'GET',
@@ -247,15 +247,14 @@ const revokeInvite = route(
   { auth: firmRoute() },
 );
 
-export const teamRoutes = (events: EventEmitter2) =>
-  Layer.mergeAll(
-    createInvite(events),
-    previewInvite,
-    listAccountants,
-    removeAccountant,
-    getFirm,
-    deviceStats,
-    updateFirm,
-    listPendingInvites,
-    revokeInvite,
-  );
+export const teamRoutes = Layer.mergeAll(
+  createInvite,
+  previewInvite,
+  listAccountants,
+  removeAccountant,
+  getFirm,
+  deviceStats,
+  updateFirm,
+  listPendingInvites,
+  revokeInvite,
+);

@@ -1,5 +1,4 @@
 import { IdParam, OpenPeriodBody, PaginationQuery } from '@competa/contracts';
-import type { EventEmitter2 } from '../../lib/event-emitter.js';
 import { Effect, Layer } from 'effect';
 import { HttpServerRequest } from 'effect/http';
 import env from '../../config/env.js';
@@ -10,57 +9,58 @@ import { body, params, query, route } from '../../http/platform.js';
 import { zodParse } from '../../lib/zod-pipe.js';
 import { NotFound } from '../../lib/app-error.js';
 import { EVENTS, type RequestCreatedEvent } from '../../lib/events.js';
+import { Events } from '../../lib/events.service.js';
 import { PeriodsRepo } from './period.repo.js';
 
-const open = (events: EventEmitter2) =>
-  route(
+const open = route(
+  'POST',
+  '/periods',
+  handler(
     'POST',
-    '/periods',
-    handler(
-      'POST',
-      Effect.gen(function* () {
-        const { scope } = yield* FirmContext;
-        const input = yield* body(OpenPeriodBody);
+    Effect.gen(function* () {
+      const events = yield* Events;
+      const { scope } = yield* FirmContext;
+      const input = yield* body(OpenPeriodBody);
 
-        const { period, warnings, plans, requestIdByCompany } = yield* PeriodsRepo.use((repo) =>
-          repo.openPeriod(scope, input),
-        );
+      const { period, warnings, plans, requestIdByCompany } = yield* PeriodsRepo.use((repo) =>
+        repo.openPeriod(scope, input),
+      );
 
-        const requests = plans.map((plan) => ({
-          id: requestIdByCompany.get(plan.companyId)!,
+      const requests = plans.map((plan) => ({
+        id: requestIdByCompany.get(plan.companyId)!,
+        companyId: plan.companyId,
+        companyName: plan.companyName,
+        itemCount: plan.items.length,
+        /** único momento em que o token existe em claro; a Fase 5 o entrega por email */
+        uploadUrl: `${env.WEB_URL}/envio/${plan.token}`,
+      }));
+
+      // messaging escuta e entrega o link ao Responsável (Fase 5). Emitido depois da
+      // transação: o email não pode sair por uma abertura que deu rollback.
+      for (const [index, plan] of plans.entries()) {
+        const created: RequestCreatedEvent = {
+          requestId: requests[index].id,
+          periodId: period.id,
+          referenceMonth: period.referenceMonth,
+          periodDueDate: period.dueDate,
           companyId: plan.companyId,
           companyName: plan.companyName,
+          contactId: plan.contactId,
+          contactName: plan.contactName,
+          contactEmail: plan.contactEmail,
+          contactPhone: plan.contactPhone,
+          uploadUrl: requests[index].uploadUrl,
           itemCount: plan.items.length,
-          /** único momento em que o token existe em claro; a Fase 5 o entrega por email */
-          uploadUrl: `${env.WEB_URL}/envio/${plan.token}`,
-        }));
+        };
 
-        // messaging escuta e entrega o link ao Responsável (Fase 5). Emitido depois da
-        // transação: o email não pode sair por uma abertura que deu rollback.
-        for (const [index, plan] of plans.entries()) {
-          const created: RequestCreatedEvent = {
-            requestId: requests[index].id,
-            periodId: period.id,
-            referenceMonth: period.referenceMonth,
-            periodDueDate: period.dueDate,
-            companyId: plan.companyId,
-            companyName: plan.companyName,
-            contactId: plan.contactId,
-            contactName: plan.contactName,
-            contactEmail: plan.contactEmail,
-            contactPhone: plan.contactPhone,
-            uploadUrl: requests[index].uploadUrl,
-            itemCount: plan.items.length,
-          };
+        yield* events.emit(EVENTS.RequestCreated, created);
+      }
 
-          events.emit(EVENTS.RequestCreated, created);
-        }
-
-        return { ...period, warnings, requests };
-      }),
-    ),
-    { auth: firmRoute() },
-  );
+      return { ...period, warnings, requests };
+    }),
+  ),
+  { auth: firmRoute() },
+);
 
 const list = route(
   'GET',
@@ -172,5 +172,4 @@ const close = route(
   { auth: firmRoute() },
 );
 
-export const periodsRoutes = (events: EventEmitter2) =>
-  Layer.mergeAll(open(events), list, get, listRequests, pendingPanel, close);
+export const periodsRoutes = Layer.mergeAll(open, list, get, listRequests, pendingPanel, close);

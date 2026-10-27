@@ -18,18 +18,12 @@ const fakes = () => {
 
   return {
     fired,
-    deadlines: {
-      daily: () => {
-        fired.push('deadline');
-        return Promise.resolve();
-      },
-    },
-    reminders: {
-      scheduled: () => {
-        fired.push('reminders');
-        return Promise.resolve();
-      },
-    },
+    deadlines: Effect.sync(() => {
+      fired.push('deadline');
+    }),
+    reminders: Effect.sync(() => {
+      fired.push('reminders');
+    }),
   };
 };
 
@@ -87,13 +81,11 @@ describe('crons: agendamento em Schedule.cron', () => {
   it('a varredura que falha não derruba o agendamento', async () => {
     let attempts = 0;
     const jobs = {
-      deadlines: {
-        daily: () => {
-          attempts += 1;
-          return Promise.reject(new Error('banco fora'));
-        },
-      },
-      reminders: { scheduled: () => Promise.resolve() },
+      deadlines: Effect.suspend(() => {
+        attempts += 1;
+        return Effect.fail(new Error('banco fora'));
+      }),
+      reminders: Effect.void,
     };
 
     await Effect.runPromise(
@@ -132,6 +124,35 @@ describe('crons: agendamento em Schedule.cron', () => {
 
         yield* runUntil('2026-10-24T12:00:00.000Z');
         expect(jobs.fired, 'fibra interrompida não dispara').toEqual([]);
+      }).pipe(Effect.provide(TestClock.layer())),
+    );
+  });
+
+  it('o fim do scope interrompe a varredura EM CURSO e roda o finalizador dela', async () => {
+    const steps: string[] = [];
+    const jobs = {
+      deadlines: Effect.sync(() => steps.push('começou')).pipe(
+        Effect.andThen(Effect.sleep('1 hour')),
+        Effect.andThen(Effect.sync(() => steps.push('terminou'))),
+        Effect.ensuring(Effect.sync(() => steps.push('lease devolvida'))),
+      ),
+      reminders: Effect.void,
+    };
+
+    await Effect.runPromise(
+      Effect.gen(function* () {
+        yield* TestClock.setTime(MIDNIGHT_SAO_PAULO);
+
+        const scope = yield* Scope.make();
+        yield* Layer.buildWithScope(cronsLayer(jobs), scope);
+        yield* TestClock.adjust(0);
+
+        yield* runUntil('2026-10-24T10:00:00.000Z');
+        expect(steps).toEqual(['começou']);
+
+        yield* Scope.close(scope, Exit.void);
+
+        expect(steps).toEqual(['começou', 'lease devolvida']);
       }).pipe(Effect.provide(TestClock.layer())),
     );
   });

@@ -1,11 +1,10 @@
 import { Logger } from '../../lib/logger.js';
-import type { EventEmitter2 } from '../../lib/event-emitter.js';
 import * as Sentry from '@sentry/node';
-import { Effect } from 'effect';
+import { Context, Effect, Layer } from 'effect';
 import env from '../../config/env.js';
-import { run } from '../../effect/runtime.js';
 import { squashError } from '../../infra/database/error.js';
 import { EVENTS, type ReminderDueEvent } from '../../lib/events.js';
+import { Events } from '../../lib/events.service.js';
 import { createToken } from '../../lib/token.js';
 import type { FirmScope } from '../auth/scope.js';
 import { pickReminders } from '../messaging/reminder-rules.js';
@@ -15,11 +14,12 @@ const REMINDERS_CRON_LEASE = 'reminders-sweep';
 
 const logger = new Logger('RemindersCron');
 
-export const remindersCron = (events: EventEmitter2) => {
+const make = Effect.gen(function* () {
+  const events = yield* Events;
+  const requests = yield* RequestsRepo;
+
   const runSweep = (scope?: FirmScope) =>
     Effect.gen(function* () {
-      const requests = yield* RequestsRepo;
-
       const candidates = yield* requests.reminderCandidates(scope);
       const settingsByFirm = yield* requests.reminderSettingsByFirm([
         ...new Set(candidates.map((row) => row.accountingFirmId)),
@@ -46,7 +46,7 @@ export const remindersCron = (events: EventEmitter2) => {
             pendingItems: candidate.pendingItems,
           };
 
-          events.emit(EVENTS.ReminderDue, event);
+          yield* events.emit(EVENTS.ReminderDue, event);
           sent += 1;
         }).pipe(
           Effect.catchCause((cause) =>
@@ -67,20 +67,20 @@ export const remindersCron = (events: EventEmitter2) => {
       return { scanned: candidates.length, sent };
     });
 
-  /** Agendada em `crons.ts` (`0 9 * * *`, America/Sao_Paulo). `run()` é a versão sem lock,
+  /** Agendada em `crons.ts` (`0 9 * * *`, America/Sao_Paulo). `run` é a versão sem lock,
    *  usada por `POST /messages/reminders/run` com escopo de firma. */
   const scheduled = () =>
     Effect.gen(function* () {
-      const requests = yield* RequestsRepo;
-
-      const ran = yield* requests.withLease(REMINDERS_CRON_LEASE, () =>
-        run(Effect.as(runSweep(), true)),
-      );
+      const ran = yield* requests.withLease(REMINDERS_CRON_LEASE, Effect.as(runSweep(), true));
 
       if (!ran) logger.warn('lembretes: varredura pulada — lock tomado por outra instância');
     });
 
   return { scheduled, run: runSweep };
-};
+});
 
-export type RemindersCron = ReturnType<typeof remindersCron>;
+export class Reminders extends Context.Service<Reminders, Effect.Success<typeof make>>()(
+  'competa/api/requests/Reminders',
+) {
+  static readonly layer = Layer.effect(Reminders, make);
+}
