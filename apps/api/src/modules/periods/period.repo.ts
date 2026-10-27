@@ -313,8 +313,7 @@ const make = Effect.gen(function* () {
         .orderBy(asc(company.name), asc(requestItem.dueDate), asc(requestItem.name));
 
       /* O painel "quem faltou" existe para o Contador saber a quem cobrar — e email que
-       * nunca chegou é exatamente o caso em que cobrar de novo. Antes o controller devolvia
-       * `channelFailures: []` fixo e a falha era invisível aqui. */
+       * nunca chegou é exatamente o caso em que cobrar de novo. */
       const failures = await d
         .select({
           requestId: message.requestId,

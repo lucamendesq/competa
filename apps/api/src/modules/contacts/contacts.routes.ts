@@ -11,11 +11,8 @@ import {
 import { Effect, Layer } from 'effect';
 import { HttpServerRequest, HttpServerResponse } from 'effect/http';
 import * as z from 'zod';
-import env from '../../config/env.js';
 import { BetterAuthAdapter } from '../../infra/auth/better-auth.adapter.js';
-import { LocalStorage } from '../../infra/storage/local.storage.js';
-import { R2Storage } from '../../infra/storage/r2.storage.js';
-import type { StorageProvider } from '../../infra/storage/storage.provider.js';
+import { storage } from '../../infra/storage/storage.js';
 import { ContactContext, UploadContext } from '../../http/context.js';
 import { handler, paginated } from '../../http/envelope.js';
 import { contactRoute, contactUploadRoute } from '../../http/middleware/auth.js';
@@ -30,11 +27,6 @@ import { effectiveDueDate } from '../requests/review-rules.js';
 import { ContactsRepo } from './contact.repo.js';
 
 const auth = new BetterAuthAdapter();
-
-/* Mesma escolha do `StorageModule`, como em `document.repo.ts`: fora da DI do Nest cada
- * consumidor monta o provider. O seam único de `Storage` é a sub-fase F6. */
-const storage: StorageProvider =
-  env.NODE_ENV === 'production' ? new R2Storage() : new LocalStorage();
 
 const PeriodDetailQuery = z.object({ companyId: z.uuid().optional() });
 
@@ -122,7 +114,7 @@ const periodDetail = route(
   { auth: contactRoute },
 );
 
-/* `StreamableFile` do Nest: `Content-Type` e `Content-Disposition` saem como vieram, sem
+/* `Content-Type` e `Content-Disposition` saem como vieram, sem
  * `Content-Length` (o corpo é um stream). A allowlist de `servedContentType` é a primeira
  * barreira de XSS sobre conteúdo de terceiros — o que não está nela vira octet-stream. */
 const documentContent = route(

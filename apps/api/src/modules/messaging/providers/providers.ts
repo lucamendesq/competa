@@ -18,9 +18,8 @@ const logger = new Logger('MessageProviders');
 logger.log(useResend ? 'ResendEmail' : 'LogEmail (console)');
 logger.log(useWebPush ? 'WebPushProvider' : 'ConsolePushProvider (console)');
 
-/** Instância única de cada canal no processo — o seam que o `MessagingModule` era. A
- *  escolha por `NODE_ENV` aparecia em dois lugares (o módulo Nest e o `make` do
- *  `MessagesRepo`), e em produção abria DOIS clientes Resend. */
+/** Instância única de cada canal no processo: duas abririam DOIS clientes Resend em
+ *  produção. */
 export const emailProvider: MessageProvider = useResend ? new ResendEmail() : new LogEmail();
 
 export const pushProvider: PushProvider = useWebPush

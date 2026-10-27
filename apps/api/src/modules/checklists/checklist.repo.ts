@@ -323,7 +323,7 @@ const make = Effect.gen(function* () {
     return yield* db.use((d) => copyItemsOn(d, fromTemplateId, toTemplateId));
   });
 
-  /** Só o modelo da própria Contabilidade (o controller garante com `requireOwned`): o do
+  /** Só o modelo da própria Contabilidade (a rota garante com `requireOwned`): o do
    *  produto é compartilhado por todos os tenants. */
   const renameTemplate = Effect.fn('ChecklistsRepo.renameTemplate')(function* (
     scope: FirmScope,
@@ -394,7 +394,7 @@ const make = Effect.gen(function* () {
         .insert(checklistTemplateItem)
         .values({ ...body, checklistTemplateId: templateId })
         // unique(checklist_template_id, document_type_id): repetir o Tipo de Documento é
-        // conflito de negócio (409), não erro de servidor — quem decide é o controller.
+        // conflito de negócio (409), não erro de servidor — quem decide é a rota.
         .onConflictDoNothing()
         .returning();
 

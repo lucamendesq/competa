@@ -14,8 +14,6 @@ import { LogBilling } from './providers/log-billing.provider.js';
 import { squashError } from '../../infra/database/error.js';
 import { SubscriptionsRepo } from './subscription.repo.js';
 
-/* Mesma escolha do `BillingModule`. Ambos os providers são sem estado (só `fetch` e log),
- * então a instância do shell Effect conviver com a do Nest não abre recurso nenhum. */
 const billing = env.NODE_ENV === 'production' ? new AsaasBilling() : new LogBilling();
 
 const logger = new Logger('BillingController');

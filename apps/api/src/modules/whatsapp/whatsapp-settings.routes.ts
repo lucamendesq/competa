@@ -30,7 +30,7 @@ const MOCK_INTEGRATION = {
 const integrationOf = (scope: FirmScope) =>
   WhatsappRepo.use((repo) => repo.getIntegrationByFirm(scope));
 
-/** `requireOwner` do controller: conectar e desconectar são atos do dono. */
+/** Conectar e desconectar são atos do dono. */
 const requireOwner = (scope: FirmScope, authUserId: string) =>
   Effect.gen(function* () {
     const owner = yield* AccountantsRepo.use((repo) => repo.isOwner(scope, authUserId));
@@ -65,8 +65,8 @@ const onboard = route(
     'POST',
     Effect.gen(function* () {
       const { scope, session } = yield* FirmContext;
-      /* O `code` é validado (422 quando falta) e descartado. O `@Body` do Nest corria antes
-       * do corpo do método, então corpo inválido vence o 403 de não-dono. */
+      /* O `code` é validado (422 quando falta) e descartado. A validação vem antes do
+       * `requireOwner`: corpo inválido vence o 403 de não-dono. */
       yield* body(whatsappOnboardSchema);
 
       yield* requireOwner(scope, session.user.id);

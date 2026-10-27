@@ -57,7 +57,7 @@ const resend = route(
       if (!outcome) return yield* Effect.fail(new NotFound('Mensagem não encontrada.'));
 
       /* Bug congelado #15: as quatro causas de "não enviou" existem no tipo mas o fio só
-       * carrega o booleano. Distingui-las na resposta é follow-up, não esta migração. */
+       * carrega o booleano. Distingui-las na resposta é follow-up. */
       return { sent: outcome._tag === 'Delivered' };
     }),
   ),

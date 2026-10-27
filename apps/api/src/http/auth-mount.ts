@@ -9,18 +9,15 @@ import { runGlobalStack } from './platform.js';
 const logger = new Logger('AuthMount');
 
 /**
- * `/api/auth/*` servido direto pelo better-auth, como o `httpAdapter.use(authHandler)` do
- * `@thallesp/nestjs-better-auth` fazia: entra depois de helmet/origin-check/CORS e antes
- * de qualquer coisa do app.
+ * `/api/auth/*` servido direto pelo better-auth: entra depois de helmet/origin-check/CORS e
+ * antes de qualquer coisa do app.
  *
- * O que NÃO se aplica aqui, de propósito (era assim no Nest):
- * - guards globais — o mount era middleware Express, nunca um handler do roteador Nest;
- * - throttle — mesma razão; o `ThrottlerGuard` é um APP_GUARD;
+ * O que NÃO se aplica aqui, de propósito:
+ * - perfil de autorização e throttle — a rota não passa por `route()`;
  * - envelope, ETag e mapa de erros — o better-auth serializa os próprios erros, e
  *   `auth.e2e.spec.ts` congela o corpo cru (`{ message: … }`) de um 404 dele;
- * - log de requisição — o mount vem ANTES do middleware do nestjs-pino na pilha Express;
- * - limite de corpo — o `SkipBodyParsingMiddleware` pulava `/api/auth/*`, e `toWeb` entrega
- *   o corpo como stream, que o `MaxBodySize` não mede.
+ * - log de requisição — `/api/auth/*` não gera linha de log de requisição;
+ * - limite de corpo — `toWeb` entrega o corpo como stream, que o `MaxBodySize` não mede.
  *
  * O método `*` registra também o path base `/api/auth` (`HttpRouter.js:77-82`).
  */

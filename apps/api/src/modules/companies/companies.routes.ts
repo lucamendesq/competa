@@ -123,8 +123,6 @@ const list = route(
   { auth: firmRoute() },
 );
 
-/** Antes de `GET /companies/:id`: no Nest a ordem de declaração era a ordem de match, e o
- *  roteador novo prefere o segmento estático ao parâmetro. Os dois concordam aqui. */
 const usage = route(
   'GET',
   '/companies/usage',

@@ -45,9 +45,9 @@ const cnpjTakenOrDie = (violation: UniqueViolation) =>
 const make = Effect.gen(function* () {
   const db = yield* Db;
 
-  /** Teto de Empresas do plano. Fica aqui, e não no controller, porque os dois caminhos de
+  /** Teto de Empresas do plano. Fica aqui, e não na rota, porque os dois caminhos de
    *  entrada (cadastro avulso e importação por planilha) passam por `create`/`confirmImport` —
-   *  guardar só no controller deixaria a planilha furar o plano. Nunca bloqueia competência
+   *  guardar só na rota deixaria a planilha furar o plano. Nunca bloqueia competência
    *  já aberta: o limite é só sobre ocupar vaga de Empresa ativa.
    *
    *  Conta só Empresa **ativa** (a métrica de cobrança da D17/D18): Empresa desativada

@@ -7,14 +7,6 @@ type RequestWithScope = IncomingMessage & {
   accountantId?: string;
 };
 
-const BOOT_CONTEXTS = new Set([
-  'InstanceLoader',
-  'RoutesResolver',
-  'RouterExplorer',
-  'NestFactory',
-  'NestApplication',
-]);
-
 export const pinoOptions: { pinoHttp: Options } = {
   pinoHttp: {
     level: env.LOG_LEVEL,
@@ -38,16 +30,6 @@ export const pinoOptions: { pinoHttp: Options } = {
       `${req.method} ${req.url} ${res.statusCode}`,
     genReqId: (req) => req.headers['x-request-id'] ?? crypto.randomUUID(),
     ...(env.NODE_ENV !== 'production' && {
-      /* O Nest loga uma linha por módulo e por rota mapeada — ~300 linhas a cada restart do
-       * watch. Com logger customizado ele não filtra nível nenhum antes de delegar, então o
-       * hook do pino é o único ponto onde dá para cortar. */
-      hooks: {
-        logMethod(args: unknown[], method: (...a: unknown[]) => void, level: number) {
-          const first = args[0] as { context?: string } | undefined;
-          if (level <= 30 && first?.context && BOOT_CONTEXTS.has(first.context)) return;
-          return method.apply(this, args);
-        },
-      },
       transport: {
         target: 'pino-pretty',
         options: {

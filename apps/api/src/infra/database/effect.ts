@@ -4,7 +4,7 @@ import { db as drizzleDb, pool } from './index.js';
 
 type Drizzle = typeof drizzleDb;
 
-/** Executor comum a `db.use` e às transações do drizzle (mesma forma do antigo `Database`). */
+/** Executor comum a `db.use` e às transações do drizzle. */
 export type Executor = Omit<Drizzle, '$client'>;
 
 /** A transação em que o trabalho corre, quando há uma. Como `Context.Reference` tem default,

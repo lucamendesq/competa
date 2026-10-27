@@ -17,8 +17,6 @@ export const FORBIDDEN_ORIGIN = {
   error: { code: 'FORBIDDEN_ORIGIN', message: 'Origem não permitida.' },
 };
 
-/* Gêmeo node do `src/lib/origin-check.ts` (que depende de `res.json()` do Express). Mesma
- * decisão, mesmo corpo — só a escrita muda. */
 export const originCheck =
   (allowedOrigins: readonly string[]) =>
   (request: IncomingMessage, response: ServerResponse, next: () => void) => {
