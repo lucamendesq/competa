@@ -61,7 +61,7 @@ const signUp = route(
 
       yield* AccountantsRepo.use((accountants) =>
         accountants.acceptInvite({ authUserId: userId, accountingFirmId, inviteId: found.id }).pipe(
-          Effect.tapCause((cause) =>
+          Effect.onError((cause) =>
             accountants.deleteAuthUser(userId).pipe(
               Effect.catchCause((compensation) =>
                 Effect.sync(() => {

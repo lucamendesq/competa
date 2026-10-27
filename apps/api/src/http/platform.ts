@@ -202,11 +202,17 @@ export const route = <E extends Failure, R, Provides = never>(
     /** Balde compartilhado entre caminhos que no Nest eram O MESMO handler (a chave de lá é
      *  `Classe-handler`, não o path): `POST /auth/register` e `POST /public-signup`. */
     readonly throttleKey?: string;
+    /** O servidor interrompe a fibra quando o cliente desconecta. Escrita roda até o fim por
+     *  padrão: interrompida no meio, desfaria o banco mas não o email enviado, o usuário
+     *  criado no better-auth ou o evento já emitido. */
+    readonly uninterruptible?: boolean;
   },
 ) => {
   const profile = options?.auth ?? (publicRoute as unknown as RouteProfile<Provides>);
 
-  return HttpRouter.add(method, path, handler).pipe(
+  return HttpRouter.add(method, path, handler, {
+    uninterruptible: options?.uninterruptible ?? method !== 'GET',
+  }).pipe(
     Layer.provide(
       platform(
         options?.throttleKey ?? `${method} ${path}`,

@@ -45,7 +45,7 @@ const register = Effect.gen(function* () {
 
   yield* AccountantsRepo.use((accountants) =>
     accountants.provisionFirm({ authUserId: userId, firmName: input.firmName }).pipe(
-      Effect.tapCause((cause) =>
+      Effect.onError((cause) =>
         accountants.deleteAuthUser(userId).pipe(
           Effect.catchCause((compensation) =>
             Effect.sync(() => {
