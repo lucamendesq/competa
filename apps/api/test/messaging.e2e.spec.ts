@@ -51,7 +51,6 @@ const brazilDayPlus = (days: number) => {
 
 const daysAgo = (days: number) => new Date(Date.now() - days * 86_400_000);
 const hoursAgo = (hours: number) => new Date(Date.now() - hours * 3_600_000);
-const sleep = (ms: number) => new Promise((resolve) => setTimeout(resolve, ms));
 
 let pushSeq = 0;
 const pushBody = () => ({
@@ -130,15 +129,11 @@ const messageRowsOf = (requestId: string, purpose?: string) =>
     .orderBy(message.createdAt, message.id);
 
 /* Listeners de evento são fire-and-forget: a resposta HTTP volta antes do insert — e o
- * insert nasce `queued` antes do update para `sent`/`failed`, então esperar só a contagem
- * perde essa segunda corrida. */
+ * insert nasce `queued` antes do update para `sent`/`failed`. `drainEvents` espera as
+ * fibras dos listeners terminarem, então as duas escritas já aconteceram. */
 async function waitForMessageRows(requestId: string, count: number, purpose?: string) {
-  let rows: Awaited<ReturnType<typeof messageRowsOf>> = [];
-  const settled = () => rows.length >= count && rows.every((row) => row.status !== 'queued');
-  for (let attempt = 0; attempt < 30 && !settled(); attempt++) {
-    rows = await messageRowsOf(requestId, purpose);
-    if (!settled()) await sleep(100);
-  }
+  await app.drainEvents();
+  const rows = await messageRowsOf(requestId, purpose);
   expect(rows.length, `esperava ${count} message(s) ${purpose ?? ''}`).toBe(count);
   expect(
     rows.every((row) => row.status !== 'queued'),
@@ -847,7 +842,6 @@ describe('revisão: ItemReopened, ReviewPublished e RequestCompleted', () => {
     });
 
     const rows = await waitForMessageRows(box.requestId, 1, 'rejection');
-    await sleep(300);
     expect(
       await messageRowsOf(box.requestId, 'rejection'),
       'um email para o lote inteiro',
@@ -930,7 +924,7 @@ describe('DeadlineMissed via POST /deadlines/scan e ContactInvited sem registro'
     expect(res.status, JSON.stringify(res.body)).toBe(201);
     expect(res.body.data).toMatchObject({ invited: 1, skipped: 0 });
 
-    await sleep(400);
+    await app.drainEvents();
     expect(await messageRowsOf(overdueBox.requestId)).toHaveLength(rowsBefore.length);
   });
 });

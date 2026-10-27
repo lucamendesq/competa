@@ -180,14 +180,11 @@ describe('POST /periods — fan-out', () => {
     const requestIds = opened.requests.map((r) => r.id);
 
     /* O listener é fire-and-forget: a resposta volta antes do insert do message. */
-    let rows: Array<{ requestId: string | null; purpose: string }> = [];
-    for (let attempt = 0; attempt < 20 && rows.length < 2; attempt++) {
-      rows = await db
-        .select({ requestId: message.requestId, purpose: message.purpose })
-        .from(message)
-        .where(inArray(message.requestId, requestIds));
-      if (rows.length < 2) await new Promise((resolve) => setTimeout(resolve, 100));
-    }
+    await app.drainEvents();
+    const rows = await db
+      .select({ requestId: message.requestId, purpose: message.purpose })
+      .from(message)
+      .where(inArray(message.requestId, requestIds));
 
     expect(rows).toHaveLength(2);
     expect(rows.every((row) => row.purpose === 'link_delivery')).toBe(true);

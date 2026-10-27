@@ -886,22 +886,26 @@ describe('Contabilidade (GET/PATCH /accounting-firm, device-stats)', () => {
       .set({ planName: 'essencial' })
       .where(eq(subscription.accountingFirmId, firmId));
 
-    const gated = await firm.api.patch('/accounting-firm', { reminderMax: 1 });
-    expect(gated.status).toBe(402);
-    expect(gated.body.error).toEqual({
-      code: 'PLAN_CAPABILITY_REQUIRED',
-      message: 'Este recurso está disponível a partir do plano Profissional.',
-      details: { capability: 'reminderTuning', requiredPlan: 'profissional' },
-    });
+    /* A firma é compartilhada pelo `describe`: assert que falhe aqui não pode deixá-la no
+     * Essencial e transformar os testes seguintes em 402 sem motivo aparente. */
+    try {
+      const gated = await firm.api.patch('/accounting-firm', { reminderMax: 1 });
+      expect(gated.status).toBe(402);
+      expect(gated.body.error).toEqual({
+        code: 'PLAN_CAPABILITY_REQUIRED',
+        message: 'Este recurso está disponível a partir do plano Profissional.',
+        details: { capability: 'reminderTuning', requiredPlan: 'profissional' },
+      });
 
-    const allowed = await firm.api.patch('/accounting-firm', { name: 'Essencial Renomeada' });
-    expect(allowed.status).toBe(200);
-    expect(allowed.body.data.name).toBe('Essencial Renomeada');
-
-    await db
-      .update(subscription)
-      .set({ planName: 'trial' })
-      .where(eq(subscription.accountingFirmId, firmId));
+      const allowed = await firm.api.patch('/accounting-firm', { name: 'Essencial Renomeada' });
+      expect(allowed.status).toBe(200);
+      expect(allowed.body.data.name).toBe('Essencial Renomeada');
+    } finally {
+      await db
+        .update(subscription)
+        .set({ planName: 'trial' })
+        .where(eq(subscription.accountingFirmId, firmId));
+    }
   });
 
   it('validação: corpo vazio, logo http e gap fora da faixa → 422', async () => {

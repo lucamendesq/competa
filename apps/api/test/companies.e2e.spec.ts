@@ -622,7 +622,7 @@ describe('POST /companies/access-invites', () => {
   it('convite de acesso não loga em message (email sai sem registro)', async () => {
     /* O listener do ContactInvited usa sendWithoutLog; nenhum outro teste deste arquivo
      * abre competência, então a tabela precisa seguir vazia. */
-    await new Promise((resolve) => setTimeout(resolve, 300));
+    await app.drainEvents();
     const rows = await db.select({ id: message.id }).from(message);
     expect(rows).toHaveLength(0);
   });

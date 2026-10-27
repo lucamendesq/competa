@@ -187,17 +187,12 @@ const itemOf = (detail: any, name: string) => {
 
 /* Listeners de evento são fire-and-forget: a resposta volta antes do insert em `message`,
  * e a linha nasce `queued` antes do update para sent/failed — espera assentar. */
-async function messagesFor(requestId: string, purpose: string, minimum = 1) {
-  let rows: Array<{ purpose: string; recipient: string; status: string }> = [];
-  for (let attempt = 0; attempt < 30; attempt++) {
-    rows = await db
-      .select({ purpose: message.purpose, recipient: message.recipient, status: message.status })
-      .from(message)
-      .where(and(eq(message.requestId, requestId), eq(message.purpose, purpose)));
-    if (rows.length >= minimum && rows.every((row) => row.status !== 'queued')) break;
-    await new Promise((resolve) => setTimeout(resolve, 100));
-  }
-  return rows;
+async function messagesFor(requestId: string, purpose: string) {
+  await app.drainEvents();
+  return db
+    .select({ purpose: message.purpose, recipient: message.recipient, status: message.status })
+    .from(message)
+    .where(and(eq(message.requestId, requestId), eq(message.purpose, purpose)));
 }
 
 const linkHashOf = async (requestId: string) => {
@@ -985,9 +980,8 @@ describe('revisão em lote — POST /requests/:id/review', () => {
       requestStatus: 'open',
     });
 
-    await new Promise((resolve) => setTimeout(resolve, 300));
-    expect(await messagesFor(other.requestId, 'rejection', 0)).toHaveLength(0);
-    expect(await messagesFor(other.requestId, 'completion', 0)).toHaveLength(0);
+    expect(await messagesFor(other.requestId, 'rejection')).toHaveLength(0);
+    expect(await messagesFor(other.requestId, 'completion')).toHaveLength(0);
   });
 });
 
@@ -1660,7 +1654,7 @@ describe('prazos estourados — POST /deadlines/scan e o cron diário', () => {
       hashBefore,
     );
 
-    const notices = await messagesFor(box.requestId, 'deadline_missed', 2);
+    const notices = await messagesFor(box.requestId, 'deadline_missed');
     expect(notices.map((row) => row.recipient).sort()).toEqual(
       [box.contactEmail, scoped.firm.email].sort(),
     );
@@ -1672,9 +1666,7 @@ describe('prazos estourados — POST /deadlines/scan e o cron diário', () => {
     expect(res.status).toBe(201);
     expect(res.body.data).toEqual({ overdue: 1, alreadyNotified: 1, notified: [] });
 
-    expect(await messagesFor(scoped.boxes.Atrasada.requestId, 'deadline_missed', 2)).toHaveLength(
-      2,
-    );
+    expect(await messagesFor(scoped.boxes.Atrasada.requestId, 'deadline_missed')).toHaveLength(2);
   });
 
   it('rejeição reabre o item e o prazo estourado volta a avisar', async () => {
@@ -1703,7 +1695,7 @@ describe('prazos estourados — POST /deadlines/scan e o cron diário', () => {
     expect(res.body.data).toMatchObject({ overdue: 1, alreadyNotified: 0 });
     expect(res.body.data.notified).toHaveLength(1);
 
-    expect(await messagesFor(box.requestId, 'deadline_missed', 4)).toHaveLength(4);
+    expect(await messagesFor(box.requestId, 'deadline_missed')).toHaveLength(4);
   });
 
   it('o cron diário varre todas as firmas e descarta reservas órfãs', async () => {
@@ -1713,7 +1705,7 @@ describe('prazos estourados — POST /deadlines/scan e o cron diário', () => {
 
     expect(await stampOf(cronItemId)).not.toBeNull();
 
-    const notices = await messagesFor(box.requestId, 'deadline_missed', 2);
+    const notices = await messagesFor(box.requestId, 'deadline_missed');
     expect(notices.map((row) => row.recipient).sort()).toEqual(
       [box.contactEmail, swept.firm.email].sort(),
     );
@@ -1728,6 +1720,6 @@ describe('prazos estourados — POST /deadlines/scan e o cron diário', () => {
   it('segundo sweep não duplica avisos', async () => {
     await app.runDeadlineSweep();
 
-    expect(await messagesFor(swept.boxes.Cron.requestId, 'deadline_missed', 2)).toHaveLength(2);
+    expect(await messagesFor(swept.boxes.Cron.requestId, 'deadline_missed')).toHaveLength(2);
   });
 });
