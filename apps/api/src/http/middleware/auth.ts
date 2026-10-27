@@ -8,6 +8,7 @@ import * as z from 'zod';
 import { Context, Effect } from 'effect';
 import { HttpRouter, HttpServerRequest, type HttpServerError } from 'effect/http';
 import { BetterAuthAdapter } from '../../infra/auth/better-auth.adapter.js';
+import type { DbUnavailable } from '../../infra/database/error.js';
 import type { AppContext } from '../../effect/runtime.js';
 import {
   AppError,
@@ -34,7 +35,7 @@ const UUID = z.uuid();
 
 type Resolved<Value> = Effect.Effect<
   Value,
-  AppError | HttpServerError.HttpServerError,
+  AppError | HttpServerError.HttpServerError | DbUnavailable,
   HttpServerRequest.HttpServerRequest | HttpRouter.RouteContext | AppContext
 >;
 

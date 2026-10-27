@@ -29,7 +29,6 @@ import {
 } from '../messaging/reminder-rules.js';
 import { NotFound } from '../../lib/app-error.js';
 import { InvalidTransition } from './errors.js';
-import type { DbError } from '../../infra/database/error.js';
 import {
   acceptItemRefusal,
   reviewExtraRefusal,
@@ -41,11 +40,6 @@ import {
   type RequestStatus,
   type ReviewStatus,
 } from './review-rules.js';
-
-/* Erro de domínio lançado DENTRO da transação chega embrulhado em DbError; sem este remap
- * ele sumiria de um catchTag tipado. O que não for nosso é defeito. */
-const invalidTransitionOrDie = (error: DbError) =>
-  error.cause instanceof InvalidTransition ? Effect.fail(error.cause) : Effect.die(error);
 
 /** Teto de quanto uma varredura pode segurar a lease. Generoso de propósito: só existe para
  *  que uma instância morta no meio do caminho não bloqueie as próximas para sempre. */
@@ -211,10 +205,10 @@ const make = Effect.gen(function* () {
     const refusal = acceptItemRefusal(context);
     if (refusal) return yield* Effect.fail(new InvalidTransition(refusal));
 
-    return yield* db
-      .attemptTransaction(
-        db.attempt(async (tx) => {
-          const accepted = await tx
+    return yield* db.withTransaction(
+      Effect.gen(function* () {
+        const accepted = yield* db.use((tx) =>
+          tx
             .update(document)
             .set({ reviewStatus: 'accepted', reviewedBy, reviewedAt: new Date() })
             .where(
@@ -224,32 +218,34 @@ const make = Effect.gen(function* () {
                 eq(document.uploadStatus, 'uploaded'),
               ),
             )
-            .returning({ id: document.id });
+            .returning({ id: document.id }),
+        );
 
-          const [updated] = await tx
+        const [updated] = yield* db.use((tx) =>
+          tx
             .update(requestItem)
             .set({ status: 'accepted' })
             .where(and(eq(requestItem.id, requestItemId), eq(requestItem.status, 'submitted')))
-            .returning({ id: requestItem.id });
+            .returning({ id: requestItem.id }),
+        );
 
-          if (!updated) throw new InvalidTransition('Este item já foi aceito.');
+        if (!updated) return yield* new InvalidTransition('Este item já foi aceito.');
 
-          const requestStatus = await syncRequestStatusOn(tx, context.requestId);
+        const requestStatus = yield* db.use((tx) => syncRequestStatusOn(tx, context.requestId));
 
-          return {
-            requestId: context.requestId,
-            requestItemId,
-            itemName: context.itemName,
-            acceptedDocuments: accepted.length,
-            requestStatus,
-            completed: requestStatus === 'complete' && context.requestStatus !== 'complete',
-            companyName: context.companyName,
-            contactName: context.contactName,
-            contactEmail: context.contactEmail,
-          };
-        }),
-      )
-      .pipe(Effect.catchTag('DbError', invalidTransitionOrDie));
+        return {
+          requestId: context.requestId,
+          requestItemId,
+          itemName: context.itemName,
+          acceptedDocuments: accepted.length,
+          requestStatus,
+          completed: requestStatus === 'complete' && context.requestStatus !== 'complete',
+          companyName: context.companyName,
+          contactName: context.contactName,
+          contactEmail: context.contactEmail,
+        };
+      }),
+    );
   });
 
   /** Rejeitar é por Documento e reabre o Item (`rejected → pending`). O token do Link é
@@ -324,13 +320,13 @@ const make = Effect.gen(function* () {
 
     const { token, tokenHash } = createToken();
 
-    const requestStatus = yield* db
-      .attemptTransaction(
-        db.attempt(async (tx) => {
-          /* Condicional, não check-then-act: duas revisões concorrentes no mesmo documento
-           * serializam aqui — a segunda encontra 0 linhas e vira 422, em vez de rotacionar o
-           * link de novo por cima de uma decisão já tomada (AUTHZ-5). */
-          const rejected = await tx
+    const requestStatus = yield* db.withTransaction(
+      Effect.gen(function* () {
+        /* Condicional, não check-then-act: duas revisões concorrentes no mesmo documento
+         * serializam aqui — a segunda encontra 0 linhas e vira 422, em vez de rotacionar o
+         * link de novo por cima de uma decisão já tomada (AUTHZ-5). */
+        const rejected = yield* db.use((tx) =>
+          tx
             .update(document)
             .set({
               reviewStatus: 'rejected',
@@ -339,11 +335,16 @@ const make = Effect.gen(function* () {
               reviewedAt: new Date(),
             })
             .where(and(eq(document.id, documentId), eq(document.reviewStatus, 'pending')))
-            .returning({ id: document.id });
+            .returning({ id: document.id }),
+        );
 
-          if (!rejected.length)
-            throw new InvalidTransition('Este documento já foi revisado ou não está pendente.');
+        if (!rejected.length) {
+          return yield* new InvalidTransition(
+            'Este documento já foi revisado ou não está pendente.',
+          );
+        }
 
+        return yield* db.use(async (tx) => {
           // limpa a marca do cron: prazo que estourar de novo neste Item volta a avisar
           await tx
             .update(requestItem)
@@ -353,9 +354,9 @@ const make = Effect.gen(function* () {
           await rotateLinkOnReopenOn(tx, row.uploadLinkId!, tokenHash);
 
           return syncRequestStatusOn(tx, row.requestId);
-        }),
-      )
-      .pipe(Effect.catchTag('DbError', invalidTransitionOrDie));
+        });
+      }),
+    );
 
     return {
       requestId: row.requestId,
@@ -524,10 +525,10 @@ const make = Effect.gen(function* () {
 
     const rotated = reopens ? createToken() : undefined;
 
-    const applied = yield* db
-      .attemptTransaction(
-        db.attempt(async (tx) => {
-          for (const itemId of input.acceptItemIds) {
+    const applied = yield* db.withTransaction(
+      Effect.gen(function* () {
+        for (const itemId of input.acceptItemIds) {
+          const [updated] = yield* db.use(async (tx) => {
             await tx
               .update(document)
               .set({ reviewStatus: 'accepted', reviewedBy, reviewedAt: new Date() })
@@ -539,19 +540,21 @@ const make = Effect.gen(function* () {
                 ),
               );
 
-            const [updated] = await tx
+            return tx
               .update(requestItem)
               .set({ status: 'accepted' })
               .where(and(eq(requestItem.id, itemId), eq(requestItem.status, 'submitted')))
               .returning({ id: requestItem.id });
+          });
 
-            if (!updated) throw new InvalidTransition('Este item já foi aceito.');
-          }
+          if (!updated) return yield* new InvalidTransition('Este item já foi aceito.');
+        }
 
-          for (const row of input.rejectDocuments) {
-            const found = documentById.get(row.documentId)!;
+        for (const row of input.rejectDocuments) {
+          const found = documentById.get(row.documentId)!;
 
-            const rejected = await tx
+          const rejected = yield* db.use((tx) =>
+            tx
               .update(document)
               .set({
                 reviewStatus: 'rejected',
@@ -560,20 +563,27 @@ const make = Effect.gen(function* () {
                 reviewedAt: new Date(),
               })
               .where(and(eq(document.id, row.documentId), eq(document.reviewStatus, 'pending')))
-              .returning({ id: document.id });
+              .returning({ id: document.id }),
+          );
 
-            if (!rejected.length)
-              throw new InvalidTransition('Este documento já foi revisado ou não está pendente.');
-
-            // limpa a marca do cron: prazo que estourar de novo neste Item volta a avisar
-            await tx
-              .update(requestItem)
-              .set({ status: 'pending', deadlineNotifiedAt: null })
-              .where(eq(requestItem.id, found.requestItemId!));
+          if (!rejected.length) {
+            return yield* new InvalidTransition(
+              'Este documento já foi revisado ou não está pendente.',
+            );
           }
 
-          for (const row of input.reviewExtras) {
-            const updated = await tx
+          // limpa a marca do cron: prazo que estourar de novo neste Item volta a avisar
+          yield* db.use((tx) =>
+            tx
+              .update(requestItem)
+              .set({ status: 'pending', deadlineNotifiedAt: null })
+              .where(eq(requestItem.id, found.requestItemId!)),
+          );
+        }
+
+        for (const row of input.reviewExtras) {
+          const updated = yield* db.use((tx) =>
+            tx
               .update(document)
               .set({
                 reviewStatus: row.decision,
@@ -582,20 +592,23 @@ const make = Effect.gen(function* () {
                 reviewedAt: new Date(),
               })
               .where(and(eq(document.id, row.documentId), eq(document.reviewStatus, 'pending')))
-              .returning({ id: document.id });
+              .returning({ id: document.id }),
+          );
 
-            if (!updated.length)
-              throw new InvalidTransition('Este documento já foi revisado ou não está pendente.');
+          if (!updated.length) {
+            return yield* new InvalidTransition(
+              'Este documento já foi revisado ou não está pendente.',
+            );
           }
+        }
 
-          if (rotated) {
-            await rotateLinkOnReopenOn(tx, head.uploadLinkId!, rotated.tokenHash);
-          }
+        return yield* db.use(async (tx) => {
+          if (rotated) await rotateLinkOnReopenOn(tx, head.uploadLinkId!, rotated.tokenHash);
 
           return syncRequestStatusOn(tx, requestId);
-        }),
-      )
-      .pipe(Effect.catchTag('DbError', invalidTransitionOrDie));
+        });
+      }),
+    );
 
     return {
       requestId,
