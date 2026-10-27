@@ -75,7 +75,7 @@ const notify = (
     ),
   );
 
-/** Devolve se o email saiu — o controller do "perdi meu link" responde cego, mas não
+/** Devolve se o email saiu — a rota do "perdi meu link" responde cego, mas não
  *  registra passo 1 concluído sem entrega. Sem linha em `message`: não há requestId. */
 export const onAccessRecoveryRequested = (event: AccessRecoveryRequestedEvent) =>
   Effect.gen(function* () {

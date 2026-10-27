@@ -35,8 +35,8 @@ const tagOf = (value: unknown): string | undefined =>
     ? String((value as { _tag: unknown })._tag)
     : undefined;
 
-/** Paridade literal com `AppErrorFilter.catch`. Sem ramo para `ZodError`: o bug congelado
- *  #1 (`?page=abc` → 500) existe justamente porque ele não casa com nada. */
+/** Sem ramo para `ZodError`: o bug congelado #1 (`?page=abc` → 500) existe justamente
+ *  porque ele não casa com nada. */
 export const mapError = (error: unknown): MappedError => {
   if (isAppError(error)) {
     return {
@@ -113,17 +113,17 @@ export const mapError = (error: unknown): MappedError => {
 
 const logger = new Logger('AppErrorFilter');
 
-/** O `originalUrl` do Effect é absoluto; o do Express era caminho + query. As linhas de log
- *  de 403/500 são comparadas por operador contra as antigas — manter o mesmo formato. */
+/** O `originalUrl` do Effect é absoluto, mas as linhas de log de 403/500 levam só caminho +
+ *  query: operadores as comparam nesse formato. */
 const loggedUrl = (originalUrl: string) => {
   const schemeless = originalUrl.replace(/^[a-z][a-z0-9+.-]*:\/\/[^/]*/i, '');
 
   return schemeless === '' ? '/' : schemeless;
 };
 
-/** Fim de linha de toda rota servida pelo shell Effect (ver `platform.ts`): mapeia, loga e
- *  escreve. Não é middleware global — no modo estrangulador o catch-all do Nest já aplica
- *  o `AppErrorFilter` dele, e um mapa global reescreveria resposta que o Nest escreveu. */
+/** Fim de linha de toda rota registrada por `route()` (ver `platform.ts`): mapeia, loga e
+ *  escreve. Não é middleware global: o mount do better-auth serializa os próprios erros, e
+ *  um mapa global reescreveria a resposta dele. */
 export const handleCause = (cause: Cause.Cause<unknown>) =>
   Effect.gen(function* () {
     const request = yield* HttpServerRequest.HttpServerRequest;

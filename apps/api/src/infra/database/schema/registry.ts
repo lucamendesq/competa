@@ -187,7 +187,7 @@ export const contact = pgTable(
   (t) => [
     /* `email` é a entrada de `/access/recover` — rota pública e sem sessão, o pior lugar
      * para um seq scan. `company_id` é o join de toda listagem de Empresa (FK no Postgres
-     * não cria índice). `auth_user_id` é o caminho do ContactGuard em toda request logada. */
+     * não cria índice). `auth_user_id` é o caminho do `contactRoute` em toda request logada. */
     index('contact_email_idx').on(t.email),
     index('contact_company_idx').on(t.companyId),
     index('contact_auth_user_idx').on(t.authUserId),

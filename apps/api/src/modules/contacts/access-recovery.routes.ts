@@ -39,7 +39,7 @@ const MINIMUM_DURATION_MS = 700;
 const CONFIRM_TTL_MS = 30 * 60 * 1000;
 
 /* Rota pública que dispara email: limite por IP, senão vira ferramenta de envio em massa
- * para a caixa de terceiros. `@Throttle({ default: { ttl: seconds(60), limit: 3 } })`. */
+ * para a caixa de terceiros. */
 const RECOVERY_THROTTLE = throttleDefault(3, 60_000);
 
 const pauseUntil = (deadline: number) =>

@@ -32,14 +32,14 @@ type NodeMiddleware = (
   next: () => void,
 ) => void;
 
-/** `app.set('trust proxy', 1)` do Express. Lido no middleware porque quem decide é o boot. */
+/** Se o XFF do proxy imediato vale (ver `callerIp`). Lido no middleware porque quem decide é
+ *  o boot. */
 export const TrustProxy = Context.Reference<boolean>('competa/api/http/TrustProxy', {
   defaultValue: () => false,
 });
 
-/* Mesma pilha, na mesma ORDEM em que o Nest a monta hoje: `app.use(helmet())`,
- * `app.use(originCheck())`, `enableCors()` e, por último, o middleware do nestjs-pino
- * (middleware de módulo roda depois dos `app.use` globais). */
+/* A ORDEM é fixa: helmet → origin-check → CORS e, por último (em `runGlobalStack`), o log
+ * de requisição. */
 const globalStack: NodeMiddleware[] = [
   helmet() as NodeMiddleware,
   originCheck(allowedOrigins),
@@ -52,12 +52,11 @@ const logRequest: NodeMiddleware = (request, response, next) => {
   (requestLogger() as unknown as NodeMiddleware)(request, response, next);
 };
 
-/** Roda a pilha Express contra os objetos node crus. `false` = algum middleware já
+/** Roda a pilha global contra os objetos node crus. `false` = algum middleware já
  *  respondeu (preflight do cors, 403 de origem) e a rota não deve rodar.
  *
- *  `log: false` reproduz o mount do better-auth: o `httpAdapter.use(authHandler)` do
- *  `@thallesp/nestjs-better-auth` entra na pilha Express ANTES do middleware do
- *  nestjs-pino, então `/api/auth/*` nunca gerou linha de log de requisição. */
+ *  `log: false` é o mount do better-auth: `/api/auth/*` não gera linha de log de
+ *  requisição. */
 export const runGlobalStack = (
   request: IncomingMessage,
   response: ServerResponse,
@@ -100,9 +99,9 @@ const Node = {
 type Failure = AppError | HttpServerError.HttpServerError | DbUnavailable;
 
 /**
- * Perfil de autorização de uma rota — o que os `@UseGuards`/`@ContactRoute()` diziam. Roda
- * DEPOIS do throttle e ANTES do handler, e entrega o serviço de request (`FirmContext` e
- * companhia) que o handler exige por tipo. Os perfis moram em `middleware/auth.ts`.
+ * Perfil de autorização de uma rota. Roda DEPOIS do throttle e ANTES do handler, e entrega
+ * o serviço de request (`FirmContext` e companhia) que o handler exige por tipo. Os perfis
+ * moram em `middleware/auth.ts`.
  */
 export type RouteProfile<Provides> = {
   readonly throttle?: readonly Bucket[];
@@ -115,7 +114,6 @@ export type RouteProfile<Provides> = {
   >;
 };
 
-/** Rota sem guard: `@PUBLIC()` / `@AllowAnonymous()`, ou simplesmente nenhum decorator. */
 export const publicRoute: RouteProfile<never> = { apply: (inner) => inner };
 
 /* `catchCause` zera o canal de erro, e o construtor de middleware exige
@@ -169,7 +167,7 @@ const platform = <Provides>(
             return yield* profile.apply(inner);
           }).pipe(
             Effect.catchCause(handleCause),
-            // o ETag entra no fim, como no `res.send()` do Express: sucesso E erro o carregam
+            // o ETag entra no fim: sucesso E erro o carregam
             Effect.flatMap((response) =>
               Effect.map(HttpServerRequest.HttpServerRequest, (request) =>
                 applyEtag(request, response),
@@ -181,10 +179,10 @@ const platform = <Provides>(
   );
 
 /**
- * ÚNICA forma sancionada de registrar uma rota servida pelo shell Effect. Garante, na
- * ordem do Nest: helmet → origin-check → CORS → log de requisição → throttle → guard →
- * handler, com o mapa de erros por cima. Rota nova que não passe por aqui perde tudo isso
- * em silêncio — nenhum spec assere esses headers.
+ * ÚNICA forma sancionada de registrar uma rota. Garante, nesta ordem: helmet →
+ * origin-check → CORS → log de requisição → throttle → perfil de autorização →
+ * handler, com o mapa de erros por cima. Rota nova que não passe por aqui perde tudo
+ * isso em silêncio — nenhum spec assere esses headers.
  *
  * Os três estágios estão escritos na ordem no corpo de `platform`, de propósito:
  * `Middleware.combine` existe, mas roda na ordem INVERSA da leitura.
@@ -202,8 +200,8 @@ export const route = <E extends Failure, R, Provides = never>(
     /** Obrigatório de propósito: rota sem perfil seria pública em silêncio. A pública declara
      *  `publicRoute`. */
     readonly auth: RouteProfile<Provides>;
-    /** Balde compartilhado entre caminhos que no Nest eram O MESMO handler (a chave de lá é
-     *  `Classe-handler`, não o path): `POST /auth/register` e `POST /public-signup`. */
+    /** Balde compartilhado entre caminhos que são O MESMO handler: `POST /auth/register` e
+     *  `POST /public-signup`. */
     readonly throttleKey?: string;
     /** O servidor interrompe a fibra quando o cliente desconecta. Escrita roda até o fim por
      *  padrão: interrompida no meio, desfaria o banco mas não o email enviado, o usuário
@@ -226,15 +224,13 @@ export const route = <E extends Failure, R, Provides = never>(
   );
 };
 
-/** `@Body(zodPipe(Schema))`: mesmo `ValidationError`, com os `issues` no `details`.
+/** `body`: mesmo `ValidationError` do zod, com os `issues` no `details`.
  *
- *  Reproduz o `express.json({ strict: true })` que vinha antes do pipe, porque a diferença
- *  é observável: corpo VAZIO virava `{}` e o zod respondia 422 apontando o campo faltante,
- *  enquanto topo que não é objeto/array (`null`, `"texto"`, `3`) era recusado como 400 pelo
- *  parser antes de chegar ao zod. Sem isto cada rota migrada herdaria o desvio. */
-/** `limit: '2mb'` do `express.json()`: o `MaxBodySize` do servidor para a leitura e o mapa
- *  de erros traduz para 413. Só este motivo sobe — o resto do canal continua virando corpo
- *  vazio, como o parser fazia. */
+ *  A diferença entre corpo vazio e topo inválido é observável: corpo VAZIO vira `{}` e o zod
+ *  responde 422 apontando o campo faltante, enquanto topo que não é objeto/array (`null`,
+ *  `"texto"`, `3`) é recusado como 400 antes de chegar ao zod. */
+/** Corpo acima de 2 MiB: o `MaxBodySize` do servidor para a leitura e o mapa de erros traduz
+ *  para 413. Só este motivo sobe — o resto do canal vira corpo vazio. */
 const bodyTooLarge = (error: unknown) =>
   HttpServerError.isHttpServerError(error) &&
   error.reason._tag === 'RequestParseError' &&
@@ -247,7 +243,7 @@ export const body = <T>(schema: z.ZodType<T>) =>
       Effect.catch((error) => (bodyTooLarge(error) ? Effect.fail(error) : Effect.succeed(''))),
     );
 
-    // corpo vazio chegava ao pipe como `{}`: quem responde é o schema (422), não o parser
+    // corpo vazio vale `{}`: quem responde é o schema (422), não o parser
     if (text.trim() === '') return yield* zodFail(schema, {});
 
     const parsed = yield* Effect.try({
@@ -261,11 +257,10 @@ export const body = <T>(schema: z.ZodType<T>) =>
     return yield* zodFail(schema, parsed);
   });
 
-/** `@Param(zodPipe(Schema))`. O roteador já decodifica cada segmento, como o Express. */
+/** O roteador já decodifica cada segmento. */
 export const params = <T>(schema: z.ZodType<T>) =>
   Effect.flatMap(HttpRouter.params, (raw) => zodFail(schema, raw));
 
-/** `@Query(zodPipe(Schema))`. */
 export const query = <T>(schema: z.ZodType<T>) =>
   Effect.flatMap(HttpServerRequest.ParsedSearchParams, (raw) => zodFail(schema, raw));
 

@@ -67,9 +67,9 @@ const register = Effect.gen(function* () {
 
   if (setCookie) {
     const request = yield* HttpServerRequest.HttpServerRequest;
-    /* O mesmo `res.setHeader('Set-Cookie', setCookie)` do `@Res({passthrough:true})`: o
-     * valor é um array de linhas cruas do better-auth e o node as emite como headers
-     * separados. `writeHead` do servidor Effect preserva o que já foi posto aqui. */
+    /* Direto na resposta node: o valor é um array de linhas cruas do better-auth e o node
+     * as emite como headers separados. `writeHead` do servidor Effect preserva o que já foi
+     * posto aqui. */
     (NodeHttpServerRequest.toServerResponse(request) as ServerResponse).setHeader(
       'Set-Cookie',
       setCookie,
@@ -79,8 +79,7 @@ const register = Effect.gen(function* () {
   return { userId };
 });
 
-/* Um handler, dois caminhos (`@Controller(['auth/register', 'public-signup'])`). A chave de
- * throttle é compartilhada porque no Nest o balde era por classe+handler, não por path. */
+/* Um handler, dois caminhos, uma chave de throttle: trocar de caminho não abre balde novo. */
 const at = (path: '/auth/register' | '/public-signup') =>
   route('POST', path, handler('POST', register), {
     auth: publicRoute,

@@ -15,17 +15,17 @@ export type Bucket = {
   readonly limit: number;
   readonly ttlMs: number;
   readonly blockMs?: number;
-  /** `UploadThrottlerGuard.getTracker`: chaveia por `ip:token` em vez de só pelo IP. */
+  /** Chaveia por `ip:token` em vez de só pelo IP. */
   readonly byToken?: boolean;
 };
 
-/** Baldes globais do `ThrottlerModule`: `short` corta rajada, `default` corta abuso sustentado. */
+/** Baldes globais: `short` corta rajada, `default` corta abuso sustentado. */
 export const GLOBAL_BUCKETS: readonly Bucket[] = [
   { name: 'short', limit: 30, ttlMs: 10_000 },
   { name: 'default', limit: 120, ttlMs: 60_000 },
 ];
 
-/** `UploadThrottlerGuard`: roda ALÉM dos baldes globais, chaveado por `ip:token`. */
+/** Roda ALÉM dos baldes globais, chaveado por `ip:token`. */
 export const UPLOAD_PRESIGN_BUCKET: Bucket = {
   name: 'upload-presign',
   limit: 60,
@@ -33,8 +33,7 @@ export const UPLOAD_PRESIGN_BUCKET: Bucket = {
   byToken: true,
 };
 
-/** `@Throttle({ default: { ttl, limit } })`: o decorator nomeia UM balde, então o `short`
- *  (30/10s) continua valendo ao lado do `default` reescrito. */
+/** Reescreve só o balde `default`: o `short` (30/10s) continua valendo ao lado dele. */
 export const throttleDefault = (limit: number, ttlMs: number): readonly Bucket[] =>
   GLOBAL_BUCKETS.map((bucket) =>
     bucket.name === 'default' ? { ...bucket, limit, ttlMs } : bucket,
@@ -44,13 +43,11 @@ export type ThrottleResult =
   | { readonly ok: true; readonly remaining: number; readonly resetSec: number }
   | { readonly ok: false; readonly retryAfterSec: number };
 
-/** Mesma granularidade do `sha256(Class-handler-throttler-tracker)` do Nest: um balde por
- *  rota, por nome de balde, por cliente. */
 export const throttleKey = (routeKey: string, bucket: Bucket, tracker: string) =>
   `${routeKey}:${bucket.name}:${tracker}`;
 
-/** Equivale a `trust proxy: 1` do Express: a entrada mais à DIREITA do XFF é a que o proxy
- *  imediato escreveu; as da esquerda são do cliente e forjáveis. */
+/** A entrada mais à DIREITA do XFF é a que o proxy imediato escreveu; as da esquerda são
+ *  do cliente e forjáveis. */
 export const callerIp = (
   headers: Readonly<Record<string, string | undefined>>,
   remoteAddress: string | undefined,
@@ -126,9 +123,8 @@ export const makeThrottleStore = (now: () => number = Date.now) => {
       return {
         ok: true,
         remaining: bucket.limit - entry.hits.length,
-        /* Quanto falta para o hit mais ANTIGO sair da janela. Diverge do Nest, que guarda
-         * um `expiresAt` FIXO por janela: aqui a janela é deslizante, então os dois valores
-         * se separam conforme hits envelhecem. Nenhum spec assere o header. */
+        /* Quanto falta para o hit mais ANTIGO sair da janela deslizante, não o fim de uma
+         * janela fixa. Nenhum spec assere o header. */
         resetSec: Math.ceil((entry.hits[0] + bucket.ttlMs - at) / 1000),
       };
     },
@@ -137,10 +133,10 @@ export const makeThrottleStore = (now: () => number = Date.now) => {
 
 export type ThrottleStore = ReturnType<typeof makeThrottleStore>;
 
-/* `getThrottlerSuffix` do throttler do Nest: o balde `default` não sufixa, os demais sim. */
+/* O balde `default` não sufixa o nome do header, os demais sim: os nomes fazem parte do
+ * contrato com os clientes. */
 const suffix = (bucket: Bucket) => (bucket.name === 'default' ? '' : `-${bucket.name}`);
 
-/** Mesmos headers que o `ThrottlerGuard` escreve em TODA resposta (`setHeaders` default). */
 export const rateLimitHeaders = (bucket: Bucket, result: ThrottleResult): Record<string, number> =>
   result.ok
     ? {

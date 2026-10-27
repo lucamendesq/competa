@@ -41,14 +41,14 @@ const healthRoute = (ping: Effect.Effect<unknown, unknown, Db>) =>
     handler(
       'GET',
       ping.pipe(
-        /* `catchCause`, e não `catch`: a sonda respondia 503 para QUALQUER causa, porque o
-         * `tryPromise` que vivia aqui recebia defeito e falha pela mesma rejeição. */
+        /* `catchCause`, e não `catch`: a sonda responde 503 para QUALQUER causa, defeito
+         * incluído. */
         Effect.catchCause(() => Effect.fail(new ServiceUnavailable('Banco indisponível.'))),
         Effect.as({ status: 'ok' as const, ...buildInfo }),
       ),
     ),
-    /* `@SkipThrottle()` nu pula SÓ o balde `default`: a sonda bate a cada poucos segundos e
-     * o balde de 120/60s a derrubaria, mas o `short` continua valendo. */
+    /* Sem o balde `default`: a sonda bate a cada poucos segundos e o de 120/60s a
+     * derrubaria. O `short` continua valendo. */
     { auth: publicRoute, throttle: GLOBAL_BUCKETS.filter((bucket) => bucket.name !== 'default') },
   );
 
@@ -91,19 +91,17 @@ export const serverLayer = (options: {
       // o log de requisição é o pino-http, chamado pela pilha de plataforma
       disableLogger: true,
       disableListenLog: true,
-      /* O default do find-my-way é 100 caracteres por parâmetro, e o Express não tinha
-       * limite nenhum: `PUT /storage/local/:storageKey` recebe a chave inteira
-       * percent-encoded (`firm/<uuid>/period/<aaaa-mm>/request/<uuid>/<uuid>.ext`, ~155
-       * caracteres) e só não 404ava porque a ponte para o Nest pegava o resto. */
+      /* O default do find-my-way é 100 caracteres por parâmetro, e
+       * `PUT /storage/local/:storageKey` recebe a chave inteira percent-encoded
+       * (`firm/<uuid>/period/<aaaa-mm>/request/<uuid>/<uuid>.ext`, ~155 caracteres): acima
+       * do limite a rota não casa e vira 404. */
       routerConfig: { maxParamLength: 1024 },
     },
   ).pipe(
     Layer.provideMerge(NodeHttpServer.layer(createServer, { port: options.port })),
     Layer.provideMerge(Layer.succeed(TrustProxy)(options.trustProxy)),
     Layer.provideMerge(Layer.sync(ThrottleStore)(() => makeThrottleStore())),
-    /* `bodyParser.json.limit: '2mb'` do `BetterAuthModule.forRoot` — o único freio contra
-     * OOM. `'2mb'` do pacote `bytes` é base 1024. Não alcança `/api/auth/*` (lá o corpo é
-     * stream) nem `PUT /storage/local/:key` (que lê o `IncomingMessage` cru), exatamente
-     * como o `SkipBodyParsingMiddleware` não alcançava. */
+    /* Teto de 2 MiB no corpo — o único freio contra OOM. Não alcança `/api/auth/*` (lá o
+     * corpo é stream) nem `PUT /storage/local/:key` (que lê o `IncomingMessage` cru). */
     Layer.provideMerge(Layer.succeed(HttpIncomingMessage.MaxBodySize)(ByteSize.mebibytes(2))),
   );

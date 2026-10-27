@@ -80,7 +80,7 @@ const make = Effect.gen(function* () {
   };
 
   /** Reabrir Item mata o token anterior NA HORA: zerar `previous_token_hash` faz o
-   *  `UploadTokenGuard` não ter como resolver o link velho, e ele passa a responder 404.
+   *  `uploadTokenRoute` não ter como resolver o link velho, e ele passa a responder 404.
    *  A carência de 48h de lembrete/reenvio não vale aqui — o Contador acabou de agir SOBRE
    *  o link e a resposta promete `linkRotated: true`. Não usar `revoked`: a flag vale para
    *  a LINHA inteira, derrubaria junto o token que acabou de ser emitido e ninguém a

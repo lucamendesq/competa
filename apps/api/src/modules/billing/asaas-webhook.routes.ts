@@ -38,7 +38,7 @@ const webhook = route(
       const token = request.headers['asaas-access-token'];
 
       /* Falha fechada: sem segredo configurado a rota não processa nada. O estado da
-       * assinatura controla o TenantGuard, então um POST anônimo daria uso grátis ou
+       * assinatura controla o `firmRoute`, então um POST anônimo daria uso grátis ou
        * bloqueio de escrita de um tenant escolhido. */
       if (!env.ASAAS_WEBHOOK_TOKEN) {
         logger.error('ASAAS_WEBHOOK_TOKEN ausente: webhook recusado.');

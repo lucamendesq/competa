@@ -86,7 +86,7 @@ const receiveStatuses = route(
     'POST',
     Effect.gen(function* () {
       const request = yield* HttpServerRequest.HttpServerRequest;
-      /* Bytes exatos do corpo, como o `rawBody: true` do Nest entregava: a assinatura da
+      /* Bytes exatos do corpo: a assinatura da
        * Meta cobre o corpo cru, e reserializar o JSON mudaria o HMAC. `arrayBuffer` é
        * memoizado, então o `body()` abaixo relê os mesmos bytes. */
       const rawBody = yield* request.arrayBuffer;
