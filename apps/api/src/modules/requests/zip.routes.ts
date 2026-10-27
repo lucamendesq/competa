@@ -93,7 +93,7 @@ const withFlight = <E, R>(
       inFlight.add(key);
 
       const release = () => inFlight.delete(key);
-      return build(release).pipe(Effect.tapCause(() => Effect.sync(release)));
+      return build(release).pipe(Effect.onError(() => Effect.sync(release)));
     },
   );
 

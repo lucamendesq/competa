@@ -252,9 +252,15 @@ Cross-module seams the Effect composition must reproduce: event contract in `src
     repositório numa fibra destacada, fora do alcance de qualquer interrupção. Agora eles correm
     na fibra da requisição, então um abort do cliente no meio de uma transação dispara o
     finalizador do `Db.withTransaction` e **desfaz** onde antes commitava. É o desfecho correto e
-    foi pedido pela onda, mas é mudança de comportamento. **Sem teste**: provocar um abort no
-    instante certo de uma transação real é acoplado a tempo e flakaria; o rollback em si já está
-    coberto pelos testes de `withTransaction`. Aceita conscientemente.
+    foi pedido pela onda, mas é mudança de comportamento.
+
+    **Revista:** desfazer o banco não desfaz o que saiu dele — o usuário criado no better-auth,
+    o email enviado, o evento emitido. E no v4 `tapCause` não roda na interrupção, então a
+    compensação do signup nunca rodava. Agora `route()` registra escrita (todo método que não é
+    GET) como `uninterruptible`: o abort do cliente não a interrompe e ela termina como no Nest.
+    GET continua interrompível (o zip aborta). As compensações (`auth.routes`, `signup.routes`,
+    o voo único do zip) passaram a `Effect.onError`, que é finalizador e roda também na
+    interrupção. Coberto por `test/unit/http/interruption.spec.ts`.
 
 ## Endurecimento Effect (pós-strip) — plano em `effect-hardening.md`
 
