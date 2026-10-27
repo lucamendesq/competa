@@ -1,6 +1,6 @@
 import { Context, Effect, Exit, Layer, Option } from 'effect';
 import { DbUnavailable, UniqueViolation, classify } from './error.js';
-import { db as drizzleDb } from './index.js';
+import { db as drizzleDb, pool } from './index.js';
 
 type Drizzle = typeof drizzleDb;
 
@@ -19,6 +19,25 @@ const CurrentTransaction = Context.Reference<Option.Option<Executor>>(
  *  carrega o Exit original através da rejeição, para ressurgir intacto do lado de fora. */
 class Rollback {
   constructor(readonly exit: Exit.Exit<unknown, unknown>) {}
+}
+
+/** O pool do processo. Ele nasce no import de `./index.js` porque o better-auth também o usa;
+ *  a layer decide quem o FECHA. */
+export class DbPool extends Context.Service<DbPool, { readonly drizzle: Drizzle }>()(
+  'competa/api/DbPool',
+) {
+  /** Dono do pool: `pool.end()` no fim do scope. Só um por processo — a API e os scripts. */
+  static readonly layer = Layer.effect(
+    DbPool,
+    Effect.acquireRelease(
+      Effect.sync(() => DbPool.of({ drizzle: drizzleDb })),
+      () => Effect.promise(() => pool.end()).pipe(Effect.ignore),
+    ),
+  );
+
+  /** Usa o pool sem fechá-lo: a suíte sobe dezenas de apps no mesmo processo, e a primeira a
+   *  encerrar não pode levar o pool das seguintes. */
+  static readonly layerBorrowed = Layer.succeed(DbPool, DbPool.of({ drizzle: drizzleDb }));
 }
 
 const make = (drizzle: Drizzle) => {
@@ -109,7 +128,15 @@ export class Db extends Context.Service<
     ): Effect.Effect<A, E | DbUnavailable, R>;
   }
 >()('competa/api/Db') {
-  static readonly layer = Layer.sync(Db, () => Db.of(make(drizzleDb)));
+  static readonly layerNoDeps = Layer.effect(
+    Db,
+    Effect.gen(function* () {
+      const { drizzle } = yield* DbPool;
+      return Db.of(make(drizzle));
+    }),
+  );
+
+  static readonly layer = Db.layerNoDeps.pipe(Layer.provide(DbPool.layerBorrowed));
 
   /** Satisfaz o tipo sem abrir pool, e toda consulta MORRE. É trava, não dublê: quem diz não
    *  tocar o banco passa a PROVAR isso, e quebra alto no dia em que passar a tocar. A
