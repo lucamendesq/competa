@@ -4,6 +4,7 @@ import { AppError } from '../../lib/app-error.js';
 /** Mensagem única para link inexistente, expirado ou revogado: dizer qual dos três
  *  daria a quem tenta adivinhar um oráculo sobre tokens válidos. */
 export class InvalidUploadLink extends AppError {
+  readonly _tag = 'InvalidUploadLink';
   readonly code = 'UPLOAD_LINK_INVALID';
   readonly status = 404;
 
@@ -13,6 +14,7 @@ export class InvalidUploadLink extends AppError {
 }
 
 export class InviteNotFound extends AppError {
+  readonly _tag = 'InviteNotFound';
   readonly code = 'INVITE_NOT_FOUND';
   readonly status = 404;
 
@@ -22,6 +24,7 @@ export class InviteNotFound extends AppError {
 }
 
 export class InviteExpired extends AppError {
+  readonly _tag = 'InviteExpired';
   readonly code = 'INVITE_EXPIRED';
   readonly status = 410;
 
@@ -31,6 +34,7 @@ export class InviteExpired extends AppError {
 }
 
 export class InviteAlreadyAccepted extends AppError {
+  readonly _tag = 'InviteAlreadyAccepted';
   readonly code = 'INVITE_ALREADY_ACCEPTED';
   readonly status = 409;
 
@@ -40,6 +44,7 @@ export class InviteAlreadyAccepted extends AppError {
 }
 
 export class EmailAlreadyRegistered extends AppError {
+  readonly _tag = 'EmailAlreadyRegistered';
   readonly code = 'EMAIL_ALREADY_REGISTERED';
   readonly status = 409;
 
@@ -52,6 +57,7 @@ export class EmailAlreadyRegistered extends AppError {
  *  email duplicado e para qualquer outra recusa, senão o formulário aberto vira oráculo
  *  de "quem é cliente da Competa". */
 export class SignupRejected extends AppError {
+  readonly _tag = 'SignupRejected';
   readonly code = 'SIGNUP_REJECTED';
   readonly status = 422;
 
@@ -61,6 +67,7 @@ export class SignupRejected extends AppError {
 }
 
 export class InviteAlreadyPending extends AppError {
+  readonly _tag = 'InviteAlreadyPending';
   readonly code = 'INVITE_ALREADY_PENDING';
   readonly status = 409;
 
@@ -70,6 +77,7 @@ export class InviteAlreadyPending extends AppError {
 }
 
 export class InviteEmailMismatch extends AppError {
+  readonly _tag = 'InviteEmailMismatch';
   readonly code = 'INVITE_EMAIL_MISMATCH';
   readonly status = 422;
 
@@ -79,6 +87,7 @@ export class InviteEmailMismatch extends AppError {
 }
 
 export class InviteTargetUnsupported extends AppError {
+  readonly _tag = 'InviteTargetUnsupported';
   readonly code = 'INVITE_TARGET_UNSUPPORTED';
   readonly status = 422;
 
@@ -88,6 +97,7 @@ export class InviteTargetUnsupported extends AppError {
 }
 
 export class MagicLinkUnavailable extends AppError {
+  readonly _tag = 'MagicLinkUnavailable';
   readonly code = 'MAGIC_LINK_UNAVAILABLE';
   readonly status = 503;
 
@@ -97,6 +107,7 @@ export class MagicLinkUnavailable extends AppError {
 }
 
 export class OnlyOwnerCanInvite extends AppError {
+  readonly _tag = 'OnlyOwnerCanInvite';
   readonly code = 'ONLY_OWNER_CAN_INVITE';
   readonly status = 403;
 
@@ -106,6 +117,7 @@ export class OnlyOwnerCanInvite extends AppError {
 }
 
 export class OnlyOwnerCanManageTeam extends AppError {
+  readonly _tag = 'OnlyOwnerCanManageTeam';
   readonly code = 'ONLY_OWNER_CAN_MANAGE_TEAM';
   readonly status = 403;
 
@@ -115,6 +127,7 @@ export class OnlyOwnerCanManageTeam extends AppError {
 }
 
 export class CannotRemoveOwner extends AppError {
+  readonly _tag = 'CannotRemoveOwner';
   readonly code = 'CANNOT_REMOVE_OWNER';
   readonly status = 422;
 
@@ -126,6 +139,7 @@ export class CannotRemoveOwner extends AppError {
 /** 402 e não 403: a web traduz em CTA de upgrade, e o `details` diz exatamente qual gate
  *  foi batido e para qual plano subir (D18 §3). */
 export class PlanCapabilityRequired extends AppError {
+  readonly _tag = 'PlanCapabilityRequired';
   readonly code = 'PLAN_CAPABILITY_REQUIRED';
   readonly status = 402;
 

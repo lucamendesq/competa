@@ -1,11 +1,13 @@
 import { AppError } from '../../lib/app-error.js';
 
 export class InvalidTransition extends AppError {
+  readonly _tag = 'InvalidTransition';
   readonly code = 'INVALID_TRANSITION';
   readonly status = 409;
 }
 
 export class ZipAlreadyInFlight extends AppError {
+  readonly _tag = 'ZipAlreadyInFlight';
   readonly code = 'ZIP_ALREADY_IN_FLIGHT';
   readonly status = 409;
 
@@ -15,6 +17,7 @@ export class ZipAlreadyInFlight extends AppError {
 }
 
 export class ZipTooLarge extends AppError {
+  readonly _tag = 'ZipTooLarge';
   readonly code = 'ZIP_TOO_LARGE';
   readonly status = 422;
 

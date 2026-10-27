@@ -1,6 +1,7 @@
 import { AppError } from '../lib/app-error.js';
 
 export class TooManyRequests extends AppError {
+  readonly _tag = 'TooManyRequests';
   readonly code = 'TOO_MANY_REQUESTS';
   readonly status = 429;
 

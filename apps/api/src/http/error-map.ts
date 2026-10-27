@@ -6,7 +6,7 @@ import { Effect } from 'effect';
 import { HttpServerError, HttpServerRequest, HttpServerResponse } from 'effect/http';
 import env from '../config/env.js';
 import { squashError } from '../infra/database/error.js';
-import { AppError } from '../lib/app-error.js';
+import { isAppError } from '../lib/app-error.js';
 import { JSON_UTF8 } from './envelope.js';
 
 /** O erro do driver vem embrulhado (DrizzleQueryError > PostgresError): sem a cadeia de
@@ -39,7 +39,7 @@ const tagOf = (value: unknown): string | undefined =>
 /** Paridade literal com `AppErrorFilter.catch`. Sem ramo para `ZodError`: o bug congelado
  *  #1 (`?page=abc` → 500) existe justamente porque ele não casa com nada. */
 export const mapError = (error: unknown): MappedError => {
-  if (error instanceof AppError) {
+  if (isAppError(error)) {
     return {
       status: error.status,
       body: {

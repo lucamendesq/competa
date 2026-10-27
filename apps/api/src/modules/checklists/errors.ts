@@ -1,6 +1,7 @@
 import { AppError } from '../../lib/app-error.js';
 
 export class TemplateImmutable extends AppError {
+  readonly _tag = 'TemplateImmutable';
   readonly code = 'TEMPLATE_IMMUTABLE';
   readonly status = 409;
 
@@ -10,6 +11,7 @@ export class TemplateImmutable extends AppError {
 }
 
 export class TemplateAlreadyOwned extends AppError {
+  readonly _tag = 'TemplateAlreadyOwned';
   readonly code = 'TEMPLATE_ALREADY_OWNED';
   readonly status = 409;
 
@@ -19,6 +21,7 @@ export class TemplateAlreadyOwned extends AppError {
 }
 
 export class DocumentTypeNotVisible extends AppError {
+  readonly _tag = 'DocumentTypeNotVisible';
   readonly code = 'DOCUMENT_TYPE_NOT_VISIBLE';
   readonly status = 422;
 
@@ -28,6 +31,7 @@ export class DocumentTypeNotVisible extends AppError {
 }
 
 export class TemplateItemDuplicated extends AppError {
+  readonly _tag = 'TemplateItemDuplicated';
   readonly code = 'TEMPLATE_ITEM_DUPLICATED';
   readonly status = 409;
 
@@ -37,6 +41,7 @@ export class TemplateItemDuplicated extends AppError {
 }
 
 export class TemplateInUse extends AppError {
+  readonly _tag = 'TemplateInUse';
   readonly code = 'TEMPLATE_IN_USE';
   readonly status = 409;
 
@@ -48,6 +53,7 @@ export class TemplateInUse extends AppError {
 }
 
 export class OverrideRemovesNothing extends AppError {
+  readonly _tag = 'OverrideRemovesNothing';
   readonly code = 'OVERRIDE_REMOVES_NOTHING';
   readonly status = 422;
 
@@ -57,6 +63,7 @@ export class OverrideRemovesNothing extends AppError {
 }
 
 export class TemplateNameTaken extends AppError {
+  readonly _tag = 'TemplateNameTaken';
   readonly code = 'TEMPLATE_NAME_TAKEN';
   readonly status = 409;
 
