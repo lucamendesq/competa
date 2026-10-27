@@ -1,11 +1,10 @@
 import { Logger } from '../../lib/logger.js';
-import type { EventEmitter2 } from '../../lib/event-emitter.js';
-import { Effect } from 'effect';
+import { Context, Effect, Layer } from 'effect';
 import env from '../../config/env.js';
-import { run } from '../../effect/runtime.js';
 import { squashError } from '../../infra/database/error.js';
 import { brazilDay } from '../../lib/brazil-time.js';
 import { EVENTS, type DeadlineMissedEvent } from '../../lib/events.js';
+import { Events } from '../../lib/events.service.js';
 import { createToken } from '../../lib/token.js';
 import type { FirmScope } from '../auth/scope.js';
 import { subHours, subYears } from 'date-fns';
@@ -29,13 +28,15 @@ const logger = new Logger('DeadlineCron');
  *  "Já avisei este item" é `request_item.deadline_notified_at` (e não estado em memória):
  *  reiniciar a API não pode reavisar o cliente. A reabertura do Item limpa a marca, então
  *  um prazo estourado de novo volta a avisar. */
-export const deadlineCron = (events: EventEmitter2) => {
+const make = Effect.gen(function* () {
+  const events = yield* Events;
+  const requests = yield* RequestsRepo;
+  const documents = yield* DocumentsRepo;
+
   /** Sem agendamento de propósito: nada no produto tem 5 anos ainda. Chamada manual até
    *  o primeiro documento se aproximar do prazo — ver `retention.md`. */
   const purgeExpiredFiscalDocuments = () =>
     Effect.gen(function* () {
-      const documents = yield* DocumentsRepo;
-
       const fiveYearsAgo = subYears(new Date(), 5);
       const expired = yield* documents.expiredFiscalDocuments(fiveYearsAgo, 1000);
       if (!expired.length) return 0;
@@ -60,8 +61,6 @@ export const deadlineCron = (events: EventEmitter2) => {
 
   const discardStaleUploads = () =>
     Effect.gen(function* () {
-      const documents = yield* DocumentsRepo;
-
       const stale = yield* documents.staleAwaitingUpload(subHours(new Date(), STALE_UPLOAD_HOURS));
       if (!stale.length) return 0;
 
@@ -83,8 +82,6 @@ export const deadlineCron = (events: EventEmitter2) => {
 
   const scan = (scope: FirmScope | null) =>
     Effect.gen(function* () {
-      const requests = yield* RequestsRepo;
-
       const today = brazilDay();
       const overdue = yield* requests.overdueItems(scope, today);
       const pendingNotice = overdue.filter((row) => row.deadlineNotifiedAt === null);
@@ -127,9 +124,7 @@ export const deadlineCron = (events: EventEmitter2) => {
            * marca de "já avisei" vem junto: rotacionar ou marcar antes deixaria o Responsável
            * sem link nenhum — e sem nova tentativa — quando o provedor de email estivesse fora
            * do ar. */
-          const [delivered] = yield* Effect.promise(() =>
-            events.emitAsync(EVENTS.DeadlineMissed, missed),
-          );
+          const [delivered] = yield* events.emitAsync(EVENTS.DeadlineMissed, missed);
 
           if (!delivered) {
             logger.warn(`Solicitação ${requestId}: aviso de prazo não entregue ao Responsável.`);
@@ -173,27 +168,27 @@ export const deadlineCron = (events: EventEmitter2) => {
    *  `runDeadlineSweep()` do handle de `createApp`. */
   const daily = () =>
     Effect.gen(function* () {
-      const requests = yield* RequestsRepo;
+      const ran = yield* requests.withLease(
+        DEADLINE_CRON_LEASE,
+        Effect.gen(function* () {
+          const { overdue, notified } = yield* scan(null);
+          const discarded = yield* discardStaleUploads();
 
-      // o `task` da lease é uma promise, então a volta ao runtime é aqui
-      const ran = yield* requests.withLease(DEADLINE_CRON_LEASE, () =>
-        run(
-          Effect.gen(function* () {
-            const { overdue, notified } = yield* scan(null);
-            const discarded = yield* discardStaleUploads();
-
-            logger.log(
-              `prazos: ${notified.length} de ${overdue} item(ns) vencido(s) avisado(s); faxina: ${discarded} envio(s) não confirmado(s) removido(s)`,
-            );
-            return true;
-          }),
-        ),
+          logger.log(
+            `prazos: ${notified.length} de ${overdue} item(ns) vencido(s) avisado(s); faxina: ${discarded} envio(s) não confirmado(s) removido(s)`,
+          );
+          return true;
+        }),
       );
 
       if (!ran) logger.warn('prazos: varredura pulada — lock tomado por outra instância');
     });
 
   return { daily, scan, discardStaleUploads, purgeExpiredFiscalDocuments };
-};
+});
 
-export type DeadlineCron = ReturnType<typeof deadlineCron>;
+export class DeadlineScan extends Context.Service<DeadlineScan, Effect.Success<typeof make>>()(
+  'competa/api/requests/DeadlineScan',
+) {
+  static readonly layer = Layer.effect(DeadlineScan, make);
+}

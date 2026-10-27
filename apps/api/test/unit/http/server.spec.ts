@@ -1,27 +1,18 @@
 import { request as nodeRequest } from 'node:http';
-import { EventEmitter2 } from '../../../src/lib/event-emitter.js';
-import { Context, Effect, ManagedRuntime } from 'effect';
+import { Context, Effect, Layer, ManagedRuntime } from 'effect';
 import { HttpServer } from 'effect/http';
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 import { serverLayer } from '../../../src/http/server.js';
-import { AppReposWithoutDb } from '../../../src/effect/runtime.js';
+import { AppServicesWithoutDb } from '../../../src/effect/runtime.js';
 import type { Db } from '../../../src/infra/database/effect.js';
 
-/* Sobe o servidor Effect sem banco, e isso é PROVADO, não prometido: `AppReposWithoutDb`
- * monta os repositórios de verdade sobre um `Db` cujas consultas morrem. O que está sob
+/* Sobe o servidor Effect sem banco, e isso é PROVADO, não prometido: `AppServicesWithoutDb`
+ * monta os serviços de verdade sobre um `Db` cujas consultas morrem. O que está sob
  * teste é a pilha de plataforma (helmet, origin-check, CORS, log, throttle, envelope, mapa
  * de erros, ETag) na rota /health — se ela passar a consultar, estes testes quebram. */
 const boot = async (ping: Effect.Effect<unknown, unknown, Db>) => {
   const runtime = ManagedRuntime.make(
-    serverLayer({
-      port: 0,
-      trustProxy: true,
-      ping,
-      services: AppReposWithoutDb,
-      events: new EventEmitter2(),
-      scanDeadlines: () => Promise.resolve({}),
-      runReminders: () => Promise.resolve({}),
-    }),
+    serverLayer({ port: 0, trustProxy: true, ping }).pipe(Layer.provide(AppServicesWithoutDb)),
   );
   const server = Context.get(await runtime.context(), HttpServer.HttpServer);
   const url = HttpServer.formatAddress(server.address)

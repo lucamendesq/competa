@@ -3,7 +3,7 @@ import { NodeHttpServer } from '@effect/platform-node';
 import { Context, Effect, Layer, ManagedRuntime } from 'effect';
 import { HttpRouter, HttpServer, HttpServerResponse } from 'effect/http';
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
-import { AppReposWithoutDb } from '../../../src/effect/runtime.js';
+import { AppServicesWithoutDb } from '../../../src/effect/runtime.js';
 import { publicRoute, route } from '../../../src/http/platform.js';
 
 const finished: string[] = [];
@@ -24,7 +24,7 @@ const boot = async () => {
       { disableLogger: true, disableListenLog: true },
     ).pipe(
       Layer.provideMerge(NodeHttpServer.layer(createServer, { port: 0 })),
-      Layer.provide(AppReposWithoutDb),
+      Layer.provide(AppServicesWithoutDb),
     ),
   );
   const server = Context.get(await runtime.context(), HttpServer.HttpServer);

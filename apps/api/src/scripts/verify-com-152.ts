@@ -20,7 +20,7 @@ import {
   uploadLink,
   user,
 } from '../infra/database/schema/index.js';
-import { run as runEffect } from '../effect/runtime.js';
+import { run as runEffect } from '../effect/script.js';
 import { DocumentsRepo } from '../modules/requests/document.repo.js';
 import { RequestsRepo } from '../modules/requests/request.repo.js';
 import { PeriodsRepo } from '../modules/periods/period.repo.js';

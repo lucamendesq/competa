@@ -24,7 +24,7 @@ import {
   requestItem,
   user,
 } from '../infra/database/schema/index.js';
-import { run as runEffect } from '../effect/runtime.js';
+import { run as runEffect } from '../effect/script.js';
 import { CompaniesRepo } from '../modules/companies/company.repo.js';
 import { RequestsRepo } from '../modules/requests/request.repo.js';
 import { AccountantsRepo } from '../modules/auth/accountant.repo.js';

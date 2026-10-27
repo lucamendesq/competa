@@ -11,7 +11,7 @@ const { accountingFirm, subscription } = await import('../infra/database/schema/
 const { PlanCapabilityRequired } = await import('../modules/auth/errors.js');
 const { emailLayout } = await import('../modules/messaging/email-layout.js');
 const { RequestsRepo } = await import('../modules/requests/request.repo.js');
-const { run } = await import('../effect/runtime.js');
+const { run } = await import('../effect/script.js');
 const { DEFAULT_REMINDER_SETTINGS } = await import('../modules/messaging/reminder-rules.js');
 
 /* O mesmo teste do `resolveFirm` em `src/http/middleware/auth.ts`: rota sem capability

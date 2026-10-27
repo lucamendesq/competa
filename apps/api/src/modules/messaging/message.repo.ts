@@ -36,7 +36,13 @@ import {
   reviewPublishedEmail,
 } from './email-body.js';
 import type { MessageProvider } from './providers/message.provider.js';
-import { emailProvider, pushProvider, whatsappProviderOf } from './providers/providers.js';
+import {
+  emailProvider,
+  integrationsFrom,
+  makeWhatsappProvider,
+  pushProvider,
+} from './providers/providers.js';
+import { WhatsappRepo } from '../whatsapp/whatsapp.repo.js';
 import type { ReminderCandidate, ReminderSettings } from './reminder-rules.js';
 
 const PENDING_ITEM_STATUS = ['pending', 'rejected'] as const;
@@ -78,6 +84,13 @@ const outcomeOf = (ok: boolean): ResendOutcome =>
 
 const make = Effect.gen(function* () {
   const db = yield* Db;
+  const integrations = yield* WhatsappRepo;
+
+  /* Montado na primeira mensagem de WhatsApp: em produção o crypto exige a chave, e quem
+   * nunca manda WhatsApp não precisa dela para subir. */
+  let whatsapp: MessageProvider | undefined;
+  const whatsappProvider = () =>
+    (whatsapp ??= makeWhatsappProvider(integrationsFrom(integrations)));
 
   const uploadLinkExpiry = Effect.fn('MessagesRepo.uploadLinkExpiry')(function* (
     requestId: string,
@@ -376,7 +389,7 @@ const make = Effect.gen(function* () {
     }: Delivery,
   ) => {
     const primaryProvider =
-      explicitProvider ?? (channel === 'whatsapp' ? await whatsappProviderOf() : emailProvider);
+      explicitProvider ?? (channel === 'whatsapp' ? whatsappProvider() : emailProvider);
 
     const { senderName, brandLogoUrl } = await brandOf(executor, requestId);
 
@@ -949,5 +962,8 @@ export class MessagesRepo extends Context.Service<MessagesRepo, Effect.Success<t
   'competa/api/messaging/MessagesRepo',
 ) {
   static readonly layerNoDeps = Layer.effect(MessagesRepo, make);
-  static readonly layer = this.layerNoDeps.pipe(Layer.provide(Db.layer));
+  static readonly layer = this.layerNoDeps.pipe(
+    Layer.provide(WhatsappRepo.layer),
+    Layer.provide(Db.layer),
+  );
 }

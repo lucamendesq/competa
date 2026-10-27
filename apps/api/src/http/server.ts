@@ -1,10 +1,8 @@
 import { createServer } from 'node:http';
 import { NodeHttpServer } from '@effect/platform-node';
-import type { EventEmitter2 } from '../lib/event-emitter.js';
 import { ByteSize, Effect, Layer } from 'effect';
 import { HttpIncomingMessage, HttpRouter } from 'effect/http';
 import { buildInfo } from '../build-info.js';
-import { appServices, type AppContext } from '../effect/runtime.js';
 import type { Db } from '../infra/database/effect.js';
 import { localStorageRoutes } from '../infra/storage/local-storage.routes.js';
 import { ServiceUnavailable } from '../lib/app-error.js';
@@ -18,11 +16,11 @@ import { companiesRoutes } from '../modules/companies/companies.routes.js';
 import { accessRecoveryRoutes } from '../modules/contacts/access-recovery.routes.js';
 import { contactAccessRoutes } from '../modules/contacts/contact-access.routes.js';
 import { contactsRoutes } from '../modules/contacts/contacts.routes.js';
-import { messagesRoutes, type RunReminders } from '../modules/messaging/messages.routes.js';
+import { messagesRoutes } from '../modules/messaging/messages.routes.js';
 import { pushRoutes } from '../modules/messaging/push.routes.js';
 import { periodsRoutes } from '../modules/periods/periods.routes.js';
 import { requestsRoutes } from '../modules/requests/requests.routes.js';
-import { reviewRoutes, type ScanDeadlines } from '../modules/requests/review.routes.js';
+import { reviewRoutes } from '../modules/requests/review.routes.js';
 import { uploadRoutes } from '../modules/requests/upload.routes.js';
 import { zipRoutes } from '../modules/requests/zip.routes.js';
 import { whatsappSettingsRoutes } from '../modules/whatsapp/whatsapp-settings.routes.js';
@@ -54,19 +52,12 @@ const healthRoute = (ping: Effect.Effect<unknown, unknown, Db>) =>
     { auth: publicRoute, throttle: GLOBAL_BUCKETS.filter((bucket) => bucket.name !== 'default') },
   );
 
+/** O servidor HTTP com todas as rotas. Exige a árvore de serviços do app (`AppServices`):
+ *  quem monta decide o `Db` por baixo — o real no app, a trava sem banco nos testes. */
 export const serverLayer = (options: {
   readonly port: number;
   readonly trustProxy: boolean;
   readonly ping: Effect.Effect<unknown, unknown, Db>;
-  /** Sobrescreve os serviços do app. Só os testes passam isto, para provar que a plataforma
-   *  não consulta o banco (`AppReposWithoutDb`). */
-  readonly services?: Layer.Layer<AppContext>;
-  /** A MESMA instância do container Nest: os listeners de messaging estão registrados
-   *  nela, e uma cópia engoliria todo evento emitido por rota migrada. */
-  readonly events: EventEmitter2;
-  /** As varreduras com escopo de firma das rotas HTTP; o agendamento vive em `crons.ts`. */
-  readonly scanDeadlines: ScanDeadlines;
-  readonly runReminders: RunReminders;
 }) =>
   /* `fallbackRoutes` é o curinga `'*' '/*'` e fica por último na leitura, mas find-my-way
    * prioriza estático > param > curinga: a ordem do merge não decide nada. */
@@ -78,20 +69,20 @@ export const serverLayer = (options: {
       asaasWebhookRoutes,
       whatsappWebhookRoutes,
       whatsappSettingsRoutes,
-      periodsRoutes(options.events),
+      periodsRoutes,
       checklistsRoutes,
-      companiesRoutes(options.events),
+      companiesRoutes,
       authRoutes,
       signupRoutes,
-      teamRoutes(options.events),
+      teamRoutes,
       billingRoutes,
       contactsRoutes,
-      accessRecoveryRoutes(options.events),
+      accessRecoveryRoutes,
       contactAccessRoutes,
       uploadRoutes,
-      requestsRoutes(options.events),
-      reviewRoutes(options.events, options.scanDeadlines),
-      messagesRoutes(options.runReminders),
+      requestsRoutes,
+      reviewRoutes,
+      messagesRoutes,
       zipRoutes,
       authMountRoutes,
       fallbackRoutes,
@@ -115,6 +106,4 @@ export const serverLayer = (options: {
      * stream) nem `PUT /storage/local/:key` (que lê o `IncomingMessage` cru), exatamente
      * como o `SkipBodyParsingMiddleware` não alcançava. */
     Layer.provideMerge(Layer.succeed(HttpIncomingMessage.MaxBodySize)(ByteSize.mebibytes(2))),
-    // o `serve` converte o que a rota marca como `Requires` em requisito comum da layer
-    Layer.provide(options.services ?? appServices),
   );

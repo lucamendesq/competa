@@ -10,16 +10,11 @@ import { AccountantsRepo } from '../auth/accountant.repo.js';
 import { OnlyOwnerCanManageTeam } from '../auth/errors.js';
 import { WhatsappNotConnected } from './errors.js';
 import type { FirmScope } from '../auth/scope.js';
-import { MockWhatsappProvider } from '../messaging/providers/mock-whatsapp.provider.js';
-import { WhatsappProvider } from '../messaging/providers/whatsapp.provider.js';
+import { integrationsFrom, makeWhatsappProvider } from '../messaging/providers/providers.js';
 import { WhatsappCryptoService } from './whatsapp-crypto.service.js';
 import { WhatsappRepo } from './whatsapp.repo.js';
 
-/* As mesmas instâncias que o `WhatsappModule` montava, com a mesma escolha por NODE_ENV e o
- * crypto como singleton compartilhado com o provider de produção. */
 const crypto = new WhatsappCryptoService();
-const whatsapp =
-  env.NODE_ENV === 'production' ? new WhatsappProvider(crypto) : new MockWhatsappProvider();
 
 /* Stub do Embedded Signup: o `code` recebido nunca é trocado por token na Meta. Fora de
  * produção isso destrava o fluxo da tela; EM produção a rota recusa, porque gravar
@@ -114,6 +109,7 @@ const sendTest = route(
         return yield* Effect.fail(new WhatsappNotConnected());
       }
 
+      const whatsapp = makeWhatsappProvider(integrationsFrom(yield* WhatsappRepo));
       yield* Effect.promise(() =>
         whatsapp
           .send({

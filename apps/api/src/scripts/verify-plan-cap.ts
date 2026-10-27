@@ -22,7 +22,7 @@ const { accountingFirm, subscription, company } = await import('../infra/databas
 const { CompaniesRepo } = await import('../modules/companies/company.repo.js');
 const { toFirmScope } = await import('../modules/auth/scope.js');
 const { PeriodsRepo } = await import('../modules/periods/period.repo.js');
-const { run: runEffect } = await import('../effect/runtime.js');
+const { run: runEffect } = await import('../effect/script.js');
 
 const onCompanies = <A, E>(f: (repo: Companies['Service']) => Effect.Effect<A, E>) =>
   runEffect(CompaniesRepo.use(f));

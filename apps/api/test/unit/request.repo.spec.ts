@@ -758,9 +758,9 @@ layer(RequestsRepo.layer)('RequestsRepo', (it) => {
       const repo = yield* RequestsRepo;
       const name = `sweep-${next()}`;
 
-      expect(yield* repo.withLease(name, async () => 'rodou')).toBe('rodou');
+      expect(yield* repo.withLease(name, Effect.succeed('rodou'))).toBe('rodou');
       // liberada no fim: a segunda chamada seguida também roda
-      expect(yield* repo.withLease(name, async () => 'de novo')).toBe('de novo');
+      expect(yield* repo.withLease(name, Effect.succeed('de novo'))).toBe('de novo');
 
       // outra instância com a lease em dia: pulamos
       yield* Effect.promise(() =>
@@ -771,10 +771,13 @@ layer(RequestsRepo.layer)('RequestsRepo', (it) => {
       );
 
       let ran = false;
-      const skipped = yield* repo.withLease(name, async () => {
-        ran = true;
-        return 'nao deveria';
-      });
+      const skipped = yield* repo.withLease(
+        name,
+        Effect.sync(() => {
+          ran = true;
+          return 'nao deveria';
+        }),
+      );
       expect(skipped).toBeNull();
       expect(ran).toBe(false);
 
@@ -788,7 +791,7 @@ layer(RequestsRepo.layer)('RequestsRepo', (it) => {
           .where(eq(cronLease.name, name)),
       );
 
-      expect(yield* repo.withLease(name, async () => 'retomada')).toBe('retomada');
+      expect(yield* repo.withLease(name, Effect.succeed('retomada'))).toBe('retomada');
     }),
   );
 });
