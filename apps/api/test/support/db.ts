@@ -1,12 +1,15 @@
 import { sql } from 'drizzle-orm';
 import { db, pool } from '../../src/infra/database/index.js';
+import env from '../../src/config/env.js';
 import seedCatalog from '../../src/infra/database/seeds/001-document-types-and-templates.js';
+import { assertTestDatabase } from './test-database.js';
 
 export { db, pool };
 
 /** CASCADE leva junto o catálogo (document_type referencia accounting_firm), então o seed
  *  roda de novo — como num banco recém-migrado. */
 export async function truncateAll() {
+  assertTestDatabase(env.DB_NAME);
   const tables = await db.execute<{ tablename: string }>(
     sql`select tablename from pg_tables where schemaname = 'public'`,
   );
