@@ -64,20 +64,46 @@ export const callerIp = (
   return remoteAddress ?? 'unknown';
 };
 
-export const uploadTracker = (ip: string, token: string) => `${ip}:${token}`;
+/* O token vem cru do path, antes de qualquer guard: só entra na chave se tiver a forma de um
+ * token emitido (`createToken`, 32 bytes em base64url). Fora disso o balde é o do IP — senão
+ * cada token inventado abriria uma chave nova e o limite nunca dispararia. */
+const TOKEN_SHAPE = /^[A-Za-z0-9_-]{43}$/;
 
-type Entry = { hits: number[]; blockedUntil: number };
+export const uploadTracker = (ip: string, token: string) =>
+  TOKEN_SHAPE.test(token) ? `${ip}:${token}` : ip;
 
-/* ponytail: in-memory, como o storage default do throttler do Nest. Redis quando houver
- * mais de uma instância. */
+type Entry = { hits: number[]; blockedUntil: number; staleAt: number };
+
+const SWEEP_EVERY_MS = 60_000;
+
+/* ponytail: em memória; vira Redis quando houver mais de uma instância. */
 export const makeThrottleStore = (now: () => number = Date.now) => {
   const entries = new Map<string, Entry>();
+  let lastSweep = now();
+
+  /* Chave que nunca mais é batida não volta a passar pelo `hit`: sem a varredura, cada IP
+   * ou token visto uma vez ficaria no heap para sempre. */
+  const sweep = (at: number) => {
+    if (at - lastSweep < SWEEP_EVERY_MS) return;
+    lastSweep = at;
+    for (const [key, entry] of entries) if (entry.staleAt <= at) entries.delete(key);
+  };
+
+  const settle = (entry: Entry, bucket: Bucket) => {
+    const lastHit = entry.hits.at(-1);
+    entry.staleAt = Math.max(
+      entry.blockedUntil,
+      lastHit === undefined ? 0 : lastHit + bucket.ttlMs,
+    );
+  };
 
   return {
+    size: () => entries.size,
     /** Janela deslizante + bloqueio: estourado o limite, hits NÃO contam enquanto bloqueado. */
     hit(key: string, bucket: Bucket): ThrottleResult {
       const at = now();
-      const entry = entries.get(key) ?? { hits: [], blockedUntil: 0 };
+      sweep(at);
+      const entry = entries.get(key) ?? { hits: [], blockedUntil: 0, staleAt: 0 };
       entries.set(key, entry);
 
       if (entry.blockedUntil > at) {
@@ -90,10 +116,12 @@ export const makeThrottleStore = (now: () => number = Date.now) => {
         const blockMs = bucket.blockMs ?? bucket.ttlMs;
         entry.blockedUntil = at + blockMs;
         entry.hits = [];
+        settle(entry, bucket);
         return { ok: false, retryAfterSec: Math.ceil(blockMs / 1000) };
       }
 
       entry.hits.push(at);
+      settle(entry, bucket);
       return {
         ok: true,
         remaining: bucket.limit - entry.hits.length,
