@@ -21,7 +21,7 @@ import {
   uploadPresignRoute,
   uploadTokenRoute,
 } from '../../../src/http/middleware/auth.js';
-import { ThrottleStore, TrustProxy, route } from '../../../src/http/platform.js';
+import { ThrottleStore, TrustProxy, publicRoute, route } from '../../../src/http/platform.js';
 import { makeThrottleStore, throttleDefault } from '../../../src/http/throttle.js';
 import { createToken } from '../../../src/lib/token.js';
 import { isFailure } from '../../../src/lib/either.js';
@@ -55,6 +55,7 @@ const probes = Layer.mergeAll(
     auth: uploadTokenRoute({ uploadThrottle: true }),
   }),
   route('POST', '/probe/recover', handler('POST', Effect.succeed({ sent: true })), {
+    auth: publicRoute,
     throttle: throttleDefault(3, 60_000),
   }),
   route('POST', '/probe/contact-upload', handler('POST', read(UploadContext)), {

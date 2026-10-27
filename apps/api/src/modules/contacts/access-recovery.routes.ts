@@ -5,7 +5,7 @@ import { Effect, Layer } from 'effect';
 import env from '../../config/env.js';
 import { BetterAuthAdapter } from '../../infra/auth/better-auth.adapter.js';
 import { handler } from '../../http/envelope.js';
-import { body, route } from '../../http/platform.js';
+import { body, publicRoute, route } from '../../http/platform.js';
 import { throttleDefault } from '../../http/throttle.js';
 import {
   EVENTS,
@@ -122,7 +122,7 @@ const recover = (events: EventEmitter2) =>
         return SAME_ANSWER;
       }),
     ),
-    { throttle: RECOVERY_THROTTLE },
+    { auth: publicRoute, throttle: RECOVERY_THROTTLE },
   );
 
 /** Passo 2: o token prova posse do email — aí sim rotaciona. Resposta igualmente cega:
@@ -154,7 +154,7 @@ const confirm = (events: EventEmitter2) =>
         return SAME_ANSWER;
       }),
     ),
-    { throttle: RECOVERY_THROTTLE },
+    { auth: publicRoute, throttle: RECOVERY_THROTTLE },
   );
 
 export const accessRecoveryRoutes = (events: EventEmitter2) =>

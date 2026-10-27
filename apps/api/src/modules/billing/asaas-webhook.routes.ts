@@ -4,7 +4,7 @@ import { HttpServerRequest } from 'effect/http';
 import * as z from 'zod';
 import env from '../../config/env.js';
 import { handler } from '../../http/envelope.js';
-import { body, route } from '../../http/platform.js';
+import { body, publicRoute, route } from '../../http/platform.js';
 import { throttleDefault } from '../../http/throttle.js';
 import { Forbidden, ServiceUnavailable } from '../../lib/app-error.js';
 import { secretEquals } from '../../lib/token.js';
@@ -81,7 +81,7 @@ const webhook = route(
   /* O balde global (30/10s por IP) derrubava rajada do gateway, e um 429 que esgote a
    * retentativa do Asaas é um pagamento PERDIDO — firma paga e nunca ativa. O limite aqui
    * existe só contra enxurrada; quem autoriza é o token. */
-  { throttle: throttleDefault(600, 60_000) },
+  { auth: publicRoute, throttle: throttleDefault(600, 60_000) },
 );
 
 export const asaasWebhookRoutes = Layer.mergeAll(webhook);

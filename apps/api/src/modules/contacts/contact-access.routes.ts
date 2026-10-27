@@ -11,7 +11,7 @@ import { BetterAuthAdapter } from '../../infra/auth/better-auth.adapter.js';
 import { UploadContext } from '../../http/context.js';
 import { handler } from '../../http/envelope.js';
 import { uploadTokenRoute } from '../../http/middleware/auth.js';
-import { body, params, route } from '../../http/platform.js';
+import { body, params, publicRoute, route } from '../../http/platform.js';
 import { throttleDefault } from '../../http/throttle.js';
 import { NotFound } from '../../lib/app-error.js';
 import { isFailure } from '../../lib/either.js';
@@ -163,7 +163,7 @@ const acceptInvite = route(
       return { email: owner.email, name, nextStep: 'sign_in' as const };
     }),
   ),
-  { throttle: SIGNUP_THROTTLE },
+  { auth: publicRoute, throttle: SIGNUP_THROTTLE },
 );
 
 export const contactAccessRoutes = Layer.mergeAll(activate, subscribe, acceptInvite);

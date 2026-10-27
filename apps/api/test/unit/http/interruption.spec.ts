@@ -4,7 +4,7 @@ import { Context, Effect, Layer, ManagedRuntime } from 'effect';
 import { HttpRouter, HttpServer, HttpServerResponse } from 'effect/http';
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 import { AppReposWithoutDb } from '../../../src/effect/runtime.js';
-import { route } from '../../../src/http/platform.js';
+import { publicRoute, route } from '../../../src/http/platform.js';
 
 const finished: string[] = [];
 
@@ -17,7 +17,10 @@ const slow = (label: string) =>
 const boot = async () => {
   const runtime = ManagedRuntime.make(
     HttpRouter.serve(
-      Layer.mergeAll(route('POST', '/slow', slow('POST')), route('GET', '/slow', slow('GET'))),
+      Layer.mergeAll(
+        route('POST', '/slow', slow('POST'), { auth: publicRoute }),
+        route('GET', '/slow', slow('GET'), { auth: publicRoute }),
+      ),
       { disableLogger: true, disableListenLog: true },
     ).pipe(
       Layer.provideMerge(NodeHttpServer.layer(createServer, { port: 0 })),

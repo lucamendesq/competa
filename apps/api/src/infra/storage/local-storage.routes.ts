@@ -4,7 +4,7 @@ import { Effect, Layer } from 'effect';
 import { HttpRouter, HttpServerRequest } from 'effect/http';
 import env from '../../config/env.js';
 import { handler } from '../../http/envelope.js';
-import { route } from '../../http/platform.js';
+import { publicRoute, route } from '../../http/platform.js';
 import type { AppError } from '../../lib/app-error.js';
 import { LocalStorage } from './local.storage.js';
 
@@ -50,7 +50,7 @@ const put = route(
   /* Upload de N arquivos bate aqui N vezes em sequência: contar isso como rajada quebraria
    * envio legítimo de lote, e o `short` (30/10s) cortava o 31º arquivo. O limite real está
    * no presign, que autoriza. `@SkipThrottle({ default: true, short: true })`. */
-  { throttle: [] },
+  { auth: publicRoute, throttle: [] },
 );
 
 export const localStorageRoutes = servesLocalUploads ? Layer.mergeAll(put) : Layer.empty;
