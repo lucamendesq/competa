@@ -10,6 +10,7 @@ import {
   uploadTracker,
   type Bucket,
 } from '../../../src/http/throttle.js';
+import { createToken } from '../../../src/lib/token.js';
 
 const short = GLOBAL_BUCKETS[0];
 const sustained = GLOBAL_BUCKETS[1];
@@ -110,19 +111,55 @@ describe('throttleKey', () => {
 
   it('upload de presign é chaveado por ip:token — outro token no mesmo IP é outro balde', () => {
     const ip = '1.1.1.1';
+    const t1 = createToken().token;
     const first = throttleKey(
       'POST /upload/:token/documents',
       UPLOAD_PRESIGN_BUCKET,
-      uploadTracker(ip, 't1'),
+      uploadTracker(ip, t1),
     );
     const second = throttleKey(
       'POST /upload/:token/documents',
       UPLOAD_PRESIGN_BUCKET,
-      uploadTracker(ip, 't2'),
+      uploadTracker(ip, createToken().token),
     );
 
-    expect(first).toContain('1.1.1.1:t1');
+    expect(first).toContain(`1.1.1.1:${t1}`);
     expect(first).not.toBe(second);
+  });
+
+  it('token sem a forma de um token emitido cai no balde do IP', () => {
+    expect(uploadTracker('1.1.1.1', 'token-falso')).toBe('1.1.1.1');
+    expect(uploadTracker('1.1.1.1', 'x'.repeat(1000))).toBe('1.1.1.1');
+  });
+});
+
+describe('makeThrottleStore — memória', () => {
+  const custom: Bucket = { name: 'default', limit: 3, ttlMs: 60_000 };
+
+  it('chave que nunca mais é batida sai na varredura depois do ttl', () => {
+    const time = clock();
+    const store = makeThrottleStore(time.now);
+
+    for (let key = 0; key < 1000; key += 1) store.hit(`k${key}`, custom);
+    expect(store.size()).toBe(1000);
+
+    time.advance(60_001);
+    store.hit('outra', custom);
+
+    expect(store.size()).toBe(1);
+  });
+
+  it('chave bloqueada sobrevive à varredura até o fim do bloqueio', () => {
+    const time = clock();
+    const store = makeThrottleStore(time.now);
+    const blocking: Bucket = { name: 'default', limit: 1, ttlMs: 10_000, blockMs: 120_000 };
+
+    store.hit('k', blocking);
+    store.hit('k', blocking);
+    time.advance(60_001);
+    store.hit('outra', blocking);
+
+    expect(store.hit('k', blocking).ok).toBe(false);
   });
 });
 

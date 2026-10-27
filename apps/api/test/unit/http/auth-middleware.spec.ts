@@ -23,7 +23,7 @@ import {
 } from '../../../src/http/middleware/auth.js';
 import { ThrottleStore, TrustProxy, route } from '../../../src/http/platform.js';
 import { makeThrottleStore, throttleDefault } from '../../../src/http/throttle.js';
-import { hashToken } from '../../../src/lib/token.js';
+import { createToken } from '../../../src/lib/token.js';
 import { isFailure } from '../../../src/lib/either.js';
 import {
   accountant,
@@ -192,11 +192,11 @@ const seedUploadLink = async (options: { revoked?: boolean; expiresAt?: Date } =
     .values({ periodId: periodRow.id, companyId: companyRow.id })
     .returning({ id: request.id });
 
-  const token = `probe-token-${seq}`;
+  const { token, tokenHash } = createToken();
   await db.insert(uploadLink).values({
     requestId: requestRow.id,
     contactId: contactRow.id,
-    tokenHash: hashToken(token),
+    tokenHash,
     revoked: options.revoked ?? false,
     expiresAt: options.expiresAt ?? new Date(Date.now() + 30 * 86_400_000),
   });
