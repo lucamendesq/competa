@@ -1,6 +1,7 @@
 import { AppError } from '../../lib/app-error.js';
 
 export class AccessAlreadyExists extends AppError {
+  readonly _tag = 'AccessAlreadyExists';
   readonly code = 'CONTACT_ACCESS_ALREADY_EXISTS';
   readonly status = 409;
 

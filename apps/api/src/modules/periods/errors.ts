@@ -1,6 +1,7 @@
 import { AppError } from '../../lib/app-error.js';
 
 export class PeriodAlreadyOpen extends AppError {
+  readonly _tag = 'PeriodAlreadyOpen';
   readonly code = 'PERIOD_ALREADY_OPEN';
   readonly status = 409;
 
@@ -10,6 +11,7 @@ export class PeriodAlreadyOpen extends AppError {
 }
 
 export class PeriodAlreadyClosed extends AppError {
+  readonly _tag = 'PeriodAlreadyClosed';
   readonly code = 'PERIOD_ALREADY_CLOSED';
   readonly status = 409;
 

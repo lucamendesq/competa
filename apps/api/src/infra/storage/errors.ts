@@ -1,6 +1,7 @@
 import { AppError } from '../../lib/app-error.js';
 
 export class PayloadTooLarge extends AppError {
+  readonly _tag = 'PayloadTooLarge';
   readonly code = 'PAYLOAD_TOO_LARGE';
   readonly status = 413;
 
