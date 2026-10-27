@@ -27,5 +27,6 @@ export default defineConfig({
       STORAGE_LOCAL_DIR: '.storage-test',
     },
     globalSetup: ['./test/support/global-setup.ts'],
+    setupFiles: ['./test/support/pool-teardown.ts'],
   },
 });
