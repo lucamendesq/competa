@@ -402,6 +402,8 @@ describe('firma sem empresas e validação', () => {
       { referenceMonth: 'set/2026' },
       { referenceMonth: '2026-13' },
       { referenceMonth: REFERENCE_MONTH, dueDate: 'amanhã' },
+      { referenceMonth: '0000-01' },
+      { referenceMonth: '2026-11', dueDate: '2026-10-31' },
       {},
     ]) {
       const res = await api.post('/periods', body);
