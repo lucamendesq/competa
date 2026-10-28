@@ -2,7 +2,7 @@ import { createHash } from 'node:crypto';
 import { Effect } from 'effect';
 import { HttpServerResponse } from 'effect/http';
 
-/** O que o `res.json()` do Express escreve — o charset faz parte dos bytes da resposta. */
+/** Mesmo charset que os clientes já recebem: os bytes da resposta fazem parte do contrato. */
 export const JSON_UTF8 = 'application/json; charset=utf-8';
 
 export const ENVELOPED = Symbol('enveloped');
@@ -18,7 +18,7 @@ export const paginated = <T>(data: T[], meta: Meta): Enveloped<T> => ({
   [ENVELOPED]: true,
 });
 
-/** ETag weak do Express (pacote `etag`): `W/"<tamanho em hex>-<sha1 base64, 27 chars>"`. */
+/** ETag weak no formato do pacote `etag`: `W/"<tamanho em hex>-<sha1 base64, 27 chars>"`. */
 export const weakEtag = (body: Uint8Array) =>
   `W/"${body.length.toString(16)}-${createHash('sha1').update(body).digest('base64').slice(0, 27)}"`;
 
@@ -31,8 +31,8 @@ const matchesEtag = (ifNoneMatch: string, etag: string) =>
     return candidate === etag || `W/${candidate}` === etag || candidate === `W/${etag}`;
   });
 
-/** Reproduz o fim do `res.send()` do Express: ETag em todo corpo serializado e 304 quando
- *  o cliente revalida com `If-None-Match` (só GET/HEAD, só status cacheável). */
+/** ETag em todo corpo serializado e 304 quando o cliente revalida com `If-None-Match` (só
+ *  GET/HEAD, só status cacheável). */
 export const applyEtag = (
   request: {
     readonly method: string;
@@ -72,7 +72,6 @@ export const toResponse =
     return HttpServerResponse.jsonUnsafe(body, { status, contentType: JSON_UTF8 });
   };
 
-/** Status default do Nest: 201 em POST, 200 no resto. `@HttpCode(204)` vira `status: 204`. */
 export const handler = <E, R>(
   method: 'GET' | 'POST' | 'PUT' | 'PATCH' | 'DELETE',
   effect: Effect.Effect<unknown, E, R>,

@@ -23,8 +23,50 @@ jobs:
       - run: pnpm lint
       - run: pnpm -r build
 
+  test:
+    runs-on: ubuntu-latest
+    services:
+      postgres:
+        image: postgres:17
+        env:
+          POSTGRES_USER: postgres
+          POSTGRES_DB: competa_test
+          POSTGRES_HOST_AUTH_METHOD: trust
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd pg_isready
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 5
+    env:
+      DB_HOST: localhost
+      DB_PORT: '5432'
+      DB_USER: postgres
+      DB_NAME: competa_test
+      BETTER_AUTH_SECRET: ci-secret-sem-valor-em-producao
+      BETTER_AUTH_URL: http://localhost:3000
+      WEB_URL: http://localhost:4200
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: pnpm/action-setup@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version-file: .nvmrc
+          cache: pnpm
+
+      - run: pnpm install --frozen-lockfile
+
+      # a API importa @competa/contracts do dist, não do src (ver AGENTS.md)
+      - run: pnpm --filter @competa/contracts build
+
+      - run: pnpm --filter api db:migrate
+      - run: pnpm --filter api test
+
   deploy-api:
-    needs: build-lint
+    needs: [build-lint, test]
     if: github.ref == 'refs/heads/main' && github.event_name == 'push'
     runs-on: ubuntu-latest
     steps:

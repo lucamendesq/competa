@@ -3,7 +3,7 @@ import { addMonths, addYears } from 'date-fns';
 import { eq } from 'drizzle-orm';
 import type { BillingCycle, PaidPlanName } from '@competa/contracts';
 import { Db } from '../../infra/database/effect.js';
-import { subscription } from '../../infra/database/schema/index.js';
+import { billingWebhookEvent, subscription } from '../../infra/database/schema/index.js';
 
 const make = Effect.gen(function* () {
   const db = yield* Db;
@@ -30,8 +30,11 @@ const make = Effect.gen(function* () {
       d
         .update(subscription)
         .set({
-          planName: input.planName,
-          cycle: input.cycle,
+          /* `planName`/`cycle` NÃO mudam aqui: o gate de capability lê `planName`, então
+           * gravá-lo no checkout liberava plano pago antes do pagamento. A escolha fica como
+           * intenção e o webhook a promove. */
+          pendingPlanName: input.planName,
+          pendingCycle: input.cycle,
           gatewayCustomerId: input.gatewayCustomerId,
           gatewaySubscriptionId: input.gatewaySubscriptionId,
         })
@@ -45,21 +48,39 @@ const make = Effect.gen(function* () {
   ) {
     const [row] = yield* db.use((d) =>
       d
-        .select({ cycle: subscription.cycle })
+        .select({
+          cycle: subscription.cycle,
+          pendingPlanName: subscription.pendingPlanName,
+          pendingCycle: subscription.pendingCycle,
+        })
         .from(subscription)
         .where(eq(subscription.gatewaySubscriptionId, gatewaySubscriptionId))
         .limit(1),
     );
 
+    /* Pagamento entrou: a intenção do checkout vira o plano de verdade. É AQUI que a
+     * capability paga passa a valer — não quando o checkout começou. */
+    const promoted =
+      status === 'ACTIVE' && row?.pendingPlanName
+        ? {
+            planName: row.pendingPlanName,
+            cycle: row.pendingCycle ?? row.cycle,
+            pendingPlanName: null,
+            pendingCycle: null,
+          }
+        : {};
+
     /* Pagamento confirmado abre o período inteiro do ciclo: no anual a próxima cobrança é
      * daqui a 12 meses, e a régua de inadimplência não tem o que procurar no mês 2. */
+    const effectiveCycle = promoted.cycle ?? row?.cycle;
     const period =
       status === 'ACTIVE'
         ? (() => {
             const start = new Date();
             return {
               currentPeriodStart: start,
-              currentPeriodEnd: row?.cycle === 'yearly' ? addYears(start, 1) : addMonths(start, 1),
+              currentPeriodEnd:
+                effectiveCycle === 'yearly' ? addYears(start, 1) : addMonths(start, 1),
             };
           })()
         : {};
@@ -67,12 +88,30 @@ const make = Effect.gen(function* () {
     yield* db.use((d) =>
       d
         .update(subscription)
-        .set({ status, ...period })
+        .set({ status, ...promoted, ...period })
         .where(eq(subscription.gatewaySubscriptionId, gatewaySubscriptionId)),
     );
   });
 
-  return { findByFirm, startCheckout, updateStatus };
+  /** Reivindica o evento do gateway. `true` = primeira vez (pode processar); `false` = já
+   *  veio antes. `onConflictDoNothing` resolve a corrida entre duas entregas simultâneas:
+   *  quem inserir ganha, o outro vê zero linhas. */
+  const claimEvent = Effect.fn('SubscriptionsRepo.claimEvent')(function* (
+    eventId: string,
+    event: string,
+  ) {
+    const claimed = yield* db.use((d) =>
+      d
+        .insert(billingWebhookEvent)
+        .values({ id: eventId, event })
+        .onConflictDoNothing()
+        .returning({ id: billingWebhookEvent.id }),
+    );
+
+    return claimed.length > 0;
+  });
+
+  return { findByFirm, startCheckout, updateStatus, claimEvent };
 });
 
 export class SubscriptionsRepo extends Context.Service<

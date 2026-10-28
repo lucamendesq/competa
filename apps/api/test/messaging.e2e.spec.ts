@@ -2,6 +2,7 @@ import { and, eq, inArray } from 'drizzle-orm';
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 import { bootApp, type RunningApp } from './support/boot.js';
 import { db, truncateAll } from './support/db.js';
+import { hashToken } from '../src/lib/token.js';
 import {
   accountingFirm,
   message,
@@ -50,7 +51,6 @@ const brazilDayPlus = (days: number) => {
 
 const daysAgo = (days: number) => new Date(Date.now() - days * 86_400_000);
 const hoursAgo = (hours: number) => new Date(Date.now() - hours * 3_600_000);
-const sleep = (ms: number) => new Promise((resolve) => setTimeout(resolve, ms));
 
 let pushSeq = 0;
 const pushBody = () => ({
@@ -129,15 +129,11 @@ const messageRowsOf = (requestId: string, purpose?: string) =>
     .orderBy(message.createdAt, message.id);
 
 /* Listeners de evento são fire-and-forget: a resposta HTTP volta antes do insert — e o
- * insert nasce `queued` antes do update para `sent`/`failed`, então esperar só a contagem
- * perde essa segunda corrida. */
+ * insert nasce `queued` antes do update para `sent`/`failed`. `drainEvents` espera as
+ * fibras dos listeners terminarem, então as duas escritas já aconteceram. */
 async function waitForMessageRows(requestId: string, count: number, purpose?: string) {
-  let rows: Awaited<ReturnType<typeof messageRowsOf>> = [];
-  const settled = () => rows.length >= count && rows.every((row) => row.status !== 'queued');
-  for (let attempt = 0; attempt < 30 && !settled(); attempt++) {
-    rows = await messageRowsOf(requestId, purpose);
-    if (!settled()) await sleep(100);
-  }
+  await app.drainEvents();
+  const rows = await messageRowsOf(requestId, purpose);
   expect(rows.length, `esperava ${count} message(s) ${purpose ?? ''}`).toBe(count);
   expect(
     rows.every((row) => row.status !== 'queued'),
@@ -494,7 +490,10 @@ describe('POST /messages/:id/resend', () => {
     expect(await messageRowsOf(openBox.requestId, 'resend')).toHaveLength(1);
   });
 
-  it('bug congelado: reenvio de mensagem whatsapp sai por EMAIL (deliver sem channel)', async () => {
+  /* O reenvio sai pelo MESMO canal do original. Antes o `resend` chamava `deliver` sem
+   * `channel` e tudo caía no provider default (email) — um lembrete de WhatsApp reenviado ia
+   * para um "endereço" que é número de telefone. */
+  it('reenvio de mensagem whatsapp sai por WHATSAPP', async () => {
     const seededId = await seedMessage({
       requestId: openBox.requestId,
       channel: 'whatsapp',
@@ -511,7 +510,7 @@ describe('POST /messages/:id/resend', () => {
     const reminders = await messageRowsOf(openBox.requestId, 'reminder');
     expect(reminders).toHaveLength(2);
     expect(reminders[1]).toMatchObject({
-      channel: 'email',
+      channel: 'whatsapp',
       recipient: '+5511988887777',
       status: 'sent',
     });
@@ -767,18 +766,15 @@ describe('RequestCreated — entrega do link por email e push adicional (F10-5)'
     expect(byChannel.push).toMatchObject({ recipient: body.endpoint, status: 'sent' });
   });
 
-  /* Bug congelado: `onUploadLinkResent` não devolve o boolean da entrega, então o
-   * `emitAsync` do controller vê `[undefined]` e responde 503 — mas o deliver JÁ rodou:
-   * o email com o link novo sai e fica registrado, e o token nunca é oficializado
-   * (`applyUploadToken` não é alcançado). O Responsável recebe um link morto. */
-  it('bug congelado: UploadLinkResent pelo Contador → 503, mas o email sai e o link não rotaciona', async () => {
+  /* O token é oficializado ANTES do envio, então o link que chega no email É o válido. E o
+   * listener devolve se entregou, que é o que a rota usa para escolher entre 200 e 503. */
+  it('reenvio do Contador: 200, email sai e o token do email vira o oficial', async () => {
     const hashBefore = await tokenHashOf(firstBox.requestId);
     const res = await fixture.firm.api.post(`/requests/${firstBox.requestId}/upload-link/resend`);
 
-    expect(res.status, JSON.stringify(res.body)).toBe(503);
-    expect(res.body.error.code).toBe('SERVICE_UNAVAILABLE');
+    expect(res.status, JSON.stringify(res.body)).toBe(201);
+    expect(res.body.data.contactEmail).toBe(firstBox.contactEmail);
 
-    /* emitAsync: a entrega é aguardada antes da resposta — sem retry aqui. */
     const rows = await messageRowsOf(firstBox.requestId, 'resend');
     expect(rows).toHaveLength(1);
     expect(rows[0]).toMatchObject({
@@ -787,9 +783,11 @@ describe('RequestCreated — entrega do link por email e push adicional (F10-5)'
       status: 'sent',
     });
 
-    expect(await tokenHashOf(firstBox.requestId), 'token do email nunca vira o oficial').toBe(
-      hashBefore,
-    );
+    const hashAfter = await tokenHashOf(firstBox.requestId);
+    expect(hashAfter, 'o token rotacionou').not.toBe(hashBefore);
+    /* O link do email é o oficial: é essa a diferença entre entregar acesso e entregar um
+     * link morto. */
+    expect(hashAfter).toBe(hashToken(res.body.data.uploadUrl.split('/envio/')[1]));
   });
 });
 
@@ -844,7 +842,6 @@ describe('revisão: ItemReopened, ReviewPublished e RequestCompleted', () => {
     });
 
     const rows = await waitForMessageRows(box.requestId, 1, 'rejection');
-    await sleep(300);
     expect(
       await messageRowsOf(box.requestId, 'rejection'),
       'um email para o lote inteiro',
@@ -927,7 +924,7 @@ describe('DeadlineMissed via POST /deadlines/scan e ContactInvited sem registro'
     expect(res.status, JSON.stringify(res.body)).toBe(201);
     expect(res.body.data).toMatchObject({ invited: 1, skipped: 0 });
 
-    await sleep(400);
+    await app.drainEvents();
     expect(await messageRowsOf(overdueBox.requestId)).toHaveLength(rowsBefore.length);
   });
 });

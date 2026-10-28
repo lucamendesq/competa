@@ -8,16 +8,22 @@ const DB_INSTANCE_IMPORT = {
     'A instância crua `db` do Drizzle só existe em src/infra/ e src/scripts/. Em src/modules/, use um repositório que exija FirmScope.',
 };
 
+const DB_SERVICE_IMPORT = {
+  group: ['**/infra/database/effect', '**/infra/database/effect.js'],
+  message:
+    'O serviço Db só é usado em *.repo.ts, para que o FirmScope seja exigido por assinatura. Rota que precisa de unidade de trabalho usa `withTransaction` de infra/database/transaction.',
+};
+
 const SCOPE_CONSTRUCTOR_IMPORT = {
   selector: 'ImportSpecifier[imported.name=/^(toFirmScope|toUploadScope|toContactScope)$/]',
   message:
-    'toFirmScope/toUploadScope/toContactScope só podem ser importados dentro de src/modules/auth/ — o escopo nasce no guard.',
+    'toFirmScope/toUploadScope/toContactScope só podem ser importados em src/http/middleware/auth.ts — o escopo nasce no perfil de auth.',
 };
 
 const SCOPE_CAST = {
   selector: 'TSAsExpression[typeAnnotation.typeName.name=/^(FirmScope|UploadScope|ContactScope)$/]',
   message:
-    'Não force o tipo branded com `as`. FirmScope/UploadScope/ContactScope só são construídos pelos `to*Scope`, dentro de src/modules/auth/.',
+    'Não force o tipo branded com `as`. FirmScope/UploadScope/ContactScope só são construídos pelos `to*Scope` de src/modules/auth/scope.ts.',
 };
 
 export default tseslint.config(
@@ -39,8 +45,24 @@ export default tseslint.config(
   {
     files: ['**/*.ts'],
     rules: {
-      'no-restricted-imports': ['error', { patterns: [DB_INSTANCE_IMPORT] }],
+      'no-restricted-imports': ['error', { patterns: [DB_INSTANCE_IMPORT, DB_SERVICE_IMPORT] }],
       'no-restricted-syntax': ['error', SCOPE_CONSTRUCTOR_IMPORT, SCOPE_CAST],
+    },
+  },
+
+  /* As raízes de composição montam a árvore de serviços e a sonda de saúde pinga o banco;
+   * nenhum deles consulta dado de tenant. */
+  {
+    files: [
+      '**/*.repo.ts',
+      'src/effect/**/*.ts',
+      'src/app.ts',
+      'src/main.ts',
+      'src/health.ts',
+      'src/http/server.ts',
+    ],
+    rules: {
+      'no-restricted-imports': ['error', { patterns: [DB_INSTANCE_IMPORT] }],
     },
   },
 
@@ -51,11 +73,9 @@ export default tseslint.config(
     },
   },
 
-  /* `src/http/middleware/auth.ts` é o ÚNICO lugar do shell Effect onde o escopo nasce — o
-   * mesmo papel que os guards de `src/modules/auth/` têm na casca Nest. A exceção dos
-   * guards continua até eles serem apagados. */
+  /* `src/http/middleware/auth.ts` é o ÚNICO lugar onde o escopo nasce. */
   {
-    files: ['src/modules/auth/**/*.ts', 'src/http/middleware/auth.ts'],
+    files: ['src/http/middleware/auth.ts'],
     rules: {
       'no-restricted-syntax': ['error', SCOPE_CAST],
     },
@@ -76,7 +96,7 @@ export default tseslint.config(
   },
 
   {
-    files: ['src/modules/auth/scope.ts', 'src/modules/auth/current-scope.decorator.ts'],
+    files: ['src/modules/auth/scope.ts'],
     rules: {
       'no-restricted-syntax': 'off',
     },

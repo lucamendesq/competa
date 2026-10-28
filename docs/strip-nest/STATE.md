@@ -69,17 +69,17 @@ Todos os 9 repositórios estão em Effect; o que resta é a CASCA. Sub-fases (ca
 
 **Cada consumidor de DI que sobrou**:
 
-| Antes (container Nest)                                             | Agora                                                                                                                                                                                      |
-| ------------------------------------------------------------------ | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
-| `EventEmitter2` (`EventEmitterModule.forRoot`)                     | `new EventEmitter2()` em `createApp` (uma por app) — `eventemitter2` é dep direta. Interop CJS em `src/lib/event-emitter.ts`                                                               |
-| `CollectionEventsListener` / `RequestCreatedListener` (`@OnEvent`) | `src/modules/messaging/listeners.ts` → `registerMessagingListeners(events)`, com o mesmo `try/catch` do `EventSubscribersLoader` (erro vira log, não rejeição) e a mesma ORDEM de registro |
-| `MessagingModule.onModuleInit` (magic link / reset)                | mesmo `registerMessagingListeners`                                                                                                                                                         |
-| `HealthRepository`                                                 | `src/health.ts` — `ping()` sobre o `Db` do runtime Effect                                                                                                                                  |
-| `DeadlineCron` / `RemindersCron`                                   | `new DeadlineCron(...)` / `new RemindersCron(...)` em `createApp`                                                                                                                          |
-| `StorageProvider` (`StorageModule`)                                | `src/infra/storage/storage.ts` — singleton de módulo                                                                                                                                       |
-| `MessageProvider` / `PushProvider`                                 | `src/modules/messaging/providers/providers.ts` — singletons de módulo                                                                                                                      |
-| `Logger` (`nestjs-pino`)                                           | `src/lib/logger.ts` — mesma superfície, um único `pinoHttp(...)` por processo (raiz + middleware de requisição)                                                                            |
-| `BetterAuthModule.forRoot` (mount morto)                           | apagado com o pacote                                                                                                                                                                       |
+| Antes (container Nest)                                             | Agora                                                                                                                        |
+| ------------------------------------------------------------------ | ---------------------------------------------------------------------------------------------------------------------------- |
+| `EventEmitter2` (`EventEmitterModule.forRoot`)                     | serviço `Events` (`src/lib/events.service.ts`), um por app, sobre o `eventemitter2`                                          |
+| `CollectionEventsListener` / `RequestCreatedListener` (`@OnEvent`) | `EventsLive` em `src/modules/messaging/listeners.ts`: mesma ordem de registro, erro vira log; handlers num `FiberSet` do app |
+| `MessagingModule.onModuleInit` (magic link / reset)                | mesmo `EventsLive`                                                                                                           |
+| `HealthRepository`                                                 | `src/health.ts` — `ping()` sobre o `Db` do runtime Effect                                                                    |
+| `DeadlineCron` / `RemindersCron`                                   | serviços `DeadlineScan` / `Reminders`, agendados por `cronsLayer` em `app.ts`                                                |
+| `StorageProvider` (`StorageModule`)                                | `src/infra/storage/storage.ts` — singleton de módulo                                                                         |
+| `MessageProvider` / `PushProvider`                                 | `src/modules/messaging/providers/providers.ts` — singletons de módulo                                                        |
+| `Logger` (`nestjs-pino`)                                           | `src/lib/logger.ts` — mesma superfície, um único `pinoHttp(...)` por processo (raiz + middleware de requisição)              |
+| `BetterAuthModule.forRoot` (mount morto)                           | apagado com o pacote                                                                                                         |
 
 **Pending cleanups fechados aqui**: seam de Storage (3 cópias da expressão → 1; fim dos dois `S3Client` em produção), seam de providers de messaging (2 cópias → 1; fim do segundo `new Resend()`), registro órfão de `MessageProvider` (morreu com `messaging.module.ts`), `type Executor` hoisted para `src/infra/database/effect.ts`.
 
@@ -129,19 +129,19 @@ Cross-module seams the Effect composition must reproduce: event contract in `src
 6. Override `add` parcial sobre tipo que já está no template transforma item ANUAL em MENSAL com `dueMonthOffset` 1: os defaults do zod (`periodicity:'monthly'`, `dueMonthOffset:1`, `required:true`) são gravados non-null e derrotam o `??` de herança no `mergeEffectiveChecklist` — cujo próprio comentário diz existir para impedir exatamente isso. Só `annualMonth`/`dueDay`/`conditionFlag` herdam de fato. Congelado em `test/checklists.e2e.spec.ts`.
 7. (quirk, não bug) DELETE de template é bloqueado por empresa INATIVA (TEMPLATE_IN_USE) enquanto `companyCount` na listagem mostra 0 — FK-correto, display enganoso.
 8. `POST /my/documents` com `requestId` não-uuid → 500: `ContactUploadGuard` passa o body cru para `findUploadOwnership` antes do zodPipe e o Postgres estoura (`invalid input syntax for type uuid`). Deveria ser 422. Congelado em `test/contacts.e2e.spec.ts`.
-9. Ativação passwordless cria a conta better-auth com senha ALEATÓRIA via `signUpEmail` → todo Responsável nasce com credencial: o perfil mostra `hasPassword: true` para quem nunca escolheu senha e `POST /my/password` responde sempre 400 PASSWORD_ALREADY_SET (caminho 204 inalcançável) — o Responsável fica preso ao magic link. Congelado em `test/contacts.e2e.spec.ts`.
+9. ~~Ativação passwordless cria a conta better-auth com senha ALEATÓRIA via `signUpEmail`~~ **CORRIGIDO no ramo `security-followup`.** A ativação apaga a credencial aleatória logo após criá-la (`ContactsRepo.dropCredential`), então o Responsável chega sem senha e o `POST /my/password` cria a primeira. Corrigido junto com o achado crítico abaixo, de que era pré-requisito.
 10. `POST /whatsapp/test` sem integração ativa → 500 (`throw new Error('Integração não ativa')` cru no controller; deveria ser 4xx tipado). Congelado em `test/whatsapp.e2e.spec.ts`.
 11. (segurança) `WHATSAPP_ENCRYPTION_KEY` ausente → `WhatsappCryptoService` usa chave fallback toda-zero conhecida (`'0'.repeat(64)`); tokens cifrados com ela são decifráveis por qualquer um. Em produção o env é obrigatório? NÃO está em REQUIRED_IN_PRODUCTION. Congelado em `test/whatsapp.e2e.spec.ts`.
 12. (quirks congelados em `test/whatsapp.e2e.spec.ts`) onboard é stub (ignora `body.code`, grava credenciais mock mesmo sem META env); test send não grava linha em `message` (sem rastreio de entrega); `/whatsapp/test` não é owner-gated (onboard/disconnect são); DELETE idempotente devolve `{success:true}` sem integração.
 13. `POST /requests/:id/upload-link/resend` SEMPRE responde 503 — e o email já saiu com link MORTO: `onUploadLinkResent` não devolve o boolean que o `emitAsync(...).includes(true)` do controller espera, então `applyUploadToken` nunca roda (o token novo não é gravado) mas a entrega foi feita e logada como `resend/sent`. Congelado em `test/messaging.e2e.spec.ts`.
 14. Reenvio (`POST /messages/:id/resend`) de mensagem whatsapp sai por EMAIL: `resend()` chama `deliver()` sem `channel` e cai no provider default. Congelado em `test/messaging.e2e.spec.ts`.
 15. (quirks congelados em `test/messaging.e2e.spec.ts`) resend não checa status (mensagem `sent` duplica à vontade); row `purpose=resend` não tem branch → `{sent:false}` silencioso; resend push sem inscrição devolve `{sent:false}` ANTES do 409 de request fechada; `/messages/failures` com periodId alheio/desconhecido devolve `[]` e não 404.
-16. Rejeitar documento promete `linkRotated: true` mas o token antigo sobrevive 48h de graça — o docstring de `rotateLinkOnReopen` diz "mata o token anterior NA HORA / zerar previous_token_hash" e o código grava `previousTokenHash: current.tokenHash`. Congelado em `test/requests.e2e.spec.ts`.
+16. ~~Rejeitar documento promete `linkRotated: true` mas o token antigo sobrevive 48h~~ **CORRIGIDO no ramo `security-followup`.** `rotateLinkOnReopenOn` zera `previous_token_hash`/`previous_expires_at`, como o docstring dele sempre disse. A carência de 48h continua valendo onde faz sentido — lembrete e reenvio, em que o Responsável pode estar com o link velho aberto.
 17. `POST /documents/:id/review-extra` ignora encerramento: `reviewExtraRefusal` recebe `requestStatus` e nunca o checa — Extra continua revisável com a Solicitação fechada (itens e documentos de item bloqueiam). Congelado em `test/requests.e2e.spec.ts`.
 18. (quirks congelados em `test/requests.e2e.spec.ts`) review-extra unitário com `accepted` + `rejectionReason` grava a reason (o lote anula); checklist só de itens opcionais nunca chega a `complete` (`allAccepted` exige required não-vazio); comentário obsoleto em `request.repository.ts` fala em 422 para o race de reject — é 409.
 19. `POST /billing/checkout` é write → firma OVERDUE/CANCELED/trial-expirado leva 402 PAYMENT_REQUIRED na PRÓPRIA rota que regularizaria o pagamento (em prod, firma inadimplente não se auto-recupera pelo checkout). Congelado em `test/billing.e2e.spec.ts`.
 20. (quirks congelados em `test/billing.e2e.spec.ts`) `startCheckout` é UPDATE sem upsert — firma sem linha de subscription recebe 201 e nada persiste; checkout nunca toca `status` (plano/ciclo mudam na intenção, ativação só via webhook); LogBilling devolve `checkoutUrl: ''`.
-21. (segurança) Header `x-internal-signup` é forjável: qualquer cliente que o envie atravessa o hook do better-auth e cria conta órfã com sessão viva, sem convite — a conta leva 403 nas rotas de tenant mas ocupa o email para sempre (`/auth/register` passa a responder SIGNUP_REJECTED). Congelado em `test/auth.e2e.spec.ts`.
+21. ~~(segurança) Header `x-internal-signup` é forjável~~ **CORRIGIDO no ramo `security-followup`.** O mount remove o header de toda requisição que chega pela rede, antes do `auth.handler`. Quem o põe é o `BetterAuthAdapter`, numa chamada EM PROCESSO (`auth.api.*`) — ele nunca trafegou pela rede legitimamente. Conta órfã deixou de ser criável por HTTP, e a grilagem de email morreu junto.
 22. Branch 409 morto em `POST /auth/sign-up`: email convidado que ganhou conta entre convite e aceite → better-auth com `asResponse: true` devolve o erro como Response, o adapter embrulha como sucesso com `userId: ''` e o insert de accountant estoura no Postgres (`invalid input syntax for type uuid: ""`) → 500 em vez do 409 EMAIL_ALREADY_REGISTERED que o controller pretende. Rollback preserva o convite. Congelado em `test/auth.e2e.spec.ts`.
 23. (quirk congelado em `test/auth.e2e.spec.ts`) `PATCH /auth/device` com `installed` omitido RESETA installed para false no upsert (default do zod vence a semântica de patch).
 
@@ -252,9 +252,15 @@ Cross-module seams the Effect composition must reproduce: event contract in `src
     repositório numa fibra destacada, fora do alcance de qualquer interrupção. Agora eles correm
     na fibra da requisição, então um abort do cliente no meio de uma transação dispara o
     finalizador do `Db.withTransaction` e **desfaz** onde antes commitava. É o desfecho correto e
-    foi pedido pela onda, mas é mudança de comportamento. **Sem teste**: provocar um abort no
-    instante certo de uma transação real é acoplado a tempo e flakaria; o rollback em si já está
-    coberto pelos testes de `withTransaction`. Aceita conscientemente.
+    foi pedido pela onda, mas é mudança de comportamento.
+
+    **Revista:** desfazer o banco não desfaz o que saiu dele — o usuário criado no better-auth,
+    o email enviado, o evento emitido. E no v4 `tapCause` não roda na interrupção, então a
+    compensação do signup nunca rodava. Agora `route()` registra escrita (todo método que não é
+    GET) como `uninterruptible`: o abort do cliente não a interrompe e ela termina como no Nest.
+    GET continua interrompível (o zip aborta). As compensações (`auth.routes`, `signup.routes`,
+    o voo único do zip) passaram a `Effect.onError`, que é finalizador e roda também na
+    interrupção. Coberto por `test/unit/http/interruption.spec.ts`.
 
 ## Endurecimento Effect (pós-strip) — plano em `effect-hardening.md`
 
@@ -266,18 +272,14 @@ Cross-module seams the Effect composition must reproduce: event contract in `src
 | 4    | Canal de erro: `use`/`withTransaction` matam, `attempt`/`attemptTransaction` não | `15e28d0`   |
 | 5    | `Db.layerTest` como trava sem banco; repositórios seguem no Postgres real        | este commit |
 | 6    | `ResendOutcome`: os 4 desfechos do reenvio saem do booleano                      | este commit |
+| 7    | Revisão Effect (ramo `effect-review-fixes`) — ver seção abaixo                   | ver abaixo  |
 
 A dívida que a onda 3 deixou (`DbError` na união `Failure` de `platform.ts`, no `Resolved` de
 `middleware/auth.ts` e em `inviteToApp`) foi apagada pela onda 4.
 
-Armadilha que a onda 4 deixa para quem mexer em transação: `withTransaction` mata o `DbError`,
-então um corpo que use `db.attempt` e queira TRATAR o erro precisa de `db.attemptTransaction` —
-os dois `DbError` (o do corpo e o da maquinaria) têm a mesma tag e o `withTransaction` mataria
-ambos. Os 9 sítios que inspecionam já usam a variante certa.
-
-Fronteiras promise que SOBRARAM e são legítimas: listeners do eventemitter2, entradas de cron,
-scripts. A de `providers/whatsapp.provider.ts` NÃO é legítima — é o ciclo ESM já listado em
-"Pending cleanups"; morre junto com o seam de providers.
+A armadilha que a onda 4 deixava (`attemptTransaction` para quem trata o erro do corpo) e as
+fronteiras promise que sobravam (listeners, crons, `whatsapp.provider.ts`) foram resolvidas
+pela onda 7.
 
 O que a onda 5 deliberadamente NÃO fez: dublê in-memory de repositório. Os nossos são SQL
 (escopo, joins, violação de unicidade) e um dublê apagaria a única cobertura do isolamento por
@@ -310,3 +312,67 @@ propósito. `Db.layerTest` é trava, não dublê: satisfaz o tipo e mata qualque
 
 - The working tree carries the user's uncommitted WIP (apps/web files + `apps/api/src/config/logger.ts`, `modules/auth/invite.repository.ts`, `modules/companies/companies.controller.ts`, `modules/messaging/providers/log-email.provider.ts` — invite re-send semantics changed). NEVER stage these. If the WIP is discarded later, re-check characterization suites for auth/companies/messaging.
 - `pnpm-lock.yaml` contains both the user's prior changes and the strip-nest dep additions; committing it is required and acceptable.
+
+## Revisão externa (2026-10-25) — o que foi corrigido e o que NÃO foi
+
+Um revisor externo auditou `a1c8289` (antes da migração) e levantou 14 achados. Sete já estavam
+nesta lista como bugs congelados; sete eram novos e a suíte de caracterização **não tinha como
+encontrá-los**, porque são de infra e de semântica de pool/agendamento, não de comportamento
+HTTP. Corrigidos no ramo `security-followup`.
+
+### Dois achados dele que estavam errados no mecanismo
+
+- **Cadeia de tomada de conta.** Ele descreveu vínculo automático quando um escritório real
+  cadastra um e-mail já existente. Não existe: `company.repo.ts` `addContact` nunca escreve
+  `authUserId`, e o convite até RECUSA e-mail já cadastrado. O que existia de verdade era a
+  senha na ativação — sem ela, o atacante cria a conta mas quem recebe o magic link é a vítima.
+- **"Os crons travam para sempre."** O advisory lock vazava mesmo, mas é
+  `pg_try_advisory_lock`, não o bloqueante: não travava — **pulava a varredura em silêncio**,
+  que operacionalmente é pior, porque não aparece em lugar nenhum.
+
+### Deliberadamente NÃO corrigidos, com o motivo
+
+- **Lembrete gira o token antes de saber se o e-mail saiu.** Inverter a ordem é PIOR: o e-mail
+  sairia com um token ainda não persistido e, se a gravação falhasse, o link chegaria morto —
+  exatamente a forma do bug #13. Fazer a rotação condicional exigiria que `onReminderDue`
+  parasse de engolir falha e que o despacho deixasse de ser por evento. E o sistema já se cura:
+  entrega falhada grava `status: 'failed'`, que o teto de lembrete exclui, então a rodada
+  seguinte tenta de novo — com a carência de 48h cobrindo o intervalo.
+- **Confirmação de upload lê o arquivo inteiro.** O tamanho já usa `HeadObject`; o `GetObject`
+  completo existe para o sha256. Delegar ao R2 (`ChecksumSHA256`, que `r2.storage.ts` já
+  suporta) obriga o navegador a hashear antes de enviar — mudança de front com risco próprio em
+  arquivo grande. É custo de egresso, não correção; vale decidir com número de uso na mão.
+- **Vínculo oportunista na ativação.** Com a senha fora, o residual é: criar escritório é
+  self-service, então qualquer um dispara conta + magic link para um e-mail arbitrário (5/min
+  por IP). Fechar isso é decisão de produto — exigir verificação para criar escritório — e não
+  correção pontual.
+
+## Onda 7 — revisão Effect (ramo `effect-review-fixes`, sobre `security-followup`)
+
+Uma revisão contra a documentação do Effect v4 achou o que a suíte de caracterização não
+pegava (interrupção, memória, HEAD) e duas afirmações do PR que não se sustentavam ("um runtime
+só"; "close() interrompe a varredura"). Um commit por item:
+
+| Item                        | Antes                                                                                                                                                                                                | Agora                                                                                                                                                                            |
+| --------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| HEAD                        | curinga `'*'` casava HEAD: toda rota GET respondia 404 a HEAD                                                                                                                                        | fallback registrado por método, sem HEAD; o roteador serve HEAD pelo GET                                                                                                         |
+| Cliente desconecta          | a fibra da requisição era interrompida e `tapCause` (que não roda na interrupção) não compensava: signup deixava usuário órfão no better-auth; download de zip cancelado vazava a chave do voo único | `route()` registra escrita como `uninterruptible`; compensações em `Effect.onError`. Divergência 10 revista acima                                                                |
+| Store de throttle           | `Map` só crescia; presign chaveado pelo token cru do path, antes do guard → OOM anônimo                                                                                                              | entrada vence (último hit + ttl / fim do bloqueio), varredura a cada 60s; token fora da forma emitida cai no IP                                                                  |
+| Rota sem `auth`             | caía em `publicRoute` em silêncio (o `TenantGuard` era APP_GUARD e negava)                                                                                                                           | `auth` obrigatório; as 11 públicas declaram `publicRoute`                                                                                                                        |
+| Lint de acesso ao banco     | a regra `DATABASE_IMPORT` saiu com o `Database` do Nest                                                                                                                                              | `infra/database/effect` só em `*.repo.ts` e raízes de composição; rota compõe por `infra/database/transaction`                                                                   |
+| Suíte trunca qualquer banco | `DB_NAME=competa` no shell apagava o banco de dev                                                                                                                                                    | `globalSetup` e `truncateAll` exigem sufixo `_test`                                                                                                                              |
+| `AppError`                  | `extends Error`, casado por `instanceof`                                                                                                                                                             | `Data.Error` com `_tag` por classe e `isAppError`; corpo HTTP idêntico                                                                                                           |
+| Erro de banco               | um `DbError` que morria; erro de domínio lançado DENTRO do callback do drizzle e pescado de volta                                                                                                    | `DbUnavailable` (503, `retryable`), `UniqueViolation` (com a constraint) e defeito; checagens viram `yield* new Erro()` entre `db.use`s; `attemptTransaction` e os `*OrDie` saem |
+| Pool                        | `Layer.sync` sobre o pool do módulo; `pool.end()` nunca rodava                                                                                                                                       | `DbPool.layer` (dono, `acquireRelease`) / `DbPool.layerBorrowed` (suíte); better-auth segue no mesmo pool                                                                        |
+| Runtime                     | dois `ManagedRuntime`; crons, listeners e duas rotas faziam Effect → Promise → Effect pelo `run()` do módulo                                                                                         | um runtime por app; `Events`, `DeadlineScan`, `Reminders` são serviços; listeners num `FiberSet` do app drenado no shutdown; `withLease` recebe Effect e libera num `ensuring`   |
+| Boot                        | 11 sinais à mão e `process.exit(0)`                                                                                                                                                                  | `NodeRuntime.runMain` sobre `DbPool.layer`; SIGINT/SIGTERM desmontam na ordem e saem com 130                                                                                     |
+| Testes                      | sleeps fixos para afirmar "nada foi enviado"                                                                                                                                                         | `app.drainEvents()`; transações aninhadas/concorrentes cobertas; interrupção de varredura em curso coberta                                                                       |
+
+Mudanças de comportamento observáveis, todas deliberadas:
+
+- Banco fora do ar responde **503 `SERVICE_UNAVAILABLE`** em toda rota (antes 500). Nenhum
+  spec provocava esse caminho.
+- Escrita (POST/PUT/PATCH/DELETE) **termina** quando o cliente desconecta; GET continua
+  interrompível.
+- O processo sai com **130** num SIGTERM (antes 0).
+- Shutdown espera até **5s** por listeners em voo antes de interrompê-los.

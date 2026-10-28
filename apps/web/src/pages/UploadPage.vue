@@ -14,15 +14,12 @@ import {
   Upload,
 } from 'lucide-vue-next';
 import { Button } from '@/components/ui/button';
-import { Input } from '@/components/ui/input';
-import { Label } from '@/components/ui/label';
 import LoadingRows from '@/components/LoadingRows.vue';
 import StatusPill from '@/components/StatusPill.vue';
 import ResendNotice from '@/components/ResendNotice.vue';
 import UploadFeedback from '@/components/UploadFeedback.vue';
 import Logo from '@/components/Logo.vue';
 import InstallButton from '@/components/InstallButton.vue';
-import Modal from '@/components/Modal.vue';
 import { useUploadFeature } from '@/features/upload/composables/useUploadFeature';
 import { usePush } from '@/composables/usePush';
 import { dateBr, monthLabel } from '@/utils/format';
@@ -50,29 +47,17 @@ const logoBroken = ref(false);
 const activatingAccess = ref(false);
 const accountExists = ref(false);
 const accessEmailSent = ref<string | null>(null);
-const showPasswordModal = ref(false);
-const newPassword = ref('');
-const passwordErrorMsg = ref('');
-const passwordSaved = ref(false);
 
-async function handleRegisterPassword() {
-  passwordErrorMsg.value = '';
-  if (!newPassword.value || newPassword.value.length < 8) {
-    passwordErrorMsg.value = 'A senha precisa ter pelo menos 8 caracteres.';
-    return;
-  }
-
+/* Este link circula por email encaminhado, histórico e log de proxy: quem o tem não provou
+ * controlar a caixa, então ele não dá senha nem sessão. A ativação só dispara o magic link;
+ * a senha, se o Responsável quiser uma, nasce depois, já dentro da Minha Área. */
+async function handleActivateAccess() {
   activatingAccess.value = true;
   try {
-    await activateAccessMutation.mutateAsync({ password: newPassword.value });
-    passwordSaved.value = true;
-    showPasswordModal.value = false;
-    newPassword.value = '';
-    if (checklistQuery.data.value) {
-      checklistQuery.data.value.hasAccess = true;
-    }
+    const activated = await activateAccessMutation.mutateAsync({});
+    accessEmailSent.value = activated.email;
     toast.success(
-      'Senha cadastrada com sucesso! Você pode acessar a Minha Área a qualquer momento.',
+      `Enviamos um link de acesso para ${activated.email}. Abra seu email para entrar.`,
     );
   } catch (error) {
     if (
@@ -80,10 +65,9 @@ async function handleRegisterPassword() {
       apiErrorCode(error) === 'ACCESS_ALREADY_EXISTS'
     ) {
       accountExists.value = true;
-      showPasswordModal.value = false;
       toast.info('Seu e-mail já possui uma conta ativa. Acesse em /minha-area/acesso.');
     } else {
-      toast.error(apiErrorMessage(error, 'Não foi possível cadastrar a senha.'));
+      toast.error(apiErrorMessage(error, 'Não foi possível enviar o link de acesso.'));
     }
   } finally {
     activatingAccess.value = false;
@@ -255,26 +239,22 @@ async function send(files: File[], requestItemId: string | null) {
       </div>
 
       <div
-        v-if="passwordSaved"
+        v-if="accessEmailSent"
         class="border-emerald-500/30 bg-emerald-500/5 mb-6 rounded-xl border p-4 shadow-sm"
       >
-        <div class="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
-          <div class="flex items-start gap-3">
-            <span
-              class="bg-emerald-500/10 text-emerald-600 flex size-9 shrink-0 items-center justify-center rounded-lg mt-0.5"
-            >
-              <CheckCircle2 class="h-4 w-4" />
-            </span>
-            <div>
-              <p class="text-sm font-semibold text-foreground">Senha cadastrada com sucesso!</p>
-              <p class="text-muted-foreground text-xs mt-0.5">
-                Você já pode acessar sua área exclusiva para acompanhar o histórico e pendências.
-              </p>
-            </div>
+        <div class="flex items-start gap-3">
+          <span
+            class="bg-emerald-500/10 text-emerald-600 flex size-9 shrink-0 items-center justify-center rounded-lg mt-0.5"
+          >
+            <CheckCircle2 class="h-4 w-4" />
+          </span>
+          <div>
+            <p class="text-sm font-semibold text-foreground">Link de acesso enviado!</p>
+            <p class="text-muted-foreground text-xs mt-0.5">
+              Abra o email que mandamos para {{ accessEmailSent }} e entre pelo link. De lá você
+              acompanha histórico e pendências — e pode cadastrar uma senha, se quiser.
+            </p>
           </div>
-          <Button variant="outline" size="sm" class="shrink-0" as-child>
-            <RouterLink to="/minha-area/acesso"> Acessar Minha Área </RouterLink>
-          </Button>
         </div>
       </div>
 
@@ -294,12 +274,19 @@ async function send(files: File[], requestItemId: string | null) {
                 Acesse quando quiser sem depender do link
               </p>
               <p class="text-muted-foreground text-xs mt-0.5">
-                Cadastre uma senha para acompanhar pendências e histórico na sua área exclusiva.
+                Mandamos um link de acesso para o seu email e você acompanha pendências e histórico
+                na sua área exclusiva.
               </p>
             </div>
           </div>
-          <Button variant="outline" size="sm" class="shrink-0" @click="showPasswordModal = true">
-            Cadastrar senha
+          <Button
+            variant="outline"
+            size="sm"
+            class="shrink-0"
+            :disabled="activatingAccess"
+            @click="handleActivateAccess"
+          >
+            {{ activatingAccess ? 'Enviando…' : 'Criar meu acesso' }}
           </Button>
         </div>
       </div>
@@ -338,9 +325,13 @@ async function send(files: File[], requestItemId: string | null) {
                     <Bell class="mr-2 h-4 w-4" />
                     {{ push.subscribing.value ? 'Ativando...' : 'Me avise neste aparelho' }}
                   </Button>
-                  <Button variant="outline" @click="showPasswordModal = true">
+                  <Button
+                    variant="outline"
+                    :disabled="activatingAccess"
+                    @click="handleActivateAccess"
+                  >
                     <Lock class="mr-2 h-4 w-4" />
-                    Cadastrar senha
+                    {{ activatingAccess ? 'Enviando…' : 'Criar meu acesso' }}
                   </Button>
                 </template>
               </div>
@@ -544,15 +535,16 @@ async function send(files: File[], requestItemId: string | null) {
       <footer
         class="mt-8 flex flex-col items-center justify-center gap-2 text-center text-xs text-muted-foreground sm:flex-row sm:gap-4"
       >
-        <template v-if="!checklistQuery.data.value.hasAccess && !passwordSaved">
+        <template v-if="!checklistQuery.data.value.hasAccess && !accessEmailSent">
           <div>
-            <span>Ainda não tem senha? </span>
+            <span>Ainda não tem acesso? </span>
             <button
               type="button"
               class="font-medium text-foreground hover:underline"
-              @click="showPasswordModal = true"
+              :disabled="activatingAccess"
+              @click="handleActivateAccess"
             >
-              Cadastrar senha de acesso
+              Receber link de acesso
             </button>
           </div>
           <span class="hidden sm:inline text-border">·</span>
@@ -571,42 +563,5 @@ async function send(files: File[], requestItemId: string | null) {
       @dismiss="results = null"
       @retry="send($event, retryTarget)"
     />
-
-    <Modal
-      v-model:open="showPasswordModal"
-      title="Cadastrar senha de acesso"
-      description="Defina uma senha para acessar seus documentos e pendências a qualquer momento em Minha Área."
-    >
-      <form class="space-y-4" @submit.prevent="handleRegisterPassword">
-        <div class="flex flex-col gap-1.5">
-          <Label for="contact-pwd">Nova senha</Label>
-          <Input
-            id="contact-pwd"
-            v-model="newPassword"
-            type="password"
-            placeholder="Mínimo de 8 caracteres"
-            autocomplete="new-password"
-            :disabled="activatingAccess"
-          />
-          <p v-if="passwordErrorMsg" class="text-destructive text-xs">
-            {{ passwordErrorMsg }}
-          </p>
-        </div>
-
-        <div class="flex justify-end gap-2 pt-2">
-          <Button
-            type="button"
-            variant="outline"
-            :disabled="activatingAccess"
-            @click="showPasswordModal = false"
-          >
-            Cancelar
-          </Button>
-          <Button type="submit" :disabled="activatingAccess || newPassword.length < 8">
-            {{ activatingAccess ? 'Cadastrando…' : 'Salvar senha' }}
-          </Button>
-        </div>
-      </form>
-    </Modal>
   </div>
 </template>

@@ -1,12 +1,11 @@
 import { Logger } from '../lib/logger.js';
 import * as Sentry from '@sentry/node';
 import { APIError } from 'better-auth/api';
-import type { Cause } from 'effect';
-import { Effect } from 'effect';
+import { Cause, Effect } from 'effect';
 import { HttpServerError, HttpServerRequest, HttpServerResponse } from 'effect/http';
 import env from '../config/env.js';
-import { squashError } from '../infra/database/error.js';
-import { AppError } from '../lib/app-error.js';
+import { DbUnavailable } from '../infra/database/error.js';
+import { isAppError } from '../lib/app-error.js';
 import { JSON_UTF8 } from './envelope.js';
 
 /** O erro do driver vem embrulhado (DrizzleQueryError > PostgresError): sem a cadeia de
@@ -36,10 +35,10 @@ const tagOf = (value: unknown): string | undefined =>
     ? String((value as { _tag: unknown })._tag)
     : undefined;
 
-/** Paridade literal com `AppErrorFilter.catch`. Sem ramo para `ZodError`: o bug congelado
- *  #1 (`?page=abc` → 500) existe justamente porque ele não casa com nada. */
+/** Sem ramo para `ZodError`: o bug congelado #1 (`?page=abc` → 500) existe justamente
+ *  porque ele não casa com nada. */
 export const mapError = (error: unknown): MappedError => {
-  if (error instanceof AppError) {
+  if (isAppError(error)) {
     return {
       status: error.status,
       body: {
@@ -64,6 +63,13 @@ export const mapError = (error: unknown): MappedError => {
         ...denial,
       };
     }
+  }
+
+  if (error instanceof DbUnavailable) {
+    return {
+      status: 503,
+      body: { code: 'SERVICE_UNAVAILABLE', message: 'Banco indisponível. Tente novamente.' },
+    };
   }
 
   const reason = reasonOf(error);
@@ -107,21 +113,21 @@ export const mapError = (error: unknown): MappedError => {
 
 const logger = new Logger('AppErrorFilter');
 
-/** O `originalUrl` do Effect é absoluto; o do Express era caminho + query. As linhas de log
- *  de 403/500 são comparadas por operador contra as antigas — manter o mesmo formato. */
+/** O `originalUrl` do Effect é absoluto, mas as linhas de log de 403/500 levam só caminho +
+ *  query: operadores as comparam nesse formato. */
 const loggedUrl = (originalUrl: string) => {
   const schemeless = originalUrl.replace(/^[a-z][a-z0-9+.-]*:\/\/[^/]*/i, '');
 
   return schemeless === '' ? '/' : schemeless;
 };
 
-/** Fim de linha de toda rota servida pelo shell Effect (ver `platform.ts`): mapeia, loga e
- *  escreve. Não é middleware global — no modo estrangulador o catch-all do Nest já aplica
- *  o `AppErrorFilter` dele, e um mapa global reescreveria resposta que o Nest escreveu. */
+/** Fim de linha de toda rota registrada por `route()` (ver `platform.ts`): mapeia, loga e
+ *  escreve. Não é middleware global: o mount do better-auth serializa os próprios erros, e
+ *  um mapa global reescreveria a resposta dele. */
 export const handleCause = (cause: Cause.Cause<unknown>) =>
   Effect.gen(function* () {
     const request = yield* HttpServerRequest.HttpServerRequest;
-    const error = squashError(cause);
+    const error = Cause.squash(cause);
     const mapped = mapError(error);
 
     if (mapped.denial !== undefined) {

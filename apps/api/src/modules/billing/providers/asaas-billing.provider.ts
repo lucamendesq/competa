@@ -3,21 +3,29 @@ import type { BillingCycle } from '@competa/contracts';
 import { BillingProvider } from './billing.provider.js';
 import env from '../../../config/env.js';
 
-interface AsaasCustomerListResponse {
-  data?: Array<{ id: string }>;
+interface AsaasList<T> {
+  data?: T[];
 }
 
-interface AsaasCustomerResponse {
+interface AsaasCustomer {
   id: string;
 }
 
-interface AsaasSubscriptionResponse {
+interface AsaasSubscription {
   id: string;
 }
 
-interface AsaasPaymentLinkResponse {
-  url: string;
+interface AsaasPayment {
+  invoiceUrl?: string;
 }
+
+/** O Asaas gera a primeira cobrança logo após criar a assinatura, mas não há garantia de
+ *  que ela já exista na resposta seguinte. Poucas tentativas curtas resolvem a corrida sem
+ *  segurar a requisição do Contador. */
+const INVOICE_ATTEMPTS = 3;
+const INVOICE_RETRY_MS = 400;
+
+const sleep = (ms: number) => new Promise((resolve) => setTimeout(resolve, ms));
 
 export class AsaasBilling implements BillingProvider {
   readonly simulated = false;
@@ -26,44 +34,48 @@ export class AsaasBilling implements BillingProvider {
     ? 'https://sandbox.asaas.com/api/v3'
     : 'https://api.asaas.com/v3';
 
-  async getOrCreateCustomer(input: { name: string; email: string; cpfCnpj?: string }) {
-    // 1. Tenta buscar cliente existente pelo email ou CPF/CNPJ
-    const searchUrl = new URL(`${this.baseUrl}/customers`);
-    if (input.cpfCnpj) searchUrl.searchParams.append('cpfCnpj', input.cpfCnpj);
-    else searchUrl.searchParams.append('email', input.email);
+  private headers() {
+    return { 'Content-Type': 'application/json', access_token: env.ASAAS_API_KEY! };
+  }
 
-    const searchRes = await fetch(searchUrl.toString(), {
-      headers: { access_token: env.ASAAS_API_KEY! },
-    });
+  private async call<T>(path: string, init?: RequestInit): Promise<T> {
+    const res = await fetch(`${this.baseUrl}${path}`, { ...init, headers: this.headers() });
+    const data = (await res.json().catch(() => ({}))) as T;
 
-    const searchData = (await searchRes.json()) as AsaasCustomerListResponse;
-
-    if (searchData.data && searchData.data.length > 0) {
-      return { customerId: searchData.data[0].id };
+    if (!res.ok) {
+      this.logger.error(`Asaas ${init?.method ?? 'GET'} ${path} falhou (${res.status})`, data);
+      throw new Error('Falha na integração de pagamento');
     }
 
-    // 2. Se não existir, cria um novo
-    const createRes = await fetch(`${this.baseUrl}/customers`, {
+    return data;
+  }
+
+  async getOrCreateCustomer(input: {
+    name: string;
+    email: string;
+    externalReference: string;
+    cpfCnpj?: string;
+  }) {
+    /* A busca é pelo `externalReference` (id da Contabilidade), NUNCA pelo e-mail: firmas
+     * sem e-mail de contato caíam num endereço de fallback compartilhado e colidiam todas
+     * no mesmo cliente do gateway. */
+    const found = await this.call<AsaasList<AsaasCustomer>>(
+      `/customers?externalReference=${encodeURIComponent(input.externalReference)}`,
+    );
+    const existing = found.data?.[0];
+    if (existing) return { customerId: existing.id };
+
+    const created = await this.call<AsaasCustomer>('/customers', {
       method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-        access_token: env.ASAAS_API_KEY!,
-      },
       body: JSON.stringify({
         name: input.name,
         email: input.email,
         cpfCnpj: input.cpfCnpj,
+        externalReference: input.externalReference,
       }),
     });
 
-    const createData = (await createRes.json()) as AsaasCustomerResponse;
-
-    if (!createRes.ok) {
-      this.logger.error('Falha ao criar cliente no Asaas:', createData);
-      throw new Error('Falha na integração de pagamento');
-    }
-
-    return { customerId: createData.id };
+    return { customerId: created.id };
   }
 
   async createSubscription(input: {
@@ -71,74 +83,91 @@ export class AsaasBilling implements BillingProvider {
     planName: string;
     cycle: BillingCycle;
     value: number;
+    externalReference: string;
   }) {
     const yearly = input.cycle === 'yearly';
 
     /* No anual a taxa do gateway é o maior custo variável do cliente: R$1,99 fixos no
      * boleto contra ~3% no cartão (R$56,99 num anual de R$1.890). O Asaas não faz
      * recorrência Pix pura — o Pix vai como QR Code embutido no boleto. */
-    const payload = {
-      customer: input.customerId,
-      billingType: yearly ? 'BOLETO' : 'UNDEFINED',
-      value: input.value,
-      nextDueDate: new Date(Date.now() + 1000 * 60 * 60 * 24 * 3).toISOString().split('T')[0], // Daqui a 3 dias
-      cycle: yearly ? 'YEARLY' : 'MONTHLY',
-      description: `Plano ${input.planName} (${yearly ? 'anual' : 'mensal'}) - Competa`,
-    };
-
-    const res = await fetch(`${this.baseUrl}/subscriptions`, {
+    const subscription = await this.call<AsaasSubscription>('/subscriptions', {
       method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-        access_token: env.ASAAS_API_KEY!,
-      },
-      body: JSON.stringify(payload),
-    });
-
-    const data = (await res.json()) as AsaasSubscriptionResponse;
-
-    if (!res.ok) {
-      this.logger.error('Falha ao criar assinatura no Asaas:', data);
-      throw new Error('Falha na integração de pagamento');
-    }
-
-    // O Asaas geralmente retorna a URL da fatura (invoiceUrl) no webhook,
-    // ou na assinatura podemos direcionar pro link de pagamento
-    const checkoutUrl = await this.getPaymentLink(input.value, input.planName, input.cycle);
-
-    return {
-      subscriptionId: data.id,
-      checkoutUrl,
-    };
-  }
-
-  private async getPaymentLink(value: number, planName: string, cycle: BillingCycle) {
-    const yearly = cycle === 'yearly';
-
-    // Para simplificar a experiência, geramos um Link de Pagamento no Asaas
-    const res = await fetch(`${this.baseUrl}/paymentLinks`, {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-        access_token: env.ASAAS_API_KEY!,
-      },
       body: JSON.stringify({
-        name: `Plano ${planName}`,
-        description: `Assinatura ${yearly ? 'anual' : 'mensal'} do software Competa`,
-        chargeType: 'RECURRENT',
-        subscriptionCycle: yearly ? 'YEARLY' : 'MONTHLY',
-        endDate: null,
-        value,
+        customer: input.customerId,
         billingType: yearly ? 'BOLETO' : 'UNDEFINED',
+        value: input.value,
+        nextDueDate: new Date(Date.now() + 1000 * 60 * 60 * 24 * 3).toISOString().split('T')[0],
+        cycle: yearly ? 'YEARLY' : 'MONTHLY',
+        description: `Plano ${input.planName} (${yearly ? 'anual' : 'mensal'}) - Competa`,
+        externalReference: input.externalReference,
       }),
     });
 
-    const data = (await res.json()) as AsaasPaymentLinkResponse;
-    if (res.ok) {
-      return data.url;
+    return { subscriptionId: subscription.id, checkoutUrl: await this.invoiceUrl(subscription.id) };
+  }
+
+  /** `GET /subscriptions/{id}/payments` → `invoiceUrl` da cobrança gerada. É este o link que
+   *  o pagador deve abrir: o pagamento feito nele nasce com `payment.subscription`
+   *  preenchido, que é exatamente o que o webhook usa para achar a Contabilidade. */
+  private async invoiceUrl(subscriptionId: string) {
+    for (let attempt = 1; attempt <= INVOICE_ATTEMPTS; attempt += 1) {
+      const payments = await this.call<AsaasList<AsaasPayment>>(
+        `/subscriptions/${subscriptionId}/payments`,
+      );
+      const url = payments.data?.[0]?.invoiceUrl;
+      if (url) return url;
+
+      if (attempt < INVOICE_ATTEMPTS) await sleep(INVOICE_RETRY_MS);
     }
 
-    this.logger.error('Falha ao criar link de checkout no Asaas', data);
-    return 'https://asaas.com';
+    this.logger.error(`Assinatura ${subscriptionId} criada sem cobrança para faturar`);
+    throw new Error('Falha na integração de pagamento');
+  }
+
+  /* `updatePendingPayments: true` conserta a cobrança JÁ emitida em vez de deixar o cliente
+   * com um boleto do plano antigo. Verificado no sandbox: a mesma fatura muda de valor
+   * (`pay_...` idêntico antes e depois), então o link que ele já tem continua valendo.
+   *
+   * O `value` NÃO está no OpenAPI do Asaas, nem no PT nem no EN — só no FAQ. Testado contra
+   * o sandbox antes de entrar aqui: 100 → 250 → 1890, relendo a assinatura a cada passo. */
+  async changeSubscriptionPlan(
+    subscriptionId: string,
+    input: { planName: string; cycle: BillingCycle; value: number },
+  ) {
+    const yearly = input.cycle === 'yearly';
+
+    await this.call<unknown>(`/subscriptions/${subscriptionId}`, {
+      method: 'PUT',
+      body: JSON.stringify({
+        value: input.value,
+        cycle: yearly ? 'YEARLY' : 'MONTHLY',
+        billingType: yearly ? 'BOLETO' : 'UNDEFINED',
+        description: `Plano ${input.planName} (${yearly ? 'anual' : 'mensal'}) - Competa`,
+        updatePendingPayments: true,
+      }),
+    });
+  }
+
+  /* `status: INACTIVE` e não `DELETE`: remover a assinatura apaga junto as cobranças
+   * pendentes e vencidas dela (FAQ de assinaturas do Asaas), e um boleto em aberto viraria
+   * receita perdida na troca de plano. Inativa para de gerar cobrança nova e mantém as que
+   * já existem. */
+  async deactivateSubscription(subscriptionId: string) {
+    await this.call<unknown>(`/subscriptions/${subscriptionId}`, {
+      method: 'PUT',
+      body: JSON.stringify({ status: 'INACTIVE' }),
+    });
+  }
+
+  async cancelSubscription(subscriptionId: string) {
+    await this.call<unknown>(`/subscriptions/${subscriptionId}`, { method: 'DELETE' });
+  }
+
+  async pendingInvoiceUrl(subscriptionId: string) {
+    const payments = await this.call<AsaasList<AsaasPayment>>(
+      `/subscriptions/${subscriptionId}/payments?status=PENDING`,
+    );
+
+    return payments.data?.[0]?.invoiceUrl ?? null;
   }
 }

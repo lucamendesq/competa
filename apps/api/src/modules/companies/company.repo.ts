@@ -1,4 +1,4 @@
-import { Context, Effect, Layer } from 'effect';
+import { Cause, Context, Effect, Layer } from 'effect';
 import { and, count, eq, ilike, inArray, isNotNull, isNull, or, sql } from 'drizzle-orm';
 import {
   COMPANY_FLAGS,
@@ -14,6 +14,7 @@ import {
 import * as z from 'zod';
 import { ValidationError } from '../../lib/app-error.js';
 import { Db, type Executor } from '../../infra/database/effect.js';
+import { squashError, type UniqueViolation } from '../../infra/database/error.js';
 import {
   accountant,
   checklistTemplate,
@@ -36,24 +37,17 @@ export type ImportPreviewLine =
   | ({ line: number; status: 'pending'; name: string } & PendingImportRow)
   | { line: number; status: 'error'; name: string; error: string };
 
-/** O driver embrulha o erro do Postgres; procuramos a constraint na cadeia de causas
- *  para devolver 409 de negócio em vez de 500 (mesmo padrão de period.repository.ts). */
-const violatesCompanyCnpjUnique = (error: unknown): boolean => {
-  for (let cause: unknown = error; cause instanceof Error; cause = cause.cause) {
-    const pg = cause as { constraint?: string; code?: string };
-    if (pg.constraint === 'company_cnpj_uidx') return true;
-    if (pg.code === '23505' && cause.message.includes('company_cnpj_uidx')) return true;
-  }
-
-  return false;
-};
+const cnpjTakenOrDie = (violation: UniqueViolation) =>
+  violation.constraint === 'company_cnpj_uidx'
+    ? Effect.fail(new ValidationError('Já existe uma empresa com este CNPJ.'))
+    : Effect.die(violation.cause);
 
 const make = Effect.gen(function* () {
   const db = yield* Db;
 
-  /** Teto de Empresas do plano. Fica aqui, e não no controller, porque os dois caminhos de
+  /** Teto de Empresas do plano. Fica aqui, e não na rota, porque os dois caminhos de
    *  entrada (cadastro avulso e importação por planilha) passam por `create`/`confirmImport` —
-   *  guardar só no controller deixaria a planilha furar o plano. Nunca bloqueia competência
+   *  guardar só na rota deixaria a planilha furar o plano. Nunca bloqueia competência
    *  já aberta: o limite é só sobre ocupar vaga de Empresa ativa.
    *
    *  Conta só Empresa **ativa** (a métrica de cobrança da D17/D18): Empresa desativada
@@ -150,42 +144,38 @@ const make = Effect.gen(function* () {
     body: CreateCompanyBody,
   ) {
     return yield* db
-      .attemptTransaction(
-        db.attempt(async (tx) => {
-          const { cap, current, limit } = await capacityOf(scope, tx);
-          if (current + 1 > limit) throw new ValidationError(capExceeded(cap, current));
+      .withTransaction(
+        Effect.gen(function* () {
+          const { cap, current, limit } = yield* db.use((tx) => capacityOf(scope, tx));
+          if (current + 1 > limit) return yield* new ValidationError(capExceeded(cap, current));
 
-          const [row] = await tx
-            .insert(company)
-            .values({
-              accountingFirmId: scope,
-              checklistTemplateId: body.checklistTemplateId ?? null,
-              responsibleAccountantId: body.responsibleAccountantId ?? null,
-              name: body.name,
-              cnpj: body.cnpj ?? null,
-              flags: body.flags,
-            })
-            .returning();
+          const [row] = yield* db.attempt((tx) =>
+            tx
+              .insert(company)
+              .values({
+                accountingFirmId: scope,
+                checklistTemplateId: body.checklistTemplateId ?? null,
+                responsibleAccountantId: body.responsibleAccountantId ?? null,
+                name: body.name,
+                cnpj: body.cnpj ?? null,
+                flags: body.flags,
+              })
+              .returning(),
+          );
 
           const contacts = body.contact
-            ? await tx
-                .insert(contact)
-                .values({ ...body.contact, companyId: row.id })
-                .returning()
+            ? yield* db.use((tx) =>
+                tx
+                  .insert(contact)
+                  .values({ ...body.contact!, companyId: row.id })
+                  .returning(),
+              )
             : [];
 
           return { ...row, contacts };
         }),
       )
-      .pipe(
-        Effect.catchTag('DbError', (error) =>
-          violatesCompanyCnpjUnique(error.cause)
-            ? Effect.fail(new ValidationError('Já existe uma empresa com este CNPJ.'))
-            : error.cause instanceof ValidationError
-              ? Effect.fail(error.cause)
-              : Effect.die(error),
-        ),
-      );
+      .pipe(Effect.catchTag('UniqueViolation', cnpjTakenOrDie));
   });
 
   const list = Effect.fn('CompaniesRepo.list')(function* (
@@ -358,13 +348,7 @@ const make = Effect.gen(function* () {
 
         return row;
       })
-      .pipe(
-        Effect.catchTag('DbError', (error) =>
-          violatesCompanyCnpjUnique(error.cause)
-            ? Effect.fail(new ValidationError('Já existe uma empresa com este CNPJ.'))
-            : Effect.die(error),
-        ),
-      );
+      .pipe(Effect.catchTag('UniqueViolation', cnpjTakenOrDie));
   });
 
   const deactivate = (scope: FirmScope, companyId: string) =>
@@ -467,13 +451,21 @@ const make = Effect.gen(function* () {
       const owned = await findOwnedIdOf(d, scope, companyId);
       if (!owned) return undefined;
 
+      /* O e-mail ANTERIOR volta junto porque trocá-lo é trocar a pessoa: quem chama precisa
+       * saber disso para revogar o acesso do antigo Responsável. */
+      const [before] = await d
+        .select({ email: contact.email })
+        .from(contact)
+        .where(and(eq(contact.id, contactId), eq(contact.companyId, owned)))
+        .limit(1);
+
       const [row] = await d
         .update(contact)
         .set(body)
         .where(and(eq(contact.id, contactId), eq(contact.companyId, owned)))
         .returning();
 
-      return row;
+      return row && { row, previousEmail: before?.email };
     });
   });
 
@@ -586,8 +578,8 @@ const make = Effect.gen(function* () {
     activeByLine: Map<number, boolean>,
   ) {
     return yield* db
-      .attemptTransaction(
-        db.attempt(async (tx): Promise<ImportLineResult[]> => {
+      .withTransaction(
+        db.use(async (tx): Promise<ImportLineResult[]> => {
           const withCnpj = pending.filter(({ body }) => body.cnpj);
           const withoutCnpj = pending.filter(({ body }) => !body.cnpj);
 
@@ -598,6 +590,7 @@ const make = Effect.gen(function* () {
                   withCnpj.map(({ line, body }) => ({
                     accountingFirmId: scope,
                     checklistTemplateId: body.checklistTemplateId ?? null,
+                    responsibleAccountantId: body.responsibleAccountantId ?? null,
                     name: body.name,
                     cnpj: body.cnpj,
                     flags: body.flags,
@@ -612,6 +605,9 @@ const make = Effect.gen(function* () {
                   set: {
                     name: sql`excluded.name`,
                     checklistTemplateId: sql`excluded.checklist_template_id`,
+                    /* Acompanha `name`/`flags` porque é coluna da planilha, não ajuste
+                     * manual: o `active` é a exceção, e ela está dita acima. */
+                    responsibleAccountantId: sql`excluded.responsible_accountant_id`,
                     flags: sql`excluded.flags`,
                   },
                 })
@@ -630,6 +626,7 @@ const make = Effect.gen(function* () {
                   withoutCnpj.map(({ line, body }) => ({
                     accountingFirmId: scope,
                     checklistTemplateId: body.checklistTemplateId ?? null,
+                    responsibleAccountantId: body.responsibleAccountantId ?? null,
                     name: body.name,
                     cnpj: null,
                     flags: body.flags,
@@ -691,13 +688,22 @@ const make = Effect.gen(function* () {
         }),
       )
       .pipe(
-        Effect.catchTag('DbError', (error) =>
-          Effect.gen(function* () {
-            yield* Effect.logError('Falha ao gravar registros de importação', error.cause);
-            return yield* Effect.fail(
-              new ValidationError('Nada foi importado — falha ao gravar os registros no banco.'),
-            );
-          }),
+        /* Qualquer falha ao gravar (banco fora, constraint, erro do driver) desfaz o lote
+         * inteiro e vira o mesmo 422 — só a interrupção segue como interrupção. */
+        Effect.catchCause((cause) =>
+          Cause.hasInterruptsOnly(cause)
+            ? Effect.interrupt
+            : Effect.gen(function* () {
+                yield* Effect.logError(
+                  'Falha ao gravar registros de importação',
+                  squashError(cause),
+                );
+                return yield* Effect.fail(
+                  new ValidationError(
+                    'Nada foi importado — falha ao gravar os registros no banco.',
+                  ),
+                );
+              }),
         ),
       );
   });

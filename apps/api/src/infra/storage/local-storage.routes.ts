@@ -4,13 +4,13 @@ import { Effect, Layer } from 'effect';
 import { HttpRouter, HttpServerRequest } from 'effect/http';
 import env from '../../config/env.js';
 import { handler } from '../../http/envelope.js';
-import { route } from '../../http/platform.js';
+import { publicRoute, route } from '../../http/platform.js';
 import type { AppError } from '../../lib/app-error.js';
 import { LocalStorage } from './local.storage.js';
 
 /** Fora de produção, onde o presign aponta para a própria API. Em produção o upload vai
- *  direto para o R2 e o `StorageModule` nem registrava este controller — registrar a rota
- *  lá abriria uma escrita em disco anônima e sem throttle que nunca existiu. */
+ *  direto para o R2 e esta rota não existe — registrá-la lá abriria uma escrita em disco
+ *  anônima e sem throttle. */
 const servesLocalUploads = env.NODE_ENV !== 'production';
 
 const storage = servesLocalUploads ? new LocalStorage() : undefined;
@@ -26,9 +26,8 @@ const put = route(
       const params = yield* HttpRouter.params;
       const query = yield* HttpServerRequest.ParsedSearchParams;
 
-      /* O guard de `readableEnded` do controller Nest não vem junto: ele existia porque o
-       * body parser global podia ter drenado o stream antes, e no shell Effect não há
-       * parser nenhum antes desta rota. Sem stream drenado, não há o arquivo de 0 byte. */
+      /* Nenhum parser de corpo roda antes desta rota, então o stream chega intacto: um parser
+       * global que o drenasse antes gravaria arquivo de 0 byte. */
       const storageKey = params.storageKey ?? '';
 
       yield* Effect.tryPromise({
@@ -49,8 +48,8 @@ const put = route(
   ),
   /* Upload de N arquivos bate aqui N vezes em sequência: contar isso como rajada quebraria
    * envio legítimo de lote, e o `short` (30/10s) cortava o 31º arquivo. O limite real está
-   * no presign, que autoriza. `@SkipThrottle({ default: true, short: true })`. */
-  { throttle: [] },
+   * no presign, que autoriza. */
+  { auth: publicRoute, throttle: [] },
 );
 
 export const localStorageRoutes = servesLocalUploads ? Layer.mergeAll(put) : Layer.empty;

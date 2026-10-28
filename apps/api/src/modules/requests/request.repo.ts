@@ -1,3 +1,4 @@
+import { randomUUID } from 'node:crypto';
 import { Context, Effect, Layer } from 'effect';
 import { addDays, addHours } from 'date-fns';
 import { and, asc, count, eq, inArray, ne, sql } from 'drizzle-orm';
@@ -9,6 +10,7 @@ import {
   accountingFirm,
   company,
   contact,
+  cronLease,
   document,
   message,
   period,
@@ -27,7 +29,6 @@ import {
 } from '../messaging/reminder-rules.js';
 import { NotFound } from '../../lib/app-error.js';
 import { InvalidTransition } from './errors.js';
-import type { DbError } from '../../infra/database/error.js';
 import {
   acceptItemRefusal,
   reviewExtraRefusal,
@@ -40,10 +41,9 @@ import {
   type ReviewStatus,
 } from './review-rules.js';
 
-/* Erro de domínio lançado DENTRO da transação chega embrulhado em DbError; sem este remap
- * ele sumiria de um catchTag tipado. O que não for nosso é defeito. */
-const invalidTransitionOrDie = (error: DbError) =>
-  error.cause instanceof InvalidTransition ? Effect.fail(error.cause) : Effect.die(error);
+/** Teto de quanto uma varredura pode segurar a lease. Generoso de propósito: só existe para
+ *  que uma instância morta no meio do caminho não bloqueie as próximas para sempre. */
+const LEASE_TTL_SECONDS = 30 * 60;
 
 const make = Effect.gen(function* () {
   const db = yield* Db;
@@ -80,29 +80,23 @@ const make = Effect.gen(function* () {
   };
 
   /** Reabrir Item mata o token anterior NA HORA: zerar `previous_token_hash` faz o
-   *  `UploadTokenGuard` não ter como resolver o link velho, e ele passa a responder 404.
+   *  `uploadTokenRoute` não ter como resolver o link velho, e ele passa a responder 404.
    *  A carência de 48h de lembrete/reenvio não vale aqui — o Contador acabou de agir SOBRE
    *  o link e a resposta promete `linkRotated: true`. Não usar `revoked`: a flag vale para
    *  a LINHA inteira, derrubaria junto o token que acabou de ser emitido e ninguém a
    *  reseta. */
   const rotateLinkOnReopenOn = async (tx: Executor, uploadLinkId: string, tokenHash: string) => {
-    const [current] = await tx
-      .select({ tokenHash: uploadLink.tokenHash, expiresAt: uploadLink.expiresAt })
-      .from(uploadLink)
-      .where(eq(uploadLink.id, uploadLinkId));
-
-    const now = new Date();
-    const graceExpiresAt = current
-      ? new Date(Math.min(current.expiresAt.getTime(), addHours(now, 48).getTime()))
-      : null;
-
     await tx
       .update(uploadLink)
       .set({
         tokenHash,
-        expiresAt: addDays(now, env.UPLOAD_LINK_TTL_DAYS),
-        previousTokenHash: current?.tokenHash ?? null,
-        previousExpiresAt: graceExpiresAt,
+        expiresAt: addDays(new Date(), env.UPLOAD_LINK_TTL_DAYS),
+        /* Zerado de propósito, e não com o token anterior + 48h de carência: a carência é do
+         * lembrete e do reenvio, onde o Responsável pode ter o link velho aberto. Aqui o
+         * Contador acabou de agir SOBRE o link e a resposta promete `linkRotated: true` —
+         * deixar o antigo valendo mais 48h é exatamente o que a promessa nega. */
+        previousTokenHash: null,
+        previousExpiresAt: null,
       })
       .where(eq(uploadLink.id, uploadLinkId));
   };
@@ -211,10 +205,10 @@ const make = Effect.gen(function* () {
     const refusal = acceptItemRefusal(context);
     if (refusal) return yield* Effect.fail(new InvalidTransition(refusal));
 
-    return yield* db
-      .attemptTransaction(
-        db.attempt(async (tx) => {
-          const accepted = await tx
+    return yield* db.withTransaction(
+      Effect.gen(function* () {
+        const accepted = yield* db.use((tx) =>
+          tx
             .update(document)
             .set({ reviewStatus: 'accepted', reviewedBy, reviewedAt: new Date() })
             .where(
@@ -224,32 +218,34 @@ const make = Effect.gen(function* () {
                 eq(document.uploadStatus, 'uploaded'),
               ),
             )
-            .returning({ id: document.id });
+            .returning({ id: document.id }),
+        );
 
-          const [updated] = await tx
+        const [updated] = yield* db.use((tx) =>
+          tx
             .update(requestItem)
             .set({ status: 'accepted' })
             .where(and(eq(requestItem.id, requestItemId), eq(requestItem.status, 'submitted')))
-            .returning({ id: requestItem.id });
+            .returning({ id: requestItem.id }),
+        );
 
-          if (!updated) throw new InvalidTransition('Este item já foi aceito.');
+        if (!updated) return yield* new InvalidTransition('Este item já foi aceito.');
 
-          const requestStatus = await syncRequestStatusOn(tx, context.requestId);
+        const requestStatus = yield* db.use((tx) => syncRequestStatusOn(tx, context.requestId));
 
-          return {
-            requestId: context.requestId,
-            requestItemId,
-            itemName: context.itemName,
-            acceptedDocuments: accepted.length,
-            requestStatus,
-            completed: requestStatus === 'complete' && context.requestStatus !== 'complete',
-            companyName: context.companyName,
-            contactName: context.contactName,
-            contactEmail: context.contactEmail,
-          };
-        }),
-      )
-      .pipe(Effect.catchTag('DbError', invalidTransitionOrDie));
+        return {
+          requestId: context.requestId,
+          requestItemId,
+          itemName: context.itemName,
+          acceptedDocuments: accepted.length,
+          requestStatus,
+          completed: requestStatus === 'complete' && context.requestStatus !== 'complete',
+          companyName: context.companyName,
+          contactName: context.contactName,
+          contactEmail: context.contactEmail,
+        };
+      }),
+    );
   });
 
   /** Rejeitar é por Documento e reabre o Item (`rejected → pending`). O token do Link é
@@ -324,13 +320,13 @@ const make = Effect.gen(function* () {
 
     const { token, tokenHash } = createToken();
 
-    const requestStatus = yield* db
-      .attemptTransaction(
-        db.attempt(async (tx) => {
-          /* Condicional, não check-then-act: duas revisões concorrentes no mesmo documento
-           * serializam aqui — a segunda encontra 0 linhas e vira 422, em vez de rotacionar o
-           * link de novo por cima de uma decisão já tomada (AUTHZ-5). */
-          const rejected = await tx
+    const requestStatus = yield* db.withTransaction(
+      Effect.gen(function* () {
+        /* Condicional, não check-then-act: duas revisões concorrentes no mesmo documento
+         * serializam aqui — a segunda encontra 0 linhas e vira 422, em vez de rotacionar o
+         * link de novo por cima de uma decisão já tomada (AUTHZ-5). */
+        const rejected = yield* db.use((tx) =>
+          tx
             .update(document)
             .set({
               reviewStatus: 'rejected',
@@ -339,11 +335,16 @@ const make = Effect.gen(function* () {
               reviewedAt: new Date(),
             })
             .where(and(eq(document.id, documentId), eq(document.reviewStatus, 'pending')))
-            .returning({ id: document.id });
+            .returning({ id: document.id }),
+        );
 
-          if (!rejected.length)
-            throw new InvalidTransition('Este documento já foi revisado ou não está pendente.');
+        if (!rejected.length) {
+          return yield* new InvalidTransition(
+            'Este documento já foi revisado ou não está pendente.',
+          );
+        }
 
+        return yield* db.use(async (tx) => {
           // limpa a marca do cron: prazo que estourar de novo neste Item volta a avisar
           await tx
             .update(requestItem)
@@ -353,9 +354,9 @@ const make = Effect.gen(function* () {
           await rotateLinkOnReopenOn(tx, row.uploadLinkId!, tokenHash);
 
           return syncRequestStatusOn(tx, row.requestId);
-        }),
-      )
-      .pipe(Effect.catchTag('DbError', invalidTransitionOrDie));
+        });
+      }),
+    );
 
     return {
       requestId: row.requestId,
@@ -524,10 +525,10 @@ const make = Effect.gen(function* () {
 
     const rotated = reopens ? createToken() : undefined;
 
-    const applied = yield* db
-      .attemptTransaction(
-        db.attempt(async (tx) => {
-          for (const itemId of input.acceptItemIds) {
+    const applied = yield* db.withTransaction(
+      Effect.gen(function* () {
+        for (const itemId of input.acceptItemIds) {
+          const [updated] = yield* db.use(async (tx) => {
             await tx
               .update(document)
               .set({ reviewStatus: 'accepted', reviewedBy, reviewedAt: new Date() })
@@ -539,19 +540,21 @@ const make = Effect.gen(function* () {
                 ),
               );
 
-            const [updated] = await tx
+            return tx
               .update(requestItem)
               .set({ status: 'accepted' })
               .where(and(eq(requestItem.id, itemId), eq(requestItem.status, 'submitted')))
               .returning({ id: requestItem.id });
+          });
 
-            if (!updated) throw new InvalidTransition('Este item já foi aceito.');
-          }
+          if (!updated) return yield* new InvalidTransition('Este item já foi aceito.');
+        }
 
-          for (const row of input.rejectDocuments) {
-            const found = documentById.get(row.documentId)!;
+        for (const row of input.rejectDocuments) {
+          const found = documentById.get(row.documentId)!;
 
-            const rejected = await tx
+          const rejected = yield* db.use((tx) =>
+            tx
               .update(document)
               .set({
                 reviewStatus: 'rejected',
@@ -560,20 +563,27 @@ const make = Effect.gen(function* () {
                 reviewedAt: new Date(),
               })
               .where(and(eq(document.id, row.documentId), eq(document.reviewStatus, 'pending')))
-              .returning({ id: document.id });
+              .returning({ id: document.id }),
+          );
 
-            if (!rejected.length)
-              throw new InvalidTransition('Este documento já foi revisado ou não está pendente.');
-
-            // limpa a marca do cron: prazo que estourar de novo neste Item volta a avisar
-            await tx
-              .update(requestItem)
-              .set({ status: 'pending', deadlineNotifiedAt: null })
-              .where(eq(requestItem.id, found.requestItemId!));
+          if (!rejected.length) {
+            return yield* new InvalidTransition(
+              'Este documento já foi revisado ou não está pendente.',
+            );
           }
 
-          for (const row of input.reviewExtras) {
-            const updated = await tx
+          // limpa a marca do cron: prazo que estourar de novo neste Item volta a avisar
+          yield* db.use((tx) =>
+            tx
+              .update(requestItem)
+              .set({ status: 'pending', deadlineNotifiedAt: null })
+              .where(eq(requestItem.id, found.requestItemId!)),
+          );
+        }
+
+        for (const row of input.reviewExtras) {
+          const updated = yield* db.use((tx) =>
+            tx
               .update(document)
               .set({
                 reviewStatus: row.decision,
@@ -582,20 +592,23 @@ const make = Effect.gen(function* () {
                 reviewedAt: new Date(),
               })
               .where(and(eq(document.id, row.documentId), eq(document.reviewStatus, 'pending')))
-              .returning({ id: document.id });
+              .returning({ id: document.id }),
+          );
 
-            if (!updated.length)
-              throw new InvalidTransition('Este documento já foi revisado ou não está pendente.');
+          if (!updated.length) {
+            return yield* new InvalidTransition(
+              'Este documento já foi revisado ou não está pendente.',
+            );
           }
+        }
 
-          if (rotated) {
-            await rotateLinkOnReopenOn(tx, head.uploadLinkId!, rotated.tokenHash);
-          }
+        return yield* db.use(async (tx) => {
+          if (rotated) await rotateLinkOnReopenOn(tx, head.uploadLinkId!, rotated.tokenHash);
 
           return syncRequestStatusOn(tx, requestId);
-        }),
-      )
-      .pipe(Effect.catchTag('DbError', invalidTransitionOrDie));
+        });
+      }),
+    );
 
     return {
       requestId,
@@ -1204,8 +1217,14 @@ const make = Effect.gen(function* () {
       const stats = await d
         .select({
           requestId: message.requestId,
+          /* `channel <> 'push'` porque um lembrete grava DUAS linhas quando o Responsável
+           * tem o app: a entrega (`deliver`) e o empurrão (`notify`). Contando as duas, quem
+           * instalou o app recebia metade dos lembretes — o teto de 2 enchia na primeira
+           * rodada. O que conta é o despacho, não os canais em que ele saiu. */
           reminderCount: sql<number>`count(*) filter (
-            where ${message.purpose} = 'reminder' and ${message.status} <> 'failed'
+            where ${message.purpose} = 'reminder'
+              and ${message.status} <> 'failed'
+              and ${message.channel} <> 'push'
           )::int`,
           lastMessageAt: sql<Date | null>`max(${message.createdAt})`,
         })
@@ -1282,23 +1301,49 @@ const make = Effect.gen(function* () {
     );
   });
 
-  const withAdvisoryLock = <T>(lockId: number, task: () => Promise<T>) =>
-    db.use(async (d): Promise<T | null> => {
-      const result = await d.execute<{ acquired: boolean }>(
-        sql`SELECT pg_try_advisory_lock(${lockId}) AS acquired`,
+  /** Voo único das varreduras. Devolve `null` quando outra instância segura a lease.
+   *
+   *  Lease em linha, e não `pg_advisory_lock`: o advisory é de SESSÃO, e `db.use` tira um
+   *  checkout novo do pool a cada `execute` — o unlock caía numa conexão diferente da do lock
+   *  e vazava. Com `min: 5` no pool, a conexão nunca era reciclada, então a lease ficava presa
+   *  e toda varredura seguinte era pulada em silêncio. Aqui tomar é um `INSERT … ON CONFLICT
+   *  … WHERE expires_at < now()`, atômico num statement só e sem depender de sessão. */
+  const withLease = <A, E, R>(name: string, task: Effect.Effect<A, E, R>) =>
+    Effect.gen(function* () {
+      const holder = randomUUID();
+      /* Todo o tempo vem do BANCO (`now()`), nunca do relógio do Node: gravar `expires_at`
+       * com um relógio e compará-lo com o outro deixa a lease presa sempre que as máquinas
+       * divergem alguns milissegundos. */
+      const expiry = sql`now() + make_interval(secs => ${LEASE_TTL_SECONDS})`;
+      const taken = yield* db.use((d) =>
+        d
+          .insert(cronLease)
+          .values({ name, holder, expiresAt: expiry })
+          .onConflictDoUpdate({
+            target: cronLease.name,
+            set: { holder, expiresAt: expiry },
+            setWhere: sql`${cronLease.expiresAt} < now()`,
+          })
+          .returning({ name: cronLease.name }),
       );
 
-      const rawRows =
-        (result as unknown as { rows?: { acquired: boolean }[] }).rows ??
-        (result as unknown as { acquired: boolean }[]);
-      const acquired = Boolean(rawRows?.[0]?.acquired);
-      if (!acquired) return null;
+      if (taken.length === 0) return null;
 
-      try {
-        return await task();
-      } finally {
-        await d.execute(sql`SELECT pg_advisory_unlock(${lockId})`);
-      }
+      /* `ensuring` libera também na interrupção (o shutdown no meio da varredura). Se a
+       * liberação falhar, o TTL devolve a lease. `holder` no WHERE: se a varredura estourar o
+       * TTL e outra instância tomar a lease, a nossa liberação não pode derrubar a dela. */
+      return yield* task.pipe(
+        Effect.ensuring(
+          db
+            .use((d) =>
+              d
+                .update(cronLease)
+                .set({ expiresAt: sql`now() - interval '1 second'` })
+                .where(and(eq(cronLease.name, name), eq(cronLease.holder, holder))),
+            )
+            .pipe(Effect.ignore),
+        ),
+      );
     });
 
   return {
@@ -1322,7 +1367,7 @@ const make = Effect.gen(function* () {
     undoAcceptItem,
     reminderCandidates,
     reminderSettingsByFirm,
-    withAdvisoryLock,
+    withLease,
   };
 });
 

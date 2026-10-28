@@ -4,9 +4,11 @@ import { NodeHttpServerRequest } from '@effect/platform-node';
 import * as Sentry from '@sentry/node';
 import { planAllows, type PlanCapability } from '@competa/contracts';
 import { isPast } from 'date-fns';
+import * as z from 'zod';
 import { Context, Effect } from 'effect';
 import { HttpRouter, HttpServerRequest, type HttpServerError } from 'effect/http';
 import { BetterAuthAdapter } from '../../infra/auth/better-auth.adapter.js';
+import type { DbUnavailable } from '../../infra/database/error.js';
 import type { AppContext } from '../../effect/runtime.js';
 import {
   AppError,
@@ -26,16 +28,18 @@ import { ContactContext, FirmContext, SessionContext, UploadContext } from '../c
 import type { RouteProfile } from '../platform.js';
 import { GLOBAL_BUCKETS, UPLOAD_PRESIGN_BUCKET, type Bucket } from '../throttle.js';
 
-/* ÚNICO lugar do shell novo onde os escopos branded nascem — a regra que os guards do Nest
- * carregavam. A exceção de lint vive em `eslint.config.mjs`, não numa diretiva no arquivo. */
+/* ÚNICO lugar onde os escopos branded nascem. A exceção de lint vive em `eslint.config.mjs`,
+ * não numa diretiva no arquivo. */
+
+const UUID = z.uuid();
 
 type Resolved<Value> = Effect.Effect<
   Value,
-  AppError | HttpServerError.HttpServerError,
+  AppError | HttpServerError.HttpServerError | DbUnavailable,
   HttpServerRequest.HttpServerRequest | HttpRouter.RouteContext | AppContext
 >;
 
-/** Um perfil = resolver o contexto + entregá-lo ao handler. A ordem throttle → guard está
+/** Um perfil = resolver o contexto + entregá-lo ao handler. A ordem throttle → perfil está
  *  no corpo de `platform` (`platform.ts`), não num `Middleware.combine`: `A.combine(B)`
  *  roda B primeiro, e descobrir isso às 3 da manhã sai caro. */
 const profileOf = <Identifier, Value>(
@@ -150,24 +154,27 @@ const resolveContactUpload: Resolved<UploadContext['Service']> = Effect.gen(func
   const session = yield* currentSession;
   const request = yield* HttpServerRequest.HttpServerRequest;
 
-  /* `ContactUploadController` empilha DOIS guards: `@ContactRoute()` (= `ContactGuard`) e
-   * `@UseGuards(ContactUploadGuard)`, nessa ordem. O 403 de "não é Responsável" sai do
-   * primeiro, ANTES de o segundo olhar o corpo — então quem não é Responsável leva 403
-   * mesmo mandando corpo vazio ou `requestId` lixo. Resolver o vínculo aqui primeiro é o
-   * que mantém essa precedência; é também a mesma consulta que o `ContactGuard` fazia. */
+  /* O vínculo de Responsável é resolvido ANTES de olhar o corpo: quem não é Responsável
+   * leva 403 mesmo mandando corpo vazio ou `requestId` lixo. Inverter a ordem trocaria
+   * esse 403 por um 422. */
   yield* resolveContact;
 
-  /* Bug congelado #8: o guard lê o `requestId` CRU, antes do zodPipe, e um id não-uuid
-   * estoura no Postgres (500) em vez de virar 422. `request.json` é memoizado, então o
-   * handler relê o mesmo corpo depois.
+  /* O perfil precisa do `requestId` antes do handler, então ele mesmo valida.
+   * `request.json` é memoizado, e o handler relê o mesmo corpo depois.
    *
-   * Corpo ausente ou ilegível vira `{}` e não erro: o `express.json()` entregava `{}` ao
-   * guard, que respondia 422 pelo `requestId` faltando. Deixar o `RequestParseError` subir
-   * trocaria esse 422 por um 400. */
+   * Corpo ausente ou ilegível vira `{}` e não erro: a resposta é 422 pelo `requestId`
+   * faltando. Deixar o `RequestParseError` subir trocaria esse 422 por um 400. */
   const raw = yield* request.json.pipe(Effect.orElseSucceed(() => ({})));
   const requestId = (raw as { requestId?: unknown } | null)?.requestId;
   if (typeof requestId !== 'string') {
     return yield* Effect.fail(new ValidationError('Informe a Solicitação (requestId) do envio.'));
+  }
+
+  /* O formato é conferido AQUI porque a consulta abaixo usa o id direto: id fora do formato
+   * uuid estourava no Postgres (`invalid input syntax for type uuid`) e virava 500, quando é
+   * erro do cliente. */
+  if (!UUID.safeParse(requestId).success) {
+    return yield* Effect.fail(new ValidationError('Solicitação (requestId) inválida.'));
   }
 
   const owned = yield* ContactsRepo.use((repo) =>
@@ -200,22 +207,19 @@ const resolveUploadToken: Resolved<UploadContext['Service']> = Effect.gen(functi
   return { scope: toUploadScope(link.requestId, link.contactId) };
 });
 
-/** `TenantGuard` + `PlanGuard`: sessão → `FirmScope`, mais o gate de `@RequiresPlan`. */
+/** Sessão → `FirmScope`, mais o gate de plano de `requires`. */
 export const firmRoute = (options?: {
   readonly requires?: PlanCapability;
 }): RouteProfile<FirmContext> => profileOf(FirmContext, resolveFirm(options?.requires));
 
-/** `@ContactRoute()` — o `TenantGuard` cedia a vez e o `ContactGuard` resolvia o escopo. */
 export const contactRoute: RouteProfile<ContactContext> = profileOf(ContactContext, resolveContact);
 
-/** `@UseGuards(ContactUploadGuard)`. */
 export const contactUploadRoute: RouteProfile<UploadContext> = profileOf(
   UploadContext,
   resolveContactUpload,
 );
 
-/** `@UseGuards(UploadTokenGuard)`. `uploadThrottle` acrescenta o balde por `ip:token` do
- *  `UploadThrottlerGuard`, que o `UploadController` monta POR CIMA dos globais. */
+/** `uploadThrottle` acrescenta o balde por `ip:token` POR CIMA dos globais. */
 export const uploadTokenRoute = (options?: {
   readonly uploadThrottle?: boolean;
 }): RouteProfile<UploadContext> =>
@@ -225,13 +229,11 @@ export const uploadTokenRoute = (options?: {
     options?.uploadThrottle === true ? [...GLOBAL_BUCKETS, UPLOAD_PRESIGN_BUCKET] : GLOBAL_BUCKETS,
   );
 
-/** `@UseGuards(UploadThrottlerGuard, UploadTokenGuard)` + `@SkipThrottle({short,default})`:
- *  sobra só o balde por `ip:token`. */
 export const uploadPresignRoute: RouteProfile<UploadContext> = profileOf(
   UploadContext,
   resolveUploadToken,
   [UPLOAD_PRESIGN_BUCKET],
 );
 
-/** `@SessionRoute()`: qualquer sessão viva serve, sem exigir vínculo com Contabilidade. */
+/** Qualquer sessão viva serve, sem exigir vínculo com Contabilidade. */
 export const sessionRoute: RouteProfile<SessionContext> = profileOf(SessionContext, currentSession);

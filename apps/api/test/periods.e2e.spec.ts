@@ -1,6 +1,7 @@
 import { eq, inArray } from 'drizzle-orm';
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 import { bootApp, type RunningApp } from './support/boot.js';
+import env from '../src/config/env.js';
 import { db, truncateAll } from './support/db.js';
 import { message, uploadLink } from '../src/infra/database/schema/index.js';
 import {
@@ -124,7 +125,7 @@ describe('POST /periods — fan-out', () => {
 
   it('entrega o link de upload em claro só na resposta; no banco fica o hash', async () => {
     for (const req of opened.requests) {
-      expect(req.uploadUrl).toMatch(/^http:\/\/localhost:5173\/envio\/.+/);
+      expect(req.uploadUrl).toMatch(new RegExp(`^${env.WEB_URL}/envio/.+`));
     }
 
     const token = opened.requests[0].uploadUrl.split('/envio/')[1];
@@ -180,14 +181,11 @@ describe('POST /periods — fan-out', () => {
     const requestIds = opened.requests.map((r) => r.id);
 
     /* O listener é fire-and-forget: a resposta volta antes do insert do message. */
-    let rows: Array<{ requestId: string | null; purpose: string }> = [];
-    for (let attempt = 0; attempt < 20 && rows.length < 2; attempt++) {
-      rows = await db
-        .select({ requestId: message.requestId, purpose: message.purpose })
-        .from(message)
-        .where(inArray(message.requestId, requestIds));
-      if (rows.length < 2) await new Promise((resolve) => setTimeout(resolve, 100));
-    }
+    await app.drainEvents();
+    const rows = await db
+      .select({ requestId: message.requestId, purpose: message.purpose })
+      .from(message)
+      .where(inArray(message.requestId, requestIds));
 
     expect(rows).toHaveLength(2);
     expect(rows.every((row) => row.purpose === 'link_delivery')).toBe(true);
@@ -273,10 +271,14 @@ describe('listagem, detalhe e encerramento', () => {
     expect(paged.body.data).toHaveLength(1);
   });
 
-  it('paginação mal formada em :id/requests → 500 (bug congelado: parse cru fora do zodPipe)', async () => {
+  /* Paginação inválida é erro DO CLIENTE: 422 com o caminho do campo, igual a toda outra
+   * rota. O 500 vinha de um `.parse()` cru, cujo `ZodError` não casa com nenhum ramo do mapa
+   * de erros. */
+  it('paginação mal formada em :id/requests → 422 com o campo apontado', async () => {
     const res = await api.get(`/periods/${periodId}/requests?page=abc`);
-    expect(res.status).toBe(500);
-    expect(res.body.error.code).toBe('INTERNAL_ERROR');
+    expect(res.status, JSON.stringify(res.body)).toBe(422);
+    expect(res.body.error.code).toBe('VALIDATION_ERROR');
+    expect(res.body.error.details?.some((issue: any) => issue.path.includes('page'))).toBe(true);
   });
 
   it('id desconhecido → 404 NOT_FOUND; id mal formado → 422', async () => {

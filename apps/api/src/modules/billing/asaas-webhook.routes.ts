@@ -4,17 +4,26 @@ import { HttpServerRequest } from 'effect/http';
 import * as z from 'zod';
 import env from '../../config/env.js';
 import { handler } from '../../http/envelope.js';
-import { body, route } from '../../http/platform.js';
+import { body, publicRoute, route } from '../../http/platform.js';
+import { throttleDefault } from '../../http/throttle.js';
 import { Forbidden, ServiceUnavailable } from '../../lib/app-error.js';
 import { secretEquals } from '../../lib/token.js';
+import { statusForPaymentEvent } from './billing-rules.js';
 import { SubscriptionsRepo } from './subscription.repo.js';
 
-interface AsaasWebhookPayload {
-  event?: string;
-  payment?: {
-    subscription?: string;
-  };
-}
+/* `passthrough` de propósito: a doc do Asaas avisa que novos atributos entram no payload
+ * sem aviso e que estourar neles trava a fila de sincronização deles. Validamos só o que
+ * lemos. */
+const AsaasWebhookPayload = z
+  .object({
+    id: z.string().min(1).optional(),
+    event: z.string().optional(),
+    payment: z
+      .object({ subscription: z.string().min(1).optional() })
+      .passthrough()
+      .optional(),
+  })
+  .passthrough();
 
 const logger = new Logger('AsaasWebhookController');
 
@@ -25,13 +34,11 @@ const webhook = route(
     'POST',
     Effect.gen(function* () {
       const request = yield* HttpServerRequest.HttpServerRequest;
-      /* `z.custom()` sem validador não valida nada — o `@Body()` do controller também não.
-       * O parse vem ANTES dos checks porque no Express ele era middleware global. */
-      const payload = yield* body(z.custom<AsaasWebhookPayload>());
+      const payload = yield* body(AsaasWebhookPayload);
       const token = request.headers['asaas-access-token'];
 
       /* Falha fechada: sem segredo configurado a rota não processa nada. O estado da
-       * assinatura controla o TenantGuard, então um POST anônimo daria uso grátis ou
+       * assinatura controla o `firmRoute`, então um POST anônimo daria uso grátis ou
        * bloqueio de escrita de um tenant escolhido. */
       if (!env.ASAAS_WEBHOOK_TOKEN) {
         logger.error('ASAAS_WEBHOOK_TOKEN ausente: webhook recusado.');
@@ -43,25 +50,38 @@ const webhook = route(
         return yield* Effect.fail(new Forbidden('Webhook não autorizado.'));
       }
 
-      logger.log(
-        `Webhook Asaas recebido: ${payload.event} para assinatura ${payload.payment?.subscription}`,
-      );
+      const { id, event } = payload;
+      const subscriptionId = payload.payment?.subscription;
 
-      if (!payload.payment?.subscription) {
-        return { received: true };
+      logger.log(`Webhook Asaas recebido: ${event} para assinatura ${subscriptionId}`);
+
+      if (!subscriptionId || !event) return { received: true };
+
+      /* Idempotência antes do efeito: o Asaas reenvia em qualquer resposta não-2xx e pode
+       * repetir uma entrega que deu certo. Sem isto, um `PAYMENT_RECEIVED` repetido
+       * reabriria o período de cobrança a partir do novo `now()`. Evento sem `id` (payload
+       * legado ou teste manual) segue em frente — melhor processar duas vezes que ignorar
+       * um pagamento. */
+      if (id) {
+        const first = yield* SubscriptionsRepo.use((repo) => repo.claimEvent(id, event));
+        if (!first) {
+          logger.log(`Evento ${id} já processado; ignorando reenvio.`);
+          return { received: true };
+        }
       }
 
-      const subscriptionId = payload.payment.subscription;
-
-      if (payload.event === 'PAYMENT_RECEIVED') {
-        yield* SubscriptionsRepo.use((repo) => repo.updateStatus(subscriptionId, 'ACTIVE'));
-      } else if (payload.event === 'PAYMENT_OVERDUE' || payload.event === 'PAYMENT_DELETED') {
-        yield* SubscriptionsRepo.use((repo) => repo.updateStatus(subscriptionId, 'OVERDUE'));
+      const status = statusForPaymentEvent(event);
+      if (status) {
+        yield* SubscriptionsRepo.use((repo) => repo.updateStatus(subscriptionId, status));
       }
 
       return { received: true };
     }),
   ),
+  /* O balde global (30/10s por IP) derrubava rajada do gateway, e um 429 que esgote a
+   * retentativa do Asaas é um pagamento PERDIDO — firma paga e nunca ativa. O limite aqui
+   * existe só contra enxurrada; quem autoriza é o token. */
+  { auth: publicRoute, throttle: throttleDefault(600, 60_000) },
 );
 
 export const asaasWebhookRoutes = Layer.mergeAll(webhook);

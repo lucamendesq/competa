@@ -17,6 +17,7 @@ import {
   DOCUMENT_CATEGORIES,
   OVERRIDE_ACTIONS,
   PERIODICITIES,
+  SUBSCRIPTION_STATUSES,
   type CompanyFlags,
   type PriceOverride,
 } from '@competa/contracts';
@@ -186,7 +187,7 @@ export const contact = pgTable(
   (t) => [
     /* `email` é a entrada de `/access/recover` — rota pública e sem sessão, o pior lugar
      * para um seq scan. `company_id` é o join de toda listagem de Empresa (FK no Postgres
-     * não cria índice). `auth_user_id` é o caminho do ContactGuard em toda request logada. */
+     * não cria índice). `auth_user_id` é o caminho do `contactRoute` em toda request logada. */
     index('contact_email_idx').on(t.email),
     index('contact_company_idx').on(t.companyId),
     index('contact_auth_user_idx').on(t.authUserId),
@@ -257,6 +258,12 @@ export const subscription = pgTable(
     gatewayCustomerId: text('gateway_customer_id'),
     gatewaySubscriptionId: text('gateway_subscription_id'),
     planName: text('plan_name').notNull().default('trial'),
+    /** Plano/ciclo ESCOLHIDOS no checkout e ainda não pagos. Ficam aqui, e não em
+     *  `plan_name`, porque o gate de capability lê `plan_name`: gravar a escolha lá liberava
+     *  recurso pago no instante em que o checkout começava, antes de qualquer dinheiro
+     *  entrar. O webhook de pagamento promove para `plan_name`. */
+    pendingPlanName: text('pending_plan_name'),
+    pendingCycle: text('pending_cycle'),
     /** `monthly` | `yearly`. O anual é 10× o mensal (2 meses grátis) e é cobrado em boleto
      *  com Pix embutido — o Asaas não faz recorrência Pix pura. */
     cycle: text('cycle').notNull().default('monthly'),
@@ -271,7 +278,10 @@ export const subscription = pgTable(
     currentPeriodEnd: timestamp('current_period_end', { withTimezone: true }),
     ...timestamps,
   },
-  (t) => [index('subscription_firm_idx').on(t.accountingFirmId)],
+  (t) => [
+    index('subscription_firm_idx').on(t.accountingFirmId),
+    check('subscription_status_chk', oneOf(sql`${t.status}`, SUBSCRIPTION_STATUSES)),
+  ],
 ).enableRLS();
 
 export const whatsappIntegration = pgTable(

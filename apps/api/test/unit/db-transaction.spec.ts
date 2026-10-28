@@ -3,7 +3,7 @@ import { eq } from 'drizzle-orm';
 import { Cause, Effect, Exit, Fiber, Latch, Layer } from 'effect';
 import { beforeAll, expect } from 'vitest';
 import { Db } from '../../src/infra/database/effect.js';
-import { DbError } from '../../src/infra/database/error.js';
+import { DbUnavailable } from '../../src/infra/database/error.js';
 import { accountingFirm, company } from '../../src/infra/database/schema/index.js';
 import { toFirmScope } from '../../src/modules/auth/scope.js';
 import { ChecklistsRepo } from '../../src/modules/checklists/checklist.repo.js';
@@ -74,7 +74,7 @@ layer(TestLayer)('Db.withTransaction', (it) => {
         .pipe(Effect.flip);
 
       expect(error).toBeInstanceOf(Boom);
-      expect(error).not.toBeInstanceOf(DbError);
+      expect(error).not.toBeInstanceOf(DbUnavailable);
       expect(yield* committedFirms('tx-fail')).toBe(0);
     }),
   );
@@ -149,6 +149,128 @@ layer(TestLayer)('Db.withTransaction', (it) => {
 
       expect(yield* committedFirms('tx-outer')).toBe(1);
       expect(yield* committedFirms('tx-inner')).toBe(0);
+    }),
+  );
+
+  it.effect('aninhada que commita é desfeita junto quando a de fora falha', () =>
+    Effect.gen(function* () {
+      const database = yield* Db;
+
+      const exit = yield* database
+        .withTransaction(
+          Effect.andThen(
+            database.withTransaction(insertFirm('tx-inner-ok')),
+            Effect.andThen(insertFirm('tx-outer-falha'), Effect.fail(new Boom())),
+          ),
+        )
+        .pipe(Effect.exit);
+
+      expect(Exit.isFailure(exit)).toBe(true);
+      expect(yield* committedFirms('tx-inner-ok')).toBe(0);
+      expect(yield* committedFirms('tx-outer-falha')).toBe(0);
+    }),
+  );
+
+  it.effect('defeito na aninhada desfaz a de dentro e chega à de fora como defeito', () =>
+    Effect.gen(function* () {
+      const database = yield* Db;
+      const defect = new Error('explodiu no savepoint');
+
+      const exit = yield* database
+        .withTransaction(
+          Effect.andThen(
+            insertFirm('tx-outer-defeito'),
+            database.withTransaction(
+              Effect.andThen(insertFirm('tx-inner-defeito'), Effect.die(defect)),
+            ),
+          ),
+        )
+        .pipe(Effect.exit);
+
+      expect(Exit.isFailure(exit) ? Cause.squash(exit.cause) : undefined).toBe(defect);
+      expect(yield* committedFirms('tx-outer-defeito')).toBe(0);
+      expect(yield* committedFirms('tx-inner-defeito')).toBe(0);
+    }),
+  );
+
+  it.effect('interrupção dentro da aninhada desfaz as duas', () =>
+    Effect.gen(function* () {
+      const database = yield* Db;
+      const written = yield* Latch.make();
+
+      const fiber = yield* Effect.forkChild(
+        database.withTransaction(
+          Effect.andThen(
+            insertFirm('tx-outer-interrompida'),
+            database.withTransaction(
+              Effect.andThen(
+                insertFirm('tx-inner-interrompida'),
+                Effect.andThen(written.open, Effect.never),
+              ),
+            ),
+          ),
+        ),
+      );
+
+      yield* written.await;
+      yield* Fiber.interrupt(fiber);
+
+      expect(yield* committedFirms('tx-outer-interrompida')).toBe(0);
+      expect(yield* committedFirms('tx-inner-interrompida')).toBe(0);
+    }),
+  );
+
+  /* A transação ambiente vive no contexto da fibra: duas fibras concorrentes não podem ver
+   * a transação uma da outra, nem um `use` fora de transação entrar numa alheia. */
+  it.effect('fibras concorrentes têm transações independentes', () =>
+    Effect.gen(function* () {
+      const database = yield* Db;
+      const bothWritten = yield* Latch.make();
+      const firstWrote = yield* Latch.make();
+      const secondWrote = yield* Latch.make();
+
+      const commits = database.withTransaction(
+        Effect.gen(function* () {
+          yield* insertFirm('tx-concorrente-commit');
+          yield* firstWrote.open;
+          yield* bothWritten.await;
+        }),
+      );
+
+      const rollsBack = database.withTransaction(
+        Effect.gen(function* () {
+          yield* insertFirm('tx-concorrente-rollback');
+          yield* secondWrote.open;
+          yield* bothWritten.await;
+          return yield* Effect.fail(new Boom());
+        }),
+      );
+
+      const outsider = Effect.gen(function* () {
+        yield* firstWrote.await;
+        yield* secondWrote.await;
+        /* Pelo `use`, fora de transação: se herdasse a de alguma fibra, veria a linha dela. */
+        const seen = yield* database.use(async (d) => {
+          const rows = await d
+            .select({ id: accountingFirm.id })
+            .from(accountingFirm)
+            .where(eq(accountingFirm.name, 'tx-concorrente-commit'));
+          return rows.length;
+        });
+        yield* bothWritten.open;
+        return seen;
+      });
+
+      const [committed, rolledBack, seenOutside] = yield* Effect.all(
+        [commits, Effect.exit(rollsBack), outsider],
+        { concurrency: 'unbounded' },
+      );
+
+      expect(committed).toBeUndefined();
+      expect(Exit.isFailure(rolledBack)).toBe(true);
+      expect(seenOutside, 'fora de transação não vê escrita não commitada').toBe(0);
+      expect(yield* committedFirms('tx-concorrente-commit')).toBe(1);
+      expect(yield* committedFirms('tx-concorrente-rollback')).toBe(0);
     }),
   );
 

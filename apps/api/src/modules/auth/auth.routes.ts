@@ -8,7 +8,7 @@ import { squashError } from '../../infra/database/error.js';
 import { handler } from '../../http/envelope.js';
 import { FirmContext, SessionContext } from '../../http/context.js';
 import { firmRoute, sessionRoute } from '../../http/middleware/auth.js';
-import { body, route } from '../../http/platform.js';
+import { body, publicRoute, route } from '../../http/platform.js';
 import { NotFound } from '../../lib/app-error.js';
 import { isFailure } from '../../lib/either.js';
 import { AccountantsRepo } from './accountant.repo.js';
@@ -61,7 +61,7 @@ const signUp = route(
 
       yield* AccountantsRepo.use((accountants) =>
         accountants.acceptInvite({ authUserId: userId, accountingFirmId, inviteId: found.id }).pipe(
-          Effect.tapCause((cause) =>
+          Effect.onError((cause) =>
             accountants.deleteAuthUser(userId).pipe(
               Effect.catchCause((compensation) =>
                 Effect.sync(() => {
@@ -84,6 +84,7 @@ const signUp = route(
       return { userId };
     }),
   ),
+  { auth: publicRoute },
 );
 
 const me = route(

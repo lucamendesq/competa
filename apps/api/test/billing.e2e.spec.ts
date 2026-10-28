@@ -111,10 +111,17 @@ describe('POST /billing/checkout — fluxo com LogBilling', () => {
     expect(res.body).toEqual({ data: { checkoutUrl: '', simulated: true } });
   });
 
-  it('grava plano, ciclo e ids mock do gateway — mas o status CONTINUA trialing', async () => {
+  /* O checkout grava INTENÇÃO, não plano. O gate de capability lê `planName`, então gravar
+   * a escolha lá liberaria recurso pago antes de o dinheiro entrar. */
+  it('grava a intenção e os ids do gateway; plano e status ficam como estavam', async () => {
     const rows = await subscriptionRows(firmId);
     expect(rows).toHaveLength(1);
-    expect(rows[0]).toMatchObject({ planName: 'profissional', cycle: 'yearly' });
+    expect(rows[0]).toMatchObject({
+      pendingPlanName: 'profissional',
+      pendingCycle: 'yearly',
+      planName: 'trial',
+      cycle: 'monthly',
+    });
     expect(rows[0].gatewayCustomerId).toMatch(/^mock_cus_/);
     expect(rows[0].gatewaySubscriptionId).toMatch(/^mock_sub_/);
 
@@ -124,7 +131,11 @@ describe('POST /billing/checkout — fluxo com LogBilling', () => {
     expect(rows[0].currentPeriodEnd).toBeNull();
   });
 
-  it('cycle omitido vira monthly; novo checkout sobrescreve plano e ids na mesma linha', async () => {
+  /* Trocar de plano REAPROVEITA a assinatura do gateway. Criar outra deixava as duas vivas:
+   * a antiga seguia cobrando e os webhooks dela paravam de casar com qualquer linha, porque
+   * o checkout só sobrescrevia o id. Verificado no sandbox do Asaas: o PUT atualiza valor,
+   * ciclo e a cobrança em aberto, mantendo a MESMA fatura. */
+  it('cycle omitido vira monthly; a troca reusa a assinatura em vez de criar outra', async () => {
     const [before] = await subscriptionRows(firmId);
 
     const res = await api.post('/billing/checkout', { planName: 'essencial' });
@@ -134,9 +145,10 @@ describe('POST /billing/checkout — fluxo com LogBilling', () => {
     const rows = await subscriptionRows(firmId);
     expect(rows).toHaveLength(1);
     expect(rows[0].id).toBe(before.id);
-    expect(rows[0]).toMatchObject({ planName: 'essencial', cycle: 'monthly' });
-    expect(rows[0].gatewayCustomerId).not.toBe(before.gatewayCustomerId);
-    expect(rows[0].gatewaySubscriptionId).not.toBe(before.gatewaySubscriptionId);
+    expect(rows[0]).toMatchObject({ pendingPlanName: 'essencial', pendingCycle: 'monthly' });
+    expect(rows[0].gatewaySubscriptionId, 'mesma assinatura no gateway').toBe(
+      before.gatewaySubscriptionId,
+    );
   });
 
   it('sem linha de subscription o checkout é no-op silencioso: 201 e nada gravado (quirk congelado)', async () => {
@@ -195,6 +207,64 @@ describe('permissões de equipe (dono vs membro)', () => {
   });
 });
 
+describe('GET /billing/subscription', () => {
+  let api: Api;
+  let firmId: string;
+
+  beforeAll(async () => {
+    ({ api } = await registerFirm(app.url));
+    firmId = await firmIdOf(api);
+  });
+
+  it('firma em trial: plano vigente, sem intenção e sem fatura', async () => {
+    const res = await api.get('/billing/subscription');
+
+    expect(res.status, JSON.stringify(res.body)).toBe(200);
+    expect(res.body.data).toMatchObject({
+      planName: 'trial',
+      status: 'trialing',
+      pendingPlanName: null,
+      pendingCycle: null,
+      /* Sem assinatura no gateway não há o que consultar — e o FAQ do Asaas pede para não
+       * usar GET como polling. */
+      invoiceUrl: null,
+    });
+    expect(res.body.data.trialEndsAt).toBeTruthy();
+  });
+
+  /* A tela precisa separar "contratou" de "está valendo": entre o checkout e o pagamento, o
+   * plano vigente ainda é o antigo. */
+  it('após o checkout mostra a intenção sem mudar o plano vigente', async () => {
+    const checkout = await api.post('/billing/checkout', {
+      planName: 'profissional',
+      cycle: 'yearly',
+    });
+    expect(checkout.status, JSON.stringify(checkout.body)).toBe(201);
+
+    const res = await api.get('/billing/subscription');
+    expect(res.body.data).toMatchObject({
+      planName: 'trial',
+      status: 'trialing',
+      pendingPlanName: 'profissional',
+      pendingCycle: 'yearly',
+    });
+  });
+
+  it('exige sessão de Contabilidade', async () => {
+    const anon = await apiClient(app.url).get('/billing/subscription');
+    expect(anon.status).toBe(401);
+  });
+
+  it('não vaza a assinatura de outra Contabilidade', async () => {
+    const other = await registerFirm(app.url);
+    const res = await other.api.get('/billing/subscription');
+
+    expect(res.status).toBe(200);
+    expect(res.body.data.planName).toBe('trial');
+    expect(await firmIdOf(other.api)).not.toBe(firmId);
+  });
+});
+
 describe('isolamento entre firmas', () => {
   it('checkout de uma firma não toca a assinatura da outra', async () => {
     const [a, b] = await Promise.all([registerFirm(app.url), registerFirm(app.url)]);
@@ -204,10 +274,11 @@ describe('isolamento entre firmas', () => {
     expect(res.status).toBe(201);
 
     const [rowA] = await subscriptionRows(firmA);
-    expect(rowA.planName).toBe('escritorio');
+    expect(rowA.pendingPlanName).toBe('escritorio');
 
     const [rowB] = await subscriptionRows(firmB);
     expect(rowB).toMatchObject({
+      pendingPlanName: null,
       planName: 'trial',
       status: 'trialing',
       gatewayCustomerId: null,

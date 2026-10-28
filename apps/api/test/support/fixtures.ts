@@ -1,4 +1,7 @@
+import { desc, like } from 'drizzle-orm';
 import { expect } from 'vitest';
+import { verification } from '../../src/infra/database/schema/index.js';
+import { db } from './db.js';
 
 export type ApiResponse = { status: number; body: any; headers: Headers };
 
@@ -101,3 +104,42 @@ export const contactBody = (name = `Responsável ${++seq}`) => ({
   name,
   email: `contato-${Date.now().toString(36)}-${seq}@example.com`,
 });
+
+/** Sessão de Responsável pelo caminho real: ativar o Link NÃO dá senha nem sessão — ela só
+ *  nasce quando o magic link entregue na caixa dele é consumido. Vive aqui porque a ativação
+ *  é pré-requisito de suítes de módulos diferentes. */
+export const magicLinkTokenFor = async (email: string) => {
+  const rows = await db
+    .select({ identifier: verification.identifier })
+    .from(verification)
+    .where(like(verification.value, `%${email}%`))
+    .orderBy(desc(verification.createdAt));
+
+  return rows[0]?.identifier;
+};
+
+export async function contactSessionByMagicLink(
+  baseUrl: string,
+  uploadToken: string,
+  email: string,
+) {
+  const activated = await apiClient(baseUrl).post(`/upload/${uploadToken}/access`, {});
+  expect(activated.status, JSON.stringify(activated.body)).toBe(201);
+
+  const token = await magicLinkTokenFor(email);
+  expect(token, `magic link para ${email}`).toBeDefined();
+
+  const verify = await fetch(
+    `${baseUrl}/api/auth/magic-link/verify?token=${token}&callbackURL=/entrou`,
+    { redirect: 'manual', headers: { 'x-forwarded-for': uniqueIp() } },
+  );
+  expect(verify.status, await verify.clone().text()).toBe(302);
+
+  const cookie = verify.headers
+    .getSetCookie()
+    .map((value) => value.split(';')[0])
+    .join('; ');
+  expect(cookie).toContain('session_token');
+
+  return { api: apiClient(baseUrl, { cookie }), cookie };
+}

@@ -1,44 +1,27 @@
 import './instrument.js';
 
-import { createApp } from './app.js';
+import { NodeRuntime } from '@effect/platform-node';
+import { Effect, Layer } from 'effect';
+import { AppLive } from './app.js';
 import { buildInfo } from './build-info.js';
 import env from './config/env.js';
+import { DbPool } from './infra/database/effect.js';
 import { Logger } from './lib/logger.js';
 
-const app = await createApp();
-new Logger('Bootstrap').log(
-  `API na porta ${env.PORT} — compilada em ${buildInfo.compiledAt}, processo iniciado em ${buildInfo.startedAt}`,
+/* SIGINT/SIGTERM interrompem a fibra principal: o scope desmonta o app na ordem inversa da
+ * construção (socket, crons, listeners em voo, pool) e o processo sai com 130. Sem
+ * `process.exit` aqui — é o fim do pool que deixa o node livre para sair. */
+AppLive({ port: env.PORT, trustProxy: env.NODE_ENV === 'production' }).pipe(
+  Layer.provide(DbPool.layer),
+  Layer.build,
+  Effect.andThen(
+    Effect.sync(() => {
+      new Logger('Bootstrap').log(
+        `API na porta ${env.PORT} — compilada em ${buildInfo.compiledAt}, processo iniciado em ${buildInfo.startedAt}`,
+      );
+    }),
+  ),
+  Effect.andThen(Effect.never),
+  Effect.scoped,
+  NodeRuntime.runMain,
 );
-
-/* Substitui o `enableShutdownHooks()` do Nest: o socket é do servidor Effect, e `close()`
- * derruba o servidor e depois os crons. Mesma lista de sinais que o `ShutdownSignal` do
- * Nest.
- *
- * O `process.exit` no fim NÃO é zelo: o pool do pg nunca recebe `end()` (não recebia nem
- * antes), então sempre sobra handle vivo e o node não sai sozinho. O Nest encerrava com
- * `process.kill(pid, signal)` depois dos hooks; sem um encerramento explícito aqui, um
- * SIGTERM do orquestrador fecharia o socket e penduraria o processo até o SIGKILL. */
-const SHUTDOWN_SIGNALS = [
-  'SIGHUP',
-  'SIGINT',
-  'SIGQUIT',
-  'SIGILL',
-  'SIGTRAP',
-  'SIGABRT',
-  'SIGBUS',
-  'SIGFPE',
-  'SIGSEGV',
-  'SIGUSR2',
-  'SIGTERM',
-] as const;
-
-for (const signal of SHUTDOWN_SIGNALS) {
-  process.once(signal, () => {
-    void app
-      .close()
-      .catch((error: unknown) => {
-        console.error('Falha ao encerrar a API', error);
-      })
-      .finally(() => process.exit(0));
-  });
-}

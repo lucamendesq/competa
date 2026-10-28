@@ -17,6 +17,7 @@ const REQUIRED_IN_PRODUCTION = [
   'VAPID_PUBLIC_KEY',
   'VAPID_PRIVATE_KEY',
   'SENTRY_DSN',
+  'WHATSAPP_ENCRYPTION_KEY',
 ] as const;
 
 const envSchema = z

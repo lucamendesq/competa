@@ -5,23 +5,21 @@ import { FirmContext } from '../../http/context.js';
 import { handler } from '../../http/envelope.js';
 import { firmRoute } from '../../http/middleware/auth.js';
 import { body, route } from '../../http/platform.js';
+import { ServiceUnavailable } from '../../lib/app-error.js';
 import { AccountantsRepo } from '../auth/accountant.repo.js';
 import { OnlyOwnerCanManageTeam } from '../auth/errors.js';
+import { WhatsappNotConnected } from './errors.js';
 import type { FirmScope } from '../auth/scope.js';
-import { MockWhatsappProvider } from '../messaging/providers/mock-whatsapp.provider.js';
-import { WhatsappProvider } from '../messaging/providers/whatsapp.provider.js';
+import { integrationsFrom, makeWhatsappProvider } from '../messaging/providers/providers.js';
 import { WhatsappCryptoService } from './whatsapp-crypto.service.js';
 import { WhatsappRepo } from './whatsapp.repo.js';
 
-/* As mesmas instâncias que o `WhatsappModule` montava, com a mesma escolha por NODE_ENV e o
- * crypto como singleton compartilhado com o provider de produção. Bug congelado #11: sem
- * `WHATSAPP_ENCRYPTION_KEY` o crypto cai numa chave de zeros conhecida — não tocar. */
 const crypto = new WhatsappCryptoService();
-const whatsapp =
-  env.NODE_ENV === 'production' ? new WhatsappProvider(crypto) : new MockWhatsappProvider();
 
-/* Stub do Embedded Signup: o `code` recebido nunca é trocado por token na Meta — o que vai
- * para o banco é credencial mock, com ou sem META_APP_ID/META_APP_SECRET no ambiente. */
+/* Stub do Embedded Signup: o `code` recebido nunca é trocado por token na Meta. Fora de
+ * produção isso destrava o fluxo da tela; EM produção a rota recusa, porque gravar
+ * `status: 'active'` com token falso faz o envio falhar depois, longe da causa — e some com
+ * o sinal de que a integração nunca existiu. */
 const MOCK_INTEGRATION = {
   accessToken: 'mock_long_lived_token',
   wabaId: 'mock_waba_id',
@@ -32,7 +30,7 @@ const MOCK_INTEGRATION = {
 const integrationOf = (scope: FirmScope) =>
   WhatsappRepo.use((repo) => repo.getIntegrationByFirm(scope));
 
-/** `requireOwner` do controller: conectar e desconectar são atos do dono. */
+/** Conectar e desconectar são atos do dono. */
 const requireOwner = (scope: FirmScope, authUserId: string) =>
   Effect.gen(function* () {
     const owner = yield* AccountantsRepo.use((repo) => repo.isOwner(scope, authUserId));
@@ -67,11 +65,17 @@ const onboard = route(
     'POST',
     Effect.gen(function* () {
       const { scope, session } = yield* FirmContext;
-      /* O `code` é validado (422 quando falta) e descartado. O `@Body` do Nest corria antes
-       * do corpo do método, então corpo inválido vence o 403 de não-dono. */
+      /* O `code` é validado (422 quando falta) e descartado. A validação vem antes do
+       * `requireOwner`: corpo inválido vence o 403 de não-dono. */
       yield* body(whatsappOnboardSchema);
 
       yield* requireOwner(scope, session.user.id);
+
+      if (env.NODE_ENV === 'production') {
+        return yield* Effect.fail(
+          new ServiceUnavailable('Conexão com o WhatsApp ainda não disponível.'),
+        );
+      }
 
       yield* WhatsappRepo.use((repo) =>
         repo.upsertIntegration(scope, {
@@ -101,12 +105,11 @@ const sendTest = route(
       const input = yield* body(whatsappTestSendSchema);
 
       const integration = yield* integrationOf(scope);
-      /* Bug congelado #10: `Error` cru, sem status — cai no fallback 500 INTERNAL_ERROR do
-       * mapa de erros, que expõe a mensagem em `details`. Deveria ser 4xx tipado. */
       if (!integration || integration.status !== 'active') {
-        return yield* Effect.die(new Error('Integração não ativa'));
+        return yield* Effect.fail(new WhatsappNotConnected());
       }
 
+      const whatsapp = makeWhatsappProvider(integrationsFrom(yield* WhatsappRepo));
       yield* Effect.promise(() =>
         whatsapp
           .send({

@@ -437,9 +437,12 @@ describe('POST /companies/import/confirm — gravação', () => {
     });
   });
 
-  it('bug congelado: responsibleAccountantId da planilha é validado mas nunca gravado', async () => {
+  /* Validar um campo a cada importação e nunca gravá-lo é pior que não aceitá-lo: a planilha
+   * diz quem responde pela Empresa e a tela mostrava ninguém. */
+  it('responsibleAccountantId da planilha é gravado', async () => {
+    const mine = await accountantIdOf(userId);
     const got = await api.get(`/companies/${importedId}`);
-    expect(got.body.data.responsibleAccountantId).toBeNull();
+    expect(got.body.data.responsibleAccountantId).toBe(mine);
   });
 
   it('reenvio do mesmo CNPJ faz upsert: renomeia sem duplicar e reporta "created"', async () => {
@@ -619,7 +622,7 @@ describe('POST /companies/access-invites', () => {
   it('convite de acesso não loga em message (email sai sem registro)', async () => {
     /* O listener do ContactInvited usa sendWithoutLog; nenhum outro teste deste arquivo
      * abre competência, então a tabela precisa seguir vazia. */
-    await new Promise((resolve) => setTimeout(resolve, 300));
+    await app.drainEvents();
     const rows = await db.select({ id: message.id }).from(message);
     expect(rows).toHaveLength(0);
   });
@@ -755,10 +758,12 @@ describe('GET/PATCH/DELETE /companies/:id', () => {
     expect(res.body.error.code).toBe('VALIDATION_ERROR');
   });
 
-  it('bug congelado: PATCH com corpo vazio → 500 (drizzle sem valores para o set)', async () => {
+  /* PATCH sem campo nenhum é erro do cliente, não do servidor: o contrato recusa antes de
+   * chegar ao drizzle, que estouraria com `No values to set`. */
+  it('PATCH com corpo vazio → 422', async () => {
     const res = await api.patch(`/companies/${target.id}`, {});
-    expect(res.status).toBe(500);
-    expect(res.body.error.code).toBe('INTERNAL_ERROR');
+    expect(res.status, JSON.stringify(res.body)).toBe(422);
+    expect(res.body.error.code).toBe('VALIDATION_ERROR');
   });
 
   it('DELETE desativa (soft): devolve a linha inativa e o registro continua existindo', async () => {
@@ -857,10 +862,10 @@ describe('responsáveis (contacts) e acesso ao app', () => {
     expect(ghost.body.error.message).toBe('Responsável não encontrado.');
   });
 
-  it('bug congelado: PATCH de contato com corpo vazio → 500', async () => {
+  it('PATCH de contato com corpo vazio → 422', async () => {
     const res = await api.patch(`/companies/${companyId}/contacts/${freshId}`, {});
-    expect(res.status).toBe(500);
-    expect(res.body.error.code).toBe('INTERNAL_ERROR');
+    expect(res.status, JSON.stringify(res.body)).toBe(422);
+    expect(res.body.error.code).toBe('VALIDATION_ERROR');
   });
 
   it('DELETE apaga de verdade (204 sem corpo); repetir → 404', async () => {

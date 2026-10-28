@@ -5,7 +5,8 @@ import { Context, Effect, Layer, ManagedRuntime } from 'effect';
 import { HttpRouter, HttpServer } from 'effect/http';
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 import { BetterAuthAdapter } from '../../../src/infra/auth/better-auth.adapter.js';
-import { appServices } from '../../../src/effect/runtime.js';
+import { AppLayer } from '../../../src/effect/runtime.js';
+import { DbPool } from '../../../src/infra/database/effect.js';
 import {
   ContactContext,
   FirmContext,
@@ -21,9 +22,9 @@ import {
   uploadPresignRoute,
   uploadTokenRoute,
 } from '../../../src/http/middleware/auth.js';
-import { ThrottleStore, TrustProxy, route } from '../../../src/http/platform.js';
+import { ThrottleStore, TrustProxy, publicRoute, route } from '../../../src/http/platform.js';
 import { makeThrottleStore, throttleDefault } from '../../../src/http/throttle.js';
-import { hashToken } from '../../../src/lib/token.js';
+import { createToken } from '../../../src/lib/token.js';
 import { isFailure } from '../../../src/lib/either.js';
 import {
   accountant,
@@ -55,6 +56,7 @@ const probes = Layer.mergeAll(
     auth: uploadTokenRoute({ uploadThrottle: true }),
   }),
   route('POST', '/probe/recover', handler('POST', Effect.succeed({ sent: true })), {
+    auth: publicRoute,
     throttle: throttleDefault(3, 60_000),
   }),
   route('POST', '/probe/contact-upload', handler('POST', read(UploadContext)), {
@@ -71,7 +73,7 @@ const boot = async () => {
       Layer.provideMerge(NodeHttpServer.layer(createServer, { port: 0 })),
       Layer.provideMerge(Layer.succeed(TrustProxy)(true)),
       Layer.provideMerge(Layer.sync(ThrottleStore)(() => makeThrottleStore())),
-      Layer.provide(appServices),
+      Layer.provide(AppLayer.pipe(Layer.provide(DbPool.layerBorrowed))),
     ),
   );
   const server = Context.get(await runtime.context(), HttpServer.HttpServer);
@@ -192,11 +194,11 @@ const seedUploadLink = async (options: { revoked?: boolean; expiresAt?: Date } =
     .values({ periodId: periodRow.id, companyId: companyRow.id })
     .returning({ id: request.id });
 
-  const token = `probe-token-${seq}`;
+  const { token, tokenHash } = createToken();
   await db.insert(uploadLink).values({
     requestId: requestRow.id,
     contactId: contactRow.id,
-    tokenHash: hashToken(token),
+    tokenHash,
     revoked: options.revoked ?? false,
     expiresAt: options.expiresAt ?? new Date(Date.now() + 30 * 86_400_000),
   });

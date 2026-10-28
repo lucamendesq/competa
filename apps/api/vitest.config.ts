@@ -14,11 +14,19 @@ export default defineConfig({
        * tokens preenchidos não pode mudar isso (blankAsMissing trata '' como ausente). */
       ASAAS_WEBHOOK_TOKEN: '',
       WHATSAPP_VERIFY_TOKEN: '',
+      /* Idem para o segredo da Meta: a suíte congela o 503 do webhook sem ele, e antes disto
+       * a garantia era "o .env do dev não tem essa linha" — quem a preenchesse quebrava a
+       * suíte, e só na máquina dele. */
+      META_APP_SECRET: '',
+      /* Chave de teste, fixa para o cifrado ser reproduzível entre runs. O serviço deixou
+       * de ter fallback: sem isto o app nem sobe. */
+      WHATSAPP_ENCRYPTION_KEY: 'a'.repeat(64),
       /* Diretório próprio, apagado a cada run: apontar para o `.storage` do dev fazia cada
        * execução deixar lixo lá (chegou a 4,3 GB / ~5 mil arquivos) e ainda exercitava a
        * faxina de órfãos do cron contra sobras de runs antigas. */
       STORAGE_LOCAL_DIR: '.storage-test',
     },
     globalSetup: ['./test/support/global-setup.ts'],
+    setupFiles: ['./test/support/pool-teardown.ts'],
   },
 });

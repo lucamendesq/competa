@@ -1,23 +1,37 @@
-export abstract class AppError extends Error {
+import { Data, Predicate } from 'effect';
+
+const AppErrorTypeId = Symbol.for('competa/api/AppError');
+
+/** Erro de domínio com `_tag` (`catchTag`, `yield* new X()`) e o `code`/`status` que o mapa de
+ *  erros traduz para o corpo HTTP. */
+export abstract class AppError extends Data.Error<{
+  readonly message: string;
+  readonly details?: unknown;
+}> {
+  readonly [AppErrorTypeId] = AppErrorTypeId;
+  abstract readonly _tag: string;
   abstract readonly code: string;
   abstract readonly status: number;
-  readonly details?: unknown;
 
   constructor(message: string, details?: unknown) {
-    super(message);
+    super(details === undefined ? { message } : { message, details });
     this.name = new.target.name;
-    this.details = details;
   }
 }
 
+export const isAppError = (value: unknown): value is AppError =>
+  Predicate.hasProperty(value, AppErrorTypeId);
+
 export class ValidationError extends AppError {
+  readonly _tag = 'ValidationError';
   readonly code = 'VALIDATION_ERROR';
   readonly status = 422;
 }
 
-/** Corpo que o parser recusa antes de qualquer schema — o que o `express.json()` devolvia
- *  como 400. Separado do 422: ali o corpo é legível e o campo é que está errado. */
+/** Corpo que o parser recusa antes de qualquer schema (400). Separado do 422: ali o corpo é
+ *  legível e o campo é que está errado. */
 export class BadRequest extends AppError {
+  readonly _tag = 'BadRequest';
   readonly code = 'BAD_REQUEST';
   readonly status = 400;
 
@@ -27,6 +41,7 @@ export class BadRequest extends AppError {
 }
 
 export class NotFound extends AppError {
+  readonly _tag = 'NotFound';
   readonly code = 'NOT_FOUND';
   readonly status = 404;
 
@@ -36,6 +51,7 @@ export class NotFound extends AppError {
 }
 
 export class Unauthenticated extends AppError {
+  readonly _tag = 'Unauthenticated';
   readonly code = 'UNAUTHENTICATED';
   readonly status = 401;
 
@@ -45,6 +61,7 @@ export class Unauthenticated extends AppError {
 }
 
 export class Forbidden extends AppError {
+  readonly _tag = 'Forbidden';
   readonly code = 'FORBIDDEN';
   readonly status = 403;
 
@@ -54,6 +71,7 @@ export class Forbidden extends AppError {
 }
 
 export class PaymentRequired extends AppError {
+  readonly _tag = 'PaymentRequired';
   readonly code = 'PAYMENT_REQUIRED';
   readonly status = 402;
 
@@ -65,6 +83,7 @@ export class PaymentRequired extends AppError {
 /** Dependência fora do ar (banco, hoje). 503 e não 500: o orquestrador tira a instância
  *  do balanceador em vez de tratar como bug da aplicação. */
 export class ServiceUnavailable extends AppError {
+  readonly _tag = 'ServiceUnavailable';
   readonly code = 'SERVICE_UNAVAILABLE';
   readonly status = 503;
 }

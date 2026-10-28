@@ -106,7 +106,7 @@ async function openFirmWithCompanies(
   return { firm, periodId: opened.body.data.id as string, boxes };
 }
 
-const activate = (uploadToken: string, body: Record<string, unknown> = { password: PASSWORD }) =>
+const activate = (uploadToken: string, body: Record<string, unknown> = {}) =>
   apiClient(app.url).post(`/upload/${uploadToken}/access`, body);
 
 const rawRequest = (
@@ -140,11 +140,25 @@ async function signIn(email: string, password = PASSWORD) {
   return { api: apiClient(app.url, { cookie }), cookie };
 }
 
+/** O caminho real do Responsável: ativar pelo Link NÃO dá sessão nem senha — ela só nasce
+ *  quando o magic link que foi para a caixa dele é consumido. */
 async function contactSession(uploadToken: string, email: string) {
   const activated = await activate(uploadToken);
   expect(activated.status, JSON.stringify(activated.body)).toBe(201);
 
-  return signIn(email);
+  const token = await magicLinkTokenFor(email);
+  expect(token, `magic link para ${email}`).toBeDefined();
+
+  const verify = await rawRequest(
+    'GET',
+    `/api/auth/magic-link/verify?token=${token}&callbackURL=/entrou`,
+    { redirect: 'manual' },
+  );
+  expect(verify.status, await verify.clone().text()).toBe(302);
+  const cookie = cookieOf(verify);
+  expect(cookie).toContain('session_token');
+
+  return { api: apiClient(app.url, { cookie }), cookie };
 }
 
 async function mintInvite(
@@ -292,7 +306,10 @@ describe('ativação de acesso pelo Link de Upload (POST /upload/:token/access)'
     );
   });
 
-  it('com senha: vincula a conta, carimba Termos e email verificado, sem magic link', async () => {
+  /* O Link de Upload circula por email encaminhado, histórico e log de proxy: possuí-lo não
+   * prova controle da caixa, então ele não pode render credencial. Uma senha no corpo é
+   * descartada pelo schema e NÃO autentica. */
+  it('senha no corpo é ignorada: nenhuma credencial nasce do Link', async () => {
     const box = fixture.boxes.Ativa;
     const res = await activate(box.uploadToken, { password: PASSWORD, name: 'Nome Ajustado' });
 
@@ -300,25 +317,28 @@ describe('ativação de acesso pelo Link de Upload (POST /upload/:token/access)'
     expect(res.body.data).toEqual({
       email: box.contactEmail,
       name: 'Nome Ajustado',
-      nextStep: 'password_set',
+      nextStep: 'check_email',
     });
+    expect(res.headers.getSetCookie()).toEqual([]);
 
     const owner = await contactOfCompany(box.id);
     expect(owner.authUserId).not.toBeNull();
 
+    /* `emailVerified` passa a ser carimbado pelo magic link, que é onde o controle da caixa
+     * fica provado — não por quem apresentou o Link. */
     const [account] = await db
       .select({ emailVerified: authUser.emailVerified, termsAcceptedAt: authUser.termsAcceptedAt })
       .from(authUser)
       .where(eq(authUser.email, box.contactEmail));
-    expect(account.emailVerified).toBe(true);
+    expect(account.emailVerified).toBe(false);
     expect(account.termsAcceptedAt).not.toBeNull();
 
-    expect(await magicLinkTokenFor(box.contactEmail)).toBeUndefined();
+    expect(await magicLinkTokenFor(box.contactEmail)).toBeDefined();
 
-    const { api } = await signIn(box.contactEmail);
-    const profile = await api.get('/my/profile');
-    expect(profile.status).toBe(200);
-    expect(profile.body.data.hasPassword).toBe(true);
+    const signedIn = await rawRequest('POST', '/api/auth/sign-in/email', {
+      body: { email: box.contactEmail, password: PASSWORD },
+    });
+    expect(signedIn.status, 'a senha enviada no Link não pode autenticar').toBe(401);
   });
 
   it('reativar contato que já tem acesso → 409 CONTACT_ACCESS_ALREADY_EXISTS', async () => {
@@ -355,15 +375,16 @@ describe('ativação de acesso pelo Link de Upload (POST /upload/:token/access)'
     const profile = await api.get('/my/profile');
     expect(profile.status).toBe(200);
 
-    /* Bug congelado: o signUpEmail interno grava uma senha ALEATÓRIA como credencial, então
-     * o perfil diz hasPassword mesmo sem o Responsável nunca ter escolhido senha — e o
-     * POST /my/password (documentado como "first-time call cria a credencial") responde 400
-     * PASSWORD_ALREADY_SET. Quem ativa sem senha fica preso ao magic link. */
-    expect(profile.body.data.hasPassword).toBe(true);
+    /* A ativação apaga a credencial aleatória que o `signUpEmail` exige, então o Responsável
+     * chega aqui SEM senha — e é daqui, já com a caixa provada pelo magic link, que ele
+     * escolhe a dele. */
+    expect(profile.body.data.hasPassword).toBe(false);
 
     const setPassword = await api.post('/my/password', { password: PASSWORD });
-    expect(setPassword.status).toBe(400);
-    expect(setPassword.body.error.code).toBe('PASSWORD_ALREADY_SET');
+    expect(setPassword.status, JSON.stringify(setPassword.body)).toBe(204);
+
+    const { api: withPassword } = await signIn(box.contactEmail);
+    expect((await withPassword.get('/my/profile')).body.data.hasPassword).toBe(true);
   });
 
   it('token desconhecido → 404 UPLOAD_LINK_INVALID', async () => {
@@ -398,12 +419,6 @@ describe('ativação de acesso pelo Link de Upload (POST /upload/:token/access)'
 
     const owner = await contactOfCompany(box.id);
     expect(owner.authUserId).toBeNull();
-  });
-
-  it('senha curta → 422 VALIDATION_ERROR', async () => {
-    const res = await activate(fixture.boxes.Valida.uploadToken, { password: 'curta' });
-    expect(res.status).toBe(422);
-    expect(res.body.error.code).toBe('VALIDATION_ERROR');
   });
 
   it('POST /upload/:token/push grava inscrição que herda a validade do link', async () => {
@@ -573,7 +588,7 @@ describe('área logada do Responsável (/my) com vínculo multi-empresa', () => 
     /* Segunda ativação do MESMO email: vincula a Empresa B à conta existente. */
     const second = await activate(fixture.boxes.Bemtevi.uploadToken);
     expect(second.status, JSON.stringify(second.body)).toBe(201);
-    expect(second.body.data.nextStep).toBe('password_set');
+    expect(second.body.data.nextStep).toBe('check_email');
 
     const other = await openFirmWithCompanies([{ name: 'Corvo' }]);
     strangerBoxes = other.boxes;
@@ -590,7 +605,8 @@ describe('área logada do Responsável (/my) com vínculo multi-empresa', () => 
       companyId: fixture.boxes.Andorinha.id,
       companyName: 'Andorinha',
       accountingFirmName: fixture.firm.firmName,
-      hasPassword: true,
+      // ativou pelo Link e entrou pelo magic link: nunca escolheu senha
+      hasPassword: false,
     });
     expect(res.body.data.companies.map((row: any) => row.companyName)).toEqual([
       'Andorinha',
@@ -723,10 +739,15 @@ describe('área logada do Responsável (/my) com vínculo multi-empresa', () => 
     expect(invalid.status).toBe(422);
   });
 
-  it('bug congelado: redefinir senha quando já existe credencial → 400 da better-auth', async () => {
-    const res = await session.api.post('/my/password', { password: 'outra-senha-valida-9' });
-    expect(res.status).toBe(400);
-    expect(res.body.error.code).toBe('PASSWORD_ALREADY_SET');
+  /* Quem ativou pelo Link chega sem credencial, então a PRIMEIRA chamada cria a senha. A
+   * segunda é recusada: trocar senha existente exige o fluxo de redefinição, não este. */
+  it('POST /my/password cria a primeira senha e recusa a segunda', async () => {
+    const first = await session.api.post('/my/password', { password: 'outra-senha-valida-9' });
+    expect(first.status, JSON.stringify(first.body)).toBe(204);
+
+    const second = await session.api.post('/my/password', { password: 'mais-uma-senha-valida-9' });
+    expect(second.status).toBe(400);
+    expect(second.body.error.code).toBe('PASSWORD_ALREADY_SET');
   });
 
   it('senha curta em POST /my/password → 422 antes da better-auth', async () => {
@@ -866,13 +887,16 @@ describe('upload logado (/my/documents) e leitura de conteúdo', () => {
     expect(missing.body.error.message).toContain('Informe a Solicitação');
   });
 
-  it('bug congelado: requestId que não é uuid → 500 INTERNAL_ERROR (query estoura no guard)', async () => {
+  it('requestId fora do formato uuid → 422, não 500', async () => {
+    /* O guard precisa do id antes do handler, então ele mesmo confere o formato: sem isso a
+     * consulta levava o valor cru ao Postgres e o `invalid input syntax for type uuid` virava
+     * erro do servidor. */
     const res = await session.api.post('/my/documents', {
       requestId: 'nao-e-uuid',
       files: [{ fileName: 'extrato.csv', contentType: 'text/csv', sizeBytes: 10 }],
     });
-    expect(res.status).toBe(500);
-    expect(res.body.error.code).toBe('INTERNAL_ERROR');
+    expect(res.status, JSON.stringify(res.body)).toBe(422);
+    expect(res.body.error.code).toBe('VALIDATION_ERROR');
   });
 
   it('arquivo de formato recusado volta accepted:false com motivo, sem reserva', async () => {

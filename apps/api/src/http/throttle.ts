@@ -1,6 +1,7 @@
 import { AppError } from '../lib/app-error.js';
 
 export class TooManyRequests extends AppError {
+  readonly _tag = 'TooManyRequests';
   readonly code = 'TOO_MANY_REQUESTS';
   readonly status = 429;
 
@@ -14,17 +15,17 @@ export type Bucket = {
   readonly limit: number;
   readonly ttlMs: number;
   readonly blockMs?: number;
-  /** `UploadThrottlerGuard.getTracker`: chaveia por `ip:token` em vez de só pelo IP. */
+  /** Chaveia por `ip:token` em vez de só pelo IP. */
   readonly byToken?: boolean;
 };
 
-/** Baldes globais do `ThrottlerModule`: `short` corta rajada, `default` corta abuso sustentado. */
+/** Baldes globais: `short` corta rajada, `default` corta abuso sustentado. */
 export const GLOBAL_BUCKETS: readonly Bucket[] = [
   { name: 'short', limit: 30, ttlMs: 10_000 },
   { name: 'default', limit: 120, ttlMs: 60_000 },
 ];
 
-/** `UploadThrottlerGuard`: roda ALÉM dos baldes globais, chaveado por `ip:token`. */
+/** Roda ALÉM dos baldes globais, chaveado por `ip:token`. */
 export const UPLOAD_PRESIGN_BUCKET: Bucket = {
   name: 'upload-presign',
   limit: 60,
@@ -32,8 +33,7 @@ export const UPLOAD_PRESIGN_BUCKET: Bucket = {
   byToken: true,
 };
 
-/** `@Throttle({ default: { ttl, limit } })`: o decorator nomeia UM balde, então o `short`
- *  (30/10s) continua valendo ao lado do `default` reescrito. */
+/** Reescreve só o balde `default`: o `short` (30/10s) continua valendo ao lado dele. */
 export const throttleDefault = (limit: number, ttlMs: number): readonly Bucket[] =>
   GLOBAL_BUCKETS.map((bucket) =>
     bucket.name === 'default' ? { ...bucket, limit, ttlMs } : bucket,
@@ -43,13 +43,11 @@ export type ThrottleResult =
   | { readonly ok: true; readonly remaining: number; readonly resetSec: number }
   | { readonly ok: false; readonly retryAfterSec: number };
 
-/** Mesma granularidade do `sha256(Class-handler-throttler-tracker)` do Nest: um balde por
- *  rota, por nome de balde, por cliente. */
 export const throttleKey = (routeKey: string, bucket: Bucket, tracker: string) =>
   `${routeKey}:${bucket.name}:${tracker}`;
 
-/** Equivale a `trust proxy: 1` do Express: a entrada mais à DIREITA do XFF é a que o proxy
- *  imediato escreveu; as da esquerda são do cliente e forjáveis. */
+/** A entrada mais à DIREITA do XFF é a que o proxy imediato escreveu; as da esquerda são
+ *  do cliente e forjáveis. */
 export const callerIp = (
   headers: Readonly<Record<string, string | undefined>>,
   remoteAddress: string | undefined,
@@ -64,20 +62,46 @@ export const callerIp = (
   return remoteAddress ?? 'unknown';
 };
 
-export const uploadTracker = (ip: string, token: string) => `${ip}:${token}`;
+/* O token vem cru do path, antes de qualquer guard: só entra na chave se tiver a forma de um
+ * token emitido (`createToken`, 32 bytes em base64url). Fora disso o balde é o do IP — senão
+ * cada token inventado abriria uma chave nova e o limite nunca dispararia. */
+const TOKEN_SHAPE = /^[A-Za-z0-9_-]{43}$/;
 
-type Entry = { hits: number[]; blockedUntil: number };
+export const uploadTracker = (ip: string, token: string) =>
+  TOKEN_SHAPE.test(token) ? `${ip}:${token}` : ip;
 
-/* ponytail: in-memory, como o storage default do throttler do Nest. Redis quando houver
- * mais de uma instância. */
+type Entry = { hits: number[]; blockedUntil: number; staleAt: number };
+
+const SWEEP_EVERY_MS = 60_000;
+
+/* ponytail: em memória; vira Redis quando houver mais de uma instância. */
 export const makeThrottleStore = (now: () => number = Date.now) => {
   const entries = new Map<string, Entry>();
+  let lastSweep = now();
+
+  /* Chave que nunca mais é batida não volta a passar pelo `hit`: sem a varredura, cada IP
+   * ou token visto uma vez ficaria no heap para sempre. */
+  const sweep = (at: number) => {
+    if (at - lastSweep < SWEEP_EVERY_MS) return;
+    lastSweep = at;
+    for (const [key, entry] of entries) if (entry.staleAt <= at) entries.delete(key);
+  };
+
+  const settle = (entry: Entry, bucket: Bucket) => {
+    const lastHit = entry.hits.at(-1);
+    entry.staleAt = Math.max(
+      entry.blockedUntil,
+      lastHit === undefined ? 0 : lastHit + bucket.ttlMs,
+    );
+  };
 
   return {
+    size: () => entries.size,
     /** Janela deslizante + bloqueio: estourado o limite, hits NÃO contam enquanto bloqueado. */
     hit(key: string, bucket: Bucket): ThrottleResult {
       const at = now();
-      const entry = entries.get(key) ?? { hits: [], blockedUntil: 0 };
+      sweep(at);
+      const entry = entries.get(key) ?? { hits: [], blockedUntil: 0, staleAt: 0 };
       entries.set(key, entry);
 
       if (entry.blockedUntil > at) {
@@ -90,16 +114,17 @@ export const makeThrottleStore = (now: () => number = Date.now) => {
         const blockMs = bucket.blockMs ?? bucket.ttlMs;
         entry.blockedUntil = at + blockMs;
         entry.hits = [];
+        settle(entry, bucket);
         return { ok: false, retryAfterSec: Math.ceil(blockMs / 1000) };
       }
 
       entry.hits.push(at);
+      settle(entry, bucket);
       return {
         ok: true,
         remaining: bucket.limit - entry.hits.length,
-        /* Quanto falta para o hit mais ANTIGO sair da janela. Diverge do Nest, que guarda
-         * um `expiresAt` FIXO por janela: aqui a janela é deslizante, então os dois valores
-         * se separam conforme hits envelhecem. Nenhum spec assere o header. */
+        /* Quanto falta para o hit mais ANTIGO sair da janela deslizante, não o fim de uma
+         * janela fixa. Nenhum spec assere o header. */
         resetSec: Math.ceil((entry.hits[0] + bucket.ttlMs - at) / 1000),
       };
     },
@@ -108,10 +133,10 @@ export const makeThrottleStore = (now: () => number = Date.now) => {
 
 export type ThrottleStore = ReturnType<typeof makeThrottleStore>;
 
-/* `getThrottlerSuffix` do throttler do Nest: o balde `default` não sufixa, os demais sim. */
+/* O balde `default` não sufixa o nome do header, os demais sim: os nomes fazem parte do
+ * contrato com os clientes. */
 const suffix = (bucket: Bucket) => (bucket.name === 'default' ? '' : `-${bucket.name}`);
 
-/** Mesmos headers que o `ThrottlerGuard` escreve em TODA resposta (`setHeaders` default). */
 export const rateLimitHeaders = (bucket: Bucket, result: ThrottleResult): Record<string, number> =>
   result.ok
     ? {

@@ -6,11 +6,11 @@ type Sender = (link: MagicLink) => Promise<void>;
 
 const logger = new Logger('MagicLink');
 
-/** O Better Auth é montado fora da DI do Nest (é biblioteca, não módulo), mas em produção
- *  o email de magic link tem que sair pelo provedor de `modules/messaging` — que é quem
- *  trata falha de canal e registra o envio. Esta é a costura: o MessagingModule injeta o
- *  sender no boot. Sem sender registrado (produção subindo antes do boot terminar), loga e
- *  segue — nunca derruba o login. */
+/** O Better Auth é montado na carga do módulo, fora da árvore de serviços do app, mas em
+ *  produção o email de magic link tem que sair pelo provedor de `modules/messaging` — que é
+ *  quem trata falha de canal e registra o envio. Esta é a costura:
+ *  `registerMessagingListeners` injeta o sender no boot. Sem sender registrado (produção
+ *  subindo antes do boot terminar), loga e segue — nunca derruba o login. */
 let sender: Sender | undefined;
 
 export const setMagicLinkSender = (fn: Sender) => {
@@ -19,8 +19,8 @@ export const setMagicLinkSender = (fn: Sender) => {
 
 /** Quem escolhe é o `NODE_ENV`, não se um provedor foi registrado (mesma regra do D15 nos
  *  outros provedores externos): fora de produção o link sempre vai para o terminal, puro e
- *  sem depender do `MessagingModule` já ter inicializado. Em produção, sim, passa pelo
- *  provedor real (Resend) — via o sender que o `MessagingModule` registra, que também
+ *  sem depender de o messaging já ter registrado o sender. Em produção, sim, passa pelo
+ *  provedor real (Resend) — via o sender que `registerMessagingListeners` registra, que também
  *  aplica remetente/rodapé e nunca lança. */
 export const sendMagicLink = async (link: MagicLink) => {
   if (env.NODE_ENV !== 'production') {

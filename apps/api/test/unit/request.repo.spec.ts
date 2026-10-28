@@ -2,9 +2,10 @@ import { layer } from '@effect/vitest';
 import { Effect } from 'effect';
 import { eq } from 'drizzle-orm';
 import { beforeAll, expect } from 'vitest';
-import { db, pool, truncateAll } from '../support/db.js';
+import { db, truncateAll } from '../support/db.js';
 import {
   accountant,
+  cronLease,
   accountingFirm,
   company,
   contact,
@@ -334,12 +335,14 @@ layer(RequestsRepo.layer)('RequestsRepo', (it) => {
 
       expect(yield* itemRow(itemId)).toMatchObject({ status: 'pending', deadlineNotifiedAt: null });
 
-      /* Bug congelado #16: a resposta promete link rotacionado, mas o token anterior ganha
-       * 48h de carência em vez de morrer na hora. */
+      /* A resposta promete link rotacionado, então o anterior morre NA HORA — nada de 48h de
+       * carência, que é regra do lembrete e do reenvio, não de um ato do Contador sobre o
+       * link. `before` serve para provar que o token REALMENTE mudou. */
       const after = yield* linkRow(box.requestId);
       expect(after.tokenHash).toBe(hashToken(rejected!.token));
-      expect(after.previousTokenHash).toBe(before.tokenHash);
-      expect(after.previousExpiresAt).not.toBeNull();
+      expect(after.tokenHash).not.toBe(before.tokenHash);
+      expect(after.previousTokenHash).toBeNull();
+      expect(after.previousExpiresAt).toBeNull();
     }),
   );
 
@@ -750,29 +753,45 @@ layer(RequestsRepo.layer)('RequestsRepo', (it) => {
     }),
   );
 
-  it.effect(
-    'withAdvisoryLock: roda a tarefa, libera no fim e devolve null quando já está tomado',
-    () =>
-      Effect.gen(function* () {
-        const repo = yield* RequestsRepo;
-        const lockId = 910_000 + next();
+  it.effect('withLease: roda, libera no fim e recusa enquanto outra instância segura', () =>
+    Effect.gen(function* () {
+      const repo = yield* RequestsRepo;
+      const name = `sweep-${next()}`;
 
-        expect(yield* repo.withAdvisoryLock(lockId, async () => 'rodou')).toBe('rodou');
-        // liberado: a segunda aquisição seguida também roda
-        expect(yield* repo.withAdvisoryLock(lockId, async () => 'de novo')).toBe('de novo');
+      expect(yield* repo.withLease(name, Effect.succeed('rodou'))).toBe('rodou');
+      // liberada no fim: a segunda chamada seguida também roda
+      expect(yield* repo.withLease(name, Effect.succeed('de novo'))).toBe('de novo');
 
-        const holder = yield* Effect.promise(() => pool.connect());
-        yield* Effect.promise(() => holder.query('select pg_try_advisory_lock($1)', [lockId]));
-        let ran = false;
-        const skipped = yield* repo.withAdvisoryLock(lockId, async () => {
+      // outra instância com a lease em dia: pulamos
+      yield* Effect.promise(() =>
+        db
+          .update(cronLease)
+          .set({ holder: 'outra-instancia', expiresAt: new Date(Date.now() + 60_000) })
+          .where(eq(cronLease.name, name)),
+      );
+
+      let ran = false;
+      const skipped = yield* repo.withLease(
+        name,
+        Effect.sync(() => {
           ran = true;
           return 'nao deveria';
-        });
-        yield* Effect.promise(() => holder.query('select pg_advisory_unlock($1)', [lockId]));
-        holder.release();
+        }),
+      );
+      expect(skipped).toBeNull();
+      expect(ran).toBe(false);
 
-        expect(skipped).toBeNull();
-        expect(ran).toBe(false);
-      }),
+      /* O que o `pg_advisory_lock` não dava: lease vencida se cura sozinha. Antes, o unlock
+       * caía numa conexão diferente da do lock e o vazamento era permanente — toda varredura
+       * seguinte era pulada em silêncio. */
+      yield* Effect.promise(() =>
+        db
+          .update(cronLease)
+          .set({ expiresAt: new Date(Date.now() - 1_000) })
+          .where(eq(cronLease.name, name)),
+      );
+
+      expect(yield* repo.withLease(name, Effect.succeed('retomada'))).toBe('retomada');
+    }),
   );
 });

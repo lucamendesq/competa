@@ -162,3 +162,10 @@ export const planGateMessage = (capability: PlanCapability): string =>
 /** Tier recomendado para quem tem `active` Empresas ativas: o mais barato que cobre. */
 export const planForCompanies = (active: number): PaidPlanName =>
   PAID_PLAN_NAMES.find((name) => PLANS[name].companyCap >= active) ?? 'escritorio';
+
+/** Estados possíveis de uma assinatura. Vira CHECK no banco: a coluna era texto livre, e o
+ *  gate só bloqueia escrita em `OVERDUE`/`CANCELED` exatos — um typo num UPDATE manual
+ *  liberava a firma em silêncio. `trialing` é minúsculo por ser o default histórico da
+ *  coluna; os demais vêm como o gateway os nomeia. */
+export const SUBSCRIPTION_STATUSES = ['trialing', 'ACTIVE', 'OVERDUE', 'CANCELED'] as const;
+export type SubscriptionStatus = (typeof SUBSCRIPTION_STATUSES)[number];

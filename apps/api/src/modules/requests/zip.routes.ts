@@ -93,7 +93,7 @@ const withFlight = <E, R>(
       inFlight.add(key);
 
       const release = () => inFlight.delete(key);
-      return build(release).pipe(Effect.tapCause(() => Effect.sync(release)));
+      return build(release).pipe(Effect.onError(() => Effect.sync(release)));
     },
   );
 
@@ -155,7 +155,7 @@ const periodZip = route(
   { auth: firmRoute({ requires: 'periodZip' }) },
 );
 
-/* `StreamableFile` do Nest: `Content-Type` e `Content-Disposition` saem como vieram, sem
+/* `Content-Type` e `Content-Disposition` saem como vieram, sem
  * `Content-Length` (o corpo é um stream). A allowlist de `servedContentType` é a primeira
  * barreira de XSS sobre conteúdo de terceiros — o que não está nela vira octet-stream. */
 const documentContent = route(

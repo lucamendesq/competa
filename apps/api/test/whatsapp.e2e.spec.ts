@@ -6,9 +6,10 @@ import { db, truncateAll } from './support/db.js';
 import { message, whatsappIntegration } from '../src/infra/database/schema/index.js';
 import { apiClient, registerFirm, uniqueIp, type Api } from './support/fixtures.js';
 
-/* Ambiente de teste SEM segredos Meta: META_APP_ID, META_APP_SECRET, WHATSAPP_VERIFY_TOKEN
- * e WHATSAPP_ENCRYPTION_KEY ausentes do apps/api/.env. Os webhooks falham fechados (503)
- * e o crypto cai na chave-fallback de zeros. Provider em teste: MockWhatsappProvider. */
+/* Ambiente de teste SEM segredos Meta (META_APP_ID, META_APP_SECRET, WHATSAPP_VERIFY_TOKEN
+ * fixados vazios no vitest.config): os webhooks falham fechados (503). A
+ * WHATSAPP_ENCRYPTION_KEY, essa SIM existe — o serviço perdeu o fallback de zeros e sem ela
+ * o app não sobe. Provider em teste: MockWhatsappProvider. */
 
 const MOCK_ONBOARD_RESULT = {
   status: 'active',
@@ -28,13 +29,13 @@ afterAll(async () => {
   await app.close();
 });
 
-/** Fallback do WhatsappCryptoService com WHATSAPP_ENCRYPTION_KEY ausente: '0'.repeat(64)
- *  lido como hex → 32 bytes zero. Formato gravado: `iv:authTag:cifrado` (hex). */
-const decryptWithFallbackKey = (stored: string) => {
+/** Decifra com a MESMA chave que o app usa (vitest.config). Formato: `iv:authTag:cifrado`. */
+const decryptStored = (stored: string) => {
   const [ivHex, authTagHex, encrypted] = stored.split(':');
+  const key = process.env.WHATSAPP_ENCRYPTION_KEY!;
   const decipher = createDecipheriv(
     'aes-256-gcm',
-    Buffer.from('0'.repeat(64), 'hex'),
+    Buffer.from(key, key.length === 64 ? 'hex' : 'utf-8').subarray(0, 32),
     Buffer.from(ivHex, 'hex'),
   );
   decipher.setAuthTag(Buffer.from(authTagHex, 'hex'));
@@ -200,7 +201,7 @@ describe('ciclo de vida da integração (status → onboard → disconnect)', ()
 
   it('round-trip do crypto: sem WHATSAPP_ENCRYPTION_KEY a chave é o fallback de zeros', async () => {
     const [row] = await integrationRows(firmId);
-    expect(decryptWithFallbackKey(row.accessToken)).toBe('mock_long_lived_token');
+    expect(decryptStored(row.accessToken)).toBe('mock_long_lived_token');
   });
 
   it('GET /whatsapp/status reflete a integração ativa', async () => {
@@ -244,11 +245,15 @@ describe('POST /whatsapp/test', () => {
     ({ api } = await registerFirm(app.url));
   });
 
-  it('sem integração ativa → 500 INTERNAL_ERROR (bug congelado: Error cru, deveria ser 4xx tipado)', async () => {
+  /* Falta de integração é conflito de ESTADO — o Contador precisa conectar antes —, não
+   * falha do servidor. Vinha como `Error` cru, que o mapa de erros só sabia tratar como 500
+   * e ainda expunha a mensagem interna em `details`. */
+  it('sem integração ativa → 409 WHATSAPP_NOT_CONNECTED', async () => {
     const res = await api.post('/whatsapp/test', { phone: '11999998888' });
-    expect(res.status).toBe(500);
-    expect(res.body.error.code).toBe('INTERNAL_ERROR');
-    expect(res.body.error.details.message).toBe('Integração não ativa');
+    expect(res.status, JSON.stringify(res.body)).toBe(409);
+    expect(res.body.error.code).toBe('WHATSAPP_NOT_CONNECTED');
+    expect(res.body.error.message).toContain('Conecte o WhatsApp');
+    expect(res.body.error.details, 'erro tipado não vaza interno').toBeUndefined();
   });
 
   it('com integração ativa o mock envia e responde success', async () => {

@@ -46,8 +46,8 @@ const checklist = route(
   { auth: uploadTokenRoute({ uploadThrottle: true }) },
 );
 
-/* `@SkipThrottle({ short: true, default: true })` em cima do `UploadThrottlerGuard`: sobra
- * só o balde de 60/60s por `ip:token`, que é o que autoriza o lote de arquivos. */
+/* Sem os baldes globais: sobra só o de 60/60s por `ip:token`, que é o que autoriza o lote
+ * de arquivos. */
 const presign = route(
   'POST',
   '/upload/:token/documents',

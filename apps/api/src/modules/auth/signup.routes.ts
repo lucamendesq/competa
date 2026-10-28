@@ -7,7 +7,7 @@ import { Effect, Layer } from 'effect';
 import { HttpServerRequest } from 'effect/http';
 import { squashError } from '../../infra/database/error.js';
 import { handler } from '../../http/envelope.js';
-import { body, route } from '../../http/platform.js';
+import { body, publicRoute, route } from '../../http/platform.js';
 import { isFailure } from '../../lib/either.js';
 import { BetterAuthAdapter } from '../../infra/auth/better-auth.adapter.js';
 import { AccountantsRepo } from './accountant.repo.js';
@@ -45,7 +45,7 @@ const register = Effect.gen(function* () {
 
   yield* AccountantsRepo.use((accountants) =>
     accountants.provisionFirm({ authUserId: userId, firmName: input.firmName }).pipe(
-      Effect.tapCause((cause) =>
+      Effect.onError((cause) =>
         accountants.deleteAuthUser(userId).pipe(
           Effect.catchCause((compensation) =>
             Effect.sync(() => {
@@ -67,9 +67,9 @@ const register = Effect.gen(function* () {
 
   if (setCookie) {
     const request = yield* HttpServerRequest.HttpServerRequest;
-    /* O mesmo `res.setHeader('Set-Cookie', setCookie)` do `@Res({passthrough:true})`: o
-     * valor é um array de linhas cruas do better-auth e o node as emite como headers
-     * separados. `writeHead` do servidor Effect preserva o que já foi posto aqui. */
+    /* Direto na resposta node: o valor é um array de linhas cruas do better-auth e o node
+     * as emite como headers separados. `writeHead` do servidor Effect preserva o que já foi
+     * posto aqui. */
     (NodeHttpServerRequest.toServerResponse(request) as ServerResponse).setHeader(
       'Set-Cookie',
       setCookie,
@@ -79,9 +79,11 @@ const register = Effect.gen(function* () {
   return { userId };
 });
 
-/* Um handler, dois caminhos (`@Controller(['auth/register', 'public-signup'])`). A chave de
- * throttle é compartilhada porque no Nest o balde era por classe+handler, não por path. */
+/* Um handler, dois caminhos, uma chave de throttle: trocar de caminho não abre balde novo. */
 const at = (path: '/auth/register' | '/public-signup') =>
-  route('POST', path, handler('POST', register), { throttleKey: 'POST auth/register' });
+  route('POST', path, handler('POST', register), {
+    auth: publicRoute,
+    throttleKey: 'POST auth/register',
+  });
 
 export const signupRoutes = Layer.mergeAll(at('/auth/register'), at('/public-signup'));

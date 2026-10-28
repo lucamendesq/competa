@@ -8,19 +8,22 @@ import {
   ImportCompaniesBody,
   ImportConfirmBody,
   SendAccessInvitesBody,
-  UpdateCompanyBody,
+  PatchCompanyBody,
+  PatchContactBody,
 } from '@competa/contracts';
-import type { EventEmitter2 } from '../../lib/event-emitter.js';
 import { addDays } from 'date-fns';
 import { Effect, Layer } from 'effect';
 import * as z from 'zod';
 import env from '../../config/env.js';
+import type { DbUnavailable } from '../../infra/database/error.js';
+import { withTransaction } from '../../infra/database/transaction.js';
 import { FirmContext } from '../../http/context.js';
 import { handler, paginated } from '../../http/envelope.js';
 import { firmRoute } from '../../http/middleware/auth.js';
 import { body, params, query, route } from '../../http/platform.js';
 import { NotFound, ValidationError } from '../../lib/app-error.js';
 import { EVENTS, type ContactInvitedEvent } from '../../lib/events.js';
+import { Events } from '../../lib/events.service.js';
 import { createToken } from '../../lib/token.js';
 import { AccountantsRepo } from '../auth/accountant.repo.js';
 import { InvitesRepo } from '../auth/invite.repo.js';
@@ -54,7 +57,6 @@ const requireTemplate = (scope: FirmScope, templateId: string) =>
   });
 
 const inviteToApp = (
-  events: EventEmitter2,
   scope: FirmScope,
   input: {
     readonly companyId: string;
@@ -62,8 +64,13 @@ const inviteToApp = (
     readonly contact: { id: string; name: string; email: string };
     readonly createdBy?: string;
   },
-): Effect.Effect<{ sent: boolean; reason?: string }, never, ContactsRepo | InvitesRepo> =>
+): Effect.Effect<
+  { sent: boolean; reason?: string },
+  DbUnavailable,
+  ContactsRepo | InvitesRepo | Events
+> =>
   Effect.gen(function* () {
+    const events = yield* Events;
     const taken = yield* ContactsRepo.use((repo) => repo.userByEmail(input.contact.email));
     if (taken) return { sent: false, reason: 'Este e-mail já tem uma conta cadastrada.' };
 
@@ -94,7 +101,7 @@ const inviteToApp = (
       expiresAt,
     };
 
-    events.emit(EVENTS.ContactInvited, invited);
+    yield* events.emit(EVENTS.ContactInvited, invited);
 
     return { sent: true };
   });
@@ -116,8 +123,6 @@ const list = route(
   { auth: firmRoute() },
 );
 
-/** Antes de `GET /companies/:id`: no Nest a ordem de declaração era a ordem de match, e o
- *  roteador novo prefere o segmento estático ao parâmetro. Os dois concordam aqui. */
 const usage = route(
   'GET',
   '/companies/usage',
@@ -152,67 +157,66 @@ const create = route(
   { auth: firmRoute() },
 );
 
-const sendAccessInvites = (events: EventEmitter2) =>
-  route(
+const sendAccessInvites = route(
+  'POST',
+  '/companies/access-invites',
+  handler(
     'POST',
-    '/companies/access-invites',
-    handler(
-      'POST',
-      Effect.gen(function* () {
-        const { scope, accountantId } = yield* FirmContext;
-        const input = yield* body(SendAccessInvitesBody);
+    Effect.gen(function* () {
+      const { scope, accountantId } = yield* FirmContext;
+      const input = yield* body(SendAccessInvitesBody);
 
-        const results: Array<{
-          companyId: string;
-          companyName?: string;
-          email?: string;
-          status: 'invited' | 'skipped' | 'error';
-          reason?: string;
-        }> = [];
+      const results: Array<{
+        companyId: string;
+        companyName?: string;
+        email?: string;
+        status: 'invited' | 'skipped' | 'error';
+        reason?: string;
+      }> = [];
 
-        for (const companyId of input.companyIds) {
-          const found = yield* CompaniesRepo.use((repo) => repo.findById(scope, companyId));
-          if (!found) {
-            results.push({ companyId, status: 'error', reason: 'Empresa não encontrada.' });
-            continue;
-          }
-
-          for (const contact of found.contacts) {
-            const sent = yield* inviteToApp(events, scope, {
-              companyId,
-              companyName: found.name,
-              contact,
-              createdBy: accountantId,
-            });
-
-            results.push({
-              companyId,
-              companyName: found.name,
-              email: contact.email,
-              status: sent.sent ? 'invited' : 'skipped',
-              reason: sent.reason,
-            });
-          }
-
-          if (!found.contacts.length) {
-            results.push({
-              companyId,
-              companyName: found.name,
-              status: 'skipped',
-              reason: 'Empresa sem Responsável cadastrado.',
-            });
-          }
+      for (const companyId of input.companyIds) {
+        const found = yield* CompaniesRepo.use((repo) => repo.findById(scope, companyId));
+        if (!found) {
+          results.push({ companyId, status: 'error', reason: 'Empresa não encontrada.' });
+          continue;
         }
 
-        return {
-          invited: results.filter((row) => row.status === 'invited').length,
-          skipped: results.filter((row) => row.status !== 'invited').length,
-          results,
-        };
-      }),
-    ),
-    { auth: firmRoute() },
-  );
+        for (const contact of found.contacts) {
+          const sent = yield* inviteToApp(scope, {
+            companyId,
+            companyName: found.name,
+            contact,
+            createdBy: accountantId,
+          });
+
+          results.push({
+            companyId,
+            companyName: found.name,
+            email: contact.email,
+            status: sent.sent ? 'invited' : 'skipped',
+            reason: sent.reason,
+          });
+        }
+
+        if (!found.contacts.length) {
+          results.push({
+            companyId,
+            companyName: found.name,
+            status: 'skipped',
+            reason: 'Empresa sem Responsável cadastrado.',
+          });
+        }
+      }
+
+      return {
+        invited: results.filter((row) => row.status === 'invited').length,
+        skipped: results.filter((row) => row.status !== 'invited').length,
+        results,
+      };
+    }),
+  ),
+  { auth: firmRoute() },
+);
 
 const applyTemplate = route(
   'POST',
@@ -350,9 +354,7 @@ const update = route(
     Effect.gen(function* () {
       const { scope } = yield* FirmContext;
       const { id } = yield* params(IdParam);
-      /* Bug congelado #2: `UpdateCompanyBody` é todo parcial, `{}` passa na validação e o
-       * drizzle estoura com `No values to set` → 500 em vez de 422. */
-      const input = yield* body(UpdateCompanyBody);
+      const input = yield* body(PatchCompanyBody);
 
       if (input.checklistTemplateId) yield* requireTemplate(scope, input.checklistTemplateId);
       if (input.responsibleAccountantId) {
@@ -431,11 +433,25 @@ const updateContact = route(
     Effect.gen(function* () {
       const { scope } = yield* FirmContext;
       const { id, contactId } = yield* params(ContactParam);
-      // Bug congelado #3: mesma causa do #2, com `ContactBody.partial()`.
-      const input = yield* body(ContactBody.partial());
+      const input = yield* body(PatchContactBody);
 
-      const row = yield* CompaniesRepo.use((repo) =>
-        repo.updateContact(scope, id, contactId, input),
+      /* Trocar o e-mail é trocar a PESSOA. Sem revogar, o Link de Upload antigo continua
+       * valendo — e ele resolve pelo `contact.id` lendo o e-mail ao vivo, então o token que
+       * ficou com o antigo Responsável passaria a ativar conta no endereço do NOVO. A conta
+       * já vinculada também perde o vínculo. Os dois na mesma transação do UPDATE. */
+      const row = yield* withTransaction(
+        Effect.gen(function* () {
+          const updated = yield* CompaniesRepo.use((repo) =>
+            repo.updateContact(scope, id, contactId, input),
+          );
+          if (!updated) return undefined;
+
+          if (input.email !== undefined && input.email !== updated.previousEmail) {
+            yield* ContactsRepo.use((repo) => repo.revokeAccess(scope, id, contactId));
+          }
+
+          return updated.row;
+        }),
       );
       if (!row) return yield* Effect.fail(new NotFound('Responsável não encontrado.'));
 
@@ -498,23 +514,22 @@ const revokeContactAccess = route(
   { auth: firmRoute() },
 );
 
-export const companiesRoutes = (events: EventEmitter2) =>
-  Layer.mergeAll(
-    list,
-    usage,
-    create,
-    sendAccessInvites(events),
-    applyTemplate,
-    importCompanies,
-    confirmImport,
-    activate,
-    get,
-    update,
-    deactivate,
-    listContacts,
-    addContact,
-    updateContact,
-    deleteContact,
-    listContactAccess,
-    revokeContactAccess,
-  );
+export const companiesRoutes = Layer.mergeAll(
+  list,
+  usage,
+  create,
+  sendAccessInvites,
+  applyTemplate,
+  importCompanies,
+  confirmImport,
+  activate,
+  get,
+  update,
+  deactivate,
+  listContacts,
+  addContact,
+  updateContact,
+  deleteContact,
+  listContactAccess,
+  revokeContactAccess,
+);

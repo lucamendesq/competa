@@ -1,6 +1,7 @@
 import { and, eq } from 'drizzle-orm';
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 import { bootApp, type RunningApp } from './support/boot.js';
+import env from '../src/config/env.js';
 import { db, truncateAll } from './support/db.js';
 import {
   document,
@@ -14,6 +15,7 @@ import {
   contactBody,
   createCompany,
   createTemplate,
+  contactSessionByMagicLink,
   registerFirm,
   uniqueIp,
   type Api,
@@ -22,7 +24,6 @@ import {
 /* Competência fixa: 2026-09, offset default 1 → vencimento 2026-10-05 (seg). */
 const REFERENCE_MONTH = '2026-09';
 const GHOST_ID = '018f0000-0000-7000-8000-00000000dead';
-const PASSWORD = 'senha-do-responsavel-1';
 const REASON = 'Documento ilegível';
 
 const PNG_1X1 = Buffer.from(
@@ -57,11 +58,13 @@ const rawRequest = (method: string, path: string, opts: { cookie?: string; body?
  *  se tudo sair do mesmo IP do registerFirm. */
 const sessionClient = (cookie: string) => apiClient(app.url, { cookie });
 
-const cookieOf = (res: Response) =>
-  res.headers
-    .getSetCookie()
-    .map((value) => value.split(';')[0])
-    .join('; ');
+/** Rejeitar rotaciona o Link e MATA o anterior na hora (é o que `linkRotated: true` promete).
+ *  Quem for enviar depois de uma rejeição precisa do token novo. */
+async function freshUploadToken(api: Api, requestId: string) {
+  const res = await api.post(`/requests/${requestId}/upload-link`);
+  expect(res.status, JSON.stringify(res.body)).toBe(201);
+  return res.body.data.uploadUrl.split('/envio/')[1] as string;
+}
 
 /** O LocalStorage assina a URL com env.PORT (3000); em teste o app sobe em porta efêmera —
  *  trocar só a origem preserva a assinatura, que cobre caminho e query. */
@@ -185,17 +188,12 @@ const itemOf = (detail: any, name: string) => {
 
 /* Listeners de evento são fire-and-forget: a resposta volta antes do insert em `message`,
  * e a linha nasce `queued` antes do update para sent/failed — espera assentar. */
-async function messagesFor(requestId: string, purpose: string, minimum = 1) {
-  let rows: Array<{ purpose: string; recipient: string; status: string }> = [];
-  for (let attempt = 0; attempt < 30; attempt++) {
-    rows = await db
-      .select({ purpose: message.purpose, recipient: message.recipient, status: message.status })
-      .from(message)
-      .where(and(eq(message.requestId, requestId), eq(message.purpose, purpose)));
-    if (rows.length >= minimum && rows.every((row) => row.status !== 'queued')) break;
-    await new Promise((resolve) => setTimeout(resolve, 100));
-  }
-  return rows;
+async function messagesFor(requestId: string, purpose: string) {
+  await app.drainEvents();
+  return db
+    .select({ purpose: message.purpose, recipient: message.recipient, status: message.status })
+    .from(message)
+    .where(and(eq(message.requestId, requestId), eq(message.purpose, purpose)));
 }
 
 const linkHashOf = async (requestId: string) => {
@@ -298,16 +296,11 @@ describe('autorização', () => {
 
   it('sessão de Responsável não revisa: 403 FORBIDDEN', async () => {
     const box = fixture.boxes.Autoriza;
-    const activated = await apiClient(app.url).post(`/upload/${box.uploadToken}/access`, {
-      password: PASSWORD,
-    });
-    expect(activated.status, JSON.stringify(activated.body)).toBe(201);
-
-    const signedIn = await rawRequest('POST', '/api/auth/sign-in/email', {
-      body: { email: box.contactEmail, password: PASSWORD },
-    });
-    expect(signedIn.status).toBe(200);
-    const contactApi = apiClient(app.url, { cookie: cookieOf(signedIn) });
+    const { api: contactApi } = await contactSessionByMagicLink(
+      app.url,
+      box.uploadToken,
+      box.contactEmail,
+    );
 
     for (const res of await Promise.all([
       contactApi.get(`/requests/${box.requestId}`),
@@ -405,7 +398,7 @@ describe('rotação do Link de Upload (upload-link e resend)', () => {
 
     const res = await fixture.firm.api.post(`/requests/${box.requestId}/upload-link`);
     expect(res.status, JSON.stringify(res.body)).toBe(201);
-    expect(res.body.data.uploadUrl).toMatch(/^http:\/\/localhost:5173\/envio\/.+/);
+    expect(res.body.data.uploadUrl).toMatch(new RegExp(`^${env.WEB_URL}/envio/.+`));
     expect(res.body.data.contactEmail).toBe(box.contactEmail);
 
     expect(await linkHashOf(box.requestId)).not.toBe(hashBefore);
@@ -418,27 +411,25 @@ describe('rotação do Link de Upload (upload-link e resend)', () => {
     expect(graced.status, 'token anterior vive na carência de 48h').toBe(200);
   });
 
-  it('bug congelado: resend sempre responde 503, mas o email sai — com link morto', async () => {
+  /* O reenvio oficializa o token ANTES de mandar o email, então o link que o Responsável
+   * recebe é o que vale. E o listener devolve se entregou, que é o que separa 201 de 503. */
+  it('resend: 201, email sai e o link entregue é o que vale', async () => {
     const box = fixture.boxes.Rotativa;
     const hashBefore = await linkHashOf(box.requestId);
 
-    /* onUploadLinkResent faz `await deliver(...)` sem RETORNAR o boolean: o emitAsync
-     * devolve [undefined], `delivered.includes(true)` nunca é true e o controller joga
-     * ServiceUnavailable SEMPRE. O email já saiu (linha `resend` sent) carregando um token
-     * que o applyUploadToken nunca oficializa — o Responsável recebe um link morto. */
     const res = await fixture.firm.api.post(`/requests/${box.requestId}/upload-link/resend`);
-    expect(res.status).toBe(503);
-    expect(res.body.error.code).toBe('SERVICE_UNAVAILABLE');
-    expect(res.body.error.message).toBe(
-      'Não foi possível entregar o novo link por email. Tente novamente.',
-    );
+    expect(res.status, JSON.stringify(res.body)).toBe(201);
 
     const deliveries = await messagesFor(box.requestId, 'resend');
     expect(deliveries).toEqual([
       { purpose: 'resend', recipient: box.contactEmail, status: 'sent' },
     ]);
 
-    expect(await linkHashOf(box.requestId), 'o token do email nunca é aplicado').toBe(hashBefore);
+    expect(await linkHashOf(box.requestId), 'o token rotacionou').not.toBe(hashBefore);
+
+    const token = res.body.data.uploadUrl.split('/envio/')[1];
+    const opened = await apiClient(app.url).get(`/upload/${token}`);
+    expect(opened.status, 'o link entregue abre').toBe(200);
   });
 
   it('solicitação encerrada não rotaciona nem reenvia → 409 INVALID_TRANSITION', async () => {
@@ -490,7 +481,7 @@ describe('POST /requests/:id/close', () => {
     expect(res.body.error.message).toBe('Esta solicitação já foi encerrada.');
   });
 
-  it('encerrada bloqueia accept, undo e reject — mas NÃO o review-extra (bug congelado)', async () => {
+  it('encerrada bloqueia accept, undo e reject — mas NÃO o review-extra', async () => {
     const api = sessionClient(fixture.firm.cookie);
     const box = fixture.boxes.Encerrada;
     const detail = await requestDetail(api, box.requestId);
@@ -515,12 +506,13 @@ describe('POST /requests/:id/close', () => {
       'Esta solicitação foi encerrada: os documentos não podem mais ser revisados.',
     );
 
-    /* Bug congelado: reviewExtraRefusal recebe requestStatus e ignora — Extra continua
-     * revisável depois do encerramento, ao contrário de item e documento de item. */
+    /* NÃO é bug: `database-schema.md` diz que Solicitação encerrada continua ACEITANDO
+     * Documento Extra. Se ele ainda chega, tem de poder ser revisado — senão esses
+     * documentos ficariam em limbo. A assimetria com Item é intencional. */
     const extraReviewed = await api.post(`/documents/${extraId}/review-extra`, {
       decision: 'accepted',
     });
-    expect(extraReviewed.status).toBe(201);
+    expect(extraReviewed.status, JSON.stringify(extraReviewed.body)).toBe(201);
     expect(extraReviewed.body.data.reviewStatus).toBe('accepted');
   });
 
@@ -664,11 +656,15 @@ describe('revisão unitária — aceite, desfazer e rejeição', () => {
     ]);
   });
 
-  it('bug congelado: linkRotated prometido, mas o token antigo segue válido na carência', async () => {
-    /* rotateLinkOnReopen diz "mata o token anterior NA HORA", porém grava previousTokenHash
-     * com carência de até 48h — o link que o Contador acabou de invalidar continua abrindo. */
+  it('linkRotated: o token anterior morre na hora', async () => {
+    /* A carência de 48h é do lembrete e do reenvio, onde o Responsável pode estar com o link
+     * velho aberto. Aqui o Contador acabou de agir SOBRE o link. */
     const res = await apiClient(app.url).get(`/upload/${box.uploadToken}`);
-    expect(res.status).toBe(200);
+    expect(res.status).toBe(404);
+    expect(res.body.error.code).toBe('UPLOAD_LINK_INVALID');
+
+    box.uploadToken = await freshUploadToken(fixture.firm.api, box.requestId);
+    expect((await apiClient(app.url).get(`/upload/${box.uploadToken}`)).status).toBe(200);
   });
 
   it('rejeitar de novo → 409; motivo curto → 422', async () => {
@@ -907,6 +903,8 @@ describe('revisão em lote — POST /requests/:id/review', () => {
 
   it('decisão inválida recusa o lote inteiro (tudo ou nada)', async () => {
     const api = sessionClient(fixture.firm.cookie);
+    // a rejeição do lote anterior rotacionou o Link e matou o token velho
+    box.uploadToken = await freshUploadToken(api, box.requestId);
     const { confirmed } = await uploadVia(
       box.uploadToken,
       { fileName: 'extrato-corrigido.png', content: PNG_1X1, contentType: 'image/png' },
@@ -983,9 +981,8 @@ describe('revisão em lote — POST /requests/:id/review', () => {
       requestStatus: 'open',
     });
 
-    await new Promise((resolve) => setTimeout(resolve, 300));
-    expect(await messagesFor(other.requestId, 'rejection', 0)).toHaveLength(0);
-    expect(await messagesFor(other.requestId, 'completion', 0)).toHaveLength(0);
+    expect(await messagesFor(other.requestId, 'rejection')).toHaveLength(0);
+    expect(await messagesFor(other.requestId, 'completion')).toHaveLength(0);
   });
 });
 
@@ -1658,7 +1655,7 @@ describe('prazos estourados — POST /deadlines/scan e o cron diário', () => {
       hashBefore,
     );
 
-    const notices = await messagesFor(box.requestId, 'deadline_missed', 2);
+    const notices = await messagesFor(box.requestId, 'deadline_missed');
     expect(notices.map((row) => row.recipient).sort()).toEqual(
       [box.contactEmail, scoped.firm.email].sort(),
     );
@@ -1670,9 +1667,7 @@ describe('prazos estourados — POST /deadlines/scan e o cron diário', () => {
     expect(res.status).toBe(201);
     expect(res.body.data).toEqual({ overdue: 1, alreadyNotified: 1, notified: [] });
 
-    expect(await messagesFor(scoped.boxes.Atrasada.requestId, 'deadline_missed', 2)).toHaveLength(
-      2,
-    );
+    expect(await messagesFor(scoped.boxes.Atrasada.requestId, 'deadline_missed')).toHaveLength(2);
   });
 
   it('rejeição reabre o item e o prazo estourado volta a avisar', async () => {
@@ -1701,7 +1696,7 @@ describe('prazos estourados — POST /deadlines/scan e o cron diário', () => {
     expect(res.body.data).toMatchObject({ overdue: 1, alreadyNotified: 0 });
     expect(res.body.data.notified).toHaveLength(1);
 
-    expect(await messagesFor(box.requestId, 'deadline_missed', 4)).toHaveLength(4);
+    expect(await messagesFor(box.requestId, 'deadline_missed')).toHaveLength(4);
   });
 
   it('o cron diário varre todas as firmas e descarta reservas órfãs', async () => {
@@ -1711,7 +1706,7 @@ describe('prazos estourados — POST /deadlines/scan e o cron diário', () => {
 
     expect(await stampOf(cronItemId)).not.toBeNull();
 
-    const notices = await messagesFor(box.requestId, 'deadline_missed', 2);
+    const notices = await messagesFor(box.requestId, 'deadline_missed');
     expect(notices.map((row) => row.recipient).sort()).toEqual(
       [box.contactEmail, swept.firm.email].sort(),
     );
@@ -1726,6 +1721,6 @@ describe('prazos estourados — POST /deadlines/scan e o cron diário', () => {
   it('segundo sweep não duplica avisos', async () => {
     await app.runDeadlineSweep();
 
-    expect(await messagesFor(swept.boxes.Cron.requestId, 'deadline_missed', 2)).toHaveLength(2);
+    expect(await messagesFor(swept.boxes.Cron.requestId, 'deadline_missed')).toHaveLength(2);
   });
 });

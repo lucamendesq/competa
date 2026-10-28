@@ -4,7 +4,7 @@ import { HttpServerRequest } from 'effect/http';
 import * as z from 'zod';
 import env from '../../config/env.js';
 import { handler } from '../../http/envelope.js';
-import { body, route } from '../../http/platform.js';
+import { body, publicRoute, route } from '../../http/platform.js';
 import { Forbidden, ServiceUnavailable } from '../../lib/app-error.js';
 import { secretEquals } from '../../lib/token.js';
 import { WhatsappRepo } from './whatsapp.repo.js';
@@ -76,6 +76,7 @@ const verifyChallenge = route(
       return Number(challenge);
     }),
   ),
+  { auth: publicRoute },
 );
 
 const receiveStatuses = route(
@@ -85,7 +86,7 @@ const receiveStatuses = route(
     'POST',
     Effect.gen(function* () {
       const request = yield* HttpServerRequest.HttpServerRequest;
-      /* Bytes exatos do corpo, como o `rawBody: true` do Nest entregava: a assinatura da
+      /* Bytes exatos do corpo: a assinatura da
        * Meta cobre o corpo cru, e reserializar o JSON mudaria o HMAC. `arrayBuffer` é
        * memoizado, então o `body()` abaixo relê os mesmos bytes. */
       const rawBody = yield* request.arrayBuffer;
@@ -116,6 +117,7 @@ const receiveStatuses = route(
       return { success: true };
     }),
   ),
+  { auth: publicRoute },
 );
 
 export const whatsappWebhookRoutes = Layer.mergeAll(verifyChallenge, receiveStatuses);
