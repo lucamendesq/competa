@@ -1,6 +1,6 @@
 import { Context, Effect, Layer } from 'effect';
 import { and, asc, desc, eq, inArray, isNotNull, isNull } from 'drizzle-orm';
-import { Db } from '../../infra/database/effect.js';
+import { Db, type Executor } from '../../infra/database/effect.js';
 import {
   account,
   accountant,
@@ -199,6 +199,48 @@ const make = Effect.gen(function* () {
     });
   });
 
+  const lockOwnedContact = async (
+    tx: Executor,
+    scope: FirmScope,
+    companyId: string,
+    contactId: string,
+  ) => {
+    const [row] = await tx
+      .select({ id: contact.id, authUserId: contact.authUserId })
+      .from(contact)
+      .innerJoin(company, eq(company.id, contact.companyId))
+      .where(
+        and(
+          eq(contact.id, contactId),
+          eq(contact.companyId, companyId),
+          eq(company.accountingFirmId, scope),
+        ),
+      )
+      .limit(1)
+      .for('update');
+
+    return row;
+  };
+
+  /** Tira o vínculo da conta, as inscrições de push e, se este era o ÚLTIMO vínculo, o
+   *  próprio `user` (sessões e passkeys caem por cascade).
+   *
+   *  Multi-empresa: apagar o `user` com outro vínculo vivo derrubaria o acesso das outras
+   *  Empresas. Com vínculo restante, as sessões ficam: os guards re-resolvem o escopo a cada
+   *  request e a Empresa revogada some na hora. */
+  const detachAccountOn = async (tx: Executor, contactId: string, authUserId: string) => {
+    await tx.update(contact).set({ authUserId: null }).where(eq(contact.id, contactId));
+    await tx.delete(pushSubscription).where(eq(pushSubscription.contactId, contactId));
+
+    const [still] = await tx
+      .select({ id: contact.id })
+      .from(contact)
+      .where(eq(contact.authUserId, authUserId))
+      .limit(1);
+
+    if (!still) await tx.delete(user).where(eq(user.id, authUserId));
+  };
+
   /** Revogação pelo Contador (F10-7): tira o vínculo, as sessões e as passkeys. Conceder
    *  acesso sem poder revogar é defeito de segurança, não falta de feature. */
   const revokeAccess = Effect.fn('ContactsRepo.revokeAccess')(function* (
@@ -208,48 +250,43 @@ const make = Effect.gen(function* () {
   ) {
     return yield* db.withTransaction(
       db.use(async (tx) => {
-        const [row] = await tx
-          .select({ id: contact.id, authUserId: contact.authUserId })
-          .from(contact)
-          .innerJoin(company, eq(company.id, contact.companyId))
-          .where(
-            and(
-              eq(contact.id, contactId),
-              eq(contact.companyId, companyId),
-              eq(company.accountingFirmId, scope),
-            ),
-          )
-          .limit(1)
-          .for('update');
+        const row = await lockOwnedContact(tx, scope, companyId, contactId);
 
         if (!row) return undefined;
         if (!row.authUserId) return { revoked: false as const };
 
-        await tx.update(contact).set({ authUserId: null }).where(eq(contact.id, contactId));
-        await tx.delete(pushSubscription).where(eq(pushSubscription.contactId, contactId));
+        await detachAccountOn(tx, contactId, row.authUserId);
 
         /* O Link de Upload é credencial separada da sessão e sobrevivia à revogação — e por
          * `POST /upload/:token/access` o revogado reativava a conta. Revogar de verdade
-         * precisa matar os dois. */
+         * precisa matar os dois. O próximo token emitido (lembrete, reenvio) volta a valer:
+         * `applyUploadToken` zera a flag. */
         await tx
           .update(uploadLink)
           .set({ revoked: true })
           .where(eq(uploadLink.contactId, contactId));
 
-        /* Multi-empresa: o `user` só morre quando este era o ÚLTIMO vínculo — apagá-lo com
-         * outro vínculo vivo derrubaria o acesso das outras Empresas. Com vínculo restante,
-         * as sessões ficam: os guards re-resolvem o escopo a cada request e a Empresa
-         * revogada some na hora. Sem nenhum, apagar o `user` derruba sessões e passkeys por
-         * cascade, e o Responsável volta a ser só destinatário de Link. */
-        const [still] = await tx
-          .select({ id: contact.id })
-          .from(contact)
-          .where(eq(contact.authUserId, row.authUserId!))
-          .limit(1);
-
-        if (!still) await tx.delete(user).where(eq(user.id, row.authUserId!));
-
         return { revoked: true as const };
+      }),
+    );
+  });
+
+  /** Troca de e-mail é troca de PESSOA: a conta vinculada ao e-mail antigo sai, mas o Link de
+   *  Upload NÃO é revogado aqui — quem chama rotaciona o token e manda o novo para o e-mail
+   *  novo. Revogar a linha mataria também o token recém-emitido. Sem conta é no-op. */
+  const detachAccount = Effect.fn('ContactsRepo.detachAccount')(function* (
+    scope: FirmScope,
+    companyId: string,
+    contactId: string,
+  ) {
+    return yield* db.withTransaction(
+      db.use(async (tx) => {
+        const row = await lockOwnedContact(tx, scope, companyId, contactId);
+        if (!row) return undefined;
+        if (!row.authUserId) return { detached: false as const };
+
+        await detachAccountOn(tx, contactId, row.authUserId);
+        return { detached: true as const };
       }),
     );
   });
@@ -353,6 +390,7 @@ const make = Effect.gen(function* () {
     markTermsAccepted,
     linkAuthUser,
     revokeAccess,
+    detachAccount,
     findOwnedCompany,
     withAccess,
     contactsOf,

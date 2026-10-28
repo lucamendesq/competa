@@ -136,8 +136,6 @@ const rejectDocument = route(
 
       yield* events.emit(EVENTS.ItemReopened, reopened);
 
-      /* Bug congelado #16: `linkRotated: true` é fixo, mas `rotateLinkOnReopen` guarda o
-       * hash anterior em `previous_token_hash` — o link velho vale mais 48h. */
       return {
         documentId: id,
         fileName: result.fileName,

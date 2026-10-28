@@ -15,8 +15,8 @@ const logger = new Logger('Event');
 type ListenerContext = RepoContext;
 
 /* Handler que lança vira linha de log e `undefined` no array do `emitAsync`, nunca uma
- * rejeição sem dono. O bug congelado #13 depende de o resultado do handler chegar ao
- * emissor — por isso o `return`. */
+ * rejeição sem dono. O resultado do handler chega ao emissor — é assim que o reenvio de
+ * link escolhe entre 200 e 503 — por isso o `return`. */
 const guard =
   <Name extends keyof EventPayloads>(handle: (event: EventPayloads[Name]) => Promise<unknown>) =>
   async (event: EventPayloads[Name]): Promise<unknown> => {

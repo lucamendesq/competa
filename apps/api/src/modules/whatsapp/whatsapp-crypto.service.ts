@@ -17,8 +17,8 @@ export class WhatsappCryptoService {
       );
     }
 
-    // 32 bytes: hex de 64 caracteres, ou os 32 primeiros bytes do texto cru
-    this.key = Buffer.from(secret, secret.length === 64 ? 'hex' : 'utf-8').subarray(0, 32);
+    // o formato (64 hex) é garantido pelo env.ts
+    this.key = Buffer.from(secret, 'hex');
   }
 
   encrypt(text: string): string {

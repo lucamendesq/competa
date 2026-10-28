@@ -199,7 +199,7 @@ describe('ciclo de vida da integração (status → onboard → disconnect)', ()
     expect(rows[0].accessToken).toMatch(/^[0-9a-f]{32}:[0-9a-f]{32}:[0-9a-f]+$/);
   });
 
-  it('round-trip do crypto: sem WHATSAPP_ENCRYPTION_KEY a chave é o fallback de zeros', async () => {
+  it('round-trip do crypto com a WHATSAPP_ENCRYPTION_KEY do ambiente', async () => {
     const [row] = await integrationRows(firmId);
     expect(decryptStored(row.accessToken)).toBe('mock_long_lived_token');
   });

@@ -643,6 +643,11 @@ describe('POST /messages/reminders/run — cadência, teto e knobs', () => {
     expect(res.status).toBe(201);
     expect(res.body.data).toEqual({ scanned: 3, sent: 2 });
 
+    /* A entrega é ESPERADA pela varredura, não disparada: a resposta só sai com a linha de
+     * `message` gravada. É ela que a próxima varredura lê — soltar a lease antes deixava
+     * outra instância reenviar o mesmo lembrete. */
+    expect(await messageRowsOf(dueSoon.requestId, 'reminder')).toHaveLength(1);
+
     const [dueSoonReminder] = await waitForMessageRows(dueSoon.requestId, 1, 'reminder');
     expect(dueSoonReminder).toMatchObject({
       channel: 'email',

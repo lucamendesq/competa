@@ -7,6 +7,7 @@ import {
   contact,
   invite,
   message,
+  uploadLink,
   user as userTable,
 } from '../src/infra/database/schema/index.js';
 import {
@@ -14,6 +15,7 @@ import {
   contactBody,
   createCompany,
   createTemplate,
+  documentTypeIds,
   registerFirm,
   type Api,
 } from './support/fixtures.js';
@@ -964,5 +966,104 @@ describe('isolamento entre firmas', () => {
     const mine = await a.api.get(`/companies/${created.id}`);
     expect(mine.status).toBe(200);
     expect(mine.body.data.name).toBe('Secreta');
+  });
+});
+
+/* Trocar o e-mail do Responsável é trocar a PESSOA. O Link de Upload resolve pelo `contact.id`
+ * lendo o e-mail ao vivo, então o token que ficou com o antigo passaria a ativar conta no
+ * endereço do novo. Cada Link aberto ganha token novo, o antigo morre na hora e o novo
+ * endereço recebe o link — sem revogar a linha, que mataria também os tokens seguintes. */
+describe('PATCH contato: troca de e-mail rotaciona o Link de Upload', () => {
+  let api: Api;
+  let companyId: string;
+  let contactId: string;
+  let requestId: string;
+  let uploadToken: string;
+
+  const linkRow = () =>
+    db
+      .select({
+        tokenHash: uploadLink.tokenHash,
+        previousTokenHash: uploadLink.previousTokenHash,
+        revoked: uploadLink.revoked,
+      })
+      .from(uploadLink)
+      .where(eq(uploadLink.requestId, requestId))
+      .then((rows) => rows[0]);
+
+  beforeAll(async () => {
+    ({ api } = await registerFirm(app.url, 'Contabilidade Troca de Pessoa'));
+    const [documentTypeId] = await documentTypeIds(api, 1);
+    const templateId = await createTemplate(api, [{ documentTypeId }]);
+    const created = await createCompany(api, {
+      name: 'Troca SA',
+      checklistTemplateId: templateId,
+      contact: contactBody('Antiga'),
+    });
+    companyId = created.id;
+    contactId = (created.contacts as Array<{ id: string }>)[0].id;
+
+    const opened = await api.post('/periods', { referenceMonth: '2026-08' });
+    expect(opened.status, JSON.stringify(opened.body)).toBe(201);
+    requestId = opened.body.data.requests[0].id;
+    uploadToken = opened.body.data.requests[0].uploadUrl.split('/envio/')[1];
+  });
+
+  it('Responsável sem conta: o token antigo morre na hora e o novo e-mail recebe o reenvio', async () => {
+    const before = await linkRow();
+    expect((await apiClient(app.url).get(`/upload/${uploadToken}`)).status).toBe(200);
+
+    const res = await api.patch(`/companies/${companyId}/contacts/${contactId}`, {
+      email: 'nova-pessoa@example.com',
+    });
+    expect(res.status, JSON.stringify(res.body)).toBe(200);
+    await app.drainEvents();
+
+    const after = await linkRow();
+    expect(after.tokenHash).not.toBe(before.tokenHash);
+    expect(after.previousTokenHash, 'sem carência: a pessoa mudou').toBeNull();
+    expect(after.revoked).toBe(false);
+    expect((await apiClient(app.url).get(`/upload/${uploadToken}`)).status).toBe(404);
+
+    const deliveries = await db
+      .select({ purpose: message.purpose, recipient: message.recipient, status: message.status })
+      .from(message)
+      .where(eq(message.requestId, requestId));
+    expect(deliveries.filter((row) => row.purpose === 'resend')).toEqual([
+      { purpose: 'resend', recipient: 'nova-pessoa@example.com', status: 'sent' },
+    ]);
+  });
+
+  it('mudar só o nome não mexe no Link', async () => {
+    const before = await linkRow();
+    const res = await api.patch(`/companies/${companyId}/contacts/${contactId}`, { name: 'Nova' });
+    expect(res.status).toBe(200);
+    expect((await linkRow()).tokenHash).toBe(before.tokenHash);
+  });
+
+  it('Responsável com conta: o vínculo cai, e o link que o Contador reenvia depois funciona', async () => {
+    const [seeded] = await db
+      .insert(userTable)
+      .values({ name: 'Nova App', email: 'nova-pessoa@example.com' })
+      .returning({ id: userTable.id });
+    await db.update(contact).set({ authUserId: seeded.id }).where(eq(contact.id, contactId));
+
+    const res = await api.patch(`/companies/${companyId}/contacts/${contactId}`, {
+      email: 'terceira-pessoa@example.com',
+    });
+    expect(res.status, JSON.stringify(res.body)).toBe(200);
+    await app.drainEvents();
+
+    const [linked] = await db
+      .select({ authUserId: contact.authUserId })
+      .from(contact)
+      .where(eq(contact.id, contactId));
+    expect(linked.authUserId).toBeNull();
+    expect((await linkRow()).revoked).toBe(false);
+
+    const resent = await api.post(`/requests/${requestId}/upload-link/resend`);
+    expect(resent.status, JSON.stringify(resent.body)).toBe(201);
+    const freshToken = resent.body.data.uploadUrl.split('/envio/')[1];
+    expect((await apiClient(app.url).get(`/upload/${freshToken}`)).status).toBe(200);
   });
 });

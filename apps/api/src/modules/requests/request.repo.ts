@@ -769,6 +769,9 @@ const make = Effect.gen(function* () {
             ? new Date(Math.min(current.expiresAt.getTime(), addHours(now, 48).getTime()))
             : null;
 
+        /* `revoked` vale para a linha inteira e ninguém mais a zerava: a revogação de acesso
+         * matava para sempre todo token que o lembrete ou o reenvio emitissem depois. Um
+         * token novo é uma decisão nova sobre este link. */
         const [row] = await tx
           .update(uploadLink)
           .set({
@@ -776,6 +779,7 @@ const make = Effect.gen(function* () {
             expiresAt: addDays(now, env.UPLOAD_LINK_TTL_DAYS),
             previousTokenHash: options?.revokePrevious ? null : (current.tokenHash ?? null),
             previousExpiresAt: graceExpiresAt,
+            revoked: false,
             ...(contactId ? { contactId } : {}),
           })
           .where(eq(uploadLink.id, current.id))
@@ -819,6 +823,7 @@ const make = Effect.gen(function* () {
             expiresAt: addDays(now, env.UPLOAD_LINK_TTL_DAYS),
             previousTokenHash: current.tokenHash,
             previousExpiresAt: graceExpiresAt,
+            revoked: false,
             ...(contactId ? { contactId } : {}),
           })
           .where(eq(uploadLink.id, current.id))
@@ -853,6 +858,30 @@ const make = Effect.gen(function* () {
     );
 
     return row;
+  });
+
+  /** Solicitações abertas cujo Link de Upload é deste Responsável, com o contexto que o
+   *  e-mail de reenvio precisa. É o que a troca de e-mail rotaciona. */
+  const openUploadLinksForContact = Effect.fn('RequestsRepo.openUploadLinksForContact')(function* (
+    contactId: string,
+  ) {
+    return yield* db.use((d) =>
+      d
+        .select({
+          requestId: request.id,
+          referenceMonth: period.referenceMonth,
+          periodDueDate: period.dueDate,
+          companyName: company.name,
+          contactName: contact.name,
+          contactEmail: contact.email,
+        })
+        .from(uploadLink)
+        .innerJoin(request, eq(request.id, uploadLink.requestId))
+        .innerJoin(period, eq(period.id, request.periodId))
+        .innerJoin(company, eq(company.id, request.companyId))
+        .innerJoin(contact, eq(contact.id, uploadLink.contactId))
+        .where(and(eq(uploadLink.contactId, contactId), ne(request.status, 'closed'))),
+    );
   });
 
   const rotateUploadLink = Effect.fn('RequestsRepo.rotateUploadLink')(function* (
@@ -1357,6 +1386,7 @@ const make = Effect.gen(function* () {
     applyUploadToken,
     rotateUploadToken,
     uploadLinkContext,
+    openUploadLinksForContact,
     rotateUploadLink,
     markDeadlineNotified,
     documentsForRequestZip,

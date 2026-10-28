@@ -65,7 +65,13 @@ const envSchema = z
     META_APP_ID: z.string().optional(),
     META_APP_SECRET: z.string().optional(),
     META_GRAPH_VERSION: z.string().default('v20.0'),
-    WHATSAPP_ENCRYPTION_KEY: z.string().min(32).optional(),
+    /* 32 bytes em hex (`openssl rand -hex 32`). Validado aqui para falhar no boot com a
+     * mensagem certa, não no primeiro onboard de WhatsApp. */
+    WHATSAPP_ENCRYPTION_KEY: blankAsMissing(
+      z
+        .string()
+        .regex(/^[0-9a-f]{64}$/i, 'WHATSAPP_ENCRYPTION_KEY must be 32 bytes in hex (64 chars)'),
+    ),
 
     ASAAS_API_KEY: blankAsMissing(z.string()),
     /* Token que o Asaas devolve no header `asaas-access-token`. Sem ele o webhook aceita

@@ -46,7 +46,11 @@ const make = Effect.gen(function* () {
             pendingItems: candidate.pendingItems,
           };
 
-          yield* events.emit(EVENTS.ReminderDue, event);
+          /* Esperado, não disparado: a lease só é devolvida quando a varredura termina, e
+           * é a linha de `message` escrita pelo listener que o próximo candidato lê. Soltar
+           * a lease com o envio em voo deixava outra instância (ou o run manual) reenviar
+           * o mesmo lembrete. */
+          yield* events.emitAsync(EVENTS.ReminderDue, event);
           sent += 1;
         }).pipe(
           Effect.catchCause((cause) =>

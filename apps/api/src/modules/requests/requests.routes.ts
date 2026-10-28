@@ -77,12 +77,9 @@ const resendUploadLink = route(
         uploadUrl: `${env.WEB_URL}/envio/${token}`,
       };
 
-      /* O token é oficializado ANTES do envio: o email carrega a URL dele, e mandar
-       * primeiro significaria entregar um link que ainda não vale — e que não valeria
-       * nunca, se a gravação falhasse. O link anterior sobrevive à carência, então um
-       * envio que falha não deixa o Responsável sem nada. */
-      yield* RequestsRepo.use((repo) => repo.applyUploadToken(id, tokenHash));
-
+      /* Mesma ordem do aviso de prazo e da recuperação de acesso: o token só passa a valer
+       * DEPOIS que a entrega confirma. Se o email falhar, nada muda — o link que o
+       * Responsável já tem continua inteiro, não só pela carência. */
       const delivered = yield* events.emitAsync(EVENTS.UploadLinkResent, resent);
       if (!delivered.includes(true)) {
         return yield* Effect.fail(
@@ -91,6 +88,8 @@ const resendUploadLink = route(
           ),
         );
       }
+
+      yield* RequestsRepo.use((repo) => repo.applyUploadToken(id, tokenHash));
 
       return { uploadUrl: resent.uploadUrl, contactEmail: context.contactEmail };
     }),

@@ -177,9 +177,9 @@ const unsubscribe = route(
   { auth: contactRoute },
 );
 
-/** Bug congelado #9: a ativação passwordless cria a conta com senha aleatória, então todo
- *  Responsável já tem credencial e a better-auth responde 400 PASSWORD_ALREADY_SET aqui —
- *  o 204 é inalcançável. Portado como está. */
+/** Primeira senha do Responsável: a ativação pelo Link apaga a credencial aleatória que o
+ *  better-auth exige na criação, então aqui ela nasce de verdade. Quem já tem senha toma
+ *  400 PASSWORD_ALREADY_SET e troca pelo fluxo de redefinição. */
 const setPassword = route(
   'POST',
   '/my/password',
