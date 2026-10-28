@@ -1081,6 +1081,16 @@ describe('PATCH contato: troca de e-mail rotaciona o Link de Upload', () => {
     ]);
   });
 
+  it('mudar só a caixa do e-mail não é troca de pessoa: grava minúsculo e não mexe no Link', async () => {
+    const before = await linkRow();
+    const res = await api.patch(`/companies/${companyId}/contacts/${contactId}`, {
+      email: 'Nova-Pessoa@Example.COM',
+    });
+    expect(res.status, JSON.stringify(res.body)).toBe(200);
+    expect(res.body.data.email).toBe('nova-pessoa@example.com');
+    expect((await linkRow()).tokenHash).toBe(before.tokenHash);
+  });
+
   it('mudar só o nome não mexe no Link', async () => {
     const before = await linkRow();
     const res = await api.patch(`/companies/${companyId}/contacts/${contactId}`, { name: 'Nova' });
