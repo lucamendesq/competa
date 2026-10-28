@@ -47,8 +47,18 @@ export const UpdateFirmBody = z
 export type UpdateFirmBody = z.infer<typeof UpdateFirmBody>;
 
 export const PublicSignUpBody = z.object({
-  firmName: z.string().trim().min(1, 'Nome da contabilidade é obrigatório.'),
-  userName: z.string().trim().min(1, 'Seu nome é obrigatório.'),
+  /* Mesma régua do PATCH /accounting-firm: sem teto o nome entrava com milhares de
+   * caracteres, e um NUL virava 500 no Postgres. */
+  firmName: plainName(
+    120,
+    'Nome da contabilidade é obrigatório.',
+    'O nome da Contabilidade deve ter no máximo 120 caracteres.',
+  ),
+  userName: plainName(
+    255,
+    'Seu nome é obrigatório.',
+    'Seu nome deve ter no máximo 255 caracteres.',
+  ),
   email: email(),
   password: newPassword('A senha precisa ter no mínimo 8 caracteres.'),
   cnpj: optionalCnpj,

@@ -250,6 +250,19 @@ describe('cadastro público de Contabilidade (POST /auth/register e alias /publi
     expect(again.body.error.code).toBe('SIGNUP_REJECTED');
   });
 
+  it('nome da firma longo demais ou com caractere de controle → 422, não 500', async () => {
+    for (const firmName of ['F'.repeat(5000), 'Firma\u0000Nula']) {
+      const res = await apiClient(app.url).post('/public-signup', {
+        firmName,
+        userName: 'Dona',
+        email: uniqueEmail('nome-ruim'),
+        password: PASSWORD,
+      });
+      expect(res.status, firmName.slice(0, 20)).toBe(422);
+      expect(res.body.error.code).toBe('VALIDATION_ERROR');
+    }
+  });
+
   it('senha acima de 128 caracteres → 422 no campo, não 500', async () => {
     const res = await apiClient(app.url).post('/public-signup', {
       firmName: 'Senha Longa',
