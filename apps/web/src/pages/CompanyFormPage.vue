@@ -4,7 +4,12 @@ import { useRouter } from 'vue-router';
 import { toTypedSchema } from '@vee-validate/zod';
 import { useForm, useField } from 'vee-validate';
 import * as z from 'zod';
-import { CreateCompanyBody, email as emailSchema } from '@competa/contracts';
+import {
+  COMPANY_FLAGS,
+  CreateCompanyBody,
+  email as emailSchema,
+  type CompanyFlag,
+} from '@competa/contracts';
 import {} from 'lucide-vue-next';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -22,6 +27,7 @@ import {
 import { useSettingsStore } from '@/stores/settings';
 import { toast } from 'vue-sonner';
 import { apiErrorMessage, apiFieldErrors } from '@/api/error';
+import { CATEGORY_LABEL, FLAG_LABEL, PERIODICITY_LABEL } from '@/utils/format';
 
 const props = defineProps<{ id?: string }>();
 const router = useRouter();
@@ -38,27 +44,9 @@ const { templatesQuery } = useChecklistsFeature();
 const settingsStore = useSettingsStore();
 const teamAccountants = computed(() => settingsStore.accountants);
 
-const CATEGORY_LABEL: Record<string, string> = {
-  fiscal: 'Fiscal / Impostos',
-  accounting: 'Contábil / Financeiro',
-  payroll: 'Folha de Pagamento',
-  legal: 'Societário / Legal',
-};
-
-const PERIODICITY_LABEL: Record<string, string> = {
-  monthly: 'Mensal',
-  annual: 'Anual',
-  on_demand: 'Sob demanda',
-};
-
-const COMPANY_FLAGS = ['has_employees', 'is_simples_nacional', 'is_lucro_presumido'] as const;
-type CompanyFlags = Record<(typeof COMPANY_FLAGS)[number], boolean>;
-
-const FLAG_LABEL: Record<string, string> = {
-  has_employees: 'Possui funcionários',
-  is_simples_nacional: 'Simples Nacional',
-  is_lucro_presumido: 'Lucro Presumido',
-};
+/* Flags e categorias vêm do contrato: a lista local editava flags que a API descartava em
+ * silêncio e nunca deixava ligar cartão/estoque, então esses itens não entravam no fan-out. */
+type CompanyFlags = Record<CompanyFlag, boolean>;
 
 const availableFlags = COMPANY_FLAGS.map((flag) => ({
   key: flag,
@@ -158,11 +146,10 @@ watch(contactPhone, (newVal) => {
   if (masked !== newVal) contactPhone.value = masked;
 });
 
-const flags = ref<CompanyFlags>({
-  has_employees: false,
-  is_simples_nacional: false,
-  is_lucro_presumido: false,
-});
+const flagsFrom = (loaded: Partial<CompanyFlags> | null | undefined) =>
+  Object.fromEntries(COMPANY_FLAGS.map((flag) => [flag, !!loaded?.[flag]])) as CompanyFlags;
+
+const flags = ref<CompanyFlags>(flagsFrom(null));
 
 watch(
   () => detailQuery.data.value,
@@ -178,11 +165,7 @@ watch(
         contactEmail: contact?.email ?? '',
         contactPhone: contact?.phone ?? '',
       });
-      flags.value = {
-        has_employees: !!((loaded.flags as any) || {}).has_employees,
-        is_simples_nacional: !!((loaded.flags as any) || {}).is_simples_nacional,
-        is_lucro_presumido: !!((loaded.flags as any) || {}).is_lucro_presumido,
-      };
+      flags.value = flagsFrom(loaded.flags as Partial<CompanyFlags> | null);
     }
   },
   { immediate: true },

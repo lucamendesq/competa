@@ -14,7 +14,8 @@ import {
 import PageHeader from '@/components/PageHeader.vue';
 import Modal from '@/components/Modal.vue';
 import Callout from '@/components/Callout.vue';
-import { COMPANY_FLAGS, type CompanyFlag } from '@competa/contracts';
+import { COMPANY_FLAGS } from '@competa/contracts';
+import { FLAG_LABEL } from '@/utils/format';
 import {
   importCsv as importCsvApi,
   confirmImport as confirmImportApi,
@@ -30,12 +31,6 @@ import { toast } from 'vue-sonner';
 import { apiErrorMessage } from '@/api/error';
 
 const router = useRouter();
-
-const FLAG_LABEL: Record<CompanyFlag, string> = {
-  has_employees: 'Tem funcionários',
-  accepts_card_payments: 'Aceita pagamento por cartão',
-  has_inventory: 'Controla estoque',
-};
 
 const COLUMNS = [
   { header: 'Empresa', key: 'name', required: true },
