@@ -106,8 +106,12 @@ export const deactivateCompany = (id: string) => api.delete<Company>(`/companies
 export const addContact = (companyId: string, body: ContactBody) =>
   api.post<Contact>(`/companies/${companyId}/contacts`, body);
 
+/** `undeliveredLinks`: Links de Upload rotacionados na troca de pessoa cujo e-mail não saiu. */
 export const updateContact = (companyId: string, contactId: string, body: Partial<ContactBody>) =>
-  api.patch<Contact>(`/companies/${companyId}/contacts/${contactId}`, body);
+  api.patch<Contact & { undeliveredLinks: number }>(
+    `/companies/${companyId}/contacts/${contactId}`,
+    body,
+  );
 
 export const removeContact = (companyId: string, contactId: string) =>
   api.delete<void>(`/companies/${companyId}/contacts/${contactId}`);

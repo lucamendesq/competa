@@ -455,7 +455,9 @@ describe('POST /messages/:id/resend', () => {
     expect(malformed.body.error.code).toBe('VALIDATION_ERROR');
   });
 
-  it('reenvia por email uma mensagem já enviada (status não é checado) sem rotacionar o link', async () => {
+  /* O reenvio diz "Seu novo link de envio": manda um /envio/<token> novo, não a Minha Área
+   * (que exige conta). O token anterior fica na carência. */
+  it('reenvia por email uma mensagem já enviada (status não é checado) com link novo', async () => {
     const hashBefore = await tokenHashOf(openBox.requestId);
     const res = await fixture.firm.api.post(`/messages/${openLinkMessageId}/resend`);
 
@@ -471,9 +473,11 @@ describe('POST /messages/:id/resend', () => {
     });
     expect(rows[1].sentAt).not.toBeNull();
 
-    expect(await tokenHashOf(openBox.requestId), 'reenvio de mensagem não rotaciona o link').toBe(
+    expect(await tokenHashOf(openBox.requestId), 'o link entregue virou o oficial').not.toBe(
       hashBefore,
     );
+    const graced = await apiClient(app.url).get(`/upload/${openBox.uploadToken}`);
+    expect(graced.status, 'o link anterior vive na carência').toBe(200);
   });
 
   it('mensagem purpose=resend não tem branch de reenvio: { sent: false } sem linha nova', async () => {
@@ -536,7 +540,11 @@ describe('POST /messages/:id/resend', () => {
 
   it('push com inscrição → { sent: true } e linha nova mirando o endpoint', async () => {
     const body = pushBody();
-    const subscribed = await apiClient(app.url).post(`/upload/${openBox.uploadToken}/push`, body);
+    /* Os reenvios acima já rotacionaram o link mais de uma vez: o token do fixture saiu da
+     * carência. */
+    const rotated = await fixture.firm.api.post(`/requests/${openBox.requestId}/upload-link`);
+    const token = rotated.body.data.uploadUrl.split('/envio/')[1];
+    const subscribed = await apiClient(app.url).post(`/upload/${token}/push`, body);
     expect(subscribed.status, JSON.stringify(subscribed.body)).toBe(201);
 
     const pushRowsBefore = (await messageRowsOf(openBox.requestId)).filter(

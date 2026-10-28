@@ -1064,6 +1064,7 @@ describe('PATCH contato: troca de e-mail rotaciona o Link de Upload', () => {
       email: 'nova-pessoa@example.com',
     });
     expect(res.status, JSON.stringify(res.body)).toBe(200);
+    expect(res.body.data.undeliveredLinks, 'o e-mail com o link novo saiu').toBe(0);
     await app.drainEvents();
 
     const after = await linkRow();

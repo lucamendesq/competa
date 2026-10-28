@@ -460,6 +460,10 @@ const updateContact = route(
       );
       if (!result) return yield* Effect.fail(new NotFound('Responsável não encontrado.'));
 
+      /* O token antigo morre ANTES do envio de propósito: a pessoa que saiu perde o acesso
+       * mesmo que o e-mail para a nova falhe. O que não pode é o Contador ver sucesso sem a
+       * nova ter recebido nada — a resposta conta os Links não entregues, para reenviar. */
+      let undeliveredLinks = 0;
       if (result.personChanged) {
         const open = yield* RequestsRepo.use((repo) => repo.openUploadLinksForContact(contactId));
         for (const link of open) {
@@ -478,11 +482,12 @@ const updateContact = route(
             contactEmail: link.contactEmail,
             uploadUrl: `${env.WEB_URL}/envio/${token}`,
           };
-          yield* events.emit(EVENTS.UploadLinkResent, resent);
+          const delivered = yield* events.emitAsync(EVENTS.UploadLinkResent, resent);
+          if (!delivered.includes(true)) undeliveredLinks += 1;
         }
       }
 
-      return result.row;
+      return { ...result.row, undeliveredLinks };
     }),
   ),
   { auth: firmRoute() },

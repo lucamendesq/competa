@@ -103,6 +103,7 @@ const make = Effect.gen(function* () {
           periodDueDate: period.dueDate,
           hasAccess: contact.authUserId,
           uploadLinkTokenHash: uploadLink.tokenHash,
+          uploadLinkContactId: uploadLink.contactId,
         })
         .from(contact)
         .innerJoin(company, eq(company.id, contact.companyId))

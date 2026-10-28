@@ -263,7 +263,16 @@ async function syncContact(contact?: { name: string; email: string; phone?: stri
     return;
   }
   if (contact && existing) {
-    await updateContactMutation.mutateAsync({ contactId: existing.id, body: contact });
+    const updated = await updateContactMutation.mutateAsync({
+      contactId: existing.id,
+      body: contact,
+    });
+    if (updated.undeliveredLinks > 0) {
+      toast.warning(
+        `O novo Responsável não recebeu ${updated.undeliveredLinks} link(s) de envio. ` +
+          'Reenvie pela Solicitação.',
+      );
+    }
     return;
   }
   if (!contact && existing) {

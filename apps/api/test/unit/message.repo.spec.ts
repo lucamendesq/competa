@@ -544,18 +544,25 @@ layer(MessagesRepo.layer)('MessagesRepo', (it) => {
     }),
   );
 
+  const LINK = 'https://app.example.com/envio/token-novo';
+  const delivered = (requestId: string, carriedLink: boolean) => ({
+    _tag: 'Delivered',
+    requestId,
+    carriedLink,
+  });
+
   it.effect('resend: id desconhecido devolve undefined e purpose=resend não tem branch', () =>
     Effect.gen(function* () {
       const repo = yield* MessagesRepo;
       const box = yield* openBox('resendnone');
 
-      expect(yield* repo.resend(box.firmId, GHOST_ID)).toBeUndefined();
+      expect(yield* repo.resend(box.firmId, GHOST_ID, LINK)).toBeUndefined();
 
       const orphanId = yield* seedMessage(box.requestId, {
         purpose: 'resend',
         recipient: box.contactEmail,
       });
-      expect(yield* repo.resend(box.firmId, orphanId)).toEqual({
+      expect(yield* repo.resend(box.firmId, orphanId, LINK)).toEqual({
         _tag: 'PurposeNotResendable',
         purpose: 'resend',
       });
@@ -573,7 +580,7 @@ layer(MessagesRepo.layer)('MessagesRepo', (it) => {
         status: 'sent',
       });
 
-      expect(yield* repo.resend(box.firmId, sentId)).toEqual({ _tag: 'Delivered' });
+      expect(yield* repo.resend(box.firmId, sentId, LINK)).toEqual(delivered(box.requestId, true));
 
       const rows = yield* messageRows(box.requestId);
       expect(rows).toHaveLength(2);
@@ -613,9 +620,15 @@ layer(MessagesRepo.layer)('MessagesRepo', (it) => {
         recipient: box.contactEmail,
       });
 
-      expect(yield* repo.resend(box.firmId, reminderId)).toEqual({ _tag: 'Delivered' });
-      expect(yield* repo.resend(box.firmId, rejectionId)).toEqual({ _tag: 'Delivered' });
-      expect(yield* repo.resend(box.firmId, deadlineId)).toEqual({ _tag: 'Delivered' });
+      expect(yield* repo.resend(box.firmId, reminderId, LINK)).toEqual(
+        delivered(box.requestId, true),
+      );
+      expect(yield* repo.resend(box.firmId, rejectionId, LINK)).toEqual(
+        delivered(box.requestId, true),
+      );
+      expect(yield* repo.resend(box.firmId, deadlineId, LINK)).toEqual(
+        delivered(box.requestId, true),
+      );
 
       const rows = yield* messageRows(box.requestId);
       expect(rows).toHaveLength(6);
@@ -638,10 +651,12 @@ layer(MessagesRepo.layer)('MessagesRepo', (it) => {
         recipient: box.contactEmail,
       });
 
-      const refused = yield* repo.resend(box.firmId, linkId).pipe(Effect.flip);
+      const refused = yield* repo.resend(box.firmId, linkId, LINK).pipe(Effect.flip);
       expect(refused).toBeInstanceOf(InvalidTransition);
 
-      expect(yield* repo.resend(box.firmId, completionId)).toEqual({ _tag: 'Delivered' });
+      expect(yield* repo.resend(box.firmId, completionId, LINK)).toEqual(
+        delivered(box.requestId, false),
+      );
     }),
   );
 
@@ -655,7 +670,7 @@ layer(MessagesRepo.layer)('MessagesRepo', (it) => {
         recipient: `https://push.example.com/dead-${box.tag}`,
       });
 
-      expect(yield* repo.resend(box.firmId, pushId)).toEqual({ _tag: 'NoPushSubscription' });
+      expect(yield* repo.resend(box.firmId, pushId, LINK)).toEqual({ _tag: 'NoPushSubscription' });
       expect(yield* messageRows(box.requestId)).toHaveLength(1);
     }),
   );
@@ -672,7 +687,7 @@ layer(MessagesRepo.layer)('MessagesRepo', (it) => {
         recipient: endpoint,
       });
 
-      expect(yield* repo.resend(box.firmId, pushId)).toEqual({ _tag: 'Delivered' });
+      expect(yield* repo.resend(box.firmId, pushId, LINK)).toEqual(delivered(box.requestId, true));
 
       const rows = yield* messageRows(box.requestId);
       expect(rows).toHaveLength(2);
