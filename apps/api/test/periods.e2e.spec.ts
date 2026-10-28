@@ -199,6 +199,50 @@ describe('POST /periods — fan-out', () => {
   });
 });
 
+describe('POST /periods/:id/requests — Empresa que chegou depois da abertura', () => {
+  it('só quem ainda não tem Solicitação entra; repetir não duplica; encerrada → 409', async () => {
+    const { api } = await registerFirm(app.url);
+    const [documentTypeId] = await documentTypeIds(api, 1);
+    const templateId = await createTemplate(api, [{ documentTypeId, dueDay: 5 }]);
+    await createCompany(api, {
+      name: 'Pioneira',
+      checklistTemplateId: templateId,
+      contact: contactBody('Paula'),
+    });
+
+    const opened = await api.post('/periods', { referenceMonth: '2026-05' });
+    expect(opened.status, JSON.stringify(opened.body)).toBe(201);
+    expect(opened.body.data.requests).toHaveLength(1);
+    const periodId = opened.body.data.id;
+
+    const late = await createCompany(api, {
+      name: 'Atrasada',
+      checklistTemplateId: templateId,
+      contact: contactBody('Lia'),
+    });
+
+    const added = await api.post(`/periods/${periodId}/requests`);
+    expect(added.status, JSON.stringify(added.body)).toBe(201);
+    expect(added.body.data.requests).toEqual([
+      expect.objectContaining({ companyId: late.id, companyName: 'Atrasada', itemCount: 1 }),
+    ]);
+    const token = added.body.data.requests[0].uploadUrl.split('/envio/')[1];
+    expect((await apiClient(app.url).get(`/upload/${token}`)).status).toBe(200);
+
+    const again = await api.post(`/periods/${periodId}/requests`);
+    expect(again.status).toBe(201);
+    expect(again.body.data.requests).toEqual([]);
+
+    const listed = await api.get(`/periods/${periodId}/requests`);
+    expect(listed.body.data).toHaveLength(2);
+
+    expect((await api.post(`/periods/${periodId}/close`)).status).toBe(201);
+    const closed = await api.post(`/periods/${periodId}/requests`);
+    expect(closed.status).toBe(409);
+    expect(closed.body.error.code).toBe('PERIOD_ALREADY_CLOSED');
+  });
+});
+
 describe('listagem, detalhe e encerramento', () => {
   let api: Api;
   let periodId: string;

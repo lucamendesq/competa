@@ -12,51 +12,79 @@ import { EVENTS, type RequestCreatedEvent } from '../../lib/events.js';
 import { Events } from '../../lib/events.service.js';
 import { PeriodsRepo } from './period.repo.js';
 
+type FanOut = Effect.Success<ReturnType<PeriodsRepo['Service']['openPeriod']>>;
+
+/** Resposta do fan-out e a entrega dos links. Os eventos saem depois da transação: o e-mail
+ *  não pode sair por uma gravação que deu rollback. */
+const announce = ({ period, plans, requestIdByCompany }: FanOut) =>
+  Effect.gen(function* () {
+    const events = yield* Events;
+
+    const requests = plans.map((plan) => ({
+      id: requestIdByCompany.get(plan.companyId)!,
+      companyId: plan.companyId,
+      companyName: plan.companyName,
+      itemCount: plan.items.length,
+      /** único momento em que o token existe em claro; a Fase 5 o entrega por email */
+      uploadUrl: `${env.WEB_URL}/envio/${plan.token}`,
+    }));
+
+    for (const [index, plan] of plans.entries()) {
+      const created: RequestCreatedEvent = {
+        requestId: requests[index].id,
+        periodId: period.id,
+        referenceMonth: period.referenceMonth,
+        periodDueDate: period.dueDate,
+        companyId: plan.companyId,
+        companyName: plan.companyName,
+        contactId: plan.contactId,
+        contactName: plan.contactName,
+        contactEmail: plan.contactEmail,
+        contactPhone: plan.contactPhone,
+        uploadUrl: requests[index].uploadUrl,
+        itemCount: plan.items.length,
+      };
+
+      yield* events.emit(EVENTS.RequestCreated, created);
+    }
+
+    return requests;
+  });
+
 const open = route(
   'POST',
   '/periods',
   handler(
     'POST',
     Effect.gen(function* () {
-      const events = yield* Events;
       const { scope } = yield* FirmContext;
       const input = yield* body(OpenPeriodBody);
 
-      const { period, warnings, plans, requestIdByCompany } = yield* PeriodsRepo.use((repo) =>
-        repo.openPeriod(scope, input),
-      );
+      const opened = yield* PeriodsRepo.use((repo) => repo.openPeriod(scope, input));
+      const requests = yield* announce(opened);
 
-      const requests = plans.map((plan) => ({
-        id: requestIdByCompany.get(plan.companyId)!,
-        companyId: plan.companyId,
-        companyName: plan.companyName,
-        itemCount: plan.items.length,
-        /** único momento em que o token existe em claro; a Fase 5 o entrega por email */
-        uploadUrl: `${env.WEB_URL}/envio/${plan.token}`,
-      }));
+      return { ...opened.period, warnings: opened.warnings, requests };
+    }),
+  ),
+  { auth: firmRoute() },
+);
 
-      // messaging escuta e entrega o link ao Responsável (Fase 5). Emitido depois da
-      // transação: o email não pode sair por uma abertura que deu rollback.
-      for (const [index, plan] of plans.entries()) {
-        const created: RequestCreatedEvent = {
-          requestId: requests[index].id,
-          periodId: period.id,
-          referenceMonth: period.referenceMonth,
-          periodDueDate: period.dueDate,
-          companyId: plan.companyId,
-          companyName: plan.companyName,
-          contactId: plan.contactId,
-          contactName: plan.contactName,
-          contactEmail: plan.contactEmail,
-          contactPhone: plan.contactPhone,
-          uploadUrl: requests[index].uploadUrl,
-          itemCount: plan.items.length,
-        };
+/** Empresas que entraram (ou foram ativadas) depois da abertura recebem a Solicitação desta
+ *  Competência, com o mesmo fan-out da abertura. Quem já tem Solicitação fica como está. */
+const addMissingRequests = route(
+  'POST',
+  '/periods/:id/requests',
+  handler(
+    'POST',
+    Effect.gen(function* () {
+      const { scope } = yield* FirmContext;
+      const { id } = yield* params(IdParam);
 
-        yield* events.emit(EVENTS.RequestCreated, created);
-      }
+      const added = yield* PeriodsRepo.use((repo) => repo.addMissingRequests(scope, id));
+      if (!added) return yield* Effect.fail(new NotFound('Competência não encontrada.'));
 
-      return { ...period, warnings, requests };
+      const requests = yield* announce(added);
+      return { warnings: added.warnings, requests };
     }),
   ),
   { auth: firmRoute() },
@@ -172,4 +200,12 @@ const close = route(
   { auth: firmRoute() },
 );
 
-export const periodsRoutes = Layer.mergeAll(open, list, get, listRequests, pendingPanel, close);
+export const periodsRoutes = Layer.mergeAll(
+  open,
+  addMissingRequests,
+  list,
+  get,
+  listRequests,
+  pendingPanel,
+  close,
+);

@@ -54,6 +54,10 @@ export const getPendingPanel = (id: string) => api.get<PanelRow[]>(`/periods/${i
 export const openPeriod = (body: { referenceMonth: string; dueDate?: string }) =>
   api.post<PeriodOpening>('/periods', body);
 
+/** Fan-out tardio: Empresas ativas que ainda não têm Solicitação nesta Competência. */
+export const addMissingRequests = (id: string) =>
+  api.post<Pick<PeriodOpening, 'warnings' | 'requests'>>(`/periods/${id}/requests`);
+
 export const closePeriod = (id: string) => api.post<PeriodClosing>(`/periods/${id}/close`);
 
 export const runReminders = () => api.post<unknown>('/messages/reminders/run');
