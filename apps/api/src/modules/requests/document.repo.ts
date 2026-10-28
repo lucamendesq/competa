@@ -287,7 +287,11 @@ const make = Effect.gen(function* () {
       }[] = [];
 
       for (const row of pending) {
-        const realBytes = await storage.statSize(row.storageKey);
+        /* Tudo daqui em diante olha a cópia selada: a URL de PUT ainda vale e o original
+         * pode ser reescrito depois desta conferência. */
+        const sealedKey = await storage.seal(row.storageKey);
+        const storageKey = sealedKey ?? row.storageKey;
+        const realBytes = sealedKey ? await storage.statSize(sealedKey) : undefined;
         const sizeReason = confirmationRefusal({
           fileName: row.fileName,
           declaredBytes: row.declaredBytes,
@@ -299,7 +303,7 @@ const make = Effect.gen(function* () {
             documentId: row.id,
             fileName: row.fileName,
             reason: sizeReason,
-            storageKey: row.storageKey,
+            storageKey,
           });
           continue;
         }
@@ -307,7 +311,7 @@ const make = Effect.gen(function* () {
         let hash: string;
         let firstChunk: Buffer;
         try {
-          const stream = await storage.openRead(row.storageKey);
+          const stream = await storage.openRead(storageKey);
           const inspected = await inspectAndHashStream(stream);
           hash = inspected.hash;
           firstChunk = inspected.firstChunk;
@@ -317,7 +321,7 @@ const make = Effect.gen(function* () {
             documentId: row.id,
             fileName: row.fileName,
             reason: 'Falha ao ler o arquivo no storage.',
-            storageKey: row.storageKey,
+            storageKey,
           });
           continue;
         }
@@ -328,7 +332,7 @@ const make = Effect.gen(function* () {
             documentId: row.id,
             fileName: row.fileName,
             reason: 'O conteúdo do arquivo não corresponde ao formato declarado.',
-            storageKey: row.storageKey,
+            storageKey,
           });
           continue;
         }
@@ -338,7 +342,7 @@ const make = Effect.gen(function* () {
           fileName: row.fileName,
           realBytes: realBytes!,
           checksum: hash,
-          storageKey: row.storageKey,
+          storageKey,
         });
       }
 
@@ -407,6 +411,7 @@ const make = Effect.gen(function* () {
                 uploadedAt: new Date(),
                 sizeBytes: row.realBytes,
                 checksum: row.checksum,
+                storageKey: row.storageKey,
               })
               .where(eq(document.id, row.id));
           }

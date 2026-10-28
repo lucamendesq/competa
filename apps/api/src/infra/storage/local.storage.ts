@@ -1,13 +1,18 @@
 import { createHmac, timingSafeEqual } from 'node:crypto';
 import { createReadStream, createWriteStream } from 'node:fs';
-import { mkdir, open, rm, stat } from 'node:fs/promises';
+import { copyFile, mkdir, open, rm, stat } from 'node:fs/promises';
 import { dirname, join, resolve, sep } from 'node:path';
 import { Transform, type Readable } from 'node:stream';
 import { pipeline } from 'node:stream/promises';
 import env from '../../config/env.js';
 import { Forbidden, ServiceUnavailable } from '../../lib/app-error.js';
 import { PayloadTooLarge } from './errors.js';
-import { PRESIGN_TTL_SECONDS, StorageProvider, type PresignPutInput } from './storage.provider.js';
+import {
+  PRESIGN_TTL_SECONDS,
+  sealedKeyOf,
+  StorageProvider,
+  type PresignPutInput,
+} from './storage.provider.js';
 
 const root = resolve(env.STORAGE_LOCAL_DIR);
 
@@ -51,6 +56,23 @@ export class LocalStorage extends StorageProvider {
     } finally {
       await handle.close();
     }
+  }
+
+  async seal(storageKey: string) {
+    const sealed = sealedKeyOf(storageKey);
+    const target = this.safePath(sealed);
+    await mkdir(dirname(target), { recursive: true });
+    /* Cópia, não `rename`: um PUT ainda escrevendo seguiria gravando no arquivo movido. */
+    try {
+      await copyFile(this.safePath(storageKey), target);
+    } catch (error: unknown) {
+      if ((error as NodeJS.ErrnoException)?.code === 'ENOENT') return undefined;
+      throw new ServiceUnavailable(
+        'Armazenamento temporariamente inacessível. Tente novamente em instantes.',
+      );
+    }
+    await rm(this.safePath(storageKey), { force: true });
+    return sealed;
   }
 
   async remove(storageKey: string) {

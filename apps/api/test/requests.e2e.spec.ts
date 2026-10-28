@@ -1532,6 +1532,36 @@ describe('zip e leitura de documentos', () => {
     expect(buffer.includes('Vazia/')).toBe(true);
   });
 
+  it('reenviar o PUT pré-assinado depois do confirm não troca o arquivo conferido', async () => {
+    const replay = await openFirm(['Replay']);
+    const box = replay.boxes.Replay;
+    const anon = apiClient(app.url);
+    const original = 'linha;100,00\n';
+    const presigned = await anon.post(`/upload/${box.uploadToken}/documents`, {
+      files: [
+        {
+          fileName: 'extrato.csv',
+          contentType: 'text/csv',
+          sizeBytes: Buffer.byteLength(original),
+        },
+      ],
+    });
+    const [slot] = presigned.body.data.files;
+    await putFile(slot.uploadUrl, original);
+    const confirmed = await anon.post(`/upload/${box.uploadToken}/documents/confirm`, {
+      documentIds: [slot.documentId],
+    });
+    expect(confirmed.status, JSON.stringify(confirmed.body)).toBe(201);
+
+    await putFile(slot.uploadUrl, 'linha;999,99\n');
+
+    const content = await rawRequest('GET', `/documents/${slot.documentId}/content`, {
+      cookie: replay.firm.cookie,
+    });
+    expect(content.status).toBe(200);
+    expect(await content.text()).toBe(original);
+  });
+
   it('objeto ausente no storage aborta o zip sem derrubar a API', async () => {
     const broken = await openFirm(['Quebrada']);
     await db.insert(document).values({

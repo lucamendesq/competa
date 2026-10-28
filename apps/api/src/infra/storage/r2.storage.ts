@@ -1,5 +1,6 @@
 import type { Readable } from 'node:stream';
 import {
+  CopyObjectCommand,
   DeleteObjectCommand,
   GetObjectCommand,
   HeadObjectCommand,
@@ -11,7 +12,12 @@ import { getSignedUrl } from '@aws-sdk/s3-request-presigner';
 import env from '../../config/env.js';
 import { NotFound, ServiceUnavailable } from '../../lib/app-error.js';
 
-import { PRESIGN_TTL_SECONDS, StorageProvider, type PresignPutInput } from './storage.provider.js';
+import {
+  PRESIGN_TTL_SECONDS,
+  sealedKeyOf,
+  StorageProvider,
+  type PresignPutInput,
+} from './storage.provider.js';
 
 export class R2Storage extends StorageProvider {
   private readonly client = new S3Client({
@@ -125,6 +131,31 @@ export class R2Storage extends StorageProvider {
     } catch {
       return Buffer.alloc(0);
     }
+  }
+
+  async seal(storageKey: string) {
+    const sealed = sealedKeyOf(storageKey);
+    try {
+      await this.client.send(
+        new CopyObjectCommand({
+          Bucket: env.R2_BUCKET,
+          CopySource: `${env.R2_BUCKET}/${encodeURIComponent(storageKey)}`,
+          Key: sealed,
+        }),
+      );
+    } catch (error) {
+      if (
+        error instanceof S3ServiceException &&
+        (error.$metadata.httpStatusCode === 404 || error.name === 'NoSuchKey')
+      ) {
+        return undefined;
+      }
+      throw new ServiceUnavailable(
+        'Armazenamento temporariamente inacessível. Tente novamente em instantes.',
+      );
+    }
+    await this.remove(storageKey).catch(() => undefined);
+    return sealed;
   }
 
   async remove(storageKey: string) {
