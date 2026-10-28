@@ -5,8 +5,11 @@ import { beforeAll, expect } from 'vitest';
 import { db, truncateAll } from '../support/db.js';
 import { Db } from '../../src/infra/database/effect.js';
 import { accountingFirm, subscription } from '../../src/infra/database/schema/index.js';
+import { PLANS, planPrice } from '@competa/contracts';
+import { GatewayUnavailable } from '../../src/modules/billing/errors.js';
 import {
   SubscriptionsRepo,
+  type GatewayReprice,
   type WebhookEvent,
 } from '../../src/modules/billing/subscription.repo.js';
 
@@ -472,6 +475,107 @@ layer(SubscriptionsRepo.layer)('SubscriptionsRepo', (it) => {
         currentPeriodStart: day('2026-11-05'),
       });
     }),
+  );
+
+  it.effect(
+    'applyEvent: troca paga por cobrança avulsa promove e reajusta a assinatura no gateway',
+    () =>
+      Effect.gen(function* () {
+        const repo = yield* SubscriptionsRepo;
+        const firm = yield* seedFirm('upgrade');
+        yield* seedSubscription(firm, {
+          gatewaySubscriptionId: 'sub_up',
+          status: 'ACTIVE',
+          planName: 'essencial',
+          currentPeriodStart: day('2026-10-01'),
+          currentPeriodEnd: day('2026-11-01'),
+          pendingPlanName: 'profissional',
+          pendingCycle: 'monthly',
+          pendingPaymentId: 'pay_up',
+        });
+
+        const calls: GatewayReprice[] = [];
+        const paid = yield* repo.applyEvent(
+          event(null, 'PAYMENT_CONFIRMED', { id: 'pay_up', dueDate: day('2026-10-20') }, firm),
+          (change) => Effect.sync(() => void calls.push(change)),
+        );
+
+        expect(paid).toEqual({ outcome: 'applied', status: 'ACTIVE', promoted: true });
+        expect(calls).toEqual([
+          {
+            subscriptionId: 'sub_up',
+            planName: 'profissional',
+            cycle: 'monthly',
+            value: planPrice(PLANS.profissional, 'monthly'),
+            nextDueDate: day('2026-11-20'),
+          },
+        ]);
+        expect(yield* subscriptionRow(firm)).toMatchObject({
+          planName: 'profissional',
+          pendingPlanName: null,
+          currentPeriodEnd: day('2026-11-20'),
+        });
+      }),
+  );
+
+  it.effect('applyEvent: gateway falhou no reajuste → nada fica gravado e o reenvio aplica', () =>
+    Effect.gen(function* () {
+      const repo = yield* SubscriptionsRepo;
+      const firm = yield* seedFirm('reajustefalha');
+      yield* seedSubscription(firm, {
+        gatewaySubscriptionId: 'sub_rf',
+        status: 'ACTIVE',
+        planName: 'essencial',
+        pendingPlanName: 'escritorio',
+        pendingCycle: 'monthly',
+        pendingPaymentId: 'pay_rf',
+      });
+
+      const incoming = event(null, 'PAYMENT_RECEIVED', { id: 'pay_rf' }, firm);
+      const exit = yield* Effect.exit(
+        repo.applyEvent(incoming, () => Effect.fail(new GatewayUnavailable())),
+      );
+      expect(exit._tag).toBe('Failure');
+      expect(yield* subscriptionRow(firm)).toMatchObject({
+        planName: 'essencial',
+        pendingPaymentId: 'pay_rf',
+      });
+
+      expect(yield* repo.applyEvent(incoming, () => Effect.void)).toMatchObject({
+        outcome: 'applied',
+        promoted: true,
+      });
+    }),
+  );
+
+  it.effect(
+    'applyEvent: cobrança avulsa vencida não bloqueia a firma em dia; só desfaz a troca',
+    () =>
+      Effect.gen(function* () {
+        const repo = yield* SubscriptionsRepo;
+        const firm = yield* seedFirm('upgradevencido');
+        yield* seedSubscription(firm, {
+          gatewaySubscriptionId: 'sub_uv',
+          status: 'ACTIVE',
+          planName: 'essencial',
+          currentPeriodStart: day('2026-10-01'),
+          pendingPlanName: 'profissional',
+          pendingPaymentId: 'pay_uv',
+          pendingInvoiceUrl: 'https://asaas/i/uv',
+        });
+
+        const lapsed = yield* repo.applyEvent(
+          event(null, 'PAYMENT_OVERDUE', { id: 'pay_uv', dueDate: day('2026-10-20') }, firm),
+        );
+        expect(lapsed).toEqual({ outcome: 'ignored', reason: 'charge' });
+        expect(yield* subscriptionRow(firm)).toMatchObject({
+          status: 'ACTIVE',
+          planName: 'essencial',
+          pendingPlanName: null,
+          pendingPaymentId: null,
+          pendingInvoiceUrl: null,
+        });
+      }),
   );
 
   it.effect('applyEvent: evento informativo, assinatura desconhecida e externalReference', () =>

@@ -7,33 +7,20 @@ import {
 } from '@competa/contracts';
 import { Logger } from '../../lib/logger.js';
 import { Effect, Layer } from 'effect';
-import env from '../../config/env.js';
 import { FirmContext } from '../../http/context.js';
 import { handler } from '../../http/envelope.js';
 import { firmRoute } from '../../http/middleware/auth.js';
 import { body, route } from '../../http/platform.js';
 import { AccountantsRepo } from '../auth/accountant.repo.js';
 import { OnlyOwnerCanManageTeam } from '../auth/errors.js';
-import { isAppError, NotFound, ValidationError } from '../../lib/app-error.js';
-import { AsaasBilling } from './providers/asaas-billing.provider.js';
-import { LogBilling } from './providers/log-billing.provider.js';
+import { NotFound, ValidationError } from '../../lib/app-error.js';
 import { squashError } from '../../infra/database/error.js';
-import { periodFrom, upgradeChargeNow } from './billing-rules.js';
+import { upgradeChargeNow } from './billing-rules.js';
+import { billing, gateway } from './gateway.js';
 import { withFirmFlight } from './checkout-flight.js';
-import { GatewayUnavailable } from './errors.js';
 import { SubscriptionsRepo } from './subscription.repo.js';
 
-const billing = env.NODE_ENV === 'production' ? new AsaasBilling() : new LogBilling();
-
 const logger = new Logger('BillingController');
-
-/** Toda chamada ao gateway passa por aqui: timeout ou erro dele vira 503 com mensagem para o
- *  Contador, não 500 com stack. */
-const gateway = <A>(call: () => Promise<A>) =>
-  Effect.tryPromise({
-    try: call,
-    catch: (cause) => (isAppError(cause) ? cause : new GatewayUnavailable()),
-  });
 
 /** Preço que a firma paga pelo plano vigente. Trial não custa nada. */
 const currentPrice = (current: {
@@ -175,21 +162,15 @@ const checkout = route(
               return { checkoutUrl: null, simulated: billing.simulated, applied: true };
             }
 
-            const today = new Date();
+            /* Só a cobrança: a assinatura é reajustada pelo webhook quando ela for paga.
+             * Reajustar aqui cobrava o plano novo de quem não pagou a diferença, e a intenção
+             * gravada logo depois da cobrança garante que pagá-la promove o plano. */
             const charge = yield* gateway(() =>
               billing.createCharge({
                 customerId,
                 value: chargeNow,
                 description: `Troca para o plano ${PLANS[planName].label} (${cycle === 'yearly' ? 'anual' : 'mensal'}) - Competa`,
                 externalReference: firm.id,
-              }),
-            );
-            yield* gateway(() =>
-              billing.changeSubscriptionPlan(previous, {
-                planName,
-                cycle,
-                value,
-                nextDueDate: periodFrom(today, cycle).currentPeriodEnd,
               }),
             );
             yield* persist({

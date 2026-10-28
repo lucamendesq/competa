@@ -9,6 +9,7 @@ import type { Bucket } from '../../http/throttle.js';
 import { Forbidden, ServiceUnavailable } from '../../lib/app-error.js';
 import { secretEquals } from '../../lib/token.js';
 import { asaasDate } from './billing-rules.js';
+import { billing, gateway } from './gateway.js';
 import { SubscriptionsRepo } from './subscription.repo.js';
 
 /* `passthrough` de propósito: a doc do Asaas avisa que novos atributos entram no payload
@@ -94,18 +95,22 @@ const webhook = route(
       );
 
       const result = yield* SubscriptionsRepo.use((repo) =>
-        repo.applyEvent({
-          eventId: id,
-          event,
-          gatewaySubscriptionId,
-          externalReference,
-          payment: {
-            id: payload.payment?.id,
-            value: payload.payment?.value,
-            dueDate: asaasDate(payload.payment?.dueDate),
-            paymentDate: asaasDate(payload.payment?.paymentDate),
+        repo.applyEvent(
+          {
+            eventId: id,
+            event,
+            gatewaySubscriptionId,
+            externalReference,
+            payment: {
+              id: payload.payment?.id,
+              value: payload.payment?.value,
+              dueDate: asaasDate(payload.payment?.dueDate),
+              paymentDate: asaasDate(payload.payment?.paymentDate),
+            },
           },
-        }),
+          ({ subscriptionId, ...change }) =>
+            gateway(() => billing.changeSubscriptionPlan(subscriptionId, change)),
+        ),
       );
 
       if (result.outcome === 'duplicate')

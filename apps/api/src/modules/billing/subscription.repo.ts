@@ -1,8 +1,9 @@
 import { Context, Effect, Layer } from 'effect';
 import { and, eq, or, sql } from 'drizzle-orm';
 import * as z from 'zod';
-import type { BillingCycle, PaidPlanName } from '@competa/contracts';
+import { PLANS, planPrice, type BillingCycle, type PaidPlanName } from '@competa/contracts';
 import { Db } from '../../infra/database/effect.js';
+import type { AppError } from '../../lib/app-error.js';
 import { billingWebhookEvent, subscription } from '../../infra/database/schema/index.js';
 import {
   paymentCoversPendingPlan,
@@ -25,11 +26,22 @@ export type WebhookEvent = {
   readonly payment: PaymentFacts;
 };
 
+/** Reajuste da assinatura no gateway depois que a cobrança avulsa de uma troca de plano é
+ *  paga. Roda DENTRO da transação do evento: se o gateway falhar, o evento volta a ficar
+ *  livre e o reenvio do Asaas tenta de novo. */
+export type GatewayReprice = {
+  readonly subscriptionId: string;
+  readonly planName: PaidPlanName;
+  readonly cycle: BillingCycle;
+  readonly value: number;
+  readonly nextDueDate: Date;
+};
+
 export type WebhookOutcome =
   | { readonly outcome: 'duplicate' }
   | {
       readonly outcome: 'ignored';
-      readonly reason: 'event' | 'unknown' | 'stale' | 'canceled' | 'trial';
+      readonly reason: 'event' | 'unknown' | 'stale' | 'canceled' | 'trial' | 'charge';
     }
   | { readonly outcome: 'applied'; readonly status: string; readonly promoted: boolean };
 
@@ -174,7 +186,10 @@ const make = Effect.gen(function* () {
   /** Reivindicação e efeito na MESMA transação: se o efeito falhar, a reivindicação volta e
    *  o reenvio do Asaas processa de novo. Separados, a falha deixava o evento marcado como
    *  visto e o pagamento perdido para sempre. */
-  const applyEvent = Effect.fn('SubscriptionsRepo.applyEvent')(function* (input: WebhookEvent) {
+  const applyEvent = Effect.fn('SubscriptionsRepo.applyEvent')(function* (
+    input: WebhookEvent,
+    reprice: (change: GatewayReprice) => Effect.Effect<void, AppError> = () => Effect.void,
+  ) {
     return yield* db.withTransaction(
       Effect.gen(function* () {
         const first = yield* claimEvent(input.eventId, input.event);
@@ -222,6 +237,26 @@ const make = Effect.gen(function* () {
           row.trialEndsAt.getTime() > Date.now()
         ) {
           return { outcome: 'ignored', reason: 'trial' } as const;
+        }
+
+        /* Cobrança avulsa (troca de plano) não governa o acesso — quem governa é a
+         * assinatura, e o período dela já está pago. A avulsa que vence, é apagada ou
+         * estornada sem ter promovido nada só desfaz a intenção da troca. */
+        if (status !== 'ACTIVE' && !input.gatewaySubscriptionId) {
+          if (input.payment.id && input.payment.id === row.pendingPaymentId) {
+            yield* db.use((d) =>
+              d
+                .update(subscription)
+                .set({
+                  pendingPlanName: null,
+                  pendingCycle: null,
+                  pendingPaymentId: null,
+                  pendingInvoiceUrl: null,
+                })
+                .where(eq(subscription.id, row.id)),
+            );
+          }
+          return { outcome: 'ignored', reason: 'charge' } as const;
         }
 
         const pending = row.pendingPlanName
@@ -281,6 +316,29 @@ const make = Effect.gen(function* () {
             .set({ status, ...promoted, ...periodPatch, ...canceled })
             .where(eq(subscription.id, row.id)),
         );
+
+        /* A troca paga por cobrança avulsa só reajusta a assinatura agora: reajustar no
+         * checkout cobrava o plano novo de quem nunca pagou a diferença. O próximo
+         * vencimento é o fim do período que esta cobrança abriu. */
+        if (
+          coversPending &&
+          pending &&
+          !input.gatewaySubscriptionId &&
+          row.gatewaySubscriptionId &&
+          period
+        ) {
+          yield* reprice({
+            subscriptionId: row.gatewaySubscriptionId,
+            planName: pending.planName,
+            cycle: pending.cycle,
+            value: planPrice(
+              PLANS[pending.planName],
+              pending.cycle,
+              row.priceOverride?.[pending.planName],
+            ),
+            nextDueDate: period.currentPeriodEnd,
+          });
+        }
 
         return { outcome: 'applied', status, promoted: 'planName' in promoted } as const;
       }),
