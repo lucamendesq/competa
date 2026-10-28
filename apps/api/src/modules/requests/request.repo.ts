@@ -101,6 +101,24 @@ const make = Effect.gen(function* () {
       .where(eq(uploadLink.id, uploadLinkId));
   };
 
+  /** Primeiro passo de toda transação de revisão: trava a Solicitação e confere de novo que
+   *  ela não foi encerrada. A checagem de antes da transação é só a mensagem amigável — um
+   *  encerramento concorrente passava por ela e a revisão era aplicada (com rotação de link
+   *  e e-mail) numa Solicitação já fechada. O encerramento trava a mesma linha. */
+  const lockOpenRequest = (requestId: string) =>
+    Effect.gen(function* () {
+      const [row] = yield* db.use((tx) =>
+        tx
+          .select({ status: request.status })
+          .from(request)
+          .where(eq(request.id, requestId))
+          .for('update'),
+      );
+      if (!row || row.status === 'closed') {
+        return yield* new InvalidTransition('Esta solicitação foi encerrada.');
+      }
+    });
+
   /** `request.status` é derivado dos Itens (`complete` automático e reversível): grava
    *  dentro da mesma transação da revisão para não existir estado intermediário. */
   const syncRequestStatusOn = async (tx: Executor, requestId: string) => {
@@ -207,6 +225,8 @@ const make = Effect.gen(function* () {
 
     return yield* db.withTransaction(
       Effect.gen(function* () {
+        yield* lockOpenRequest(context.requestId);
+
         const accepted = yield* db.use((tx) =>
           tx
             .update(document)
@@ -322,6 +342,8 @@ const make = Effect.gen(function* () {
 
     const requestStatus = yield* db.withTransaction(
       Effect.gen(function* () {
+        yield* lockOpenRequest(row.requestId);
+
         /* Condicional, não check-then-act: duas revisões concorrentes no mesmo documento
          * serializam aqui — a segunda encontra 0 linhas e vira 422, em vez de rotacionar o
          * link de novo por cima de uma decisão já tomada (AUTHZ-5). */
@@ -527,6 +549,11 @@ const make = Effect.gen(function* () {
 
     const applied = yield* db.withTransaction(
       Effect.gen(function* () {
+        // Extra se revisa também com a Solicitação encerrada; Item não.
+        if (input.acceptItemIds.length || input.rejectDocuments.length) {
+          yield* lockOpenRequest(requestId);
+        }
+
         for (const itemId of input.acceptItemIds) {
           const [updated] = yield* db.use(async (tx) => {
             await tx
@@ -638,34 +665,41 @@ const make = Effect.gen(function* () {
     scope: FirmScope,
     requestId: string,
   ) {
-    const [row] = yield* db.use((d) =>
-      d
-        .select({ id: request.id, status: request.status })
-        .from(request)
-        .innerJoin(period, eq(period.id, request.periodId))
-        .where(and(eq(request.id, requestId), eq(period.accountingFirmId, scope)))
-        .limit(1),
+    /* Trava a linha da Solicitação (a mesma que as revisões travam): dois encerramentos
+     * concorrentes passavam pela checagem e o segundo reescrevia `closed_at`. */
+    return yield* db.withTransaction(
+      Effect.gen(function* () {
+        const [row] = yield* db.use((d) =>
+          d
+            .select({ id: request.id, status: request.status })
+            .from(request)
+            .innerJoin(period, eq(period.id, request.periodId))
+            .where(and(eq(request.id, requestId), eq(period.accountingFirmId, scope)))
+            .for('update', { of: request })
+            .limit(1),
+        );
+
+        if (!row) return undefined;
+        if (row.status === 'closed') {
+          return yield* Effect.fail(new InvalidTransition('Esta solicitação já foi encerrada.'));
+        }
+
+        return yield* db.use(async (d) => {
+          const [pending] = await d
+            .select({ value: count() })
+            .from(requestItem)
+            .where(and(eq(requestItem.requestId, requestId), ne(requestItem.status, 'accepted')));
+
+          const [closed] = await d
+            .update(request)
+            .set({ status: 'closed', closedAt: new Date() })
+            .where(eq(request.id, requestId))
+            .returning({ id: request.id, status: request.status, closedAt: request.closedAt });
+
+          return { ...closed, pendingItemCount: pending.value };
+        });
+      }),
     );
-
-    if (!row) return undefined;
-    if (row.status === 'closed') {
-      return yield* Effect.fail(new InvalidTransition('Esta solicitação já foi encerrada.'));
-    }
-
-    return yield* db.use(async (d) => {
-      const [pending] = await d
-        .select({ value: count() })
-        .from(requestItem)
-        .where(and(eq(requestItem.requestId, requestId), ne(requestItem.status, 'accepted')));
-
-      const [closed] = await d
-        .update(request)
-        .set({ status: 'closed', closedAt: new Date() })
-        .where(eq(request.id, requestId))
-        .returning({ id: request.id, status: request.status, closedAt: request.closedAt });
-
-      return { ...closed, pendingItemCount: pending.value };
-    });
   });
 
   /** Itens vencidos de Competência/Solicitação abertas. `scope` nulo = varredura do cron,
@@ -1140,6 +1174,7 @@ const make = Effect.gen(function* () {
     });
     if (refusal) return yield* Effect.fail(new InvalidTransition(refusal));
 
+    /* Sem `lockOpenRequest`: Extra se revisa também com a Solicitação encerrada. */
     const [updated] = yield* db.use((d) =>
       d
         .update(document)
@@ -1177,37 +1212,40 @@ const make = Effect.gen(function* () {
     if (refusal) return yield* Effect.fail(new InvalidTransition(refusal));
 
     return yield* db.withTransaction(
-      db.use(async (tx) => {
-        const reverted = await tx
-          .update(document)
-          .set({ reviewStatus: 'pending', reviewedBy: null, reviewedAt: null })
-          .where(
-            and(
-              eq(document.requestItemId, requestItemId),
-              eq(document.reviewStatus, 'accepted'),
-              eq(document.uploadStatus, 'uploaded'),
-            ),
-          )
-          .returning({ id: document.id });
+      Effect.andThen(
+        lockOpenRequest(context.requestId),
+        db.use(async (tx) => {
+          const reverted = await tx
+            .update(document)
+            .set({ reviewStatus: 'pending', reviewedBy: null, reviewedAt: null })
+            .where(
+              and(
+                eq(document.requestItemId, requestItemId),
+                eq(document.reviewStatus, 'accepted'),
+                eq(document.uploadStatus, 'uploaded'),
+              ),
+            )
+            .returning({ id: document.id });
 
-        const itemStatus = reverted.length > 0 ? 'submitted' : 'pending';
+          const itemStatus = reverted.length > 0 ? 'submitted' : 'pending';
 
-        await tx
-          .update(requestItem)
-          .set({ status: itemStatus })
-          .where(eq(requestItem.id, requestItemId));
+          await tx
+            .update(requestItem)
+            .set({ status: itemStatus })
+            .where(eq(requestItem.id, requestItemId));
 
-        const requestStatus = await syncRequestStatusOn(tx, context.requestId);
+          const requestStatus = await syncRequestStatusOn(tx, context.requestId);
 
-        return {
-          requestId: context.requestId,
-          requestItemId,
-          itemName: context.itemName,
-          itemStatus,
-          revertedDocuments: reverted.length,
-          requestStatus,
-        };
-      }),
+          return {
+            requestId: context.requestId,
+            requestItemId,
+            itemName: context.itemName,
+            itemStatus,
+            revertedDocuments: reverted.length,
+            requestStatus,
+          };
+        }),
+      ),
     );
   });
 

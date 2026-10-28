@@ -492,6 +492,18 @@ describe('remover Responsável que recebeu o Link de Upload', () => {
   });
 });
 
+describe('encerramento concorrente', () => {
+  it('dois encerramentos ao mesmo tempo: um encerra, o outro é 409', async () => {
+    const race = await openFirm(['Corrida']);
+    const id = race.boxes.Corrida.requestId;
+    const results = await Promise.all([
+      race.firm.api.post(`/requests/${id}/close`),
+      race.firm.api.post(`/requests/${id}/close`),
+    ]);
+    expect(results.map((res) => res.status).sort()).toEqual([201, 409]);
+  });
+});
+
 describe('POST /requests/:id/close', () => {
   let fixture: Awaited<ReturnType<typeof openFirm>>;
 
