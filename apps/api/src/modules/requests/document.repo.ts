@@ -76,7 +76,11 @@ const make = Effect.gen(function* () {
     if (!requestItemId) return { ...context, item: undefined };
 
     const [item] = await executor
-      .select({ id: requestItem.id, acceptedFormats: requestItem.acceptedFormats })
+      .select({
+        id: requestItem.id,
+        status: requestItem.status,
+        acceptedFormats: requestItem.acceptedFormats,
+      })
       .from(requestItem)
       .where(and(eq(requestItem.id, requestItemId), eq(requestItem.requestId, scope.requestId)))
       .limit(1);
@@ -173,6 +177,13 @@ const make = Effect.gen(function* () {
           if (context.status === 'closed') {
             return yield* new ValidationError(
               'Esta solicitação foi encerrada: os itens não aceitam mais envios. Envie como Documento Extra.',
+            );
+          }
+          /* Item aceito está resolvido: o arquivo novo não aparecia na revisão (que lista só
+           * os enviados) e recusá-lo reabria o item já aceito. */
+          if (context.item.status === 'accepted') {
+            return yield* new ValidationError(
+              'Este item já foi aceito pela contabilidade. Envie como Documento Extra.',
             );
           }
         }

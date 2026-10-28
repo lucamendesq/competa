@@ -1562,6 +1562,26 @@ describe('zip e leitura de documentos', () => {
     expect(await content.text()).toBe(original);
   });
 
+  it('item aceito não recebe arquivo novo pelo link → 422', async () => {
+    const done = await openFirm(['Aceita']);
+    const box = done.boxes.Aceita;
+    const detail = await requestDetail(done.firm.api, box.requestId);
+    const itemId = detail.items[0].id;
+    await uploadVia(
+      box.uploadToken,
+      { fileName: 'nota.png', content: PNG_1X1, contentType: 'image/png' },
+      itemId,
+    );
+    expect((await done.firm.api.post(`/request-items/${itemId}/accept`)).status).toBe(201);
+
+    const late = await apiClient(app.url).post(`/upload/${box.uploadToken}/documents`, {
+      requestItemId: itemId,
+      files: [{ fileName: 'outra.png', contentType: 'image/png', sizeBytes: PNG_1X1.length }],
+    });
+    expect(late.status, JSON.stringify(late.body)).toBe(422);
+    expect(late.body.error.message).toContain('já foi aceito');
+  });
+
   it('objeto ausente no storage aborta o zip sem derrubar a API', async () => {
     const broken = await openFirm(['Quebrada']);
     await db.insert(document).values({
