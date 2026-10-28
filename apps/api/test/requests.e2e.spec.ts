@@ -1541,7 +1541,7 @@ describe('zip e leitura de documentos', () => {
     const res = await zipGet(`/periods/${fixture.periodId}/zip`);
     expect(res.status).toBe(200);
     expect(res.headers.get('content-disposition')).toBe(
-      'attachment; filename="competencia-2026-09-2026-09.zip"',
+      'attachment; filename="competencia-2026-09.zip"',
     );
 
     const buffer = Buffer.from(await res.arrayBuffer());

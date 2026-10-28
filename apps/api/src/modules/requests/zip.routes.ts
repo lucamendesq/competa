@@ -147,7 +147,8 @@ const periodZip = route(
 
         return yield* streamZip(
           entries,
-          zipFileName(`competencia ${found.referenceMonth.slice(0, 7)}`, found.referenceMonth),
+          // `zipFileName` já acrescenta o mês
+          zipFileName('competencia', found.referenceMonth),
           id,
           release,
         );
