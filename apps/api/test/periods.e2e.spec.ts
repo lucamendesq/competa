@@ -267,20 +267,20 @@ describe('listagem, detalhe e encerramento', () => {
     expect(oct.status).toBe(201);
   });
 
-  it('GET /periods pagina com meta e ordena por competência', async () => {
+  it('GET /periods pagina com meta e põe a competência mais recente primeiro', async () => {
     const res = await api.get('/periods?page=1&perPage=1');
     expect(res.status).toBe(200);
     expect(res.body.meta).toEqual({ page: 1, perPage: 1, total: 2 });
     expect(res.body.data).toHaveLength(1);
-    expect(res.body.data[0]).toMatchObject({
+    expect(res.body.data[0].referenceMonth).toBe('2026-10-01');
+
+    const page2 = await api.get('/periods?page=2&perPage=1');
+    expect(page2.body.data[0]).toMatchObject({
       referenceMonth: `${REFERENCE_MONTH}-01`,
       status: 'open',
       dueDate: '2026-10-10',
       requestCount: 1,
     });
-
-    const page2 = await api.get('/periods?page=2&perPage=1');
-    expect(page2.body.data[0].referenceMonth).toBe('2026-10-01');
   });
 
   it('GET /periods/:id devolve contadores', async () => {

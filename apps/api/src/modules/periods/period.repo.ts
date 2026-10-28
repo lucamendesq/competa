@@ -263,7 +263,9 @@ const make = Effect.gen(function* () {
           })
           .from(period)
           .where(where)
-          .orderBy(period.referenceMonth)
+          /* Mais recente primeiro: a tela principal pede só a primeira página, e em ordem
+           * crescente a Competência atual saía dela a partir da 21ª. */
+          .orderBy(desc(period.referenceMonth))
           .limit(query.perPage)
           .offset((query.page - 1) * query.perPage),
         d.select({ value: count() }).from(period).where(where),
