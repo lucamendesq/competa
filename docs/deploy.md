@@ -97,8 +97,16 @@ Settings → Secrets and variables → Actions:
 
 ## 5. Depois disso
 
-- Todo push em `main`: `ci.yml` builda/lint/testa e, com o CI verde, os jobs `deploy-api`
-  e `deploy-web` do mesmo workflow sobem API e web.
+- Todo push em `main` (merge de PR): `ci.yml` builda/lint/testa e, com o CI verde, sobe
+  **staging** (`deploy-api-staging`, `deploy-web-staging`). Depois o run para em
+  `approve-production` esperando aprovação: confira staging e clique em **Review
+  deployments → Approve** no run. Só então `deploy-api`, `deploy-web` e `deploy-landing`
+  sobem o mesmo commit para produção. Rejeitar (ou não aprovar) deixa a produção como está.
+- Para testar um PR em staging antes do merge: Actions → CI → **Run workflow** na branch
+  dele. Esse caminho nunca chega à produção.
+- O portão é o environment `production` (Settings → Environments → `production` →
+  **Required reviewers**: você). Sem revisor configurado o GitHub não espera, e a produção
+  sobe logo depois de staging.
 - Migrations rodam sozinhas — `release_command` no `fly.toml` roda
   `drizzle-kit migrate` antes do tráfego virar para a versão nova.
 - Trocar a chave VAPID **não** exige rebuild do Angular (`GET /push/vapid-key` serve a
@@ -145,8 +153,9 @@ chaves VAPID e token de deploy são próprios.
 - Web: Pages `competa-web-staging` em `staging-app.competa.com.br`. Os dois sob
   `competa.com.br`: em `*.fly.dev` + `*.pages.dev` o cookie de sessão vira cross-site e o
   navegador o barra.
-- Deploy: push na branch `staging`, ou Actions → CI → **Run workflow** escolhendo a branch.
-  Jobs `deploy-api-staging` e `deploy-web-staging`, só depois do CI verde.
+- Deploy: todo merge na `main` (antes da produção, ver passo 5), ou Actions → CI → **Run
+  workflow** escolhendo a branch. Jobs `deploy-api-staging` e `deploy-web-staging`, só
+  depois do CI verde.
 
 Uma vez, com as contas:
 
@@ -179,7 +188,8 @@ Uma vez, com as contas:
 4. **Cloudflare**: `wrangler pages project create competa-web-staging`; Custom domains →
    `staging-app.competa.com.br`; CNAME `staging-api` → `competa-api-staging.fly.dev`
    (DNS-only, como na produção).
-5. **GitHub**: Settings → Environments → `staging` → secret `FLY_API_TOKEN_STAGING`. O
+5. **GitHub**: Settings → Environments → `staging` → secret `FLY_API_TOKEN_STAGING`; e
+   Environments → `production` → **Required reviewers** (o portão do passo 5). O
    `CLOUDFLARE_API_TOKEN`/`CLOUDFLARE_ACCOUNT_ID` do repositório já servem.
 6. **Asaas sandbox**: webhook em `https://staging-api.competa.com.br/billing/webhook/asaas`
    com o mesmo `ASAAS_WEBHOOK_TOKEN` do secret.

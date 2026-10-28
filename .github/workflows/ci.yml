@@ -1,12 +1,12 @@
 name: CI
 
+# Fluxo de deploy: merge na main → staging automático → produção depois da aprovação
+# (environment `production` com revisor obrigatório). "Run workflow" na aba Actions sobe
+# qualquer branch só para staging — para testar um PR antes do merge.
 on:
   push:
-    # main → produção; staging → competa-api-staging e competa-web-staging
-    branches: [main, staging]
+    branches: [main]
   pull_request:
-  # Botão "Run workflow" na aba Actions: sobe a branch escolhida para staging, sem precisar
-  # empurrar para a branch `staging`.
   workflow_dispatch:
 
 jobs:
@@ -69,104 +69,25 @@ jobs:
       - run: pnpm --filter api db:migrate
       - run: pnpm --filter api test
 
-  deploy-api:
-    needs: [build-lint, test]
-    if: github.ref == 'refs/heads/main' && github.event_name == 'push'
-    runs-on: ubuntu-latest
-    steps:
-      - uses: actions/checkout@v4
-      - uses: superfly/flyctl-actions/setup-flyctl@ed8efb33836e8b2096c7fd3ba1c8afe303ebbff1
-      - run: flyctl deploy --config apps/api/fly.toml --dockerfile apps/api/Dockerfile --remote-only
-        env:
-          FLY_API_TOKEN: ${{ secrets.FLY_API_TOKEN }}
-
-  deploy-web:
-    runs-on: ubuntu-latest
-    permissions:
-      contents: read
-      deployments: write
-    needs: build-lint
-    if: github.ref == 'refs/heads/main' && github.event_name == 'push'
-    steps:
-      - uses: actions/checkout@v4
-
-      - uses: pnpm/action-setup@v4
-
-      - uses: actions/setup-node@v4
-        with:
-          node-version-file: .nvmrc
-          cache: pnpm
-
-      - run: pnpm install --frozen-lockfile
-      - run: pnpm --filter @competa/contracts build
-      # O Vite grava estas URLs no bundle na hora do build: sem elas, o web de produção
-      # caía no padrão do código (http://localhost:3000).
-      - run: pnpm --filter web build
-        env:
-          VITE_API_URL: https://api.competa.com.br
-          VITE_AUTH_URL: https://api.competa.com.br/api/auth
-
-      - name: Deploy Web
-        uses: cloudflare/wrangler-action@v4
-        with:
-          apiToken: ${{ secrets.CLOUDFLARE_API_TOKEN }}
-          accountId: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
-          command: pages deploy apps/web/dist --project-name=competa-web
-          gitHubToken: ${{ secrets.GITHUB_TOKEN }}
-          packageManager: npm
-
-  deploy-landing:
-    runs-on: ubuntu-latest
-    permissions:
-      contents: read
-      deployments: write
-    needs: build-lint
-    if: github.ref == 'refs/heads/main' && github.event_name == 'push'
-    steps:
-      - uses: actions/checkout@v4
-
-      - uses: pnpm/action-setup@v4
-
-      - uses: actions/setup-node@v4
-        with:
-          node-version-file: .nvmrc
-          cache: pnpm
-
-      - run: pnpm install --frozen-lockfile
-      - run: pnpm --filter landing build
-
-      - name: Deploy Landing
-        uses: cloudflare/wrangler-action@v4
-        with:
-          apiToken: ${{ secrets.CLOUDFLARE_API_TOKEN }}
-          accountId: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
-          command: pages deploy apps/landing/dist --project-name=competa-landing
-          gitHubToken: ${{ secrets.GITHUB_TOKEN }}
-          packageManager: npm
-
-  # Staging: mesma imagem e mesmo build, outro app no Fly e outro projeto no Pages. Sobe em
-  # push na branch `staging` ou pelo "Run workflow" (qualquer branch). O token do Fly é só
-  # do app de staging: este job não consegue mexer na produção.
+  # ── Staging: todo merge na main, ou "Run workflow" em qualquer branch ──────────────────
   deploy-api-staging:
     needs: [build-lint, test]
-    if: (github.event_name == 'push' && github.ref == 'refs/heads/staging') || github.event_name == 'workflow_dispatch'
+    if: (github.event_name == 'push' && github.ref == 'refs/heads/main') || github.event_name == 'workflow_dispatch'
     runs-on: ubuntu-latest
     environment: staging
     concurrency: deploy-api-staging
     steps:
       - uses: actions/checkout@v4
       - uses: superfly/flyctl-actions/setup-flyctl@ed8efb33836e8b2096c7fd3ba1c8afe303ebbff1
+      # Token só do app de staging: este job não consegue mexer na produção.
       - run: flyctl deploy --config apps/api/fly.staging.toml --dockerfile apps/api/Dockerfile --remote-only
         env:
           FLY_API_TOKEN: ${{ secrets.FLY_API_TOKEN_STAGING }}
 
   deploy-web-staging:
+    needs: [build-lint]
+    if: (github.event_name == 'push' && github.ref == 'refs/heads/main') || github.event_name == 'workflow_dispatch'
     runs-on: ubuntu-latest
-    permissions:
-      contents: read
-      deployments: write
-    needs: build-lint
-    if: (github.event_name == 'push' && github.ref == 'refs/heads/staging') || github.event_name == 'workflow_dispatch'
     environment: staging
     concurrency: deploy-web-staging
     steps:
@@ -181,16 +102,89 @@ jobs:
 
       - run: pnpm install --frozen-lockfile
       - run: pnpm --filter @competa/contracts build
+      # O Vite grava estas URLs no bundle na hora do build.
       - run: pnpm --filter web build
         env:
           VITE_API_URL: https://staging-api.competa.com.br
           VITE_AUTH_URL: https://staging-api.competa.com.br/api/auth
 
-      - name: Deploy Web
-        uses: cloudflare/wrangler-action@v4
+      - name: Deploy no Cloudflare Pages
+        run: pnpm --filter landing exec wrangler pages deploy ${{ github.workspace }}/apps/web/dist --project-name=competa-web-staging --branch=main --commit-dirty=true
+        env:
+          CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+          CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
+
+  # ── Produção: só a partir da main, depois da aprovação ───────────────────────────────
+  # Um único portão para os três deploys: aprovar uma vez em "Review deployments" libera
+  # API, web e landing do mesmo commit que já está rodando em staging.
+  approve-production:
+    needs: [deploy-api-staging, deploy-web-staging]
+    if: github.event_name == 'push' && github.ref == 'refs/heads/main'
+    runs-on: ubuntu-latest
+    environment: production
+    steps:
+      - run: echo "Aprovado para produção — ${{ github.sha }}"
+
+  deploy-api:
+    needs: [approve-production]
+    runs-on: ubuntu-latest
+    concurrency: deploy-api-production
+    steps:
+      - uses: actions/checkout@v4
+      - uses: superfly/flyctl-actions/setup-flyctl@ed8efb33836e8b2096c7fd3ba1c8afe303ebbff1
+      - run: flyctl deploy --config apps/api/fly.toml --dockerfile apps/api/Dockerfile --remote-only
+        env:
+          FLY_API_TOKEN: ${{ secrets.FLY_API_TOKEN }}
+
+  deploy-web:
+    needs: [approve-production]
+    runs-on: ubuntu-latest
+    concurrency: deploy-web-production
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: pnpm/action-setup@v4
+
+      - uses: actions/setup-node@v4
         with:
-          apiToken: ${{ secrets.CLOUDFLARE_API_TOKEN }}
-          accountId: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
-          command: pages deploy apps/web/dist --project-name=competa-web-staging --branch=main
-          gitHubToken: ${{ secrets.GITHUB_TOKEN }}
-          packageManager: npm
+          node-version-file: .nvmrc
+          cache: pnpm
+
+      - run: pnpm install --frozen-lockfile
+      - run: pnpm --filter @competa/contracts build
+      # O Vite grava estas URLs no bundle na hora do build.
+      - run: pnpm --filter web build
+        env:
+          VITE_API_URL: https://api.competa.com.br
+          VITE_AUTH_URL: https://api.competa.com.br/api/auth
+
+      - name: Deploy no Cloudflare Pages
+        run: pnpm --filter landing exec wrangler pages deploy ${{ github.workspace }}/apps/web/dist --project-name=competa-web --branch=main --commit-dirty=true
+        env:
+          CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+          CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
+
+  deploy-landing:
+    needs: [approve-production]
+    runs-on: ubuntu-latest
+    concurrency: deploy-landing-production
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: pnpm/action-setup@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version-file: .nvmrc
+          cache: pnpm
+
+      - run: pnpm install --frozen-lockfile
+      # A landing importa os planos de @competa/contracts, que é consumido pelo dist.
+      - run: pnpm --filter @competa/contracts build
+      - run: pnpm --filter landing build
+
+      - name: Deploy no Cloudflare Pages
+        run: pnpm --filter landing exec wrangler pages deploy ${{ github.workspace }}/apps/landing/dist --project-name=competa-landing --branch=main --commit-dirty=true
+        env:
+          CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+          CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
