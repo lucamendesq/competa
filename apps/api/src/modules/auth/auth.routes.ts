@@ -121,6 +121,8 @@ const me = route(
                 planName: row.subscriptionPlanName,
                 cycle: row.subscriptionCycle,
                 trialEndsAt: row.subscriptionTrialEndsAt,
+                /** Cancelada escreve até aqui; a web decide o aviso de bloqueio com isto. */
+                currentPeriodEnd: row.subscriptionCurrentPeriodEnd,
                 /** Oferta Fundador: a tela de plano tem que mostrar o preço que ele paga. */
                 priceOverride: row.subscriptionPriceOverride,
               }

@@ -396,6 +396,7 @@ describe('GET /auth/me', () => {
       planName: 'trial',
       cycle: 'monthly',
       trialEndsAt: expect.any(String),
+      currentPeriodEnd: null,
       priceOverride: null,
     });
   });

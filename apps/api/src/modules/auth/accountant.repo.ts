@@ -155,6 +155,7 @@ const make = Effect.gen(function* () {
           owner: accountant.owner,
           subscriptionStatus: subscription.status,
           subscriptionTrialEndsAt: subscription.trialEndsAt,
+          subscriptionCurrentPeriodEnd: subscription.currentPeriodEnd,
           subscriptionPlanName: subscription.planName,
           subscriptionCycle: subscription.cycle,
           subscriptionPriceOverride: subscription.priceOverride,

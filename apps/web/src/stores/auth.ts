@@ -18,6 +18,7 @@ export type Accountant = {
       planName: string;
       cycle: BillingCycle;
       trialEndsAt: string | null;
+      currentPeriodEnd: string | null;
       priceOverride: PriceOverride | null;
     };
   };
@@ -46,7 +47,11 @@ export const useAuthStore = defineStore('auth', () => {
   const isOverdue = computed(() => {
     const sub = accountant.value?.accountingFirm.subscription;
     if (!sub) return false;
-    if (sub.status === 'OVERDUE' || sub.status === 'CANCELED') return true;
+    if (sub.status === 'OVERDUE') return true;
+    /* Mesma regra do guard da API: cancelada escreve até o fim do período já pago. */
+    if (sub.status === 'CANCELED') {
+      return !sub.currentPeriodEnd || new Date(sub.currentPeriodEnd) < new Date();
+    }
     if (sub.status === 'trialing' && sub.trialEndsAt && new Date(sub.trialEndsAt) < new Date()) {
       return true;
     }
