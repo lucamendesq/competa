@@ -60,7 +60,6 @@ const preview = shallowRef<ImportPreviewResult | null>(null);
 const confirmed = shallowRef<ImportResult | null>(null);
 const confirming = ref(false);
 
-
 const summary = computed(() => {
   const done = confirmed.value;
   if (done) return { total: done.total, created: done.created, errors: done.failed };
@@ -292,8 +291,12 @@ function downloadTemplate() {
           </p>
         </div>
         <div class="flex gap-2">
-          <Button variant="outline" class="shadow-xs" @click="restart">Importar outra planilha</Button>
-          <Button :disabled="confirming" class="shadow-xs font-medium" @click="finish">{{ finishLabel }}</Button>
+          <Button variant="outline" class="shadow-xs" @click="restart"
+            >Importar outra planilha</Button
+          >
+          <Button :disabled="confirming" class="shadow-xs font-medium" @click="finish">{{
+            finishLabel
+          }}</Button>
         </div>
       </div>
 
@@ -305,9 +308,9 @@ function downloadTemplate() {
           <strong>{{ split.ready }}</strong>
           {{ split.ready === 1 ? 'empresa será importada' : 'empresas serão importadas' }}.
           <template v-if="split.usage">
-            <strong>{{ split.active }}</strong> {{ split.active === 1 ? 'ficará ativa' : 'ficarão ativas' }}
-            (seu plano cobre {{ split.usage.companyCap }} e você já tem
-            {{ split.usage.companiesActive }}) e
+            <strong>{{ split.active }}</strong>
+            {{ split.active === 1 ? 'ficará ativa' : 'ficarão ativas' }} (seu plano cobre
+            {{ split.usage.companyCap }} e você já tem {{ split.usage.companiesActive }}) e
             <strong>{{ split.inactive }}</strong>
             {{ split.inactive === 1 ? 'ficará inativa' : 'ficarão inativas' }} — ative quando
             quiser.
@@ -340,13 +343,20 @@ function downloadTemplate() {
             >
             <template v-else>Enviar os convites agora também importa as empresas.</template>
           </p>
-          <Button variant="outline" :disabled="inviting" class="shadow-xs font-medium" @click="doSendInvites">
+          <Button
+            variant="outline"
+            :disabled="inviting"
+            class="shadow-xs font-medium"
+            @click="doSendInvites"
+          >
             <Mail class="mr-2 h-4 w-4" aria-hidden="true" />
             {{ inviting ? 'Enviando…' : 'Enviar convites de acesso (' + actionableCount + ')' }}
           </Button>
         </template>
         <template v-else>
-          <p class="flex min-w-0 flex-1 items-center gap-2 text-xs sm:text-sm text-success font-medium">
+          <p
+            class="flex min-w-0 flex-1 items-center gap-2 text-xs sm:text-sm text-success font-medium"
+          >
             <CircleCheck class="shrink-0 h-4 w-4" aria-hidden="true" />
             {{ invitesSent }}
             {{ invitesSent === 1 ? 'convite enviado' : 'convites enviados' }}. Quem já tinha convite
@@ -373,7 +383,9 @@ function downloadTemplate() {
                 class="border-border hover:bg-slate-50/75 transition-colors"
               >
                 <TableCell class="tabular-nums text-muted-foreground">{{ line.line }}</TableCell>
-                <TableCell class="font-medium font-display text-foreground">{{ line.name || '—' }}</TableCell>
+                <TableCell class="font-medium font-display text-foreground">{{
+                  line.name || '—'
+                }}</TableCell>
                 <TableCell>
                   <span
                     v-if="line.status === 'created'"
@@ -414,7 +426,9 @@ function downloadTemplate() {
 
         <div
           class="bg-card rounded-xl border-2 border-dashed p-8 sm:p-10 text-center transition-colors shadow-xs"
-          :class="dragging ? 'border-primary/50 bg-primary/5' : 'border-border hover:border-primary/40'"
+          :class="
+            dragging ? 'border-primary/50 bg-primary/5' : 'border-border hover:border-primary/40'
+          "
           @dragover.prevent="dragging = true"
           @dragleave="dragging = false"
           @drop="drop"
@@ -454,7 +468,12 @@ function downloadTemplate() {
             <Download class="mr-2 h-4 w-4" aria-hidden="true" /> Baixar planilha modelo
           </Button>
           <div class="flex flex-col items-end gap-1">
-            <Button :disabled="!file || sending" class="shadow-xs font-medium" aria-describedby="import-help" @click="importCsv">
+            <Button
+              :disabled="!file || sending"
+              class="shadow-xs font-medium"
+              aria-describedby="import-help"
+              @click="importCsv"
+            >
               {{ sending ? 'Importando…' : 'Importar empresas' }}
             </Button>
             <p id="import-help" class="text-muted-foreground text-xs">
@@ -474,7 +493,11 @@ function downloadTemplate() {
           </p>
         </div>
         <ul class="divide-border divide-y">
-          <li v-for="column in COLUMNS" :key="column.key" class="p-3.5 hover:bg-slate-50/75 transition-colors">
+          <li
+            v-for="column in COLUMNS"
+            :key="column.key"
+            class="p-3.5 hover:bg-slate-50/75 transition-colors"
+          >
             <p class="text-sm font-semibold text-foreground">{{ column.header }}</p>
             <p class="text-muted-foreground mt-0.5 text-xs">
               <span v-if="column.required" class="text-primary font-medium">Obrigatória</span>

@@ -144,7 +144,9 @@ async function goToCheckout(planName: string) {
 <template>
   <div class="mx-auto max-w-5xl w-full">
     <div class="mb-8">
-      <h1 class="text-3xl font-bold tracking-tight font-display text-foreground">Plano e Assinatura</h1>
+      <h1 class="text-3xl font-bold tracking-tight font-display text-foreground">
+        Plano e Assinatura
+      </h1>
       <p class="text-muted-foreground mt-2">
         Gerencie o plano da sua Contabilidade e o acesso ao Competa.
       </p>
@@ -220,7 +222,6 @@ async function goToCheckout(planName: string) {
           empresas ainda conseguem enviar documentos e você pode baixar arquivos já enviados.
         </div>
       </CardContent>
-
     </Card>
 
     <div class="mt-8">
@@ -239,7 +240,7 @@ async function goToCheckout(planName: string) {
         aria-label="Ciclo de cobrança"
       >
         <button
-          v-for="option in (['monthly', 'yearly'] as BillingCycle[])"
+          v-for="option in ['monthly', 'yearly'] as BillingCycle[]"
           :key="option"
           type="button"
           class="rounded-md px-4 py-1.5 text-sm font-medium transition-colors focus-visible:ring-2 focus-visible:ring-ring focus-visible:outline-none"
@@ -258,8 +259,8 @@ async function goToCheckout(planName: string) {
 
       <p class="text-muted-foreground mt-3 text-sm">
         O anual é cobrado de uma vez, em boleto com Pix no QR Code.
-        <strong>Não existe assinatura mensal no Pix</strong> — no mensal o pagamento é no cartão
-        ou por boleto avulso.
+        <strong>Não existe assinatura mensal no Pix</strong> — no mensal o pagamento é no cartão ou
+        por boleto avulso.
       </p>
 
       <div class="mt-8 grid gap-6 sm:grid-cols-3">

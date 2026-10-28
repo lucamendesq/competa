@@ -5,6 +5,9 @@ on:
     - cron: '30 5 * * *'
   workflow_dispatch:
 
+permissions:
+  contents: read
+
 jobs:
   pg-dump:
     runs-on: ubuntu-latest

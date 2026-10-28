@@ -49,11 +49,7 @@ async function confirm() {
         <p class="text-muted-foreground mt-2 text-sm">
           O link acessado não possui o token necessário.
         </p>
-        <Button
-          class="mt-6 w-full"
-          variant="outline"
-          @click="router.push('/minha-area/acesso')"
-        >
+        <Button class="mt-6 w-full" variant="outline" @click="router.push('/minha-area/acesso')">
           Voltar para o início
         </Button>
       </div>

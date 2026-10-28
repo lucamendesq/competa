@@ -172,8 +172,8 @@ async function save() {
 
         <p class="text-muted-foreground text-sm">
           A cobrança automática roda em todos os planos. O que muda aqui é a
-          <strong>cadência</strong>: quantos lembretes, a partir de quantos dias do prazo e com
-          que intervalo.
+          <strong>cadência</strong>: quantos lembretes, a partir de quantos dias do prazo e com que
+          intervalo.
         </p>
         <PlanGateNotice v-if="!canTuneReminders" capability="reminderTuning">
           Ajustar a cadência dos lembretes

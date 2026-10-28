@@ -289,10 +289,7 @@ function maskedCnpj(cnpj: string | null) {
     "
     description="Acompanhe o painel de pendências desta competência."
   >
-    <span
-      class="mr-2 inline-block"
-      :title="canPeriodZip ? undefined : periodZipHint"
-    >
+    <span class="mr-2 inline-block" :title="canPeriodZip ? undefined : periodZipHint">
       <Button
         variant="outline"
         class="shadow-xs"

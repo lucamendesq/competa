@@ -90,7 +90,9 @@ async function sair() {
     >
       <div class="border-b border-border flex h-14 items-center gap-2.5 px-4 lg:h-16">
         <Logo variant="icon" surface="auto" alt="" class="h-8 shrink-0" />
-        <p class="truncate text-sm font-semibold text-slate-900">{{ firmName || 'Contabilidade' }}</p>
+        <p class="truncate text-sm font-semibold text-slate-900">
+          {{ firmName || 'Contabilidade' }}
+        </p>
       </div>
 
       <ul class="flex flex-1 flex-col gap-1 overflow-y-auto p-3">
@@ -121,7 +123,9 @@ async function sair() {
             {{ initials }}
           </span>
           <span class="min-w-0 flex-1">
-            <span class="block truncate text-sm font-medium text-slate-900">{{ accountantName }}</span>
+            <span class="block truncate text-sm font-medium text-slate-900">{{
+              accountantName
+            }}</span>
             <span class="block truncate text-xs text-slate-600">{{ accountantEmail }}</span>
           </span>
           <ChevronDown class="size-4 text-slate-500 shrink-0" aria-hidden="true" />
