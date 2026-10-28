@@ -521,6 +521,33 @@ layer(RequestsRepo.layer)('RequestsRepo', (it) => {
     }),
   );
 
+  it.effect('link revogado não volta à vida pela carência do próximo token', () =>
+    Effect.gen(function* () {
+      const repo = yield* RequestsRepo;
+      const revoke = (requestId: string) =>
+        Effect.promise(() =>
+          db.update(uploadLink).set({ revoked: true }).where(eq(uploadLink.requestId, requestId)),
+        );
+
+      const applied = yield* openBox('revogado-apply');
+      yield* revoke(applied.requestId);
+      yield* repo.applyUploadToken(applied.requestId, hashToken('depois-da-revogacao'));
+      expect(yield* linkRow(applied.requestId)).toMatchObject({
+        tokenHash: hashToken('depois-da-revogacao'),
+        previousTokenHash: null,
+        previousExpiresAt: null,
+      });
+
+      const rotated = yield* openBox('revogado-rotate');
+      yield* revoke(rotated.requestId);
+      expect(yield* repo.rotateUploadToken(rotated.requestId)).toBeTruthy();
+      expect(yield* linkRow(rotated.requestId)).toMatchObject({
+        previousTokenHash: null,
+        previousExpiresAt: null,
+      });
+    }),
+  );
+
   it.effect('rotateUploadToken: devolve o token em claro e dá 48h de carência ao anterior', () =>
     Effect.gen(function* () {
       const repo = yield* RequestsRepo;

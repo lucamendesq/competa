@@ -758,6 +758,7 @@ const make = Effect.gen(function* () {
             id: uploadLink.id,
             tokenHash: uploadLink.tokenHash,
             expiresAt: uploadLink.expiresAt,
+            revoked: uploadLink.revoked,
           })
           .from(uploadLink)
           .where(eq(uploadLink.requestId, requestId))
@@ -766,11 +767,13 @@ const make = Effect.gen(function* () {
 
         if (!current) return false;
 
+        /* Token revogado não ganha carência: copiá-lo para `previous` com `revoked:false`
+         * o ressuscitava por 48h no próximo lembrete ou reenvio. */
         const now = new Date();
-        const graceExpiresAt =
-          !options?.revokePrevious && current
-            ? new Date(Math.min(current.expiresAt.getTime(), addHours(now, 48).getTime()))
-            : null;
+        const keepPrevious = !options?.revokePrevious && !current.revoked;
+        const graceExpiresAt = keepPrevious
+          ? new Date(Math.min(current.expiresAt.getTime(), addHours(now, 48).getTime()))
+          : null;
 
         /* `revoked` vale para a linha inteira e ninguém mais a zerava: a revogação de acesso
          * matava para sempre todo token que o lembrete ou o reenvio emitissem depois. Um
@@ -780,7 +783,7 @@ const make = Effect.gen(function* () {
           .set({
             tokenHash,
             expiresAt: addDays(now, env.UPLOAD_LINK_TTL_DAYS),
-            previousTokenHash: options?.revokePrevious ? null : (current.tokenHash ?? null),
+            previousTokenHash: keepPrevious ? current.tokenHash : null,
             previousExpiresAt: graceExpiresAt,
             revoked: false,
             ...(contactId ? { contactId } : {}),
@@ -806,6 +809,7 @@ const make = Effect.gen(function* () {
             id: uploadLink.id,
             tokenHash: uploadLink.tokenHash,
             expiresAt: uploadLink.expiresAt,
+            revoked: uploadLink.revoked,
           })
           .from(uploadLink)
           .where(eq(uploadLink.requestId, requestId))
@@ -814,17 +818,18 @@ const make = Effect.gen(function* () {
 
         if (!current) return undefined;
 
+        // idem `applyUploadToken`: revogado não ganha carência
         const now = new Date();
-        const graceExpiresAt = new Date(
-          Math.min(current.expiresAt.getTime(), addHours(now, 48).getTime()),
-        );
+        const graceExpiresAt = current.revoked
+          ? null
+          : new Date(Math.min(current.expiresAt.getTime(), addHours(now, 48).getTime()));
 
         const [row] = await tx
           .update(uploadLink)
           .set({
             tokenHash,
             expiresAt: addDays(now, env.UPLOAD_LINK_TTL_DAYS),
-            previousTokenHash: current.tokenHash,
+            previousTokenHash: current.revoked ? null : current.tokenHash,
             previousExpiresAt: graceExpiresAt,
             revoked: false,
             ...(contactId ? { contactId } : {}),
