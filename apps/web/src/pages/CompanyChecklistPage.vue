@@ -27,7 +27,6 @@ const { effectiveChecklistQuery, overridesQuery, saveOverrideMutation, removeOve
   useCompanyChecklistFeature(computed(() => props.id));
 const { documentTypesQuery } = useDocumentTypesFeature(ref(1), ref(100));
 
-
 const catalogOpen = ref(false);
 const catalogSearch = ref('');
 const acting = ref(false);
