@@ -504,11 +504,17 @@ layer(CompaniesRepo.layer)('CompaniesRepo', (it) => {
           { line: 4, body: { name: 'I Sem CNPJ', flags: {} } },
         ]);
 
-        expect(result).toMatchObject({ total: 3, created: 3, activated: 1, failed: 0 });
+        expect(result).toMatchObject({ total: 3, created: 2, updated: 1, activated: 1, failed: 0 });
         expect(result.lines).toMatchObject([
-          { line: 2, status: 'created', name: 'I Estacionada Renomeada', active: false },
-          { line: 3, status: 'created', name: 'I Nova', active: true },
-          { line: 4, status: 'created', name: 'I Sem CNPJ', active: false },
+          {
+            line: 2,
+            status: 'created',
+            name: 'I Estacionada Renomeada',
+            active: false,
+            inserted: false,
+          },
+          { line: 3, status: 'created', name: 'I Nova', active: true, inserted: true },
+          { line: 4, status: 'created', name: 'I Sem CNPJ', active: false, inserted: true },
         ]);
 
         const resent = yield* repo.confirmImport(firmId, [
@@ -522,7 +528,8 @@ layer(CompaniesRepo.layer)('CompaniesRepo', (it) => {
             },
           },
         ]);
-        expect(resent).toMatchObject({ total: 1, created: 1, activated: 1 });
+        // já existia e já estava ativa: atualizada, não nova nem ativada de novo
+        expect(resent).toMatchObject({ total: 1, created: 0, updated: 1, activated: 0 });
 
         const freshRows = yield* Effect.promise(() =>
           db
@@ -553,6 +560,7 @@ layer(CompaniesRepo.layer)('CompaniesRepo', (it) => {
       expect(yield* repo.confirmImport(firmId, [])).toEqual({
         total: 0,
         created: 0,
+        updated: 0,
         activated: 0,
         failed: 0,
         lines: [],

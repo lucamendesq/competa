@@ -55,12 +55,22 @@ export type Override = {
 };
 
 export type ImportLine =
-  | { line: number; status: 'created'; companyId: string; name: string; active: boolean }
+  | {
+      line: number;
+      status: 'created';
+      companyId: string;
+      name: string;
+      active: boolean;
+      /** `false`: CNPJ já cadastrado, atualizado. */
+      inserted: boolean;
+    }
   | { line: number; status: 'error'; name: string; error: string };
 
 export type ImportResult = {
   total: number;
+  /** Empresas novas; as de CNPJ já cadastrado contam em `updated`. */
   created: number;
+  updated: number;
   activated: number;
   failed: number;
   lines: ImportLine[];

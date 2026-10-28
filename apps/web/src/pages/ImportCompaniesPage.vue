@@ -57,7 +57,7 @@ const confirming = ref(false);
 
 const summary = computed(() => {
   const done = confirmed.value;
-  if (done) return { total: done.total, created: done.created, errors: done.failed };
+  if (done) return { total: done.total, created: done.created + done.updated, errors: done.failed };
 
   const current = preview.value;
   return { total: current?.total ?? 0, created: 0, errors: current?.failed ?? 0 };
@@ -102,7 +102,9 @@ watch(
   },
 );
 
-const actionableCount = computed(() => confirmed.value?.created ?? pendingRows.value.length);
+const actionableCount = computed(() =>
+  confirmed.value ? confirmed.value.created + confirmed.value.updated : pendingRows.value.length,
+);
 
 const finishLabel = computed(() => {
   if (confirming.value) return 'Importando…';
@@ -195,9 +197,11 @@ async function confirmOnce(): Promise<string[]> {
 
   const result = await confirmImportApi(pending, activate.value);
   confirmed.value = result;
+  const updated = result.updated ? ` ${result.updated} já cadastrada(s) atualizada(s).` : '';
   toast.success(
-    `${result.created} ${result.created === 1 ? 'empresa importada' : 'empresas importadas'}` +
-      ` — ${result.activated} ativa(s), ${result.created - result.activated} inativa(s).`,
+    `${result.created} ${result.created === 1 ? 'empresa nova' : 'empresas novas'}` +
+      ` — ${result.activated} ativa(s), ${result.created - result.activated} inativa(s).` +
+      updated,
   );
 
   return result.lines

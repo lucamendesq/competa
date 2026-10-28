@@ -481,7 +481,7 @@ describe('POST /companies/import/confirm — gravação', () => {
     expect(got.body.data.responsibleAccountantId).toBe(mine);
   });
 
-  it('reenvio do mesmo CNPJ faz upsert: renomeia sem duplicar e reporta "created"', async () => {
+  it('reenvio do mesmo CNPJ faz upsert: renomeia sem duplicar e conta como atualizada', async () => {
     const res = await api.post('/companies/import/confirm', {
       pending: [
         {
@@ -495,8 +495,10 @@ describe('POST /companies/import/confirm — gravação', () => {
       ],
     });
     expect(res.status).toBe(201);
+    expect(res.body.data).toMatchObject({ created: 0, updated: 1, activated: 0 });
     expect(res.body.data.lines[0]).toMatchObject({
       status: 'created',
+      inserted: false,
       companyId: importedId,
       name: 'Importada Renomeada',
     });

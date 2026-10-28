@@ -31,7 +31,16 @@ import { parseCsvRecords } from './csv.js';
 import { ContactHoldsOpenLinks } from './errors.js';
 
 export type ImportLineResult =
-  | { line: number; status: 'created'; companyId: string; name: string; active: boolean }
+  /* `inserted: false` = CNPJ já cadastrado, atualizado pelo upsert. O `status` continua
+   * 'created' para as duas: a web convida todas as linhas gravadas. */
+  | {
+      line: number;
+      status: 'created';
+      companyId: string;
+      name: string;
+      active: boolean;
+      inserted: boolean;
+    }
   | { line: number; status: 'error'; name: string; error: string };
 
 export type PendingImportRow = { line: number; body: CreateCompanyBody };
@@ -682,6 +691,8 @@ const make = Effect.gen(function* () {
                   name: company.name,
                   cnpj: company.cnpj,
                   active: company.active,
+                  // xmax = 0 só na linha recém-inserida; no ramo de update ela leva o xid
+                  inserted: sql<boolean>`(xmax = 0)`,
                 })
             : [];
 
@@ -700,9 +711,13 @@ const make = Effect.gen(function* () {
                   })),
                 )
                 .returning({ id: company.id, name: company.name, active: company.active })
+                .then((rows) => rows.map((row) => ({ ...row, inserted: true })))
             : [];
 
-          const rowByLine = new Map<number, { id: string; name: string; active: boolean }>();
+          const rowByLine = new Map<
+            number,
+            { id: string; name: string; active: boolean; inserted: boolean }
+          >();
           const companyByCnpj = new Map(upserted.map((row) => [row.cnpj!, row]));
           withCnpj.forEach(({ line, body }) => {
             const matched = companyByCnpj.get(body.cnpj!);
@@ -757,6 +772,7 @@ const make = Effect.gen(function* () {
               companyId: row.id,
               name: row.name,
               active: row.active,
+              inserted: row.inserted,
             };
           });
         }),
@@ -841,8 +857,12 @@ const make = Effect.gen(function* () {
 
     return {
       total: pending.length,
-      created: created.length,
-      activated: created.filter((row) => row.status === 'created' && row.active).length,
+      /* Reenvio de CNPJ já cadastrado é atualização, não Empresa nova — e o import nunca
+       * mexe no `active` de quem já existia, então só as novas contam como ativadas. */
+      created: created.filter((row) => row.status === 'created' && row.inserted).length,
+      updated: created.filter((row) => row.status === 'created' && !row.inserted).length,
+      activated: created.filter((row) => row.status === 'created' && row.inserted && row.active)
+        .length,
       failed: 0,
       lines: created,
     };
