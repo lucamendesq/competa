@@ -366,6 +366,114 @@ layer(SubscriptionsRepo.layer)('SubscriptionsRepo', (it) => {
       }),
   );
 
+  it.effect(
+    'applyEvent: evento que tira acesso só vale para a assinatura atual, não para a substituída',
+    () =>
+      Effect.gen(function* () {
+        const repo = yield* SubscriptionsRepo;
+        const firm = yield* seedFirm('substituida');
+        yield* seedSubscription(firm, {
+          gatewaySubscriptionId: 'sub_nova',
+          previousGatewaySubscriptionIds: ['sub_velha'],
+          status: 'ACTIVE',
+        });
+
+        expect(yield* repo.applyEvent(event('sub_velha', 'SUBSCRIPTION_INACTIVATED'))).toEqual({
+          outcome: 'ignored',
+          reason: 'stale',
+        });
+        expect(yield* repo.applyEvent(event('sub_velha', 'PAYMENT_DELETED'))).toEqual({
+          outcome: 'ignored',
+          reason: 'stale',
+        });
+        expect((yield* subscriptionRow(firm)).status).toBe('ACTIVE');
+
+        /* Pagamento da substituída continua valendo: dinheiro é dinheiro. */
+        expect(yield* repo.applyEvent(event('sub_velha', 'PAYMENT_RECEIVED'))).toMatchObject({
+          outcome: 'applied',
+          status: 'ACTIVE',
+        });
+      }),
+  );
+
+  it.effect('applyEvent: cancelada não vira OVERDUE pelas cobranças apagadas junto', () =>
+    Effect.gen(function* () {
+      const repo = yield* SubscriptionsRepo;
+      const firm = yield* seedFirm('canceladapaga');
+      yield* seedSubscription(firm, {
+        gatewaySubscriptionId: 'sub_cp',
+        status: 'CANCELED',
+        currentPeriodStart: day('2026-10-01'),
+        currentPeriodEnd: day('2026-11-01'),
+      });
+
+      const deleted = yield* repo.applyEvent(
+        event('sub_cp', 'PAYMENT_DELETED', { dueDate: day('2026-11-01') }),
+      );
+      expect(deleted).toEqual({ outcome: 'ignored', reason: 'canceled' });
+      expect((yield* subscriptionRow(firm)).status).toBe('CANCELED');
+    }),
+  );
+
+  it.effect(
+    'applyEvent: fatura vencida do checkout antecipado não encurta o trial; trial acabado vale',
+    () =>
+      Effect.gen(function* () {
+        const repo = yield* SubscriptionsRepo;
+        const live = yield* seedFirm('trialvivo');
+        yield* seedSubscription(live, {
+          gatewaySubscriptionId: 'sub_trial',
+          trialEndsAt: new Date(Date.now() + 7 * 86_400_000),
+          pendingPlanName: 'profissional',
+          pendingPaymentId: 'pay_trial',
+        });
+
+        const lapsed = yield* repo.applyEvent(event('sub_trial', 'PAYMENT_OVERDUE'));
+        expect(lapsed).toEqual({ outcome: 'ignored', reason: 'trial' });
+        expect(yield* subscriptionRow(live)).toMatchObject({
+          status: 'trialing',
+          pendingPaymentId: 'pay_trial',
+        });
+
+        const ended = yield* seedFirm('trialacabado');
+        yield* seedSubscription(ended, {
+          gatewaySubscriptionId: 'sub_trial_fim',
+          trialEndsAt: new Date(Date.now() - 86_400_000),
+        });
+        expect(yield* repo.applyEvent(event('sub_trial_fim', 'PAYMENT_OVERDUE'))).toMatchObject({
+          outcome: 'applied',
+          status: 'OVERDUE',
+        });
+      }),
+  );
+
+  it.effect('applyEvent: cancelada volta ativa e promovida ao pagar o checkout novo', () =>
+    Effect.gen(function* () {
+      const repo = yield* SubscriptionsRepo;
+      const firm = yield* seedFirm('volta');
+      yield* seedSubscription(firm, {
+        gatewaySubscriptionId: 'sub_volta',
+        previousGatewaySubscriptionIds: ['sub_apagada'],
+        status: 'CANCELED',
+        planName: 'essencial',
+        pendingPlanName: 'profissional',
+        pendingCycle: 'monthly',
+        pendingPaymentId: 'pay_volta',
+      });
+
+      const paid = yield* repo.applyEvent(
+        event('sub_volta', 'PAYMENT_CONFIRMED', { id: 'pay_volta', dueDate: day('2026-11-05') }),
+      );
+      expect(paid).toEqual({ outcome: 'applied', status: 'ACTIVE', promoted: true });
+      expect(yield* subscriptionRow(firm)).toMatchObject({
+        status: 'ACTIVE',
+        planName: 'profissional',
+        pendingPlanName: null,
+        currentPeriodStart: day('2026-11-05'),
+      });
+    }),
+  );
+
   it.effect('applyEvent: evento informativo, assinatura desconhecida e externalReference', () =>
     Effect.gen(function* () {
       const repo = yield* SubscriptionsRepo;

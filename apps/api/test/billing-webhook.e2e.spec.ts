@@ -106,6 +106,46 @@ describe('autenticação do webhook', () => {
 });
 
 describe('ciclo de vida pela fila do Asaas', () => {
+  it('cancelou, assinou de novo e pagou: volta ACTIVE no plano novo; a apagada não derruba', async () => {
+    const { api, firmId, gatewaySubscriptionId, paymentId } = await firmWithCheckout();
+    await post({
+      id: eventId(),
+      event: 'PAYMENT_CONFIRMED',
+      payment: { id: paymentId, subscription: gatewaySubscriptionId, dueDate: '2026-10-05' },
+    });
+    expect((await api.delete('/billing/subscription')).status).toBe(200);
+
+    const again = await api.post('/billing/checkout', { planName: 'escritorio', cycle: 'monthly' });
+    expect(again.status, JSON.stringify(again.body)).toBe(201);
+    const pending = await rowOf(firmId);
+    expect(pending.status).toBe('CANCELED');
+    expect(pending.gatewaySubscriptionId).not.toBe(gatewaySubscriptionId);
+
+    /* A cobrança em aberto da assinatura apagada chega depois e não bloqueia nada. */
+    const deleted = await post({
+      id: eventId(),
+      event: 'PAYMENT_DELETED',
+      payment: { subscription: gatewaySubscriptionId, dueDate: '2026-11-05' },
+    });
+    expect(deleted.status).toBe(200);
+    expect((await rowOf(firmId)).status).toBe('CANCELED');
+
+    await post({
+      id: eventId(),
+      event: 'PAYMENT_CONFIRMED',
+      payment: {
+        id: pending.pendingPaymentId,
+        subscription: pending.gatewaySubscriptionId,
+        dueDate: '2026-11-10',
+      },
+    });
+    expect(await rowOf(firmId)).toMatchObject({
+      status: 'ACTIVE',
+      planName: 'escritorio',
+      pendingPlanName: null,
+    });
+  });
+
   it('PAYMENT_CONFIRMED da fatura pendente ativa, promove e ancora o período no vencimento', async () => {
     const { firmId, gatewaySubscriptionId, paymentId } = await firmWithCheckout(
       'escritorio',

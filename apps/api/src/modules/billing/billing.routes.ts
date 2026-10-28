@@ -207,23 +207,28 @@ const checkout = route(
            * aberto, então o boleto que ele já tem passa a valer o preço novo.
            *
            * Se a troca falhar, cai para o caminho antigo: inativa a anterior e cria uma nova.
-           * Mais caro, mas o Contador não fica sem conseguir assinar. */
-          const changed = previous
-            ? yield* gateway(() =>
-                billing.changeSubscriptionPlan(previous, { planName, cycle, value }),
-              ).pipe(
-                Effect.as(true),
-                Effect.catchCause((cause) =>
-                  Effect.sync(() => {
-                    logger.error(
-                      `Troca de plano em ${previous} falhou; recriando a assinatura da firma ${firm.id}`,
-                      squashError(cause),
-                    );
-                    return false;
-                  }),
-                ),
-              )
-            : false;
+           * Mais caro, mas o Contador não fica sem conseguir assinar.
+           *
+           * Cancelada não troca nem inativa: o cancelamento já apagou a assinatura no
+           * gateway, então a volta é sempre por uma assinatura nova. */
+          const canceled = current?.status === 'CANCELED';
+          const changed =
+            previous && !canceled
+              ? yield* gateway(() =>
+                  billing.changeSubscriptionPlan(previous, { planName, cycle, value }),
+                ).pipe(
+                  Effect.as(true),
+                  Effect.catchCause((cause) =>
+                    Effect.sync(() => {
+                      logger.error(
+                        `Troca de plano em ${previous} falhou; recriando a assinatura da firma ${firm.id}`,
+                        squashError(cause),
+                      );
+                      return false;
+                    }),
+                  ),
+                )
+              : false;
 
           if (changed) {
             const invoice = yield* openInvoice(previous!);
@@ -252,7 +257,16 @@ const checkout = route(
             }),
           );
 
-          if (previous && previous !== created.subscriptionId) {
+          /* Grava a nova ANTES de inativar a anterior: o `SUBSCRIPTION_INACTIVATED` que a
+           * inativação dispara só é ignorado quando a anterior já saiu de
+           * `gatewaySubscriptionId`. */
+          yield* persist({
+            gatewaySubscriptionId: created.subscriptionId,
+            paymentId: created.paymentId,
+            invoiceUrl: created.checkoutUrl || null,
+          });
+
+          if (previous && !canceled && previous !== created.subscriptionId) {
             yield* gateway(() => billing.deactivateSubscription(previous)).pipe(
               Effect.catchCause((cause) =>
                 Effect.sync(() => {
@@ -264,12 +278,6 @@ const checkout = route(
               ),
             );
           }
-
-          yield* persist({
-            gatewaySubscriptionId: created.subscriptionId,
-            paymentId: created.paymentId,
-            invoiceUrl: created.checkoutUrl || null,
-          });
 
           return { checkoutUrl: created.checkoutUrl, simulated: billing.simulated, applied: false };
         }),

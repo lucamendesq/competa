@@ -27,7 +27,10 @@ export type WebhookEvent = {
 
 export type WebhookOutcome =
   | { readonly outcome: 'duplicate' }
-  | { readonly outcome: 'ignored'; readonly reason: 'event' | 'unknown' | 'stale' | 'canceled' }
+  | {
+      readonly outcome: 'ignored';
+      readonly reason: 'event' | 'unknown' | 'stale' | 'canceled' | 'trial';
+    }
   | { readonly outcome: 'applied'; readonly status: string; readonly promoted: boolean };
 
 const make = Effect.gen(function* () {
@@ -184,6 +187,17 @@ const make = Effect.gen(function* () {
         const row = yield* findByGateway(input.gatewaySubscriptionId, input.externalReference);
         if (!row) return { outcome: 'ignored', reason: 'unknown' } as const;
 
+        /* Só a assinatura ATUAL tira acesso. A substituída no checkout ainda gera eventos — o
+         * próprio fallback do checkout a inativa (`SUBSCRIPTION_INACTIVATED`) e o Asaas apaga
+         * as cobranças dela —, e eles derrubavam a firma que acabou de assinar de novo. */
+        if (
+          status !== 'ACTIVE' &&
+          input.gatewaySubscriptionId &&
+          input.gatewaySubscriptionId !== row.gatewaySubscriptionId
+        ) {
+          return { outcome: 'ignored', reason: 'stale' } as const;
+        }
+
         if (
           status === 'OVERDUE' &&
           !paymentIsCurrent(input.payment.dueDate, row.currentPeriodStart)
@@ -191,10 +205,23 @@ const make = Effect.gen(function* () {
           return { outcome: 'ignored', reason: 'stale' } as const;
         }
 
-        /* Firma cancelada não volta por webhook: o `RECEIVED` tardio do cartão chega 32 dias
-         * depois do `CONFIRMED` que já abriu o período. Reativar é pelo checkout. */
-        if (status === 'ACTIVE' && row.status === 'CANCELED') {
+        /* Cancelada já perdeu a cobrança recorrente; o acesso vai até `currentPeriodEnd`
+         * (D19 #3). Apagar a assinatura no gateway apaga as cobranças em aberto, e o
+         * `PAYMENT_DELETED` delas não pode virar bloqueio imediato. */
+        if (status === 'OVERDUE' && row.status === 'CANCELED') {
           return { outcome: 'ignored', reason: 'canceled' } as const;
+        }
+
+        /* Trial vale até `trialEndsAt` mesmo com a fatura do checkout antecipado vencida; o
+         * guard bloqueia quando o trial acaba. A intenção fica: o boleto vencido segue
+         * pagável e promove o plano. */
+        if (
+          status === 'OVERDUE' &&
+          row.status === 'trialing' &&
+          row.trialEndsAt !== null &&
+          row.trialEndsAt.getTime() > Date.now()
+        ) {
+          return { outcome: 'ignored', reason: 'trial' } as const;
         }
 
         const pending = row.pendingPlanName
@@ -205,9 +232,20 @@ const make = Effect.gen(function* () {
               priceOverride: row.priceOverride ?? null,
             }
           : null;
+        const coversPending =
+          status === 'ACTIVE' &&
+          pending !== null &&
+          paymentCoversPendingPlan(input.payment, pending);
+
+        /* Firma cancelada só volta pelo pagamento do checkout feito DEPOIS do cancelamento (o
+         * cancelamento limpa a intenção). O `RECEIVED` tardio do cartão, que chega 32 dias
+         * depois do `CONFIRMED` de uma fatura antiga, não reativa. */
+        if (status === 'ACTIVE' && row.status === 'CANCELED' && !coversPending) {
+          return { outcome: 'ignored', reason: 'canceled' } as const;
+        }
 
         const promoted =
-          status === 'ACTIVE' && pending && paymentCoversPendingPlan(input.payment, pending)
+          coversPending && pending
             ? {
                 planName: pending.planName,
                 cycle: pending.cycle,
