@@ -1,5 +1,5 @@
 import { Cause, Context, Effect, Layer } from 'effect';
-import { and, count, eq, ilike, inArray, isNotNull, isNull, or, sql } from 'drizzle-orm';
+import { and, asc, count, eq, ilike, inArray, isNotNull, isNull, ne, or, sql } from 'drizzle-orm';
 import {
   COMPANY_FLAGS,
   type CompanyFlags,
@@ -20,12 +20,15 @@ import {
   checklistTemplate,
   company,
   contact,
+  request,
   subscription,
+  uploadLink,
   user,
 } from '../../infra/database/schema/index.js';
 import type { FirmScope } from '../auth/scope.js';
 
 import { parseCsvRecords } from './csv.js';
+import { ContactHoldsOpenLinks } from './errors.js';
 
 export type ImportLineResult =
   | { line: number; status: 'created'; companyId: string; name: string; active: boolean }
@@ -469,22 +472,64 @@ const make = Effect.gen(function* () {
     });
   });
 
+  /** O Link de Upload referencia o Responsável que o recebeu, e nunca é recriado (só
+   *  rotacionado): apagar o contato direto estourava a FK e virava 500. Os links passam para
+   *  o Responsável mais antigo que sobra, REVOGADOS — o token que o removido tem para de
+   *  valer, e o próximo reenvio vai para quem ficou. Sem ninguém para receber, link de
+   *  Solicitação encerrada sai junto; o de Solicitação aberta impede a remoção. */
   const deleteContact = Effect.fn('CompaniesRepo.deleteContact')(function* (
     scope: FirmScope,
     companyId: string,
     contactId: string,
   ) {
-    return yield* db.use(async (d) => {
-      const owned = await findOwnedIdOf(d, scope, companyId);
-      if (!owned) return undefined;
+    const outcome = yield* db.withTransaction(
+      db.use(async (tx) => {
+        const owned = await findOwnedIdOf(tx, scope, companyId);
+        if (!owned) return undefined;
 
-      const [row] = await d
-        .delete(contact)
-        .where(and(eq(contact.id, contactId), eq(contact.companyId, owned)))
-        .returning({ id: contact.id });
+        const [target] = await tx
+          .select({ id: contact.id })
+          .from(contact)
+          .where(and(eq(contact.id, contactId), eq(contact.companyId, owned)))
+          .for('update');
+        if (!target) return undefined;
 
-      return row;
-    });
+        const [heir] = await tx
+          .select({ id: contact.id })
+          .from(contact)
+          .where(and(eq(contact.companyId, owned), ne(contact.id, contactId)))
+          .orderBy(asc(contact.createdAt))
+          .limit(1);
+
+        if (heir) {
+          await tx
+            .update(uploadLink)
+            .set({
+              contactId: heir.id,
+              revoked: true,
+              previousTokenHash: null,
+              previousExpiresAt: null,
+            })
+            .where(eq(uploadLink.contactId, contactId));
+        } else {
+          const [open] = await tx
+            .select({ id: uploadLink.id })
+            .from(uploadLink)
+            .innerJoin(request, eq(request.id, uploadLink.requestId))
+            .where(and(eq(uploadLink.contactId, contactId), ne(request.status, 'closed')))
+            .limit(1);
+          if (open) return 'holds-open-links' as const;
+
+          await tx.delete(uploadLink).where(eq(uploadLink.contactId, contactId));
+        }
+
+        await tx.delete(contact).where(eq(contact.id, contactId));
+        return target;
+      }),
+    );
+
+    if (outcome === 'holds-open-links') return yield* Effect.fail(new ContactHoldsOpenLinks());
+    return outcome;
   });
 
   const findOwnedId = Effect.fn('CompaniesRepo.findOwnedId')(function* (

@@ -448,6 +448,50 @@ describe('rotação do Link de Upload (upload-link e resend)', () => {
   });
 });
 
+describe('remover Responsável que recebeu o Link de Upload', () => {
+  const contactsOf = async (api: Api, companyId: string) =>
+    (await api.get(`/companies/${companyId}/contacts`)).body.data as Array<{
+      id: string;
+      email: string;
+    }>;
+
+  it('único Responsável com Solicitação aberta → 409; com outro, o link passa revogado', async () => {
+    const fixture = await openFirm(['Herdada']);
+    const box = fixture.boxes.Herdada;
+    const api = fixture.firm.api;
+    const [holder] = await contactsOf(api, box.companyId);
+
+    const blocked = await api.delete(`/companies/${box.companyId}/contacts/${holder.id}`);
+    expect(blocked.status, JSON.stringify(blocked.body)).toBe(409);
+    expect(blocked.body.error.code).toBe('CONTACT_HOLDS_OPEN_LINKS');
+
+    const heir = contactBody();
+    expect((await api.post(`/companies/${box.companyId}/contacts`, heir)).status).toBe(201);
+
+    const removed = await api.delete(`/companies/${box.companyId}/contacts/${holder.id}`);
+    expect(removed.status, JSON.stringify(removed.body)).toBe(204);
+
+    const old = await apiClient(app.url).get(`/upload/${box.uploadToken}`);
+    expect(old.status, 'o token do removido para de valer').toBe(404);
+
+    const resent = await api.post(`/requests/${box.requestId}/upload-link/resend`);
+    expect(resent.status, JSON.stringify(resent.body)).toBe(201);
+    expect(resent.body.data.contactEmail).toBe(heir.email);
+  });
+
+  it('único Responsável só com Solicitação encerrada sai, e o link morto vai junto', async () => {
+    const fixture = await openFirm(['Encerrada']);
+    const box = fixture.boxes.Encerrada;
+    const api = fixture.firm.api;
+    expect((await api.post(`/requests/${box.requestId}/close`)).status).toBe(201);
+    const [holder] = await contactsOf(api, box.companyId);
+
+    const removed = await api.delete(`/companies/${box.companyId}/contacts/${holder.id}`);
+    expect(removed.status, JSON.stringify(removed.body)).toBe(204);
+    expect(await contactsOf(api, box.companyId)).toEqual([]);
+  });
+});
+
 describe('POST /requests/:id/close', () => {
   let fixture: Awaited<ReturnType<typeof openFirm>>;
 
