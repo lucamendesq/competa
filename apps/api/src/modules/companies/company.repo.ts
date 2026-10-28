@@ -598,17 +598,18 @@ const make = Effect.gen(function* () {
                   })),
                 )
                 /* `active` fica FORA do `set`: reenviar a planilha não pode desativar quem o
-                 * Contador já ativou na mão, nem reativar quem ele desativou. */
+                 * Contador já ativou na mão, nem reativar quem ele desativou. Template e
+                 * Contador responsável não são colunas da planilha: chegam nulos e, sem o
+                 * `coalesce`, apagavam o que a Empresa já tinha — e o fan-out seguinte a
+                 * pulava. As flags MESCLAM: coluna ausente não desliga nada. */
                 .onConflictDoUpdate({
                   target: [company.accountingFirmId, company.cnpj],
                   targetWhere: sql`${company.cnpj} is not null`,
                   set: {
                     name: sql`excluded.name`,
-                    checklistTemplateId: sql`excluded.checklist_template_id`,
-                    /* Acompanha `name`/`flags` porque é coluna da planilha, não ajuste
-                     * manual: o `active` é a exceção, e ela está dita acima. */
-                    responsibleAccountantId: sql`excluded.responsible_accountant_id`,
-                    flags: sql`excluded.flags`,
+                    checklistTemplateId: sql`coalesce(excluded.checklist_template_id, ${company.checklistTemplateId})`,
+                    responsibleAccountantId: sql`coalesce(excluded.responsible_accountant_id, ${company.responsibleAccountantId})`,
+                    flags: sql`${company.flags} || excluded.flags`,
                   },
                 })
                 .returning({
@@ -646,7 +647,7 @@ const make = Effect.gen(function* () {
 
           const contacts = pending.flatMap(({ line, body }) =>
             body.contact && rowByLine.has(line)
-              ? [{ ...body.contact, companyId: rowByLine.get(line)!.id }]
+              ? [{ ...body.contact, companyId: rowByLine.get(line)!.id, companyName: body.name }]
               : [],
           );
 
@@ -661,12 +662,20 @@ const make = Effect.gen(function* () {
               existingContacts.map((c) => `${c.companyId}:${c.email.toLowerCase()}`),
             );
 
-            for (const c of contacts) {
+            for (const { companyName, ...c } of contacts) {
               const key = `${c.companyId}:${c.email.toLowerCase()}`;
               if (existingByCompanyEmail.has(key)) {
+                /* Sem coluna de nome, a prévia preenche o nome do Responsável com o da
+                 * Empresa só para o cadastro novo passar no contrato; num contato que já
+                 * existe isso o renomeava para a razão social. Idem telefone vazio. */
+                const patch = {
+                  ...(c.name !== companyName ? { name: c.name } : {}),
+                  ...(c.phone ? { phone: c.phone } : {}),
+                };
+                if (Object.keys(patch).length === 0) continue;
                 await tx
                   .update(contact)
-                  .set({ name: c.name, phone: c.phone ?? null })
+                  .set(patch)
                   .where(and(eq(contact.companyId, c.companyId), eq(contact.email, c.email)));
               } else {
                 await tx.insert(contact).values(c);
@@ -796,11 +805,14 @@ export class CompaniesRepo extends Context.Service<CompaniesRepo, Effect.Success
 
 const TRUTHY_FLAG_VALUES = new Set(['sim', 's', 'true', 'verdadeiro', '1']);
 
+/** Só as colunas presentes viram flag (`false` quando a célula não diz sim): o reenvio
+ *  mescla nas flags da Empresa, então coluna ausente não pode valer "não". */
 const parseFlags = (values: Record<string, string | undefined>): CompanyFlags =>
   Object.fromEntries(
-    COMPANY_FLAGS.filter((flag) =>
-      TRUTHY_FLAG_VALUES.has((values[`flag_${flag}`] ?? '').trim().toLowerCase()),
-    ).map((flag) => [flag, true]),
+    COMPANY_FLAGS.filter((flag) => values[`flag_${flag}`] !== undefined).map((flag) => [
+      flag,
+      TRUTHY_FLAG_VALUES.has(values[`flag_${flag}`]!.trim().toLowerCase()),
+    ]),
   );
 
 const firstIssue = (error: z.ZodError) => {

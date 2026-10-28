@@ -475,6 +475,53 @@ describe('POST /companies/import/confirm — gravação', () => {
     expect(roster.body.data[0].name).toBe('Ivo Renomeado');
   });
 
+  it('reenvio sem as colunas não apaga template, contador, flags, nome nem telefone do Responsável', async () => {
+    const mine = await accountantIdOf(userId);
+    const cnpj = validCnpj();
+    const first = await api.post('/companies/import/confirm', {
+      pending: [
+        {
+          line: 2,
+          body: {
+            name: 'Preservada',
+            cnpj,
+            checklistTemplateId: templateId,
+            responsibleAccountantId: mine,
+            flags: { has_employees: true, has_inventory: true },
+            contact: { name: 'Rita', email: 'rita-import@example.com', phone: '11977776666' },
+          },
+        },
+      ],
+    });
+    expect(first.status, JSON.stringify(first.body)).toBe(201);
+    const companyId = first.body.data.lines[0].companyId;
+
+    /* O que a prévia manda para uma planilha só com nome, CNPJ, e-mail e uma coluna de
+     * flag: o nome do Responsável cai para o da Empresa. */
+    const again = await api.post('/companies/import/confirm', {
+      pending: [
+        {
+          line: 2,
+          body: {
+            name: 'Preservada',
+            cnpj,
+            flags: { has_inventory: false },
+            contact: { name: 'Preservada', email: 'rita-import@example.com' },
+          },
+        },
+      ],
+    });
+    expect(again.status, JSON.stringify(again.body)).toBe(201);
+
+    const got = await api.get(`/companies/${companyId}`);
+    expect(got.body.data).toMatchObject({
+      checklistTemplateId: templateId,
+      responsibleAccountantId: mine,
+      flags: { has_employees: true, has_inventory: false },
+    });
+    expect(got.body.data.contacts[0]).toMatchObject({ name: 'Rita', phone: '11977776666' });
+  });
+
   it('activate:false importa tudo desativado; reimportar com activate:true NÃO reativa', async () => {
     const cnpj = validCnpj();
     const off = await api.post('/companies/import/confirm', {
