@@ -286,7 +286,10 @@ const make = Effect.gen(function* () {
       })
       .from(contact)
       .innerJoin(company, eq(company.id, contact.companyId))
-      .where(and(eq(contact.companyId, companyId), eq(company.accountingFirmId, scope)));
+      .where(and(eq(contact.companyId, companyId), eq(company.accountingFirmId, scope)))
+      /* Mesma ordem do fan-out, que manda o Link ao mais antigo: o formulário edita
+       * `contacts[0]` e, sem ordem, podia mostrar outra pessoa que não a do link. */
+      .orderBy(asc(contact.createdAt), asc(contact.id));
 
   const findById = Effect.fn('CompaniesRepo.findById')(function* (
     scope: FirmScope,

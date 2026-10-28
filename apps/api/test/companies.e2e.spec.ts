@@ -332,6 +332,25 @@ describe('usage e teto do plano (trial: 15 ativas, folga até 18)', () => {
   });
 });
 
+describe('ordem dos Responsáveis', () => {
+  it('o primeiro listado é o mais antigo, o mesmo que o fan-out usa', async () => {
+    const { api } = await registerFirm(app.url);
+    const created = await createCompany(api, { name: 'Dupla', contact: contactBody('Primeira') });
+    for (const name of ['Segunda', 'Terceira']) {
+      expect((await api.post(`/companies/${created.id}/contacts`, contactBody(name))).status).toBe(
+        201,
+      );
+    }
+
+    const got = await api.get(`/companies/${created.id}`);
+    expect(got.body.data.contacts.map((c: { name: string }) => c.name)).toEqual([
+      'Primeira',
+      'Segunda',
+      'Terceira',
+    ]);
+  });
+});
+
 describe('teto do plano sob concorrência', () => {
   it('25 cadastros em paralelo param exatamente na folga (18)', async () => {
     const { api } = await registerFirm(app.url);
