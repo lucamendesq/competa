@@ -274,8 +274,8 @@ async function send(files: File[], requestItemId: string | null) {
                 Acesse quando quiser sem depender do link
               </p>
               <p class="text-muted-foreground text-xs mt-0.5">
-                Mandamos um link de acesso para o seu email e você acompanha pendências e
-                histórico na sua área exclusiva.
+                Mandamos um link de acesso para o seu email e você acompanha pendências e histórico
+                na sua área exclusiva.
               </p>
             </div>
           </div>
@@ -563,6 +563,5 @@ async function send(files: File[], requestItemId: string | null) {
       @dismiss="results = null"
       @retry="send($event, retryTarget)"
     />
-
   </div>
 </template>

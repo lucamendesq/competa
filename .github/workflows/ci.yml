@@ -45,6 +45,7 @@ jobs:
       DB_USER: postgres
       DB_NAME: competa_test
       BETTER_AUTH_SECRET: ci-secret-sem-valor-em-producao
+      BETTER_AUTH_URL: http://localhost:3000
       WEB_URL: http://localhost:4200
     steps:
       - uses: actions/checkout@v4
