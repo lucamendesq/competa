@@ -295,6 +295,7 @@ const make = Effect.gen(function* () {
         fileName: string;
         reason: string;
         storageKey: string;
+        keepReservation?: boolean;
       }[] = [];
 
       for (const row of pending) {
@@ -315,6 +316,10 @@ const make = Effect.gen(function* () {
             fileName: row.fileName,
             reason: sizeReason,
             storageKey,
+            /* Arquivo que ainda não chegou fica reservado (`awaiting_upload`): apagar a
+             * linha deixava o PUT atrasado criar um objeto que nenhuma varredura achava. A
+             * de reservas vencidas apaga linha e objeto, e confirmar de novo ainda vale. */
+            keepReservation: !sealedKey,
           });
           continue;
         }
@@ -357,13 +362,14 @@ const make = Effect.gen(function* () {
         });
       }
 
-      if (refused.length) {
+      const discarded = refused.filter((row) => !row.keepReservation);
+      if (discarded.length) {
         await discardOn(
           d,
-          refused.map((row) => row.documentId),
+          discarded.map((row) => row.documentId),
         );
         await Promise.all(
-          refused.map((row) => storage.remove(row.storageKey).catch(() => undefined)),
+          discarded.map((row) => storage.remove(row.storageKey).catch(() => undefined)),
         );
       }
 

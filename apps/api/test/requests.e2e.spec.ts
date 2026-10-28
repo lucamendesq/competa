@@ -1288,7 +1288,7 @@ describe('upload público — regras de arquivo no presign e na confirmação', 
     expect(asExtra.body.data.files[0].accepted).toBe(true);
   });
 
-  it('confirmar sem PUT → recusado e a reserva é descartada', async () => {
+  it('confirmar sem PUT → recusado, a reserva fica e confirmar depois do PUT vale', async () => {
     const anon = apiClient(app.url);
     const presigned = await anon.post(`/upload/${box.uploadToken}/documents`, {
       files: [{ fileName: 'sem-put.csv', contentType: 'text/csv', sizeBytes: 10 }],
@@ -1311,11 +1311,17 @@ describe('upload público — regras de arquivo no presign e na confirmação', 
       ],
     });
 
-    const rows = await db
-      .select({ id: document.id })
+    const [row] = await db
+      .select({ uploadStatus: document.uploadStatus })
       .from(document)
       .where(eq(document.id, slot.documentId));
-    expect(rows).toHaveLength(0);
+    expect(row.uploadStatus, 'o PUT atrasado ainda tem reserva').toBe('awaiting_upload');
+
+    await putFile(slot.uploadUrl, '0123456789');
+    const late = await anon.post(`/upload/${box.uploadToken}/documents/confirm`, {
+      documentIds: [slot.documentId],
+    });
+    expect(late.body.data.confirmed).toBe(1);
   });
 
   it('tamanho real diferente do declarado → recusado na confirmação', async () => {
