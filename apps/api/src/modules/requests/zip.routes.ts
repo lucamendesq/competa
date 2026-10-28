@@ -32,6 +32,9 @@ const abort = (archive: ZipArchive, error: unknown) => {
   if (!archive.destroyed) archive.destroy();
 };
 
+/* A falha de leitura derruba o zip, não o processo: o archiver não escuta `error` no
+ * stream de cada entrada, então relançar aqui virava `Unhandled 'error' event` e matava a
+ * API inteira por um objeto ausente no storage. O cliente recebe o download truncado. */
 const lazyRead = (storageKey: string, archive: ZipArchive) =>
   Readable.from(
     (async function* () {
@@ -40,7 +43,6 @@ const lazyRead = (storageKey: string, archive: ZipArchive) =>
         yield* source;
       } catch (error) {
         abort(archive, error);
-        throw error;
       }
     })(),
     { objectMode: false },

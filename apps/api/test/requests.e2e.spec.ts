@@ -1488,6 +1488,29 @@ describe('zip e leitura de documentos', () => {
     expect(buffer.includes('Vazia/')).toBe(true);
   });
 
+  it('objeto ausente no storage aborta o zip sem derrubar a API', async () => {
+    const broken = await openFirm(['Quebrada']);
+    await db.insert(document).values({
+      requestId: broken.boxes.Quebrada.requestId,
+      storageKey: 'ausente/nao-existe.pdf',
+      fileName: 'sumiu.pdf',
+      contentType: 'application/pdf',
+      sizeBytes: 10,
+      uploadStatus: 'uploaded',
+      uploadedAt: new Date(),
+    });
+
+    const res = await rawRequest('GET', `/requests/${broken.boxes.Quebrada.requestId}/zip`, {
+      cookie: broken.firm.cookie,
+    });
+    expect(res.status).toBe(200);
+    await res.arrayBuffer().catch(() => undefined);
+
+    const alive = await zipGet(`/requests/${zippedBox.requestId}/zip`);
+    expect(alive.status).toBe(200);
+    await alive.arrayBuffer();
+  });
+
   it('competência acima de 2000 documentos → 422 ZIP_TOO_LARGE', async () => {
     const api = sessionClient(fixture.firm.cookie);
     const opened = await api.post('/periods', { referenceMonth: '2026-10' });
