@@ -89,17 +89,17 @@ describe('autenticação do webhook', () => {
     expect(claimed).toEqual([]);
   });
 
-  it('evento sem id → 400 (não é falha para a fila do Asaas); sem event → 200 inerte', async () => {
+  it('evento sem id e sem event → 200 inerte (só 200 conta como entregue para o Asaas)', async () => {
     const { gatewaySubscriptionId, firmId } = await firmWithCheckout();
 
     const noId = await post({
       event: 'PAYMENT_CONFIRMED',
       payment: { subscription: gatewaySubscriptionId },
     });
-    expect(noId.status).toBe(400);
+    expect(noId.status).toBe(200);
 
     const noEvent = await post({ id: eventId(), payment: { subscription: gatewaySubscriptionId } });
-    expect(noEvent.status).toBe(201);
+    expect(noEvent.status).toBe(200);
 
     expect((await rowOf(firmId)).status).toBe('trialing');
   });
@@ -124,7 +124,7 @@ describe('ciclo de vida pela fila do Asaas', () => {
         externalReference: firmId,
       },
     });
-    expect(res.status, JSON.stringify(res.body)).toBe(201);
+    expect(res.status, JSON.stringify(res.body)).toBe(200);
     expect(res.body).toEqual({ data: { received: true } });
 
     const row = await rowOf(firmId);
@@ -148,14 +148,14 @@ describe('ciclo de vida pela fila do Asaas', () => {
       payment: { id: paymentId, subscription: gatewaySubscriptionId, dueDate: '2026-11-03' },
     };
 
-    expect((await post(body)).status).toBe(201);
+    expect((await post(body)).status).toBe(200);
     await db
       .update(subscription)
       .set({ status: 'OVERDUE' })
       .where(eq(subscription.accountingFirmId, firmId));
 
     const again = await post(body);
-    expect(again.status, 'reenvio responde 2xx para o Asaas parar de insistir').toBe(201);
+    expect(again.status, 'reenvio responde 200 para o Asaas parar de insistir').toBe(200);
     expect((await rowOf(firmId)).status, 'nada reprocessado').toBe('OVERDUE');
   });
 
@@ -208,7 +208,7 @@ describe('ciclo de vida pela fila do Asaas', () => {
       event: 'PAYMENT_DELETED',
       payment: { id: 'pay_velha', subscription: gatewaySubscriptionId, dueDate: '2026-10-01' },
     });
-    expect(stale.status).toBe(201);
+    expect(stale.status).toBe(200);
     expect((await rowOf(firmId)).status).toBe('ACTIVE');
 
     await post({
@@ -262,7 +262,7 @@ describe('throttle do webhook', () => {
       expect(res.headers.get('x-ratelimit-limit-short'), 'sem balde curto').toBeNull();
     }
     expect(
-      statuses.every((status) => status === 201),
+      statuses.every((status) => status === 200),
       statuses.join(','),
     ).toBe(true);
   });

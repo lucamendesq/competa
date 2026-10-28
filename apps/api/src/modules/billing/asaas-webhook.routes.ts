@@ -6,7 +6,7 @@ import env from '../../config/env.js';
 import { handler } from '../../http/envelope.js';
 import { body, publicRoute, route } from '../../http/platform.js';
 import type { Bucket } from '../../http/throttle.js';
-import { BadRequest, Forbidden, ServiceUnavailable } from '../../lib/app-error.js';
+import { Forbidden, ServiceUnavailable } from '../../lib/app-error.js';
 import { secretEquals } from '../../lib/token.js';
 import { asaasDate } from './billing-rules.js';
 import { SubscriptionsRepo } from './subscription.repo.js';
@@ -48,6 +48,9 @@ const WEBHOOK_THROTTLE: readonly Bucket[] = [{ name: 'default', limit: 600, ttlM
 
 const logger = new Logger('AsaasWebhookController');
 
+/* O Asaas só conta como entregue a resposta 200 (docs "Fila pausada": 201 e 204 também são
+ * falha), e 15 falhas seguidas pausam a fila. Por isso todo desfecho tratado aqui — inclusive
+ * evento inerte ou ignorado — responde 200; só token/configuração ruins saem com erro. */
 const webhook = route(
   'POST',
   '/billing/webhook/asaas',
@@ -72,9 +75,13 @@ const webhook = route(
       }
 
       /* Todo evento do Asaas tem `id` (`evt_...`); é ele que barra o reenvio. Sem id não há
-       * como processar uma vez só, e um 400 não é falha para a fila deles. */
+       * como processar uma vez só: registra e responde 200 inerte, porque qualquer outro
+       * status entra no ciclo de reenvio deles. */
       const { id, event } = payload;
-      if (!id) return yield* Effect.fail(new BadRequest('Evento sem id.'));
+      if (!id) {
+        logger.warn(`Webhook Asaas sem id (${event ?? 'sem event'}); ignorado.`);
+        return { received: true };
+      }
       if (!event) return { received: true };
 
       const gatewaySubscriptionId =
@@ -109,6 +116,7 @@ const webhook = route(
 
       return { received: true };
     }),
+    200,
   ),
   { auth: publicRoute, throttle: WEBHOOK_THROTTLE },
 );
