@@ -35,7 +35,15 @@ flyctl secrets set -a competa-api \
   WEB_URL=https://app.competa.com.br \
   R2_ACCOUNT_ID=... R2_ACCESS_KEY_ID=... R2_SECRET_ACCESS_KEY=... R2_BUCKET=... \
   RESEND_API_KEY=... EMAIL_FROM=... \
-  VAPID_PUBLIC_KEY=... VAPID_PRIVATE_KEY=... VAPID_SUBJECT=mailto:contato@competa.com.br
+  VAPID_PUBLIC_KEY=... VAPID_PRIVATE_KEY=... VAPID_SUBJECT=mailto:contato@competa.com.br \
+  SENTRY_DSN=... \
+  ASAAS_API_KEY=... ASAAS_WEBHOOK_TOKEN="$(openssl rand -hex 32)" \
+  WHATSAPP_ENCRYPTION_KEY="$(openssl rand -hex 32)"
+
+# SENTRY_DSN é secret, não [env] do fly.toml: o DSN aceita eventos de quem o tiver, e o
+# fly.toml está no repositório. ASAAS_WEBHOOK_TOKEN é o mesmo valor cadastrado no painel do
+# Asaas (webhook → token de autenticação). WHATSAPP_ENCRYPTION_KEY: 64 hex, sem ela a API
+# não sobe.
 
 # gerar o par VAPID antes do set acima, se ainda não existir:
 npx web-push generate-vapid-keys

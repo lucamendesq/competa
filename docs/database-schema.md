@@ -43,6 +43,8 @@ create table accounting_firm (            -- Contabilidade (tenant raiz)
   name          text not null,
   logo_url      text,                         -- URL pública do logotipo
   contact_email text,                         -- E-mail público de contato da contabilidade
+  cnpj          text,                         -- documento do pagador no gateway; nulo no cadastro,
+                                              -- obrigatório no primeiro checkout; nunca apagado
   -- preferências de lembrete (2026-09-11): a cadência do cron é por tenant;
   -- defaults reproduzem o comportamento histórico (regras em reminder-rules.ts)
   reminder_max            smallint not null default 2,  -- máx. lembretes por Solicitação
@@ -53,16 +55,34 @@ create table accounting_firm (            -- Contabilidade (tenant raiz)
     and reminder_due_soon_days between 0 and 31
     and reminder_gap_days between 1 and 31)
 );
+-- uma Contabilidade por CNPJ: um segundo cadastro da mesma pessoa jurídica seria um segundo trial
+create unique index accounting_firm_cnpj_uidx on accounting_firm (cnpj) where cnpj is not null;
 
 create table subscription (               -- Assinatura Asaas e Status (COM-6)
   id                       uuid primary key,
   accounting_firm_id       uuid not null unique references accounting_firm(id) on delete cascade,
   gateway_customer_id      text,          -- cus_... (Asaas)
   gateway_subscription_id  text,          -- sub_... (Asaas)
-  plan_name                text not null default 'trial',
+  -- assinaturas do gateway que esta linha já teve: a cobrança em aberto de uma assinatura
+  -- substituída continua pagável, e o webhook acha a firma por ela
+  previous_gateway_subscription_ids text[] not null default '{}',
+  plan_name                text not null default 'trial',   -- o que VALE (gate de capability lê daqui)
   cycle                    text not null default 'monthly', -- monthly | yearly (anual = 10× o mensal)
-  status                   text not null default 'trialing', -- trialing, ACTIVE, OVERDUE, CANCELED
+  -- intenção do checkout ainda não paga. Fica aqui, e não em plan_name, porque o gate lê
+  -- plan_name: gravar a escolha lá liberava recurso pago antes do dinheiro entrar. O webhook
+  -- promove para plan_name/cycle quando o pagamento é DA fatura abaixo (pending_payment_id)
+  -- ou, sem id gravado, quando o valor cobre o plano pendente.
+  pending_plan_name        text,
+  pending_cycle            text,
+  pending_payment_id       text,          -- pay_... da fatura que paga a intenção
+  pending_invoice_url      text,          -- link dela (só o dono recebe em GET /billing/subscription)
+  status                   text not null default 'trialing',
+  constraint subscription_status_chk check (status in ('trialing', 'ACTIVE', 'OVERDUE', 'CANCELED')),
   trial_ends_at            timestamptz,
+  -- período pago, ancorado no VENCIMENTO da fatura (onde o Asaas ancora o ciclo), em UTC;
+  -- só anda para a frente. A varredura diária de cobrança fecha (OVERDUE) a ACTIVE cujo
+  -- current_period_end passou há mais de 7 dias sem fatura paga; CANCELED mantém a escrita
+  -- até current_period_end.
   current_period_start     timestamptz,
   current_period_end       timestamptz,
   -- Oferta Fundador (D18 §6): mapa de preço mensal por plano, ex. {"profissional": 139}.
@@ -263,7 +283,8 @@ create table upload_link (                -- Link de Upload (token próprio; NÃ
   expires_at  timestamptz not null,
   previous_token_hash text,               -- token anterior (janela de carência na rotação)
   previous_expires_at timestamptz,
-  revoked     boolean not null default false
+  revoked     boolean not null default false -- revogação de acesso pelo Contador; todo token novo
+                                             -- (lembrete, reenvio, troca de e-mail) a zera
 );
 create index upload_link_request_idx on upload_link (request_id); -- toda rotação/reenvio busca por aqui
 create index upload_link_previous_token_idx on upload_link (previous_token_hash);
@@ -296,6 +317,25 @@ create index message_reminder_idx on message (request_id, purpose);
 -- Defaults: máx. 2 por Solicitação; com prazo, lembra a partir de D-3 com gap mínimo de
 -- 3 dias; sem prazo, cadência semanal fixa. Regras puras em modules/messaging/reminder-rules.ts.
 -- Falha de canal nunca bloqueia o fluxo: vira status='failed' + error e segue.
+```
+
+### ops (Operação)
+
+```sql
+create table cron_lease (                 -- voo único das varreduras agendadas (sem advisory lock)
+  name        text primary key,           -- deadline-sweep | billing-sweep | reminders-sweep
+  holder      text not null,              -- uuid da instância que a tomou
+  expires_at  timestamptz not null        -- vazamento morre sozinho; tomar/soltar são UPDATEs
+);
+-- Todo o tempo vem do banco (now()): comparar relógio do Node com o do Postgres prendia a lease.
+
+create table billing_webhook_event (      -- eventos do Asaas já processados (idempotência)
+  id          text primary key,           -- evt_... do topo do payload
+  event       text not null
+);
+-- Reivindicação (insert on conflict do nothing) e efeito rodam na MESMA transação: se o efeito
+-- falha, a reivindicação volta e o reenvio do Asaas processa. A varredura diária de cobrança
+-- apaga linhas com mais de 30 dias (o Asaas reenvia por no máximo 14).
 ```
 
 ## Consultas/algoritmos canônicos
@@ -373,13 +413,14 @@ valida `expires_at`/`revoked` e injeta `UploadScope`), `modules/requests/upload.
 
 ## Transições de estado
 
-| Entidade                 | Transições                                                                                                                                                                                                                                                                                                                                                                                                                                 |
-| ------------------------ | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
-| `request_item.status`    | `pending → submitted` (upload) `→ accepted` \| `rejected` (Revisão); `rejected → pending` (reabertura: **rotaciona o token** do `upload_link` e dispara reenvio SÓ por email — o link anterior morre). Rejeição é por Documento; aceitar o Item aceita todos os Documentos `pending` dele (Documento já `rejected` fica como histórico).                                                                                                   |
-| `request.status`         | `open → complete` (todos os itens `accepted`, automático); `open\|complete → closed` (ato do Contador; pode fechar com pendências, com aviso)                                                                                                                                                                                                                                                                                              |
-| `period.status`          | `open → closed` (ato do Contador)                                                                                                                                                                                                                                                                                                                                                                                                          |
-| `document.upload_status` | `awaiting_upload → uploaded` (confirmação, que confere tamanho real). Nunca volta; envio não confirmado em 24h é apagado pela faxina                                                                                                                                                                                                                                                                                                       |
-| `document.review_status` | `pending → accepted` \| `rejected` — Revisão em lote opera no Item (aceita todos os `document` `uploaded` e `pending` do item de uma vez). **Documento Extra** é revisado individualmente (`POST /documents/:id/review-extra`) e não entra na conta de `complete`. **Aceite é desfazível** (`POST /request-items/:id/undo-accept`): Item volta a `submitted`/`pending` e os Documentos aceitos voltam a `pending` — desfazer não é recusar |
+| Entidade                 | Transições                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                               |
+| ------------------------ | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `request_item.status`    | `pending → submitted` (upload) `→ accepted` \| `rejected` (Revisão); `rejected → pending` (reabertura: **rotaciona o token** do `upload_link` e dispara reenvio SÓ por email — o link anterior morre). Rejeição é por Documento; aceitar o Item aceita todos os Documentos `pending` dele (Documento já `rejected` fica como histórico).                                                                                                                                                                                                                                                                                                                                                 |
+| `request.status`         | `open → complete` (todos os itens `accepted`, automático); `open\|complete → closed` (ato do Contador; pode fechar com pendências, com aviso)                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                            |
+| `subscription.status`    | `trialing → ACTIVE` (webhook `PAYMENT_CONFIRMED`/`RECEIVED`; a intenção só vira `plan_name` se o pagamento é da fatura pendente) `→ OVERDUE` (`PAYMENT_OVERDUE`/`DELETED`/`REFUNDED`/chargeback de fatura do período corrente, ou varredura diária 7 dias após `current_period_end`) `→ ACTIVE` (novo pagamento) ; `ACTIVE\|OVERDUE → CANCELED` (`DELETE /billing/subscription` pelo dono, ou `SUBSCRIPTION_INACTIVATED`/`DELETED` no Asaas; escrita vale até `current_period_end`; não reativa por webhook, só por checkout). Troca de plano com assinatura ACTIVE: preço igual/menor aplica na hora; upgrade cobra agora o novo ciclo menos o crédito do atual e promove no pagamento. |
+| `period.status`          | `open → closed` (ato do Contador)                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                        |
+| `document.upload_status` | `awaiting_upload → uploaded` (confirmação, que confere tamanho real). Nunca volta; envio não confirmado em 24h é apagado pela faxina                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                     |
+| `document.review_status` | `pending → accepted` \| `rejected` — Revisão em lote opera no Item (aceita todos os `document` `uploaded` e `pending` do item de uma vez). **Documento Extra** é revisado individualmente (`POST /documents/:id/review-extra`) e não entra na conta de `complete`. **Aceite é desfazível** (`POST /request-items/:id/undo-accept`): Item volta a `submitted`/`pending` e os Documentos aceitos voltam a `pending` — desfazer não é recusar                                                                                                                                                                                                                                               |
 
 ### Fase 10 — acesso do Responsável
 
