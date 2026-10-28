@@ -155,7 +155,9 @@ onMounted(fetchStatus);
         </CardHeader>
         <CardContent class="space-y-4 text-sm text-muted-foreground">
           <p>O envio via WhatsApp aumenta em até 80% a taxa de entrega dos documentos no prazo.</p>
-          <div class="rounded-xl border border-warning-border bg-warning-surface p-4 text-warning-foreground">
+          <div
+            class="rounded-xl border border-warning-border bg-warning-surface p-4 text-warning-foreground"
+          >
             <p class="font-semibold text-warning-foreground mb-1">Atenção aos custos</p>
             <p class="leading-relaxed">
               O serviço de mensagens do WhatsApp / Meta Cloud API é cobrado diretamente pela Meta
@@ -189,20 +191,32 @@ onMounted(fetchStatus);
         <CardContent class="space-y-6">
           <div class="grid gap-4 md:grid-cols-2">
             <div class="space-y-1 bg-muted/30 p-3.5 rounded-lg border border-border/60">
-              <span class="text-xs font-semibold text-muted-foreground uppercase tracking-wider">Número de Disparo</span>
+              <span class="text-xs font-semibold text-muted-foreground uppercase tracking-wider"
+                >Número de Disparo</span
+              >
               <p class="text-base font-medium text-foreground">{{ displayPhoneNumber }}</p>
             </div>
             <div class="space-y-1 bg-muted/30 p-3.5 rounded-lg border border-border/60">
-              <span class="text-xs font-semibold text-muted-foreground uppercase tracking-wider">Status da Conexão</span>
-              <p class="text-base font-medium text-foreground capitalize">{{ status.replace('_', ' ') }}</p>
+              <span class="text-xs font-semibold text-muted-foreground uppercase tracking-wider"
+                >Status da Conexão</span
+              >
+              <p class="text-base font-medium text-foreground capitalize">
+                {{ status.replace('_', ' ') }}
+              </p>
             </div>
-            <div class="space-y-1 bg-muted/30 p-3.5 rounded-lg border border-border/60 md:col-span-2">
-              <span class="text-xs font-semibold text-muted-foreground uppercase tracking-wider">WABA ID</span>
+            <div
+              class="space-y-1 bg-muted/30 p-3.5 rounded-lg border border-border/60 md:col-span-2"
+            >
+              <span class="text-xs font-semibold text-muted-foreground uppercase tracking-wider"
+                >WABA ID</span
+              >
               <p class="text-sm font-mono text-muted-foreground break-all">{{ wabaId }}</p>
             </div>
           </div>
         </CardContent>
-        <CardFooter class="flex flex-col sm:flex-row gap-4 sm:items-center sm:justify-between border-t border-border px-6 py-4">
+        <CardFooter
+          class="flex flex-col sm:flex-row gap-4 sm:items-center sm:justify-between border-t border-border px-6 py-4"
+        >
           <p class="text-xs text-muted-foreground">
             Lembre-se: os custos de disparo são faturados pela Meta.
           </p>
@@ -221,12 +235,7 @@ onMounted(fetchStatus);
         </CardHeader>
         <CardContent>
           <div class="flex max-w-sm items-center gap-2">
-            <Input
-              v-model="testPhone"
-              type="text"
-              placeholder="Ex: 5511999999999"
-              class="w-full"
-            />
+            <Input v-model="testPhone" type="text" placeholder="Ex: 5511999999999" class="w-full" />
             <Button
               @click="sendTestMessage"
               :disabled="sendingTest || !testPhone"

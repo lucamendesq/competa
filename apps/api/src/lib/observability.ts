@@ -1,4 +1,4 @@
-import * as Sentry from '@sentry/nestjs';
+import * as Sentry from '@sentry/node';
 
 type Channel = 'email' | 'push';
 type MessagePurpose = 'link_delivery' | 'reminder' | 'rejection' | 'deadline_missed' | 'completion';

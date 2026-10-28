@@ -237,10 +237,14 @@ async function restoreDefault() {
           :key="category"
           class="bg-card border-border rounded-xl border shadow-sm overflow-hidden"
         >
-          <div class="bg-sunken/60 border-b border-border px-5 py-3.5 flex items-center justify-between">
+          <div
+            class="bg-sunken/60 border-b border-border px-5 py-3.5 flex items-center justify-between"
+          >
             <h2 class="font-display text-sm font-semibold text-foreground flex items-center gap-2">
               <span>{{ CATEGORY_LABEL[category] ?? category }}</span>
-              <span class="bg-muted text-muted-foreground inline-flex items-center rounded-full px-2 py-0.5 text-xs font-semibold">
+              <span
+                class="bg-muted text-muted-foreground inline-flex items-center rounded-full px-2 py-0.5 text-xs font-semibold"
+              >
                 {{ groupLines.length }}
               </span>
             </h2>
@@ -274,7 +278,11 @@ async function restoreDefault() {
                 <div class="flex flex-wrap items-center gap-2">
                   <p
                     class="text-sm font-medium"
-                    :class="line.source === 'removido' ? 'line-through text-muted-foreground' : 'text-foreground font-display'"
+                    :class="
+                      line.source === 'removido'
+                        ? 'line-through text-muted-foreground'
+                        : 'text-foreground font-display'
+                    "
                   >
                     {{ line.name }}
                   </p>

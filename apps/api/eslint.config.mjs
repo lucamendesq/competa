@@ -1,12 +1,6 @@
 import tseslint from 'typescript-eslint';
 import base from '../../eslint.config.mjs';
 
-const DATABASE_IMPORT = {
-  group: ['**/infra/database/database', '**/infra/database/database.js'],
-  message:
-    'Database só pode ser injetado em *.repository.ts ou *.guard.ts. Controller consulta via repositório, para que o FirmScope seja exigido por assinatura.',
-};
-
 const DB_INSTANCE_IMPORT = {
   group: ['**/infra/database/index', '**/infra/database/index.js'],
   importNames: ['db'],
@@ -45,15 +39,8 @@ export default tseslint.config(
   {
     files: ['**/*.ts'],
     rules: {
-      'no-restricted-imports': ['error', { patterns: [DATABASE_IMPORT, DB_INSTANCE_IMPORT] }],
-      'no-restricted-syntax': ['error', SCOPE_CONSTRUCTOR_IMPORT, SCOPE_CAST],
-    },
-  },
-
-  {
-    files: ['**/*.repository.ts', '**/*.guard.ts'],
-    rules: {
       'no-restricted-imports': ['error', { patterns: [DB_INSTANCE_IMPORT] }],
+      'no-restricted-syntax': ['error', SCOPE_CONSTRUCTOR_IMPORT, SCOPE_CAST],
     },
   },
 
@@ -64,8 +51,11 @@ export default tseslint.config(
     },
   },
 
+  /* `src/http/middleware/auth.ts` é o ÚNICO lugar do shell Effect onde o escopo nasce — o
+   * mesmo papel que os guards de `src/modules/auth/` têm na casca Nest. A exceção dos
+   * guards continua até eles serem apagados. */
   {
-    files: ['src/modules/auth/**/*.ts'],
+    files: ['src/modules/auth/**/*.ts', 'src/http/middleware/auth.ts'],
     rules: {
       'no-restricted-syntax': ['error', SCOPE_CAST],
     },
@@ -97,7 +87,21 @@ export default tseslint.config(
    * diretiva `eslint-disable` no arquivo porque o `--fix` do lint-staged roda com a config
    * da raiz, que não tem este bloco, e apaga a diretiva por achá-la inútil. */
   {
-    files: ['src/scripts/verify-com-148.ts', 'src/scripts/verify-com-152.ts'],
+    files: [
+      'src/scripts/verify-com-148.ts',
+      'src/scripts/verify-com-152.ts',
+      'src/scripts/verify-clean-firm.ts',
+      'src/scripts/verify-com-tickets.ts',
+    ],
+    rules: {
+      'no-restricted-syntax': 'off',
+    },
+  },
+
+  /* Testes de unidade dos serviços Effect montam fixture própria no banco — mesmo caso dos
+   * scripts de verificação acima: não há request nem guard de onde o escopo possa nascer. */
+  {
+    files: ['test/unit/**/*.ts'],
     rules: {
       'no-restricted-syntax': 'off',
     },

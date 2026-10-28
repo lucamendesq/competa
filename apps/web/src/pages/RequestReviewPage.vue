@@ -213,7 +213,9 @@ async function publish() {
         >
           <div class="flex flex-wrap items-start justify-between gap-3">
             <div class="min-w-0">
-              <h3 class="flex flex-wrap items-center gap-2 text-base font-semibold font-display text-foreground">
+              <h3
+                class="flex flex-wrap items-center gap-2 text-base font-semibold font-display text-foreground"
+              >
                 {{ item.name }}
                 <StatusPill v-if="wasResent(item)" status="resent" />
               </h3>
@@ -231,8 +233,14 @@ async function publish() {
             </Button>
           </div>
 
-          <ul class="border-border divide-border mt-4 divide-y rounded-xl border bg-card overflow-hidden">
-            <li v-for="doc in item.documents" :key="doc.id" class="flex flex-col gap-3 p-3.5 hover:bg-slate-50/75 transition-colors">
+          <ul
+            class="border-border divide-border mt-4 divide-y rounded-xl border bg-card overflow-hidden"
+          >
+            <li
+              v-for="doc in item.documents"
+              :key="doc.id"
+              class="flex flex-col gap-3 p-3.5 hover:bg-slate-50/75 transition-colors"
+            >
               <div class="flex flex-wrap items-center justify-between gap-2">
                 <div class="min-w-0">
                   <p class="truncate text-sm font-medium text-foreground">{{ doc.fileName }}</p>
@@ -242,7 +250,12 @@ async function publish() {
                 </div>
                 <div class="flex items-center gap-2">
                   <StatusPill v-if="doc.reviewStatus !== 'pending'" :status="doc.reviewStatus" />
-                  <Button variant="ghost" size="sm" class="hover:bg-sunken text-muted-foreground hover:text-foreground" @click="openDocument(doc)">
+                  <Button
+                    variant="ghost"
+                    size="sm"
+                    class="hover:bg-sunken text-muted-foreground hover:text-foreground"
+                    @click="openDocument(doc)"
+                  >
                     <ExternalLink class="mr-2 h-4 w-4" /> Abrir
                   </Button>
                   <Button
@@ -272,7 +285,10 @@ async function publish() {
         </article>
       </section>
 
-      <section v-else class="border-border bg-card rounded-xl border-2 border-dashed p-12 text-center shadow-xs">
+      <section
+        v-else
+        class="border-border bg-card rounded-xl border-2 border-dashed p-12 text-center shadow-xs"
+      >
         <p class="text-muted-foreground text-sm">Nenhum documento aguardando conferência.</p>
       </section>
 
@@ -283,7 +299,9 @@ async function publish() {
         <h2 class="text-sm font-semibold uppercase tracking-wider text-muted-foreground">
           Documentos extras ({{ detailQuery.data.value.extraDocuments.length }})
         </h2>
-        <ul class="bg-card border-border divide-border divide-y rounded-xl border shadow-sm overflow-hidden">
+        <ul
+          class="bg-card border-border divide-border divide-y rounded-xl border shadow-sm overflow-hidden"
+        >
           <li
             v-for="doc in detailQuery.data.value.extraDocuments"
             :key="doc.id"
@@ -298,7 +316,12 @@ async function publish() {
               </div>
               <div class="flex items-center gap-2">
                 <StatusPill v-if="doc.reviewStatus !== 'pending'" :status="doc.reviewStatus" />
-                <Button variant="ghost" size="sm" class="hover:bg-sunken text-muted-foreground hover:text-foreground" @click="openDocument(doc)">
+                <Button
+                  variant="ghost"
+                  size="sm"
+                  class="hover:bg-sunken text-muted-foreground hover:text-foreground"
+                  @click="openDocument(doc)"
+                >
                   <ExternalLink class="mr-2 h-4 w-4" /> Abrir
                 </Button>
                 <template v-if="doc.reviewStatus === 'pending'">
@@ -340,8 +363,14 @@ async function publish() {
         <h2 class="text-sm font-semibold uppercase tracking-wider text-muted-foreground">
           Demais itens ({{ settledItems.length }})
         </h2>
-        <ul class="bg-card border-border divide-border divide-y rounded-xl border shadow-sm overflow-hidden">
-          <li v-for="item in settledItems" :key="item.id" class="flex flex-col gap-2 p-3.5 hover:bg-slate-50/75 transition-colors">
+        <ul
+          class="bg-card border-border divide-border divide-y rounded-xl border shadow-sm overflow-hidden"
+        >
+          <li
+            v-for="item in settledItems"
+            :key="item.id"
+            class="flex flex-col gap-2 p-3.5 hover:bg-slate-50/75 transition-colors"
+          >
             <div class="flex flex-wrap items-center justify-between gap-2">
               <span class="text-sm font-medium text-foreground">{{ item.name }}</span>
               <div class="flex items-center gap-2">
@@ -373,7 +402,9 @@ async function publish() {
     <div class="mx-auto flex flex-col sm:flex-row sm:items-center justify-between gap-3">
       <span class="text-sm font-medium text-foreground">
         {{ decisionCount }} decisão(ões) não publicada(s)
-        <span v-if="missingReason" class="text-danger font-normal ml-1">— informe o motivo das recusas</span>
+        <span v-if="missingReason" class="text-danger font-normal ml-1"
+          >— informe o motivo das recusas</span
+        >
       </span>
       <div class="flex items-center gap-2.5">
         <Button variant="ghost" :disabled="acting" @click="discard">Descartar</Button>

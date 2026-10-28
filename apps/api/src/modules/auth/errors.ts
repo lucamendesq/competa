@@ -1,6 +1,17 @@
 import { planGateMessage, planRequiredFor, type PlanCapability } from '@competa/contracts';
 import { AppError } from '../../lib/app-error.js';
 
+/** Mensagem única para link inexistente, expirado ou revogado: dizer qual dos três
+ *  daria a quem tenta adivinhar um oráculo sobre tokens válidos. */
+export class InvalidUploadLink extends AppError {
+  readonly code = 'UPLOAD_LINK_INVALID';
+  readonly status = 404;
+
+  constructor() {
+    super('Este link de envio não está disponível. Peça um novo à sua contabilidade.');
+  }
+}
+
 export class InviteNotFound extends AppError {
   readonly code = 'INVITE_NOT_FOUND';
   readonly status = 404;

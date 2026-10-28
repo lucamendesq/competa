@@ -1,11 +1,9 @@
 import type { IncomingHttpHeaders } from 'node:http';
-import { Injectable } from '@nestjs/common';
 import { fromNodeHeaders } from 'better-auth/node';
 import auth from './better-auth.js';
 import { AuthProvider, AuthSession, SignUpEmailInput } from '../../modules/auth/auth-provider.js';
 import { isFailure, Result, success, tryCatchAsync } from '../../lib/either.js';
 
-@Injectable()
 export class BetterAuthAdapter implements AuthProvider {
   async signUpEmail(
     input: SignUpEmailInput,

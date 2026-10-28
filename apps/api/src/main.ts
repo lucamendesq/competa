@@ -1,47 +1,44 @@
 import './instrument.js';
 
-import type { NestExpressApplication } from '@nestjs/platform-express';
-import { NestFactory } from '@nestjs/core';
-import { Logger } from 'nestjs-pino';
-import helmet from 'helmet';
-import { AppModule } from './app.module.js';
+import { createApp } from './app.js';
 import { buildInfo } from './build-info.js';
-import env, { allowedOrigins } from './config/env.js';
-import { AppErrorFilter } from './lib/app-error.filter.js';
-import { originCheck } from './lib/origin-check.js';
-import { ResponseInterceptor } from './lib/response.interceptor.js';
+import env from './config/env.js';
+import { Logger } from './lib/logger.js';
 
-async function bootstrap() {
-  const app = await NestFactory.create<NestExpressApplication>(AppModule, {
-    bodyParser: false,
-    bufferLogs: true,
+const app = await createApp();
+new Logger('Bootstrap').log(
+  `API na porta ${env.PORT} — compilada em ${buildInfo.compiledAt}, processo iniciado em ${buildInfo.startedAt}`,
+);
+
+/* Substitui o `enableShutdownHooks()` do Nest: o socket é do servidor Effect, e `close()`
+ * derruba o servidor e depois os crons. Mesma lista de sinais que o `ShutdownSignal` do
+ * Nest.
+ *
+ * O `process.exit` no fim NÃO é zelo: o pool do pg nunca recebe `end()` (não recebia nem
+ * antes), então sempre sobra handle vivo e o node não sai sozinho. O Nest encerrava com
+ * `process.kill(pid, signal)` depois dos hooks; sem um encerramento explícito aqui, um
+ * SIGTERM do orquestrador fecharia o socket e penduraria o processo até o SIGKILL. */
+const SHUTDOWN_SIGNALS = [
+  'SIGHUP',
+  'SIGINT',
+  'SIGQUIT',
+  'SIGILL',
+  'SIGTRAP',
+  'SIGABRT',
+  'SIGBUS',
+  'SIGFPE',
+  'SIGSEGV',
+  'SIGUSR2',
+  'SIGTERM',
+] as const;
+
+for (const signal of SHUTDOWN_SIGNALS) {
+  process.once(signal, () => {
+    void app
+      .close()
+      .catch((error: unknown) => {
+        console.error('Falha ao encerrar a API', error);
+      })
+      .finally(() => process.exit(0));
   });
-  const logger = app.get(Logger);
-  app.useLogger(logger);
-
-  /* Atrás de um reverse proxy o Express vê o IP DELE em `req.ip`, e todo @Throttle vira um
-   * balde único para o mundo inteiro — um cliente barulhento 429a a base. Só em produção:
-   * confiar no X-Forwarded-For sem proxy à frente deixa qualquer cliente forjar o próprio
-   * IP e escapar do limite. */
-  if (env.NODE_ENV === 'production') app.set('trust proxy', 1);
-
-  /* A API devolve conteúdo enviado por terceiros (`GET /documents/:id/content`). O
-   * `nosniff` e o CSP do helmet são a segunda barreira depois da allowlist de
-   * `content_type` — HTML que escape da allowlist ainda não executa script. */
-  app.use(helmet());
-  app.use(originCheck(allowedOrigins));
-
-  app.useGlobalFilters(new AppErrorFilter());
-  app.useGlobalInterceptors(new ResponseInterceptor());
-  app.enableCors({ origin: allowedOrigins, credentials: true });
-
-  /* Dois crons e um pool de Postgres: sem isto, um SIGTERM do orquestrador derruba o
-   * processo no meio de uma varredura e deixa conexão pendurada. */
-  app.enableShutdownHooks();
-
-  await app.listen(env.PORT);
-  logger.log(
-    `API na porta ${env.PORT} — compilada em ${buildInfo.compiledAt}, processo iniciado em ${buildInfo.startedAt}`,
-  );
 }
-await bootstrap();

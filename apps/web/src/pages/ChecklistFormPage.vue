@@ -290,7 +290,12 @@ function resolveLeave(leave: boolean) {
     "
   >
     <Button variant="outline" class="mr-2 shadow-xs" @click="router.back()">Voltar</Button>
-    <Button v-if="isProductTemplate" :disabled="acting" class="shadow-xs font-medium" @click="deriveAndEdit">
+    <Button
+      v-if="isProductTemplate"
+      :disabled="acting"
+      class="shadow-xs font-medium"
+      @click="deriveAndEdit"
+    >
       <Copy class="mr-2 h-4 w-4" aria-hidden="true" /> Duplicar para editar
     </Button>
     <Button v-else class="shadow-xs font-medium" @click="catalogOpen = true">
@@ -306,8 +311,12 @@ function resolveLeave(leave: boolean) {
       <ErrorState title="Não foi possível carregar." @retry="detailQuery.refetch()" />
     </template>
     <template v-else>
-      <div class="bg-card border-border rounded-xl border p-5 shadow-sm mb-6 flex flex-col gap-2 max-w-xl">
-        <label for="templateName" class="text-sm font-semibold font-display text-foreground">Nome do template</label>
+      <div
+        class="bg-card border-border rounded-xl border p-5 shadow-sm mb-6 flex flex-col gap-2 max-w-xl"
+      >
+        <label for="templateName" class="text-sm font-semibold font-display text-foreground"
+          >Nome do template</label
+        >
         <Input
           id="templateName"
           v-model="draftName"
@@ -328,7 +337,9 @@ function resolveLeave(leave: boolean) {
           <div class="flex flex-wrap items-start justify-between gap-4">
             <div class="min-w-0 flex-1">
               <div class="flex flex-wrap items-center gap-2 mb-1.5">
-                <span class="inline-flex items-center rounded-full bg-sunken border border-border px-2.5 py-0.5 text-[11px] font-semibold text-muted-foreground uppercase tracking-wider">
+                <span
+                  class="inline-flex items-center rounded-full bg-sunken border border-border px-2.5 py-0.5 text-[11px] font-semibold text-muted-foreground uppercase tracking-wider"
+                >
                   {{ CATEGORY_LABEL[item.category] ?? item.category }}
                 </span>
                 <span
@@ -449,7 +460,11 @@ function resolveLeave(leave: boolean) {
                 @change="toggleRequired(item)"
                 :id="'req-' + item.id"
               />
-              <label :for="'req-' + item.id" class="text-sm font-medium text-foreground cursor-pointer">Obrigatório</label>
+              <label
+                :for="'req-' + item.id"
+                class="text-sm font-medium text-foreground cursor-pointer"
+                >Obrigatório</label
+              >
             </div>
           </div>
         </section>

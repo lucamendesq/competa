@@ -4,60 +4,36 @@
 import assert from 'node:assert/strict';
 import { eq } from 'drizzle-orm';
 import { v7 as uuidv7 } from 'uuid';
-import { Reflector } from '@nestjs/core';
-import { planGateMessage } from '@competa/contracts';
+import { planAllows, planGateMessage, type PlanCapability } from '@competa/contracts';
 
 const { db } = await import('../infra/database/index.js');
 const { accountingFirm, subscription } = await import('../infra/database/schema/index.js');
-const { PlanGuard } = await import('../modules/auth/plan.guard.js');
-const { REQUIRES_PLAN } = await import('../modules/auth/requires-plan.decorator.js');
 const { PlanCapabilityRequired } = await import('../modules/auth/errors.js');
 const { emailLayout } = await import('../modules/messaging/email-layout.js');
-const { RequestRepository } = await import('../modules/requests/request.repository.js');
+const { RequestsRepo } = await import('../modules/requests/request.repo.js');
+const { run } = await import('../effect/runtime.js');
 const { DEFAULT_REMINDER_SETTINGS } = await import('../modules/messaging/reminder-rules.js');
 
-const contextFor = (capability: string | undefined, request: Record<string, unknown>) =>
-  ({
-    getHandler: () => 'handler',
-    getClass: () => 'class',
-    switchToHttp: () => ({ getRequest: () => request }),
-  }) as never;
-
-const guardFor = (capability: string | undefined) => {
-  const reflector = {
-    getAllAndOverride: (key: string) => (key === REQUIRES_PLAN ? capability : undefined),
-  } as unknown as Reflector;
-
-  return new PlanGuard(reflector);
+/* O mesmo teste do `resolveFirm` em `src/http/middleware/auth.ts`: rota sem capability
+ * passa, e a que exige uma só passa se `planAllows` deixar. */
+const gate = (requires: PlanCapability | undefined, planName: string) => {
+  if (requires !== undefined && !planAllows(planName, requires)) {
+    throw new PlanCapabilityRequired(requires);
+  }
+  return true;
 };
 
-const requestOn = (planName: string) => ({
-  firmScope: 'firm-1',
-  planName,
-  method: 'GET',
-  url: '/periods/abc/zip',
-  route: { path: '/periods/:id/zip' },
-});
-
 function checkGuard() {
-  console.log('1. Guard de capability');
+  console.log('1. Gate de capability');
 
-  assert.equal(
-    guardFor(undefined).canActivate(contextFor(undefined, requestOn('essencial'))),
-    true,
-    'rota sem @RequiresPlan passa em qualquer plano',
-  );
+  assert.equal(gate(undefined, 'essencial'), true, 'rota sem capability passa em qualquer plano');
 
   for (const plan of ['profissional', 'escritorio', 'trial']) {
-    assert.equal(
-      guardFor('periodZip').canActivate(contextFor('periodZip', requestOn(plan))),
-      true,
-      `${plan} deveria baixar o zip da competência`,
-    );
+    assert.equal(gate('periodZip', plan), true, `${plan} deveria baixar o zip da competência`);
   }
 
   assert.throws(
-    () => guardFor('periodZip').canActivate(contextFor('periodZip', requestOn('essencial'))),
+    () => gate('periodZip', 'essencial'),
     (error: unknown) => {
       assert.ok(error instanceof PlanCapabilityRequired);
       assert.equal(error.status, 402);
@@ -71,7 +47,7 @@ function checkGuard() {
   /* Plano desconhecido no banco não pode virar "tudo liberado" — e cair no trial seria
    * exatamente isso, porque o trial tem as três capabilities. */
   assert.throws(
-    () => guardFor('periodZip').canActivate(contextFor('periodZip', requestOn('plano-fantasma'))),
+    () => gate('periodZip', 'plano-fantasma'),
     PlanCapabilityRequired,
     'plano desconhecido deveria negar',
   );
@@ -116,8 +92,8 @@ async function checkReminderCadence() {
       .values({ id: uuidv7(), accountingFirmId: id, planName, status: 'ACTIVE' });
   }
 
-  const requests = new RequestRepository(db);
-  const resolve = () => requests.reminderSettingsByFirm(Object.values(firms));
+  const resolve = () =>
+    run(RequestsRepo.use((repo) => repo.reminderSettingsByFirm(Object.values(firms))));
 
   let settings = await resolve();
   assert.deepEqual(

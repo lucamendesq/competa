@@ -1,8 +1,6 @@
-import { Injectable } from '@nestjs/common';
 import { createCipheriv, createDecipheriv, randomBytes } from 'crypto';
 import env from '../../config/env.js';
 
-@Injectable()
 export class WhatsappCryptoService {
   private readonly algorithm = 'aes-256-gcm';
   private readonly key: Buffer;

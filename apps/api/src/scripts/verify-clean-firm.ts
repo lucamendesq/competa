@@ -1,4 +1,3 @@
-/* eslint-disable no-restricted-syntax */
 import assert from 'node:assert/strict';
 import { addDays } from 'date-fns';
 import { and, eq, sql } from 'drizzle-orm';
@@ -25,12 +24,13 @@ import {
   requestItem,
   user,
 } from '../infra/database/schema/index.js';
-import { CompanyRepository } from '../modules/companies/company.repository.js';
-import { RequestRepository } from '../modules/requests/request.repository.js';
-import { AccountantRepository } from '../modules/auth/accountant.repository.js';
-import { InviteRepository } from '../modules/auth/invite.repository.js';
-import { ChecklistRepository } from '../modules/checklists/checklist.repository.js';
-import { ContactRepository } from '../modules/contacts/contact.repository.js';
+import { run as runEffect } from '../effect/runtime.js';
+import { CompaniesRepo } from '../modules/companies/company.repo.js';
+import { RequestsRepo } from '../modules/requests/request.repo.js';
+import { AccountantsRepo } from '../modules/auth/accountant.repo.js';
+import { InvitesRepo } from '../modules/auth/invite.repo.js';
+import { ChecklistsRepo } from '../modules/checklists/checklist.repo.js';
+import { ContactsRepo } from '../modules/contacts/contact.repo.js';
 import { rejectionReason } from '../modules/requests/file-rules.js';
 import { toFirmScope } from '../modules/auth/scope.js';
 import { createToken } from '../lib/token.js';
@@ -67,13 +67,6 @@ async function run() {
     owner: true,
   });
 
-  const companyRepo = new CompanyRepository(db);
-  const requestRepo = new RequestRepository(db);
-  const accountantRepo = new AccountantRepository(db);
-  const inviteRepo = new InviteRepository(db);
-  const checklistRepo = new ChecklistRepository(db);
-  const contactRepo = new ContactRepository(db);
-
   let periodId = '';
   let requestId = '';
 
@@ -94,7 +87,9 @@ async function run() {
     });
 
     // Validar findOwnedCompany com scope da Firm D
-    const ownedForeign = await contactRepo.findOwnedCompany(firmScope, foreignCompanyId);
+    const ownedForeign = await runEffect(
+      ContactsRepo.use((repo) => repo.findOwnedCompany(firmScope, foreignCompanyId)),
+    );
     assert.equal(
       ownedForeign,
       false,
@@ -102,12 +97,18 @@ async function run() {
     );
 
     const randomId = uuidv7();
-    const ownedRandom = await contactRepo.findOwnedCompany(firmScope, randomId);
+    const ownedRandom = await runEffect(
+      ContactsRepo.use((repo) => repo.findOwnedCompany(firmScope, randomId)),
+    );
     assert.equal(ownedRandom, false, 'findOwnedCompany deve retornar false para UUID inexistente');
 
     // Simular o comportamento do ContactAccessAdminController.list()
     try {
-      if (!(await contactRepo.findOwnedCompany(firmScope, foreignCompanyId))) {
+      if (
+        !(await runEffect(
+          ContactsRepo.use((repo) => repo.findOwnedCompany(firmScope, foreignCompanyId)),
+        ))
+      ) {
         throw new NotFound('Empresa não encontrada.');
       }
       assert.fail('Deveria ter lançado NotFound');
@@ -123,7 +124,7 @@ async function run() {
     // -------------------------------------------------------------------------
     console.log('[COM-24] Testando campos logoUrl e contactEmail em accounting_firm...');
     // Leitura inicial
-    const initialFirm = await accountantRepo.firm(firmScope);
+    const initialFirm = await runEffect(AccountantsRepo.use((repo) => repo.firm(firmScope)));
     assert.ok(initialFirm, 'Contabilidade deve ser encontrada');
     assert.equal(initialFirm.logoUrl, null, 'logoUrl inicial deve ser null');
     assert.equal(initialFirm.contactEmail, null, 'contactEmail inicial deve ser null');
@@ -150,24 +151,29 @@ async function run() {
     assert.throws(() => UpdateFirmBody.parse({ contactEmail: 'not-an-email' }));
 
     // Atualizar no banco via repositório
-    await accountantRepo.updateFirm(firmScope, {
-      name: validBody.name,
-      logoUrl: validBody.logoUrl,
-      contactEmail: validBody.contactEmail,
-    });
+    await runEffect(
+      AccountantsRepo.use((repo) =>
+        repo.updateFirm(firmScope, {
+          name: validBody.name,
+          logoUrl: validBody.logoUrl,
+          contactEmail: validBody.contactEmail,
+        }),
+      ),
+    );
 
-    const updatedFirm = await accountantRepo.firm(firmScope);
+    const updatedFirm = await runEffect(AccountantsRepo.use((repo) => repo.firm(firmScope)));
     assert.ok(updatedFirm);
     assert.equal(updatedFirm.name, 'Contabilidade Clean Firm D Atualizada');
     assert.equal(updatedFirm.logoUrl, 'https://exemplo.com.br/assets/logo.svg');
     assert.equal(updatedFirm.contactEmail, 'contato@firm-d.test');
 
     // Limpar campos
-    await accountantRepo.updateFirm(firmScope, {
-      logoUrl: null,
-      contactEmail: null,
-    });
-    const clearedFirm = await accountantRepo.firm(firmScope);
+    await runEffect(
+      AccountantsRepo.use((repo) =>
+        repo.updateFirm(firmScope, { logoUrl: null, contactEmail: null }),
+      ),
+    );
+    const clearedFirm = await runEffect(AccountantsRepo.use((repo) => repo.firm(firmScope)));
     assert.ok(clearedFirm);
     assert.equal(clearedFirm.logoUrl, null);
     assert.equal(clearedFirm.contactEmail, null);
@@ -181,19 +187,27 @@ async function run() {
     // BUG-01 / SEC-01: Company import confirm com CNPJ e idempotência
     console.log('  -> Verificando BUG-01 / SEC-01 (Company import CNPJ upsert)...');
     const cnpjTest = '12345678000195';
-    const importRes = await companyRepo.confirmImport(firmScope, [
-      {
-        line: 2,
-        body: { name: 'Empresa Teste Clean 1', cnpj: cnpjTest, flags: {} },
-      },
-    ]);
+    const importRes = await runEffect(
+      CompaniesRepo.use((repo) =>
+        repo.confirmImport(firmScope, [
+          {
+            line: 2,
+            body: { name: 'Empresa Teste Clean 1', cnpj: cnpjTest, flags: {} },
+          },
+        ]),
+      ),
+    );
     assert.equal(importRes.created, 1);
-    const reImportRes = await companyRepo.confirmImport(firmScope, [
-      {
-        line: 2,
-        body: { name: 'Empresa Teste Clean 1 Renomeada', cnpj: cnpjTest, flags: {} },
-      },
-    ]);
+    const reImportRes = await runEffect(
+      CompaniesRepo.use((repo) =>
+        repo.confirmImport(firmScope, [
+          {
+            line: 2,
+            body: { name: 'Empresa Teste Clean 1 Renomeada', cnpj: cnpjTest, flags: {} },
+          },
+        ]),
+      ),
+    );
     assert.equal(reImportRes.created, 1);
     const [updatedCompany] = await db
       .select()
@@ -336,8 +350,8 @@ async function run() {
     // BUG-05: Concurrent acceptItem no mesmo item
     console.log('  -> Verificando BUG-05 (Concurrent item accept protection)...');
     const [p1, p2] = await Promise.allSettled([
-      requestRepo.acceptItem(firmScope, itemId, ownerAccountantId),
-      requestRepo.acceptItem(firmScope, itemId, ownerAccountantId),
+      runEffect(RequestsRepo.use((repo) => repo.acceptItem(firmScope, itemId, ownerAccountantId))),
+      runEffect(RequestsRepo.use((repo) => repo.acceptItem(firmScope, itemId, ownerAccountantId))),
     ]);
     const fulfilled = [p1, p2].filter((r) => r.status === 'fulfilled');
     const rejected = [p1, p2].filter((r) => r.status === 'rejected');
@@ -365,31 +379,43 @@ async function run() {
 
     // Cria convite válido
     const { tokenHash: invHash } = createToken();
-    const createdInvite = await inviteRepo.createForFirm(firmScope, {
-      email: inviteEmail,
-      tokenHash: invHash,
-      expiresAt: addDays(new Date(), 7),
-    });
+    const createdInvite = await runEffect(
+      InvitesRepo.use((repo) =>
+        repo.createForFirm(firmScope, {
+          email: inviteEmail,
+          tokenHash: invHash,
+          expiresAt: addDays(new Date(), 7),
+        }),
+      ),
+    );
     assert.ok(createdInvite);
 
     // BUG-14: Duplicate pending invite
-    const isPending = await inviteRepo.pendingForFirm(firmScope, inviteEmail);
+    const isPending = await runEffect(
+      InvitesRepo.use((repo) => repo.pendingForFirm(firmScope, inviteEmail)),
+    );
     assert.equal(isPending, true);
 
     // BUG-15: Invite existing account email
     const ownerEmail = `auditor-${firmId}@firm-d.test`;
-    const userExists = await accountantRepo.userExistsByEmail(ownerEmail);
+    const userExists = await runEffect(
+      AccountantsRepo.use((repo) => repo.userExistsByEmail(ownerEmail)),
+    );
     assert.equal(userExists, true);
 
     // BUG-11: Revoke vs concurrent signup
-    await inviteRepo.revoke(firmScope, createdInvite.id);
+    await runEffect(InvitesRepo.use((repo) => repo.revoke(firmScope, createdInvite.id)));
     const dummyAuthUserId = uuidv7();
     await assert.rejects(() =>
-      accountantRepo.acceptInvite({
-        authUserId: dummyAuthUserId,
-        accountingFirmId: firmId,
-        inviteId: createdInvite.id,
-      }),
+      runEffect(
+        AccountantsRepo.use((repo) =>
+          repo.acceptInvite({
+            authUserId: dummyAuthUserId,
+            accountingFirmId: firmId,
+            inviteId: createdInvite.id,
+          }),
+        ),
+      ),
     );
     console.log('  ✓ BUG-11, BUG-14, BUG-15, BUG-18 validados.');
 
@@ -417,7 +443,9 @@ async function run() {
       accountingFirmId: firmId,
       name: 'Template Limpo para Deletar',
     });
-    const delResult = await checklistRepo.deleteTemplate(firmScope, customTplId);
+    const delResult = await runEffect(
+      ChecklistsRepo.use((repo) => repo.deleteTemplate(firmScope, customTplId)),
+    );
     assert.equal(delResult.id, customTplId);
 
     // Tentar deletar template do produto (sem accountingFirmId)

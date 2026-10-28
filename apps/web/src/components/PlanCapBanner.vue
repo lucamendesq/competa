@@ -9,7 +9,9 @@ import { brl } from '@/utils/format';
 const { data } = usePlanUsage();
 
 const usage = computed(() => data.value);
-const currentPlan = computed(() => PLANS[usage.value?.planName as keyof typeof PLANS] ?? PLANS.trial);
+const currentPlan = computed(
+  () => PLANS[usage.value?.planName as keyof typeof PLANS] ?? PLANS.trial,
+);
 const recommended = computed(() => PLANS[usage.value?.recommendedPlan ?? 'profissional']);
 
 const perCompany = computed(() =>

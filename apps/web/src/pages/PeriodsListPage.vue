@@ -330,7 +330,9 @@ async function downloadZip(id: string, refMonth: string) {
                 <TableCell class="text-right">
                   <div class="flex items-center justify-end gap-1.5">
                     <!-- o `title` fica no span: botão desabilitado não dispara hover -->
-                    <span :title="canPeriodZip ? 'Baixar .zip de todas as empresas' : periodZipHint">
+                    <span
+                      :title="canPeriodZip ? 'Baixar .zip de todas as empresas' : periodZipHint"
+                    >
                       <Button
                         variant="ghost"
                         size="icon"

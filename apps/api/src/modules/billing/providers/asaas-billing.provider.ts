@@ -1,4 +1,4 @@
-import { Injectable, Logger } from '@nestjs/common';
+import { Logger } from '../../../lib/logger.js';
 import type { BillingCycle } from '@competa/contracts';
 import { BillingProvider } from './billing.provider.js';
 import env from '../../../config/env.js';
@@ -19,7 +19,6 @@ interface AsaasPaymentLinkResponse {
   url: string;
 }
 
-@Injectable()
 export class AsaasBilling implements BillingProvider {
   readonly simulated = false;
   private readonly logger = new Logger(AsaasBilling.name);

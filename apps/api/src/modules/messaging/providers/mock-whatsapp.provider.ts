@@ -1,7 +1,6 @@
-import { Injectable, Logger } from '@nestjs/common';
+import { Logger } from '../../../lib/logger.js';
 import { MessageProvider, type MessageToSend } from './message.provider.js';
 
-@Injectable()
 export class MockWhatsappProvider extends MessageProvider {
   override readonly channel = 'whatsapp';
   private readonly logger = new Logger(MockWhatsappProvider.name);

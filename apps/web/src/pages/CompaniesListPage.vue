@@ -272,7 +272,10 @@ async function applyTemplateToSelected() {
           "
           @click="active = chip.value"
         >
-          {{ chip.label }}<span v-if="chip.count !== undefined" class="ml-1.5 tabular-nums opacity-70">{{ chip.count }}</span>
+          {{ chip.label
+          }}<span v-if="chip.count !== undefined" class="ml-1.5 tabular-nums opacity-70">{{
+            chip.count
+          }}</span>
         </button>
       </div>
     </div>
