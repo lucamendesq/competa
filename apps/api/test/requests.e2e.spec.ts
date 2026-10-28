@@ -1,6 +1,7 @@
 import { and, eq } from 'drizzle-orm';
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 import { bootApp, type RunningApp } from './support/boot.js';
+import env from '../src/config/env.js';
 import { db, truncateAll } from './support/db.js';
 import {
   document,
@@ -397,7 +398,7 @@ describe('rotação do Link de Upload (upload-link e resend)', () => {
 
     const res = await fixture.firm.api.post(`/requests/${box.requestId}/upload-link`);
     expect(res.status, JSON.stringify(res.body)).toBe(201);
-    expect(res.body.data.uploadUrl).toMatch(/^http:\/\/localhost:5173\/envio\/.+/);
+    expect(res.body.data.uploadUrl).toMatch(new RegExp(`^${env.WEB_URL}/envio/.+`));
     expect(res.body.data.contactEmail).toBe(box.contactEmail);
 
     expect(await linkHashOf(box.requestId)).not.toBe(hashBefore);

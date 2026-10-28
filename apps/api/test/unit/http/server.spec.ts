@@ -2,6 +2,7 @@ import { request as nodeRequest } from 'node:http';
 import { Context, Effect, Layer, ManagedRuntime } from 'effect';
 import { HttpServer } from 'effect/http';
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
+import env from '../../../src/config/env.js';
 import { serverLayer } from '../../../src/http/server.js';
 import { AppServicesWithoutDb } from '../../../src/effect/runtime.js';
 import type { Db } from '../../../src/infra/database/effect.js';
@@ -69,7 +70,7 @@ describe('GET /health servido pelo shell Effect', () => {
   });
 
   it('reflete o CORS da allowlist', async () => {
-    const origin = 'http://localhost:5173';
+    const origin = env.WEB_URL;
     const simple = await fetch(`${app.url}/health`, { headers: { origin } });
     await simple.text();
 
@@ -83,11 +84,11 @@ describe('GET /health servido pelo shell Effect', () => {
   it('preflight é respondido pelo CORS no curinga', async () => {
     const preflight = await fetch(`${app.url}/health`, {
       method: 'OPTIONS',
-      headers: { origin: 'http://localhost:5173', 'access-control-request-method': 'GET' },
+      headers: { origin: env.WEB_URL, 'access-control-request-method': 'GET' },
     });
 
     expect(preflight.status).toBe(204);
-    expect(preflight.headers.get('access-control-allow-origin')).toBe('http://localhost:5173');
+    expect(preflight.headers.get('access-control-allow-origin')).toBe(env.WEB_URL);
     expect(preflight.headers.get('access-control-allow-methods')).toBe(
       'GET,HEAD,PUT,PATCH,POST,DELETE',
     );

@@ -1,6 +1,7 @@
 import { eq, inArray } from 'drizzle-orm';
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 import { bootApp, type RunningApp } from './support/boot.js';
+import env from '../src/config/env.js';
 import { db, truncateAll } from './support/db.js';
 import { message, uploadLink } from '../src/infra/database/schema/index.js';
 import {
@@ -124,7 +125,7 @@ describe('POST /periods — fan-out', () => {
 
   it('entrega o link de upload em claro só na resposta; no banco fica o hash', async () => {
     for (const req of opened.requests) {
-      expect(req.uploadUrl).toMatch(/^http:\/\/localhost:5173\/envio\/.+/);
+      expect(req.uploadUrl).toMatch(new RegExp(`^${env.WEB_URL}/envio/.+`));
     }
 
     const token = opened.requests[0].uploadUrl.split('/envio/')[1];
