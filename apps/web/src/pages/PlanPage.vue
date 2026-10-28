@@ -23,7 +23,8 @@ import {
   type Plan,
   type PlanName,
 } from '@competa/contracts';
-import { api } from '@/api/client';
+import { useQuery } from '@tanstack/vue-query';
+import { checkout, getSubscription } from '@/features/billing/api/billing';
 import { useAuthStore } from '@/stores/auth';
 import { toast } from 'vue-sonner';
 import { apiErrorMessage } from '@/api/error';
@@ -43,6 +44,15 @@ const highlighted = computed(() => (route.query.plano as string | undefined) ?? 
 const simulatedCheckout = ref(false);
 
 const subscription = computed(() => auth.accountant?.accountingFirm.subscription);
+
+/** O link da fatura em aberto vem daqui (só para o dono): é por ele que a firma bloqueada
+ *  paga, e o botão "Assinar" não serve para quem já tem um boleto esperando. */
+const billingQuery = useQuery({ queryKey: ['billingSubscription'], queryFn: getSubscription });
+const invoiceUrl = computed(() => billingQuery.data.value?.invoiceUrl ?? null);
+const pendingPlan = computed(() => {
+  const name = billingQuery.data.value?.pendingPlanName;
+  return name ? (PLANS[name as PlanName]?.label ?? name) : null;
+});
 
 /** O gateway exige o documento do pagador: sem CNPJ gravado, o checkout pede antes. */
 const firmCnpj = computed(() => auth.accountant?.accountingFirm.cnpj ?? null);
@@ -138,10 +148,11 @@ async function goToCheckout(planName: string) {
   isLoading.value = true;
   simulatedCheckout.value = false;
   try {
-    const { checkoutUrl, simulated } = await api.post<{
-      checkoutUrl: string;
-      simulated: boolean;
-    }>('/billing/checkout', { planName, cycle: cycle.value, cnpj });
+    const { checkoutUrl, simulated } = await checkout({
+      planName: planName as PaidPlanName,
+      cycle: cycle.value,
+      cnpj,
+    });
 
     if (simulated || !checkoutUrl) {
       simulatedCheckout.value = true;
@@ -239,6 +250,20 @@ async function goToCheckout(planName: string) {
         >
           Seu acesso de escrita foi temporariamente suspenso devido a pendências na assinatura. As
           empresas ainda conseguem enviar documentos e você pode baixar arquivos já enviados.
+        </div>
+
+        <div
+          v-if="invoiceUrl"
+          class="flex flex-col gap-3 rounded-lg border border-primary/40 bg-primary/5 p-4 sm:flex-row sm:items-center sm:justify-between"
+        >
+          <p class="text-sm text-foreground">
+            <template v-if="pendingPlan">
+              Fatura do plano <strong>{{ pendingPlan }}</strong> aguardando pagamento.
+            </template>
+            <template v-else>Há uma fatura em aberto na sua assinatura.</template>
+            Boleto, Pix ou cartão: a escolha é na página da fatura.
+          </p>
+          <Button as="a" :href="invoiceUrl" target="_blank" rel="noopener">Pagar fatura</Button>
         </div>
       </CardContent>
     </Card>

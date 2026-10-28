@@ -416,22 +416,24 @@ describe('ciclo da assinatura lido pelo TenantGuard (402 em escrita)', () => {
       patch: { status: 'trialing', trialEndsAt: new Date('2020-01-01T00:00:00Z') },
     },
   ]) {
-    it(`${blockedState.label}: escrita → 402 PAYMENT_REQUIRED, leitura segue 200`, async () => {
+    it(`${blockedState.label}: escrita → 402 PAYMENT_REQUIRED, leitura e checkout seguem`, async () => {
       await setSubscription(firmId, blockedState.patch);
 
-      /* Bug congelado: o próprio POST /billing/checkout é escrita, então a firma bloqueada
-       * por falta de pagamento não alcança o checkout para regularizar. */
+      /* A rota que regulariza NÃO entra na régua: a firma bloqueada precisa alcançar o
+       * checkout, senão fica trancada do lado de fora com o boleto na mão. */
       const checkout = await api.post('/billing/checkout', { planName: 'profissional' });
-      expect(checkout.status).toBe(402);
-      expect(checkout.body.error).toEqual({
-        code: 'PAYMENT_REQUIRED',
-        message: 'Assinatura inativa. Regularize para continuar.',
-      });
+      expect(checkout.status, JSON.stringify(checkout.body)).toBe(201);
+
+      const status = await api.get('/billing/subscription');
+      expect(status.status).toBe(200);
 
       /* Guard roda antes do zodPipe: corpo inválido ainda é 402, não 422. */
       const write = await api.post('/periods', {});
       expect(write.status).toBe(402);
-      expect(write.body.error.code).toBe('PAYMENT_REQUIRED');
+      expect(write.body.error).toEqual({
+        code: 'PAYMENT_REQUIRED',
+        message: 'Assinatura inativa. Regularize para continuar.',
+      });
 
       const read = await api.get('/periods');
       expect(read.status).toBe(200);

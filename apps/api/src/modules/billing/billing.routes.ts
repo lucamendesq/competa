@@ -132,7 +132,7 @@ const checkout = route(
       return { checkoutUrl, simulated: billing.simulated };
     }),
   ),
-  { auth: firmRoute() },
+  { auth: firmRoute({ billing: true }) },
 );
 
 /** O que a Contabilidade vê sobre a própria assinatura, e por onde ela PAGA. O
