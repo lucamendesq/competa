@@ -175,10 +175,23 @@ const sendAccessInvites = route(
         reason?: string;
       }> = [];
 
-      for (const companyId of input.companyIds) {
+      /* Id repetido mandava dois convites, e o segundo revogava o primeiro. */
+      for (const companyId of new Set(input.companyIds)) {
         const found = yield* CompaniesRepo.use((repo) => repo.findById(scope, companyId));
         if (!found) {
           results.push({ companyId, status: 'error', reason: 'Empresa não encontrada.' });
+          continue;
+        }
+
+        /* O guard do Responsável recusa Empresa desativada: a conta criada pelo convite
+         * entraria direto num 403. */
+        if (!found.active) {
+          results.push({
+            companyId,
+            companyName: found.name,
+            status: 'skipped',
+            reason: 'Empresa desativada: ative-a antes de convidar.',
+          });
           continue;
         }
 

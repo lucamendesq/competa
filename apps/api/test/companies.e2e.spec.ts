@@ -606,6 +606,35 @@ describe('POST /companies/import/confirm — gravação', () => {
   });
 });
 
+describe('POST /companies/access-invites — repetidos e desativadas', () => {
+  it('id repetido convida uma vez; Empresa desativada é pulada com motivo', async () => {
+    const { api } = await registerFirm(app.url);
+    const live = await createCompany(api, {
+      name: 'Viva',
+      contact: { name: 'Vera', email: 'vera-invite@example.com' },
+    });
+    const off = await createCompany(api, {
+      name: 'Desligada',
+      contact: { name: 'Dora', email: 'dora-invite@example.com' },
+    });
+    expect((await api.delete(`/companies/${off.id}`)).status).toBe(200);
+
+    const res = await api.post('/companies/access-invites', {
+      companyIds: [live.id, live.id, off.id],
+    });
+    expect(res.status, JSON.stringify(res.body)).toBe(201);
+    expect(res.body.data.invited).toBe(1);
+    expect(res.body.data.results).toContainEqual({
+      companyId: off.id,
+      companyName: 'Desligada',
+      status: 'skipped',
+      reason: 'Empresa desativada: ative-a antes de convidar.',
+    });
+    expect(await db.select().from(invite).where(eq(invite.companyId, live.id))).toHaveLength(1);
+    expect(await db.select().from(invite).where(eq(invite.companyId, off.id))).toHaveLength(0);
+  });
+});
+
 describe('POST /companies/access-invites', () => {
   let api: Api;
   let firmEmail: string;
