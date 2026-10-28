@@ -58,6 +58,9 @@ const envSchema = z
     VAPID_SUBJECT: z.string().optional().default('mailto:contato@example.com'),
     STORAGE_LOCAL_DIR: z.string().optional().default('.storage'),
     SENTRY_DSN: blankAsMissing(z.string()),
+    /* Staging roda com NODE_ENV=production (é o único modo que usa R2, Resend e Asaas de
+     * verdade): sem isto, o erro de staging chegava ao Sentry marcado como produção. */
+    SENTRY_ENVIRONMENT: blankAsMissing(z.string()),
     LOG_LEVEL: z
       .enum(['fatal', 'error', 'warn', 'info', 'debug', 'trace'])
       .optional()
@@ -65,7 +68,13 @@ const envSchema = z
     META_APP_ID: z.string().optional(),
     META_APP_SECRET: z.string().optional(),
     META_GRAPH_VERSION: z.string().default('v20.0'),
-    WHATSAPP_ENCRYPTION_KEY: z.string().min(32).optional(),
+    /* 32 bytes em hex (`openssl rand -hex 32`). Validado aqui para falhar no boot com a
+     * mensagem certa, não no primeiro onboard de WhatsApp. */
+    WHATSAPP_ENCRYPTION_KEY: blankAsMissing(
+      z
+        .string()
+        .regex(/^[0-9a-f]{64}$/i, 'WHATSAPP_ENCRYPTION_KEY must be 32 bytes in hex (64 chars)'),
+    ),
 
     ASAAS_API_KEY: blankAsMissing(z.string()),
     /* Token que o Asaas devolve no header `asaas-access-token`. Sem ele o webhook aceita

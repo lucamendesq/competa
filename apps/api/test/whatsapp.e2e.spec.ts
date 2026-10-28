@@ -1,6 +1,7 @@
 import { createDecipheriv } from 'node:crypto';
 import { eq, like } from 'drizzle-orm';
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
+import env from '../src/config/env.js';
 import { bootApp, type RunningApp } from './support/boot.js';
 import { db, truncateAll } from './support/db.js';
 import { message, whatsappIntegration } from '../src/infra/database/schema/index.js';
@@ -123,6 +124,27 @@ describe('webhook público — segredos Meta ausentes falham fechados', () => {
     }
   });
 
+  it('GET /whatsapp/webhook com token certo ecoa o hub.challenge em texto puro', async () => {
+    env.WHATSAPP_VERIFY_TOKEN = 'verificacao-meta';
+    try {
+      const res = await fetch(
+        `${app.url}/whatsapp/webhook?hub.mode=subscribe&hub.verify_token=verificacao-meta&hub.challenge=1158201444`,
+        { headers: { 'x-forwarded-for': uniqueIp() } },
+      );
+      expect(res.status).toBe(200);
+      expect(res.headers.get('content-type')).toContain('text/plain');
+      expect(await res.text()).toBe('1158201444');
+
+      const wrong = await fetch(
+        `${app.url}/whatsapp/webhook?hub.mode=subscribe&hub.verify_token=outro&hub.challenge=1`,
+        { headers: { 'x-forwarded-for': uniqueIp() } },
+      );
+      expect(wrong.status).toBe(403);
+    } finally {
+      env.WHATSAPP_VERIFY_TOKEN = undefined;
+    }
+  });
+
   it('POST /whatsapp/webhook recusa 503 sem META_APP_SECRET, mesmo com assinatura', async () => {
     const meta = apiClient(app.url);
     const payload = {
@@ -199,7 +221,7 @@ describe('ciclo de vida da integração (status → onboard → disconnect)', ()
     expect(rows[0].accessToken).toMatch(/^[0-9a-f]{32}:[0-9a-f]{32}:[0-9a-f]+$/);
   });
 
-  it('round-trip do crypto: sem WHATSAPP_ENCRYPTION_KEY a chave é o fallback de zeros', async () => {
+  it('round-trip do crypto com a WHATSAPP_ENCRYPTION_KEY do ambiente', async () => {
     const [row] = await integrationRows(firmId);
     expect(decryptStored(row.accessToken)).toBe('mock_long_lived_token');
   });

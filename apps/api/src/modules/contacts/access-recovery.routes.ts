@@ -82,6 +82,11 @@ const rotateAndSend = (openRequests: OpenRequests) =>
   Effect.gen(function* () {
     const events = yield* Events;
     for (const row of openRequests) {
+      /* Só o Link que foi enviado a ESTE Responsável. Com dois Responsáveis na Empresa, o
+       * segundo pegava o Link do principal (o `contactId` da rotação o reatribuía) e o
+       * token do principal morria sem carência. */
+      if (row.uploadLinkContactId !== row.contactId) continue;
+
       /* O token vai para o email ANTES de virar o token oficial: `applyUploadToken` só
        * grava depois que a entrega confirma. Rotacionar primeiro deixaria o Responsável
        * sem link nenhum toda vez que o provedor de email falhasse. */
@@ -97,7 +102,12 @@ const rotateAndSend = (openRequests: OpenRequests) =>
         uploadUrl: `${env.WEB_URL}/envio/${token}`,
       };
 
-      yield* events.emitAsync(EVENTS.UploadLinkResent, resent);
+      const delivered = yield* events.emitAsync(EVENTS.UploadLinkResent, resent);
+      if (!delivered.includes(true)) {
+        logger.warn(`Recuperação: e-mail da Solicitação ${row.requestId} não saiu; link mantido.`);
+        continue;
+      }
+
       const applied = yield* RequestsRepo.use((repo) =>
         repo.applyUploadToken(row.requestId, tokenHash, row.contactId, { revokePrevious: true }),
       );

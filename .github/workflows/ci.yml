@@ -2,8 +2,12 @@ name: CI
 
 on:
   push:
-    branches: [main]
+    # main → produção; staging → competa-api-staging e competa-web-staging
+    branches: [main, staging]
   pull_request:
+  # Botão "Run workflow" na aba Actions: sobe a branch escolhida para staging, sem precisar
+  # empurrar para a branch `staging`.
+  workflow_dispatch:
 
 jobs:
   build-lint:
@@ -95,7 +99,12 @@ jobs:
 
       - run: pnpm install --frozen-lockfile
       - run: pnpm --filter @competa/contracts build
+      # O Vite grava estas URLs no bundle na hora do build: sem elas, o web de produção
+      # caía no padrão do código (http://localhost:3000).
       - run: pnpm --filter web build
+        env:
+          VITE_API_URL: https://api.competa.com.br
+          VITE_AUTH_URL: https://api.competa.com.br/api/auth
 
       - name: Deploy Web
         uses: cloudflare/wrangler-action@v4
@@ -132,5 +141,56 @@ jobs:
           apiToken: ${{ secrets.CLOUDFLARE_API_TOKEN }}
           accountId: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
           command: pages deploy apps/landing/dist --project-name=competa-landing
+          gitHubToken: ${{ secrets.GITHUB_TOKEN }}
+          packageManager: npm
+
+  # Staging: mesma imagem e mesmo build, outro app no Fly e outro projeto no Pages. Sobe em
+  # push na branch `staging` ou pelo "Run workflow" (qualquer branch). O token do Fly é só
+  # do app de staging: este job não consegue mexer na produção.
+  deploy-api-staging:
+    needs: [build-lint, test]
+    if: (github.event_name == 'push' && github.ref == 'refs/heads/staging') || github.event_name == 'workflow_dispatch'
+    runs-on: ubuntu-latest
+    environment: staging
+    concurrency: deploy-api-staging
+    steps:
+      - uses: actions/checkout@v4
+      - uses: superfly/flyctl-actions/setup-flyctl@ed8efb33836e8b2096c7fd3ba1c8afe303ebbff1
+      - run: flyctl deploy --config apps/api/fly.staging.toml --dockerfile apps/api/Dockerfile --remote-only
+        env:
+          FLY_API_TOKEN: ${{ secrets.FLY_API_TOKEN_STAGING }}
+
+  deploy-web-staging:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      deployments: write
+    needs: build-lint
+    if: (github.event_name == 'push' && github.ref == 'refs/heads/staging') || github.event_name == 'workflow_dispatch'
+    environment: staging
+    concurrency: deploy-web-staging
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: pnpm/action-setup@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version-file: .nvmrc
+          cache: pnpm
+
+      - run: pnpm install --frozen-lockfile
+      - run: pnpm --filter @competa/contracts build
+      - run: pnpm --filter web build
+        env:
+          VITE_API_URL: https://staging-api.competa.com.br
+          VITE_AUTH_URL: https://staging-api.competa.com.br/api/auth
+
+      - name: Deploy Web
+        uses: cloudflare/wrangler-action@v4
+        with:
+          apiToken: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+          accountId: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
+          command: pages deploy apps/web/dist --project-name=competa-web-staging --branch=main
           gitHubToken: ${{ secrets.GITHUB_TOKEN }}
           packageManager: npm

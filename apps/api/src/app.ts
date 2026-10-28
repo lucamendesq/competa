@@ -6,17 +6,23 @@ import { ping } from './health.js';
 import { serverLayer } from './http/server.js';
 import { DbPool } from './infra/database/effect.js';
 import { Events } from './lib/events.service.js';
+import { BillingSweep } from './modules/billing/billing.cron.js';
 import { cronsLayer } from './modules/requests/crons.js';
 import { DeadlineScan } from './modules/requests/deadline.cron.js';
 import { Reminders } from './modules/requests/reminders.cron.js';
 
-/** As duas varreduras diárias, sobre os serviços do app. */
+/** As varreduras diárias, sobre os serviços do app. */
 const CronsLive = Layer.unwrap(
   Effect.gen(function* () {
     const deadlines = yield* DeadlineScan;
+    const billing = yield* BillingSweep;
     const reminders = yield* Reminders;
 
-    return cronsLayer({ deadlines: deadlines.daily(), reminders: reminders.scheduled() });
+    return cronsLayer({
+      deadlines: deadlines.daily(),
+      billing: billing.daily(),
+      reminders: reminders.scheduled(),
+    });
   }),
 );
 

@@ -8,6 +8,7 @@ import { HttpServerRequest } from 'effect/http';
 import { squashError } from '../../infra/database/error.js';
 import { handler } from '../../http/envelope.js';
 import { body, publicRoute, route } from '../../http/platform.js';
+import { throttleDefault } from '../../http/throttle.js';
 import { isFailure } from '../../lib/either.js';
 import { BetterAuthAdapter } from '../../infra/auth/better-auth.adapter.js';
 import { AccountantsRepo } from './accountant.repo.js';
@@ -44,25 +45,27 @@ const register = Effect.gen(function* () {
   const { userId, setCookie } = created.value;
 
   yield* AccountantsRepo.use((accountants) =>
-    accountants.provisionFirm({ authUserId: userId, firmName: input.firmName }).pipe(
-      Effect.onError((cause) =>
-        accountants.deleteAuthUser(userId).pipe(
-          Effect.catchCause((compensation) =>
-            Effect.sync(() => {
-              logger.error(
-                `Falha ao compensar (apagar user ${userId}) após erro no public signup`,
-                squashError(compensation),
-              );
-            }),
-          ),
-          Effect.andThen(
-            Effect.sync(() => {
-              logger.error('Falha ao provisionar firm', squashError(cause));
-            }),
+    accountants
+      .provisionFirm({ authUserId: userId, firmName: input.firmName, cnpj: input.cnpj })
+      .pipe(
+        Effect.onError((cause) =>
+          accountants.deleteAuthUser(userId).pipe(
+            Effect.catchCause((compensation) =>
+              Effect.sync(() => {
+                logger.error(
+                  `Falha ao compensar (apagar user ${userId}) após erro no public signup`,
+                  squashError(compensation),
+                );
+              }),
+            ),
+            Effect.andThen(
+              Effect.sync(() => {
+                logger.error('Falha ao provisionar firm', squashError(cause));
+              }),
+            ),
           ),
         ),
       ),
-    ),
   );
 
   if (setCookie) {
@@ -79,11 +82,13 @@ const register = Effect.gen(function* () {
   return { userId };
 });
 
-/* Um handler, dois caminhos, uma chave de throttle: trocar de caminho não abre balde novo. */
+/* Um handler, dois caminhos, uma chave de throttle: trocar de caminho não abre balde novo.
+ * Limite apertado: é rota pública que cria conta e ganha 14 dias de trial. */
 const at = (path: '/auth/register' | '/public-signup') =>
   route('POST', path, handler('POST', register), {
     auth: publicRoute,
     throttleKey: 'POST auth/register',
+    throttle: throttleDefault(10, 60_000),
   });
 
 export const signupRoutes = Layer.mergeAll(at('/auth/register'), at('/public-signup'));

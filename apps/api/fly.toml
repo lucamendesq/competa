@@ -13,7 +13,6 @@ primary_region = "gru"
   BETTER_AUTH_URL = "https://api.competa.com.br"
   WEB_URL = "https://app.competa.com.br"
   EMAIL_FROM = "nao-responda@competa.com.br"
-  SENTRY_DSN = "https://2b1c69fcc04db10e5c05fc2d04f3ea42@o4512068933189632.ingest.us.sentry.io/4512068942954496"
 
 [http_service]
   internal_port = 3000

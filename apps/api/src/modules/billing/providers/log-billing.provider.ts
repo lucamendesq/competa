@@ -11,7 +11,7 @@ export class LogBilling implements BillingProvider {
     name: string;
     email: string;
     externalReference: string;
-    cpfCnpj?: string;
+    cpfCnpj: string;
   }) {
     this.logger.log(`Mock: Criando customer para ${input.name} (${input.externalReference})`);
     return { customerId: `mock_cus_${randomUUID()}` };
@@ -29,16 +29,30 @@ export class LogBilling implements BillingProvider {
         `(R$ ${input.value})`,
     );
 
-    return { subscriptionId: `mock_sub_${randomUUID()}`, checkoutUrl: '' };
+    return {
+      subscriptionId: `mock_sub_${randomUUID()}`,
+      paymentId: `mock_pay_${randomUUID()}`,
+      checkoutUrl: '',
+    };
   }
 
   async changeSubscriptionPlan(
     subscriptionId: string,
-    input: { planName: string; cycle: BillingCycle; value: number },
+    input: { planName: string; cycle: BillingCycle; value: number; nextDueDate?: Date },
   ) {
     this.logger.log(
       `Mock: Trocando ${subscriptionId} para ${input.planName} ${input.cycle} (R$ ${input.value})`,
     );
+  }
+
+  async createCharge(input: {
+    customerId: string;
+    value: number;
+    description: string;
+    externalReference: string;
+  }) {
+    this.logger.log(`Mock: Cobrança avulsa de R$ ${input.value} para ${input.customerId}`);
+    return { paymentId: `mock_pay_${randomUUID()}`, invoiceUrl: '' };
   }
 
   async deactivateSubscription(subscriptionId: string) {
@@ -49,7 +63,7 @@ export class LogBilling implements BillingProvider {
     this.logger.log(`Mock: Cancelando assinatura ${subscriptionId}`);
   }
 
-  async pendingInvoiceUrl(subscriptionId: string) {
+  async pendingInvoice(subscriptionId: string) {
     this.logger.log(`Mock: Fatura em aberto de ${subscriptionId}`);
     return null;
   }

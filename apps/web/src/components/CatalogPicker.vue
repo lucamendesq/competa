@@ -3,19 +3,13 @@ import { Search } from 'lucide-vue-next';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
+import { CATEGORY_LABEL } from '@/utils/format';
 
 export type CatalogDocument = {
   id: string;
   name: string;
   category: string;
   acceptedFormats: string[];
-};
-
-const CATEGORY_LABEL: Record<string, string> = {
-  fiscal: 'Fiscal / Impostos',
-  accounting: 'Contábil / Financeiro',
-  payroll: 'Folha de Pagamento',
-  legal: 'Societário / Legal',
 };
 
 withDefaults(

@@ -268,7 +268,7 @@ layer(DocumentsRepo.layer)('DocumentsRepo', (it) => {
     }),
   );
 
-  it.effect('confirm: arquivo que não chegou ao storage é recusado e a reserva é descartada', () =>
+  it.effect('confirm: arquivo que não chegou ao storage é recusado e a reserva fica', () =>
     Effect.gen(function* () {
       const repo = yield* DocumentsRepo;
       const box = yield* openBox('confirmfalta');
@@ -283,7 +283,10 @@ layer(DocumentsRepo.layer)('DocumentsRepo', (it) => {
       expect(confirmed.refused).toEqual([
         { documentId, fileName: 'sumiu.pdf', reason: 'Arquivo não chegou ao storage.' },
       ]);
-      expect(yield* documentRows(box.requestId)).toEqual([]);
+      /* A varredura de reservas vencidas apaga a linha e o objeto que um PUT atrasado criar. */
+      expect(yield* documentRows(box.requestId)).toEqual([
+        expect.objectContaining({ uploadStatus: 'awaiting_upload' }),
+      ]);
     }),
   );
 

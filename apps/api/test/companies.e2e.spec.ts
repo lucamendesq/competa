@@ -7,6 +7,8 @@ import {
   contact,
   invite,
   message,
+  pushSubscription,
+  uploadLink,
   user as userTable,
 } from '../src/infra/database/schema/index.js';
 import {
@@ -14,6 +16,7 @@ import {
   contactBody,
   createCompany,
   createTemplate,
+  documentTypeIds,
   registerFirm,
   type Api,
 } from './support/fixtures.js';
@@ -329,6 +332,39 @@ describe('usage e teto do plano (trial: 15 ativas, folga até 18)', () => {
   });
 });
 
+describe('ordem dos Responsáveis', () => {
+  it('o primeiro listado é o mais antigo, o mesmo que o fan-out usa', async () => {
+    const { api } = await registerFirm(app.url);
+    const created = await createCompany(api, { name: 'Dupla', contact: contactBody('Primeira') });
+    for (const name of ['Segunda', 'Terceira']) {
+      expect((await api.post(`/companies/${created.id}/contacts`, contactBody(name))).status).toBe(
+        201,
+      );
+    }
+
+    const got = await api.get(`/companies/${created.id}`);
+    expect(got.body.data.contacts.map((c: { name: string }) => c.name)).toEqual([
+      'Primeira',
+      'Segunda',
+      'Terceira',
+    ]);
+  });
+});
+
+describe('teto do plano sob concorrência', () => {
+  it('25 cadastros em paralelo param exatamente na folga (18)', async () => {
+    const { api } = await registerFirm(app.url);
+    const results = await Promise.all(
+      Array.from({ length: 25 }, (_, i) => api.post('/companies', { name: `Paralela ${i}` })),
+    );
+
+    expect(results.filter((res) => res.status === 201)).toHaveLength(18);
+    expect(results.filter((res) => res.status === 422)).toHaveLength(7);
+    const usage = await api.get('/companies/usage');
+    expect(usage.body.data.companiesActive).toBe(18);
+  });
+});
+
 describe('POST /companies/import — prévia do CSV (nada é gravado)', () => {
   let api: Api;
 
@@ -445,7 +481,7 @@ describe('POST /companies/import/confirm — gravação', () => {
     expect(got.body.data.responsibleAccountantId).toBe(mine);
   });
 
-  it('reenvio do mesmo CNPJ faz upsert: renomeia sem duplicar e reporta "created"', async () => {
+  it('reenvio do mesmo CNPJ faz upsert: renomeia sem duplicar e conta como atualizada', async () => {
     const res = await api.post('/companies/import/confirm', {
       pending: [
         {
@@ -459,8 +495,10 @@ describe('POST /companies/import/confirm — gravação', () => {
       ],
     });
     expect(res.status).toBe(201);
+    expect(res.body.data).toMatchObject({ created: 0, updated: 1, activated: 0 });
     expect(res.body.data.lines[0]).toMatchObject({
       status: 'created',
+      inserted: false,
       companyId: importedId,
       name: 'Importada Renomeada',
     });
@@ -471,6 +509,53 @@ describe('POST /companies/import/confirm — gravação', () => {
     const roster = await api.get(`/companies/${importedId}/contacts`);
     expect(roster.body.data).toHaveLength(1);
     expect(roster.body.data[0].name).toBe('Ivo Renomeado');
+  });
+
+  it('reenvio sem as colunas não apaga template, contador, flags, nome nem telefone do Responsável', async () => {
+    const mine = await accountantIdOf(userId);
+    const cnpj = validCnpj();
+    const first = await api.post('/companies/import/confirm', {
+      pending: [
+        {
+          line: 2,
+          body: {
+            name: 'Preservada',
+            cnpj,
+            checklistTemplateId: templateId,
+            responsibleAccountantId: mine,
+            flags: { has_employees: true, has_inventory: true },
+            contact: { name: 'Rita', email: 'rita-import@example.com', phone: '11977776666' },
+          },
+        },
+      ],
+    });
+    expect(first.status, JSON.stringify(first.body)).toBe(201);
+    const companyId = first.body.data.lines[0].companyId;
+
+    /* O que a prévia manda para uma planilha só com nome, CNPJ, e-mail e uma coluna de
+     * flag: o nome do Responsável cai para o da Empresa. */
+    const again = await api.post('/companies/import/confirm', {
+      pending: [
+        {
+          line: 2,
+          body: {
+            name: 'Preservada',
+            cnpj,
+            flags: { has_inventory: false },
+            contact: { name: 'Preservada', email: 'rita-import@example.com' },
+          },
+        },
+      ],
+    });
+    expect(again.status, JSON.stringify(again.body)).toBe(201);
+
+    const got = await api.get(`/companies/${companyId}`);
+    expect(got.body.data).toMatchObject({
+      checklistTemplateId: templateId,
+      responsibleAccountantId: mine,
+      flags: { has_employees: true, has_inventory: false },
+    });
+    expect(got.body.data.contacts[0]).toMatchObject({ name: 'Rita', phone: '11977776666' });
   });
 
   it('activate:false importa tudo desativado; reimportar com activate:true NÃO reativa', async () => {
@@ -520,6 +605,35 @@ describe('POST /companies/import/confirm — gravação', () => {
     const res = await api.post('/companies/import/confirm', { pending: [] });
     expect(res.status).toBe(422);
     expect(res.body.error.code).toBe('VALIDATION_ERROR');
+  });
+});
+
+describe('POST /companies/access-invites — repetidos e desativadas', () => {
+  it('id repetido convida uma vez; Empresa desativada é pulada com motivo', async () => {
+    const { api } = await registerFirm(app.url);
+    const live = await createCompany(api, {
+      name: 'Viva',
+      contact: { name: 'Vera', email: 'vera-invite@example.com' },
+    });
+    const off = await createCompany(api, {
+      name: 'Desligada',
+      contact: { name: 'Dora', email: 'dora-invite@example.com' },
+    });
+    expect((await api.delete(`/companies/${off.id}`)).status).toBe(200);
+
+    const res = await api.post('/companies/access-invites', {
+      companyIds: [live.id, live.id, off.id],
+    });
+    expect(res.status, JSON.stringify(res.body)).toBe(201);
+    expect(res.body.data.invited).toBe(1);
+    expect(res.body.data.results).toContainEqual({
+      companyId: off.id,
+      companyName: 'Desligada',
+      status: 'skipped',
+      reason: 'Empresa desativada: ative-a antes de convidar.',
+    });
+    expect(await db.select().from(invite).where(eq(invite.companyId, live.id))).toHaveLength(1);
+    expect(await db.select().from(invite).where(eq(invite.companyId, off.id))).toHaveLength(0);
   });
 });
 
@@ -964,5 +1078,126 @@ describe('isolamento entre firmas', () => {
     const mine = await a.api.get(`/companies/${created.id}`);
     expect(mine.status).toBe(200);
     expect(mine.body.data.name).toBe('Secreta');
+  });
+});
+
+/* Trocar o e-mail do Responsável é trocar a PESSOA. O Link de Upload resolve pelo `contact.id`
+ * lendo o e-mail ao vivo, então o token que ficou com o antigo passaria a ativar conta no
+ * endereço do novo. Cada Link aberto ganha token novo, o antigo morre na hora e o novo
+ * endereço recebe o link — sem revogar a linha, que mataria também os tokens seguintes. */
+describe('PATCH contato: troca de e-mail rotaciona o Link de Upload', () => {
+  let api: Api;
+  let companyId: string;
+  let contactId: string;
+  let requestId: string;
+  let uploadToken: string;
+
+  const linkRow = () =>
+    db
+      .select({
+        tokenHash: uploadLink.tokenHash,
+        previousTokenHash: uploadLink.previousTokenHash,
+        revoked: uploadLink.revoked,
+      })
+      .from(uploadLink)
+      .where(eq(uploadLink.requestId, requestId))
+      .then((rows) => rows[0]);
+
+  beforeAll(async () => {
+    ({ api } = await registerFirm(app.url, 'Contabilidade Troca de Pessoa'));
+    const [documentTypeId] = await documentTypeIds(api, 1);
+    const templateId = await createTemplate(api, [{ documentTypeId }]);
+    const created = await createCompany(api, {
+      name: 'Troca SA',
+      checklistTemplateId: templateId,
+      contact: contactBody('Antiga'),
+    });
+    companyId = created.id;
+    contactId = (created.contacts as Array<{ id: string }>)[0].id;
+
+    const opened = await api.post('/periods', { referenceMonth: '2026-08' });
+    expect(opened.status, JSON.stringify(opened.body)).toBe(201);
+    requestId = opened.body.data.requests[0].id;
+    uploadToken = opened.body.data.requests[0].uploadUrl.split('/envio/')[1];
+  });
+
+  it('Responsável sem conta: o token antigo morre na hora e o novo e-mail recebe o reenvio', async () => {
+    const before = await linkRow();
+    expect((await apiClient(app.url).get(`/upload/${uploadToken}`)).status).toBe(200);
+    const subscribed = await apiClient(app.url).post(`/upload/${uploadToken}/push`, {
+      endpoint: 'https://fcm.googleapis.com/fcm/send/aparelho-da-antiga',
+      keys: { p256dh: 'chave-p256dh', auth: 'chave-auth' },
+    });
+    expect(subscribed.status, JSON.stringify(subscribed.body)).toBe(201);
+
+    const res = await api.patch(`/companies/${companyId}/contacts/${contactId}`, {
+      email: 'nova-pessoa@example.com',
+    });
+    expect(res.status, JSON.stringify(res.body)).toBe(200);
+    expect(res.body.data.undeliveredLinks, 'o e-mail com o link novo saiu').toBe(0);
+    await app.drainEvents();
+
+    const devices = await db
+      .select({ id: pushSubscription.id })
+      .from(pushSubscription)
+      .where(eq(pushSubscription.contactId, contactId));
+    expect(devices, 'o aparelho da pessoa que saiu para de receber').toEqual([]);
+
+    const after = await linkRow();
+    expect(after.tokenHash).not.toBe(before.tokenHash);
+    expect(after.previousTokenHash, 'sem carência: a pessoa mudou').toBeNull();
+    expect(after.revoked).toBe(false);
+    expect((await apiClient(app.url).get(`/upload/${uploadToken}`)).status).toBe(404);
+
+    const deliveries = await db
+      .select({ purpose: message.purpose, recipient: message.recipient, status: message.status })
+      .from(message)
+      .where(eq(message.requestId, requestId));
+    expect(deliveries.filter((row) => row.purpose === 'resend')).toEqual([
+      { purpose: 'resend', recipient: 'nova-pessoa@example.com', status: 'sent' },
+    ]);
+  });
+
+  it('mudar só a caixa do e-mail não é troca de pessoa: grava minúsculo e não mexe no Link', async () => {
+    const before = await linkRow();
+    const res = await api.patch(`/companies/${companyId}/contacts/${contactId}`, {
+      email: 'Nova-Pessoa@Example.COM',
+    });
+    expect(res.status, JSON.stringify(res.body)).toBe(200);
+    expect(res.body.data.email).toBe('nova-pessoa@example.com');
+    expect((await linkRow()).tokenHash).toBe(before.tokenHash);
+  });
+
+  it('mudar só o nome não mexe no Link', async () => {
+    const before = await linkRow();
+    const res = await api.patch(`/companies/${companyId}/contacts/${contactId}`, { name: 'Nova' });
+    expect(res.status).toBe(200);
+    expect((await linkRow()).tokenHash).toBe(before.tokenHash);
+  });
+
+  it('Responsável com conta: o vínculo cai, e o link que o Contador reenvia depois funciona', async () => {
+    const [seeded] = await db
+      .insert(userTable)
+      .values({ name: 'Nova App', email: 'nova-pessoa@example.com' })
+      .returning({ id: userTable.id });
+    await db.update(contact).set({ authUserId: seeded.id }).where(eq(contact.id, contactId));
+
+    const res = await api.patch(`/companies/${companyId}/contacts/${contactId}`, {
+      email: 'terceira-pessoa@example.com',
+    });
+    expect(res.status, JSON.stringify(res.body)).toBe(200);
+    await app.drainEvents();
+
+    const [linked] = await db
+      .select({ authUserId: contact.authUserId })
+      .from(contact)
+      .where(eq(contact.id, contactId));
+    expect(linked.authUserId).toBeNull();
+    expect((await linkRow()).revoked).toBe(false);
+
+    const resent = await api.post(`/requests/${requestId}/upload-link/resend`);
+    expect(resent.status, JSON.stringify(resent.body)).toBe(201);
+    const freshToken = resent.body.data.uploadUrl.split('/envio/')[1];
+    expect((await apiClient(app.url).get(`/upload/${freshToken}`)).status).toBe(200);
   });
 });

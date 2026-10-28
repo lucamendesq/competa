@@ -150,12 +150,24 @@ async function inviteToApp(company: any) {
   inviting.value = company.id;
   try {
     const res = await sendAccessInvitesMutation.mutateAsync([company.id]);
-    markInvited(company.id);
-    if (res.skipped > 0) {
-      toast.info('Nenhum e-mail enviado (contatos já possuem acesso).');
-    } else {
-      toast.success('Convite enviado por e-mail.');
+    /* Só marca como convidada a Empresa que de fato recebeu e-mail, e o aviso diz o
+     * motivo que a API deu para cada contato pulado — "já possuem acesso" era dito até
+     * para Empresa sem Responsável. */
+    if (res.invited > 0) {
+      markInvited(company.id);
+      toast.success(
+        res.invited === 1 ? 'Convite enviado por e-mail.' : `${res.invited} convites enviados.`,
+      );
     }
+    const reasons = [
+      ...new Set(
+        res.results
+          .filter((row) => row.status !== 'invited')
+          .map((row) => (row.email ? `${row.email}: ${row.reason}` : row.reason))
+          .filter(Boolean),
+      ),
+    ];
+    if (reasons.length) toast.info(reasons.join(' '));
   } catch (error) {
     toast.error(apiErrorMessage(error, 'Não foi possível enviar o convite.'));
   } finally {

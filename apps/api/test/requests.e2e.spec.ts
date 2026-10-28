@@ -448,6 +448,62 @@ describe('rotação do Link de Upload (upload-link e resend)', () => {
   });
 });
 
+describe('remover Responsável que recebeu o Link de Upload', () => {
+  const contactsOf = async (api: Api, companyId: string) =>
+    (await api.get(`/companies/${companyId}/contacts`)).body.data as Array<{
+      id: string;
+      email: string;
+    }>;
+
+  it('único Responsável com Solicitação aberta → 409; com outro, o link passa revogado', async () => {
+    const fixture = await openFirm(['Herdada']);
+    const box = fixture.boxes.Herdada;
+    const api = fixture.firm.api;
+    const [holder] = await contactsOf(api, box.companyId);
+
+    const blocked = await api.delete(`/companies/${box.companyId}/contacts/${holder.id}`);
+    expect(blocked.status, JSON.stringify(blocked.body)).toBe(409);
+    expect(blocked.body.error.code).toBe('CONTACT_HOLDS_OPEN_LINKS');
+
+    const heir = contactBody();
+    expect((await api.post(`/companies/${box.companyId}/contacts`, heir)).status).toBe(201);
+
+    const removed = await api.delete(`/companies/${box.companyId}/contacts/${holder.id}`);
+    expect(removed.status, JSON.stringify(removed.body)).toBe(204);
+
+    const old = await apiClient(app.url).get(`/upload/${box.uploadToken}`);
+    expect(old.status, 'o token do removido para de valer').toBe(404);
+
+    const resent = await api.post(`/requests/${box.requestId}/upload-link/resend`);
+    expect(resent.status, JSON.stringify(resent.body)).toBe(201);
+    expect(resent.body.data.contactEmail).toBe(heir.email);
+  });
+
+  it('único Responsável só com Solicitação encerrada sai, e o link morto vai junto', async () => {
+    const fixture = await openFirm(['Encerrada']);
+    const box = fixture.boxes.Encerrada;
+    const api = fixture.firm.api;
+    expect((await api.post(`/requests/${box.requestId}/close`)).status).toBe(201);
+    const [holder] = await contactsOf(api, box.companyId);
+
+    const removed = await api.delete(`/companies/${box.companyId}/contacts/${holder.id}`);
+    expect(removed.status, JSON.stringify(removed.body)).toBe(204);
+    expect(await contactsOf(api, box.companyId)).toEqual([]);
+  });
+});
+
+describe('encerramento concorrente', () => {
+  it('dois encerramentos ao mesmo tempo: um encerra, o outro é 409', async () => {
+    const race = await openFirm(['Corrida']);
+    const id = race.boxes.Corrida.requestId;
+    const results = await Promise.all([
+      race.firm.api.post(`/requests/${id}/close`),
+      race.firm.api.post(`/requests/${id}/close`),
+    ]);
+    expect(results.map((res) => res.status).sort()).toEqual([201, 409]);
+  });
+});
+
 describe('POST /requests/:id/close', () => {
   let fixture: Awaited<ReturnType<typeof openFirm>>;
 
@@ -1244,7 +1300,7 @@ describe('upload público — regras de arquivo no presign e na confirmação', 
     expect(asExtra.body.data.files[0].accepted).toBe(true);
   });
 
-  it('confirmar sem PUT → recusado e a reserva é descartada', async () => {
+  it('confirmar sem PUT → recusado, a reserva fica e confirmar depois do PUT vale', async () => {
     const anon = apiClient(app.url);
     const presigned = await anon.post(`/upload/${box.uploadToken}/documents`, {
       files: [{ fileName: 'sem-put.csv', contentType: 'text/csv', sizeBytes: 10 }],
@@ -1267,11 +1323,17 @@ describe('upload público — regras de arquivo no presign e na confirmação', 
       ],
     });
 
-    const rows = await db
-      .select({ id: document.id })
+    const [row] = await db
+      .select({ uploadStatus: document.uploadStatus })
       .from(document)
       .where(eq(document.id, slot.documentId));
-    expect(rows).toHaveLength(0);
+    expect(row.uploadStatus, 'o PUT atrasado ainda tem reserva').toBe('awaiting_upload');
+
+    await putFile(slot.uploadUrl, '0123456789');
+    const late = await anon.post(`/upload/${box.uploadToken}/documents/confirm`, {
+      documentIds: [slot.documentId],
+    });
+    expect(late.body.data.confirmed).toBe(1);
   });
 
   it('tamanho real diferente do declarado → recusado na confirmação', async () => {
@@ -1479,13 +1541,86 @@ describe('zip e leitura de documentos', () => {
     const res = await zipGet(`/periods/${fixture.periodId}/zip`);
     expect(res.status).toBe(200);
     expect(res.headers.get('content-disposition')).toBe(
-      'attachment; filename="competencia-2026-09-2026-09.zip"',
+      'attachment; filename="competencia-2026-09.zip"',
     );
 
     const buffer = Buffer.from(await res.arrayBuffer());
     expect(countZipEntries(buffer)).toBe(2);
     expect(buffer.includes('Zipada/')).toBe(true);
     expect(buffer.includes('Vazia/')).toBe(true);
+  });
+
+  it('reenviar o PUT pré-assinado depois do confirm não troca o arquivo conferido', async () => {
+    const replay = await openFirm(['Replay']);
+    const box = replay.boxes.Replay;
+    const anon = apiClient(app.url);
+    const original = 'linha;100,00\n';
+    const presigned = await anon.post(`/upload/${box.uploadToken}/documents`, {
+      files: [
+        {
+          fileName: 'extrato.csv',
+          contentType: 'text/csv',
+          sizeBytes: Buffer.byteLength(original),
+        },
+      ],
+    });
+    const [slot] = presigned.body.data.files;
+    await putFile(slot.uploadUrl, original);
+    const confirmed = await anon.post(`/upload/${box.uploadToken}/documents/confirm`, {
+      documentIds: [slot.documentId],
+    });
+    expect(confirmed.status, JSON.stringify(confirmed.body)).toBe(201);
+
+    await putFile(slot.uploadUrl, 'linha;999,99\n');
+
+    const content = await rawRequest('GET', `/documents/${slot.documentId}/content`, {
+      cookie: replay.firm.cookie,
+    });
+    expect(content.status).toBe(200);
+    expect(await content.text()).toBe(original);
+  });
+
+  it('item aceito não recebe arquivo novo pelo link → 422', async () => {
+    const done = await openFirm(['Aceita']);
+    const box = done.boxes.Aceita;
+    const detail = await requestDetail(done.firm.api, box.requestId);
+    const itemId = detail.items[0].id;
+    await uploadVia(
+      box.uploadToken,
+      { fileName: 'nota.png', content: PNG_1X1, contentType: 'image/png' },
+      itemId,
+    );
+    expect((await done.firm.api.post(`/request-items/${itemId}/accept`)).status).toBe(201);
+
+    const late = await apiClient(app.url).post(`/upload/${box.uploadToken}/documents`, {
+      requestItemId: itemId,
+      files: [{ fileName: 'outra.png', contentType: 'image/png', sizeBytes: PNG_1X1.length }],
+    });
+    expect(late.status, JSON.stringify(late.body)).toBe(422);
+    expect(late.body.error.message).toContain('já foi aceito');
+  });
+
+  it('objeto ausente no storage aborta o zip sem derrubar a API', async () => {
+    const broken = await openFirm(['Quebrada']);
+    await db.insert(document).values({
+      requestId: broken.boxes.Quebrada.requestId,
+      storageKey: 'ausente/nao-existe.pdf',
+      fileName: 'sumiu.pdf',
+      contentType: 'application/pdf',
+      sizeBytes: 10,
+      uploadStatus: 'uploaded',
+      uploadedAt: new Date(),
+    });
+
+    const res = await rawRequest('GET', `/requests/${broken.boxes.Quebrada.requestId}/zip`, {
+      cookie: broken.firm.cookie,
+    });
+    expect(res.status).toBe(200);
+    await res.arrayBuffer().catch(() => undefined);
+
+    const alive = await zipGet(`/requests/${zippedBox.requestId}/zip`);
+    expect(alive.status).toBe(200);
+    await alive.arrayBuffer();
   });
 
   it('competência acima de 2000 documentos → 422 ZIP_TOO_LARGE', async () => {

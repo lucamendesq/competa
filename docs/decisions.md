@@ -538,3 +538,56 @@ demais na própria página de preços.
 COM-178 (`@RequiresPlan`) · COM-179 (folga de 20%) · COM-180 (anual) · COM-181 (Oferta
 Fundador) · COM-182/183/184 (os três gates) · COM-185 (telas de preço) · COM-186 (importar
 como inativa) · COM-187 (instrumentação).
+
+## D19 — Cobrança: o plano só vale depois do pagamento DA fatura; acesso pago não se perde
+
+**Contexto:** A auditoria de produção do ramo `security-followup` (2026-10) encontrou que o
+checkout gravava `plan_name` direto (plano pago sem pagar), que qualquer evento `ACTIVE` da
+assinatura promovia a intenção (o `PAYMENT_RECEIVED` do cartão chega 32 dias depois do
+`CONFIRMED`), que a régua de inadimplência barrava o próprio checkout, que o Asaas exige o
+`cpfCnpj` do pagador e nunca o mandávamos, e que sem webhook a firma ficava `ACTIVE` para
+sempre.
+
+**Decisão:**
+
+1. **A intenção do checkout (`pending_*`) só vira plano quando o pagamento é da fatura
+   gravada no checkout** (`pending_payment_id`); sem id gravado, quando o valor cobre o plano
+   pendente. Reivindicação do evento e efeito rodam numa transação.
+2. **O período ancora no vencimento da fatura, em UTC, e só anda para a frente.** Uma
+   varredura diária (`billing-sweep`, 7h30) fecha como `OVERDUE` a assinatura `ACTIVE` cujo
+   período acabou há mais de 7 dias — o webhook deixa de ser a única fonte de verdade.
+3. **Acesso pago não se perde.** `CANCELED` (pelo dono em `DELETE /billing/subscription` ou
+   pelo Asaas) mantém a escrita até `current_period_end`; a reativação é só por checkout.
+   `OVERDUE` só por fatura do período corrente — fatura antiga apagada por operador não
+   derruba quem está em dia.
+4. **Troca de plano com assinatura em dia tem efeito agora:** preço igual ou menor aplica na
+   hora (a próxima fatura sai no valor novo); upgrade cobra hoje o novo ciclo descontado do
+   que sobrou do atual (cobrança avulsa, achada pelo `externalReference`) e promove no
+   pagamento. Sem isto a troca só valia na próxima fatura — até 12 meses no anual.
+5. **As rotas de cobrança passam pela régua de inadimplência** (`firmRoute({ billing: true })`):
+   é por elas que a firma bloqueada paga ou cancela.
+6. **O CNPJ da Contabilidade é exigido no primeiro checkout** (opcional no cadastro) e é
+   único: um segundo cadastro da mesma pessoa jurídica seria um segundo trial.
+7. **Os uploads do Responsável continuam funcionando para a firma `CANCELED`/`OVERDUE`.** O
+   Link de Upload é a porta do produto (D14) e o documento é da Empresa, não do plano; a
+   régua bloqueia a escrita do Contador, não a entrega do cliente dele.
+
+**Consequências:**
+
+- `GET /billing/subscription` só entrega `invoiceUrl` ao dono (é a página do pagador); o
+  link gravado no checkout evita consultar o gateway a cada tela.
+- Checkout serializado por firma (409 `CHECKOUT_IN_FLIGHT`); o id da assinatura substituída
+  fica em `previous_gateway_subscription_ids`, então a cobrança dela ainda ativa a firma.
+- Backfill: firmas que fizeram checkout antes desta decisão e nunca pagaram tinham
+  `plan_name` pago; a migração `backfill_pending_plan` devolve a escolha para `pending_*`.
+- O convite de Responsável (`POST /invites/:token/contact-account`) continua marcando
+  `emailVerified`: o token foi entregue na caixa dele, mesma prova do magic link, e sem a
+  marca o primeiro magic link do better-auth revoga a conta "não provada" e apaga a senha.
+
+**Alternativas rejeitadas:**
+
+- **Promover pelo valor sempre:** o `RECEIVED` atrasado da fatura do plano antigo nunca cobre o
+  novo, mas um downgrade pendente seria promovido antes de pago. O id da fatura decide.
+- **Cancelar = bloquear na hora:** pune quem pagou o ano; o Asaas mesmo mantém o período.
+- **Exigir CNPJ no cadastro:** fricção no trial de 14 dias sem cartão; o gateway só precisa
+  dele quando há cobrança.

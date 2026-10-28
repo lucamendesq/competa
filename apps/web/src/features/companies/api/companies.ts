@@ -55,12 +55,22 @@ export type Override = {
 };
 
 export type ImportLine =
-  | { line: number; status: 'created'; companyId: string; name: string; active: boolean }
+  | {
+      line: number;
+      status: 'created';
+      companyId: string;
+      name: string;
+      active: boolean;
+      /** `false`: CNPJ já cadastrado, atualizado. */
+      inserted: boolean;
+    }
   | { line: number; status: 'error'; name: string; error: string };
 
 export type ImportResult = {
   total: number;
+  /** Empresas novas; as de CNPJ já cadastrado contam em `updated`. */
   created: number;
+  updated: number;
   activated: number;
   failed: number;
   lines: ImportLine[];
@@ -106,8 +116,12 @@ export const deactivateCompany = (id: string) => api.delete<Company>(`/companies
 export const addContact = (companyId: string, body: ContactBody) =>
   api.post<Contact>(`/companies/${companyId}/contacts`, body);
 
+/** `undeliveredLinks`: Links de Upload rotacionados na troca de pessoa cujo e-mail não saiu. */
 export const updateContact = (companyId: string, contactId: string, body: Partial<ContactBody>) =>
-  api.patch<Contact>(`/companies/${companyId}/contacts/${contactId}`, body);
+  api.patch<Contact & { undeliveredLinks: number }>(
+    `/companies/${companyId}/contacts/${contactId}`,
+    body,
+  );
 
 export const removeContact = (companyId: string, contactId: string) =>
   api.delete<void>(`/companies/${companyId}/contacts/${contactId}`);
@@ -121,8 +135,19 @@ export const saveOverride = (companyId: string, body: CreateOverrideBody) =>
 export const removerOverride = (companyId: string, documentTypeId: string) =>
   api.delete<void>(`/companies/${companyId}/checklist-overrides/${documentTypeId}`);
 
+export type AccessInviteResult = {
+  companyId: string;
+  companyName?: string;
+  email?: string;
+  status: 'invited' | 'skipped' | 'error';
+  reason?: string;
+};
+
 export const sendAccessInvites = (companyIds: string[]) =>
-  api.post<{ invited: number; skipped: number }>('/companies/access-invites', { companyIds });
+  api.post<{ invited: number; skipped: number; results: AccessInviteResult[] }>(
+    '/companies/access-invites',
+    { companyIds },
+  );
 
 export const applyTemplate = (companyIds: string[], checklistTemplateId: string) =>
   api.post<{ updated: number }>('/companies/apply-template', { companyIds, checklistTemplateId });

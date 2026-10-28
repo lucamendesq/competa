@@ -54,9 +54,25 @@ export const getPendingPanel = (id: string) => api.get<PanelRow[]>(`/periods/${i
 export const openPeriod = (body: { referenceMonth: string; dueDate?: string }) =>
   api.post<PeriodOpening>('/periods', body);
 
+/** Fan-out tardio: Empresas ativas que ainda não têm Solicitação nesta Competência. */
+export const addMissingRequests = (id: string) =>
+  api.post<Pick<PeriodOpening, 'warnings' | 'requests'>>(`/periods/${id}/requests`);
+
+export type PeriodPreview = {
+  requests: { companyId: string; companyName: string; contactName: string; itemCount: number }[];
+  skipped: PeriodOpening['warnings'];
+  notes: PeriodOpening['warnings'];
+};
+
+/** O que abrir `referenceMonth` criaria, sem gravar: o mesmo fan-out da abertura. */
+export const getPeriodPreview = (referenceMonth: string) =>
+  api.get<PeriodPreview>(`/periods/preview?referenceMonth=${encodeURIComponent(referenceMonth)}`);
+
 export const closePeriod = (id: string) => api.post<PeriodClosing>(`/periods/${id}/close`);
 
-export const runReminders = () => api.post<unknown>('/messages/reminders/run');
+/** `busy`: outra varredura (o cron ou outro clique) já está cobrando esta Contabilidade. */
+export const runReminders = () =>
+  api.post<{ scanned: number; sent: number; busy: boolean }>('/messages/reminders/run');
 
 export const downloadPeriodZip = (id: string, referenceMonth: string) =>
   api.download(`/periods/${id}/zip`, `competencia-${referenceMonth.slice(0, 7)}.zip`);

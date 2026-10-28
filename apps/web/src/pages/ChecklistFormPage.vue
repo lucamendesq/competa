@@ -16,6 +16,8 @@ import {
 } from '@/features/checklists/composables/useChecklistsFeature';
 import { toast } from 'vue-sonner';
 import { apiErrorMessage } from '@/api/error';
+import { COMPANY_FLAGS } from '@competa/contracts';
+import { CATEGORY_LABEL, FLAG_LABEL } from '@/utils/format';
 
 const props = defineProps<{ id: string }>();
 const router = useRouter();
@@ -27,13 +29,6 @@ const { renameTemplateMutation, deleteTemplateMutation, deriveTemplateMutation }
   useChecklistsFeature();
 
 const isProductTemplate = computed(() => detailQuery.data.value?.accountingFirmId === null);
-
-const CATEGORY_LABEL: Record<string, string> = {
-  fiscal: 'Fiscal / Impostos',
-  accounting: 'Contábil / Financeiro',
-  payroll: 'Folha de Pagamento',
-  legal: 'Societário / Legal',
-};
 
 type DraftItem = {
   id: string;
@@ -445,9 +440,9 @@ function resolveLeave(leave: boolean) {
                 @change="changeCondition(item, ($event.target as HTMLSelectElement).value)"
               >
                 <option value="">Aplicar a todos</option>
-                <option value="has_employees">Só se tiver funcionários</option>
-                <option value="is_simples_nacional">Só para Simples Nacional</option>
-                <option value="is_lucro_presumido">Só para Lucro Presumido</option>
+                <option v-for="flag in COMPANY_FLAGS" :key="flag" :value="flag">
+                  Só se {{ FLAG_LABEL[flag].toLowerCase() }}
+                </option>
               </select>
             </div>
 

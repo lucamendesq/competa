@@ -230,7 +230,7 @@ layer(PeriodsRepo.layer)('PeriodsRepo', (it) => {
     }),
   );
 
-  it.effect('list pagina por firma', () =>
+  it.effect('list pagina por firma, mais recente primeiro', () =>
     Effect.gen(function* () {
       const repo = yield* PeriodsRepo;
       const scope = yield* seedFirm('Unit F');
@@ -240,7 +240,7 @@ layer(PeriodsRepo.layer)('PeriodsRepo', (it) => {
       const page1 = yield* repo.list(scope, { page: 1, perPage: 1 });
       expect(page1.total).toBe(2);
       expect(page1.rows).toHaveLength(1);
-      expect(page1.rows[0].referenceMonth).toBe('2026-06-01');
+      expect(page1.rows[0].referenceMonth).toBe('2026-07-01');
     }),
   );
 });

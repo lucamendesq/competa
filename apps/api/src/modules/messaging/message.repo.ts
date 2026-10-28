@@ -2,7 +2,6 @@ import { Logger } from '../../lib/logger.js';
 import { Context, Effect, Layer } from 'effect';
 import { and, count, desc, eq, gt, inArray, isNull, or, sql } from 'drizzle-orm';
 import { planAllows, type MessageListQuery } from '@competa/contracts';
-import env from '../../config/env.js';
 import { Db, type Executor } from '../../infra/database/effect.js';
 import {
   accountingFirm,
@@ -74,13 +73,15 @@ const logger = new Logger('MessageRepository');
  *  causas distintas que o booleano achatava — inclusive o silêncio do bug congelado #15
  *  (purpose sem branch). O fio continua `{sent}`: a rota é quem achata, agora à vista. */
 export type ResendOutcome =
-  | { readonly _tag: 'Delivered' }
+  /* `carriedLink`: a mensagem entregue levou o `uploadUrl` novo ao Responsável — só então
+   * quem chamou oficializa o token. */
+  | { readonly _tag: 'Delivered'; readonly requestId: string; readonly carriedLink: boolean }
   | { readonly _tag: 'ProviderRefused' }
   | { readonly _tag: 'NoPushSubscription' }
   | { readonly _tag: 'PurposeNotResendable'; readonly purpose: string };
 
-const outcomeOf = (ok: boolean): ResendOutcome =>
-  ok ? { _tag: 'Delivered' } : { _tag: 'ProviderRefused' };
+const outcomeOf = (ok: boolean, requestId: string, carriedLink: boolean): ResendOutcome =>
+  ok ? { _tag: 'Delivered', requestId, carriedLink } : { _tag: 'ProviderRefused' };
 
 const make = Effect.gen(function* () {
   const db = yield* Db;
@@ -498,7 +499,14 @@ const make = Effect.gen(function* () {
     });
   });
 
-  const resend = Effect.fn('MessagesRepo.resend')(function* (scope: FirmScope, messageId: string) {
+  /** `uploadUrl` é o link com token NOVO, montado por quem chama: o reenvio dizia "Seu novo
+   *  link de envio" e apontava para `/minha-area/pendencias`, que exige conta — e a maioria
+   *  dos Responsáveis não tem (D14). O token só vale se `carriedLink` voltar verdadeiro. */
+  const resend = Effect.fn('MessagesRepo.resend')(function* (
+    scope: FirmScope,
+    messageId: string,
+    uploadUrl: string,
+  ) {
     const [row] = yield* db.use((d) =>
       d
         .select({
@@ -544,7 +552,7 @@ const make = Effect.gen(function* () {
             new InvalidTransition('Solicitação encerrada — não há mais link de envio.'),
           );
         }
-        url = `${env.WEB_URL}/minha-area/pendencias`;
+        url = uploadUrl;
 
         if (row.purpose === 'link_delivery') {
           title = 'Novos documentos solicitados';
@@ -581,7 +589,7 @@ const make = Effect.gen(function* () {
         yield* deletePushSubscriptionByEndpoint(endpoint);
       }
 
-      return outcomeOf(Boolean(result && result.sent > 0));
+      return outcomeOf(Boolean(result && result.sent > 0), row.requestId, url !== undefined);
     }
 
     if (row.purpose === 'completion') {
@@ -608,7 +616,7 @@ const make = Effect.gen(function* () {
         }),
       });
 
-      return outcomeOf(delivered);
+      return outcomeOf(delivered, row.requestId, false);
     }
 
     if (row.requestStatus === 'closed') {
@@ -628,7 +636,6 @@ const make = Effect.gen(function* () {
 
     const contactName = contactRow?.name ?? row.recipient;
     const contactEmail = contactRow?.email ?? row.recipient;
-    const uploadUrl = `${env.WEB_URL}/minha-area/pendencias`;
 
     if (row.purpose === 'link_delivery') {
       const delivered = yield* deliver({
@@ -647,7 +654,7 @@ const make = Effect.gen(function* () {
           uploadUrl,
         }),
       });
-      return outcomeOf(delivered);
+      return outcomeOf(delivered, row.requestId, true);
     }
 
     if (row.purpose === 'reminder') {
@@ -697,7 +704,7 @@ const make = Effect.gen(function* () {
           uploadUrl,
         }),
       });
-      return outcomeOf(delivered);
+      return outcomeOf(delivered, row.requestId, true);
     }
 
     if (row.purpose === 'rejection') {
@@ -749,7 +756,7 @@ const make = Effect.gen(function* () {
         recipient: row.recipient,
         ...emailData,
       });
-      return outcomeOf(delivered);
+      return outcomeOf(delivered, row.requestId, true);
     }
 
     if (row.purpose === 'deadline_missed') {
@@ -799,7 +806,7 @@ const make = Effect.gen(function* () {
         recipient: row.recipient,
         ...emailData,
       });
-      return outcomeOf(delivered);
+      return outcomeOf(delivered, row.requestId, isContact);
     }
 
     return { _tag: 'PurposeNotResendable', purpose: row.purpose } as const;
@@ -882,6 +889,7 @@ const make = Effect.gen(function* () {
             inArray(requestItem.status, PENDING_ITEM_STATUS),
             eq(request.status, 'open'),
             eq(period.status, 'open'),
+            eq(company.active, true),
             scope ? eq(period.accountingFirmId, scope) : undefined,
           ),
         );

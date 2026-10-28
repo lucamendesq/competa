@@ -12,6 +12,7 @@ import {
   Mail,
   MailWarning,
   PartyPopper,
+  Plus,
   Search,
   TriangleAlert,
 } from 'lucide-vue-next';
@@ -28,7 +29,7 @@ import {
   usePeriodsFeature,
 } from '@/features/periods/composables/usePeriodsFeature';
 import { useCompaniesFeature } from '@/features/companies/composables/useCompaniesFeature';
-import { getPendingPanel } from '@/features/periods/api/periods';
+import { addMissingRequests, getPendingPanel } from '@/features/periods/api/periods';
 import {
   resendUploadLink,
   getUploadLink,
@@ -239,11 +240,42 @@ async function handleResendUploadLink(line: any) {
 
 async function resendReminders() {
   try {
-    await runRemindersMutation.mutateAsync();
-    toast.success('Varredura de lembretes disparada.');
+    const result = await runRemindersMutation.mutateAsync();
+    if (result.busy) toast.info('Já há uma cobrança em andamento. Confira em instantes.');
+    else toast.success('Varredura de lembretes disparada.');
     panelQuery.refetch();
   } catch (error) {
     toast.error(apiErrorMessage(error, 'Não foi possível disparar os lembretes.'));
+  }
+}
+
+const addingRequests = ref(false);
+
+/* Empresa cadastrada ou ativada depois da abertura fica fora da Competência até alguém
+ * pedir: o fan-out da abertura roda uma vez só. */
+async function includeNewCompanies() {
+  addingRequests.value = true;
+  try {
+    const { requests, warnings } = await addMissingRequests(props.id);
+    if (requests.length) {
+      toast.success(
+        requests.length === 1
+          ? `Link enviado para ${requests[0].companyName}.`
+          : `${requests.length} empresas incluídas e links enviados.`,
+      );
+    } else {
+      toast.info(
+        warnings.length
+          ? `Nenhuma empresa incluída: ${warnings.map((w) => `${w.companyName} (${w.reason})`).join('; ')}.`
+          : 'Todas as empresas ativas já estão nesta competência.',
+      );
+    }
+    detailQuery.refetch();
+    panelQuery.refetch();
+  } catch (error) {
+    toast.error(apiErrorMessage(error, 'Não foi possível incluir as empresas novas.'));
+  } finally {
+    addingRequests.value = false;
   }
 }
 
@@ -300,6 +332,15 @@ function maskedCnpj(cnpj: string | null) {
       </Button>
     </span>
     <template v-if="detailQuery.data.value?.status === 'open'">
+      <Button
+        variant="outline"
+        class="mr-2 shadow-xs"
+        :disabled="addingRequests"
+        @click="includeNewCompanies"
+      >
+        <Plus class="mr-2 h-4 w-4" />
+        {{ addingRequests ? 'Incluindo...' : 'Incluir empresas novas' }}
+      </Button>
       <Button
         variant="outline"
         class="text-danger hover:text-danger hover:bg-danger-surface border-border shadow-xs"

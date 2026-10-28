@@ -488,6 +488,17 @@ describe('itens de template', () => {
     });
   });
 
+  it('PATCH vazio (ou só com chave desconhecida) → 422, não 500', async () => {
+    for (const body of [{}, { foo: 1 }]) {
+      const res = await api.patch(
+        `/checklist-templates/${templateId}/items/${defaultItemId}`,
+        body,
+      );
+      expect(res.status, JSON.stringify(body)).toBe(422);
+      expect(res.body.error.code).toBe('VALIDATION_ERROR');
+    }
+  });
+
   it('PATCH não deixa item anual sem mês', async () => {
     const nullOnly = await api.patch(`/checklist-templates/${templateId}/items/${annualItemId}`, {
       annualMonth: null,

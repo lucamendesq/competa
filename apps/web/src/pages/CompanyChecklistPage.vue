@@ -16,6 +16,7 @@ import {
 import { useDocumentTypesFeature } from '@/features/checklists/composables/useChecklistsFeature';
 import { toast } from 'vue-sonner';
 import { apiErrorMessage } from '@/api/error';
+import { CATEGORY_LABEL, PERIODICITY_LABEL } from '@/utils/format';
 
 const props = defineProps<{ id: string }>();
 const route = useRoute();
@@ -25,19 +26,6 @@ const { detailQuery } = useCompanyDetailFeature(computed(() => props.id));
 const { effectiveChecklistQuery, overridesQuery, saveOverrideMutation, removeOverrideMutation } =
   useCompanyChecklistFeature(computed(() => props.id));
 const { documentTypesQuery } = useDocumentTypesFeature(ref(1), ref(100));
-
-const CATEGORY_LABEL: Record<string, string> = {
-  fiscal: 'Fiscal / Impostos',
-  accounting: 'Contábil / Financeiro',
-  payroll: 'Folha de Pagamento',
-  legal: 'Societário / Legal',
-};
-
-const PERIODICITY_LABEL: Record<string, string> = {
-  monthly: 'Mensal',
-  annual: 'Anual',
-  on_demand: 'Sob demanda',
-};
 
 const catalogOpen = ref(false);
 const catalogSearch = ref('');

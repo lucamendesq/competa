@@ -16,9 +16,17 @@ export const optionalText = (max = 200) =>
 /** Mesma régua do `input[type=email]` do navegador (WHATWG). O validador padrão do zod é
  *  mais estrito e reprova endereços que o browser aceita — `=` no local part, por exemplo
  *  —, e o formulário então não enviava nada. Com as duas réguas iguais, `novalidate` no
- *  form deixa o zod ser a única autoridade sem rejeitar endereço válido. */
+ *  form deixa o zod ser a única autoridade sem rejeitar endereço válido.
+ *
+ *  Minúsculo na entrada: o e-mail é chave de busca ("Perdi meu link") e de identidade (trocar
+ *  o e-mail do Responsável é trocar a pessoa), e `Ana@x.com` ≠ `ana@x.com` quebrava as duas. */
 export const email = (message = 'E-mail inválido.') =>
-  z.string().trim().regex(z.regexes.html5Email, message);
+  z.string().trim().toLowerCase().regex(z.regexes.html5Email, message);
+
+/** Senha de conta nova. O teto é o `maxPasswordLength` padrão do Better Auth: acima dele a
+ *  recusa vinha de lá, depois de o resto do cadastro já ter rodado. */
+export const newPassword = (minMessage: string) =>
+  z.string().min(8, minMessage).max(128, 'A senha pode ter no máximo 128 caracteres.');
 
 /* Nome que vai parar em assunto/corpo de email, em nome de arquivo dentro do zip e em
  * tela: quebra de linha é injeção de cabeçalho (OPS/SEC), caractere de controle corrompe

@@ -2,8 +2,8 @@ import { eq } from 'drizzle-orm';
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 import { bootApp, type RunningApp } from './support/boot.js';
 import { db, truncateAll } from './support/db.js';
-import { subscription } from '../src/infra/database/schema/index.js';
-import { apiClient, registerFirm, uniqueIp, type Api } from './support/fixtures.js';
+import { company, subscription } from '../src/infra/database/schema/index.js';
+import { apiClient, registerFirm, uniqueCnpj, uniqueIp, type Api } from './support/fixtures.js';
 
 /* Ambiente de teste SEM segredos Asaas: NODE_ENV=test escolhe o LogBilling (checkout vira
  * stub de console com `checkoutUrl: ''` e `simulated: true`); ASAAS_WEBHOOK_TOKEN ausente
@@ -108,7 +108,7 @@ describe('POST /billing/checkout — fluxo com LogBilling', () => {
   it('checkout devolve 201 com checkoutUrl VAZIA e simulated true (stub de console)', async () => {
     const res = await api.post('/billing/checkout', { planName: 'profissional', cycle: 'yearly' });
     expect(res.status, JSON.stringify(res.body)).toBe(201);
-    expect(res.body).toEqual({ data: { checkoutUrl: '', simulated: true } });
+    expect(res.body).toEqual({ data: { checkoutUrl: '', simulated: true, applied: false } });
   });
 
   /* O checkout grava INTENÇÃO, não plano. O gate de capability lê `planName`, então gravar
@@ -140,7 +140,8 @@ describe('POST /billing/checkout — fluxo com LogBilling', () => {
 
     const res = await api.post('/billing/checkout', { planName: 'essencial' });
     expect(res.status).toBe(201);
-    expect(res.body).toEqual({ data: { checkoutUrl: '', simulated: true } });
+    /* Troca sem fatura em aberto no stub: a intenção fica gravada e vale na próxima. */
+    expect(res.body).toEqual({ data: { checkoutUrl: null, simulated: true, applied: false } });
 
     const rows = await subscriptionRows(firmId);
     expect(rows).toHaveLength(1);
@@ -161,8 +162,213 @@ describe('POST /billing/checkout — fluxo com LogBilling', () => {
      * sem subscription — mas o update-sem-linha é comportamento a preservar na migração. */
     const res = await orphan.api.post('/billing/checkout', { planName: 'escritorio' });
     expect(res.status).toBe(201);
-    expect(res.body).toEqual({ data: { checkoutUrl: '', simulated: true } });
+    expect(res.body).toEqual({ data: { checkoutUrl: '', simulated: true, applied: false } });
     expect(await subscriptionRows(orphanFirmId)).toEqual([]);
+  });
+});
+
+/* O Asaas não emite cobrança sem o documento do pagador. A firma cadastrada sem CNPJ manda no
+ * corpo do checkout, e ele fica gravado para sempre. */
+describe('CNPJ obrigatório no checkout', () => {
+  let api: Api;
+  let firmId: string;
+
+  beforeAll(async () => {
+    const email = `sem-cnpj-${Date.now().toString(36)}@example.com`;
+    const res = await apiClient(app.url).post('/auth/register', {
+      firmName: 'Sem CNPJ',
+      userName: 'Dona',
+      email,
+      password: 'senha-forte-123',
+    });
+    expect(res.status, JSON.stringify(res.body)).toBe(201);
+    const cookie = cookieOf(res.headers);
+    api = apiClient(app.url, { cookie });
+    firmId = await firmIdOf(api);
+  });
+
+  it('firma sem CNPJ e corpo sem CNPJ → 422 apontando o campo; nada gravado', async () => {
+    const res = await api.post('/billing/checkout', { planName: 'essencial' });
+    expect(res.status).toBe(422);
+    expect(res.body.error.details).toEqual([
+      { path: ['cnpj'], message: 'Informe o CNPJ da Contabilidade para emitir a cobrança.' },
+    ]);
+    const [row] = await subscriptionRows(firmId);
+    expect(row.gatewayCustomerId).toBeNull();
+  });
+
+  it('CNPJ inválido no corpo → 422 VALIDATION_ERROR', async () => {
+    const res = await api.post('/billing/checkout', {
+      planName: 'essencial',
+      cnpj: '11111111111111',
+    });
+    expect(res.status).toBe(422);
+    expect(res.body.error.code).toBe('VALIDATION_ERROR');
+  });
+
+  it('CNPJ no corpo: 201, fica gravado na firma e o próximo checkout dispensa', async () => {
+    const cnpj = uniqueCnpj();
+    const res = await api.post('/billing/checkout', { planName: 'essencial', cnpj });
+    expect(res.status, JSON.stringify(res.body)).toBe(201);
+
+    const firm = await api.get('/accounting-firm');
+    expect(firm.body.data.cnpj).toBe(cnpj);
+
+    const again = await api.post('/billing/checkout', { planName: 'profissional' });
+    expect(again.status).toBe(201);
+  });
+});
+
+describe('descer de plano com mais Empresas ativas que a folga do plano novo', () => {
+  it('422 dizendo quantas desativar; plano e intenção ficam como estavam', async () => {
+    const { api } = await registerFirm(app.url);
+    const firmId = await firmIdOf(api);
+    await setSubscription(firmId, { status: 'ACTIVE', planName: 'profissional' });
+    await db.insert(company).values(
+      Array.from({ length: 40 }, (_, i) => ({
+        accountingFirmId: firmId,
+        name: `Carteira ${i}`,
+        active: true,
+      })),
+    );
+
+    const res = await api.post('/billing/checkout', { planName: 'essencial' });
+    expect(res.status, JSON.stringify(res.body)).toBe(422);
+    expect(res.body.error.message).toBe(
+      'O plano Essencial cobre até 36 empresas ativas e você tem 40. Desative 4 empresa(s) antes de mudar.',
+    );
+
+    const [row] = await subscriptionRows(firmId);
+    expect(row).toMatchObject({ planName: 'profissional', pendingPlanName: null });
+  });
+});
+
+describe('troca de plano com assinatura em dia', () => {
+  let api: Api;
+  let firmId: string;
+
+  beforeAll(async () => {
+    ({ api } = await registerFirm(app.url));
+    firmId = await firmIdOf(api);
+    const first = await api.post('/billing/checkout', { planName: 'profissional' });
+    expect(first.status, JSON.stringify(first.body)).toBe(201);
+    await setSubscription(firmId, {
+      status: 'ACTIVE',
+      planName: 'profissional',
+      cycle: 'monthly',
+      pendingPlanName: null,
+      pendingCycle: null,
+      pendingPaymentId: null,
+      currentPeriodStart: new Date(Date.now() - 10 * 86_400_000),
+      currentPeriodEnd: new Date(Date.now() + 20 * 86_400_000),
+    });
+  });
+
+  /* Preço igual ou menor não tem o que cobrar: vale na hora, e a próxima fatura já sai no
+   * valor novo. */
+  it('downgrade vale na hora: applied, sem fatura, plano trocado', async () => {
+    const res = await api.post('/billing/checkout', { planName: 'essencial' });
+    expect(res.status, JSON.stringify(res.body)).toBe(201);
+    expect(res.body.data).toEqual({ checkoutUrl: null, simulated: true, applied: true });
+
+    const [row] = await subscriptionRows(firmId);
+    expect(row).toMatchObject({
+      planName: 'essencial',
+      cycle: 'monthly',
+      status: 'ACTIVE',
+      pendingPlanName: null,
+      pendingPaymentId: null,
+    });
+  });
+
+  /* Upgrade cobra agora o novo ciclo descontado do que sobrou: nasce uma cobrança avulsa e
+   * o plano só muda quando ela for paga (webhook, pelo id gravado). */
+  it('upgrade cria cobrança avulsa e grava a intenção com o id dela', async () => {
+    const res = await api.post('/billing/checkout', { planName: 'escritorio', cycle: 'yearly' });
+    expect(res.status, JSON.stringify(res.body)).toBe(201);
+    expect(res.body.data).toEqual({ checkoutUrl: '', simulated: true, applied: false });
+
+    const [row] = await subscriptionRows(firmId);
+    expect(row).toMatchObject({
+      planName: 'essencial',
+      pendingPlanName: 'escritorio',
+      pendingCycle: 'yearly',
+    });
+    expect(row.pendingPaymentId).toMatch(/^mock_pay_/);
+  });
+});
+
+describe('DELETE /billing/subscription — cancelamento', () => {
+  let api: Api;
+  let firmId: string;
+
+  beforeAll(async () => {
+    ({ api } = await registerFirm(app.url));
+    firmId = await firmIdOf(api);
+    const checkout = await api.post('/billing/checkout', { planName: 'essencial' });
+    expect(checkout.status).toBe(201);
+    await setSubscription(firmId, {
+      status: 'ACTIVE',
+      planName: 'essencial',
+      currentPeriodStart: new Date(Date.now() - 10 * 86_400_000),
+      currentPeriodEnd: new Date(Date.now() + 20 * 86_400_000),
+    });
+  });
+
+  it('membro não cancela: 403; a assinatura fica como estava', async () => {
+    const memberApi = await registerMember(api);
+    const res = await memberApi.delete('/billing/subscription');
+    expect(res.status).toBe(403);
+    expect(res.body.error.code).toBe('ONLY_OWNER_CAN_MANAGE_TEAM');
+    expect((await subscriptionRows(firmId))[0].status).toBe('ACTIVE');
+  });
+
+  it('dono cancela: CANCELED, intenção limpa, e a escrita segue até o fim do período pago', async () => {
+    const res = await api.delete('/billing/subscription');
+    expect(res.status, JSON.stringify(res.body)).toBe(200);
+    expect(res.body.data).toMatchObject({ status: 'CANCELED' });
+    expect(res.body.data.currentPeriodEnd).toBeTruthy();
+
+    const [row] = await subscriptionRows(firmId);
+    expect(row).toMatchObject({
+      status: 'CANCELED',
+      pendingPlanName: null,
+      pendingPaymentId: null,
+    });
+
+    /* Guard passa (422 é o zod do corpo vazio, não o 402 da régua). */
+    const write = await api.post('/periods', {});
+    expect(write.status).toBe(422);
+
+    await setSubscription(firmId, { currentPeriodEnd: new Date(Date.now() - 86_400_000) });
+    const lapsed = await api.post('/periods', {});
+    expect(lapsed.status).toBe(402);
+
+    /* Cancelar de novo é idempotente, e alcançável mesmo com a escrita bloqueada. */
+    const again = await api.delete('/billing/subscription');
+    expect(again.status).toBe(200);
+  });
+});
+
+describe('GET /billing/subscription — link da fatura só para o dono', () => {
+  it('o dono vê o invoiceUrl gravado no checkout; o membro recebe null', async () => {
+    const { api } = await registerFirm(app.url);
+    const firmId = await firmIdOf(api);
+    await setSubscription(firmId, {
+      pendingPlanName: 'profissional',
+      pendingInvoiceUrl: 'https://sandbox.asaas.com/i/pay_teste',
+    });
+
+    const owner = await api.get('/billing/subscription');
+    expect(owner.body.data.invoiceUrl).toBe('https://sandbox.asaas.com/i/pay_teste');
+
+    const member = await registerMember(api);
+    const viaMember = await member.get('/billing/subscription');
+    expect(viaMember.status).toBe(200);
+    expect(viaMember.body.data).toMatchObject({
+      pendingPlanName: 'profissional',
+      invoiceUrl: null,
+    });
   });
 });
 
@@ -364,22 +570,24 @@ describe('ciclo da assinatura lido pelo TenantGuard (402 em escrita)', () => {
       patch: { status: 'trialing', trialEndsAt: new Date('2020-01-01T00:00:00Z') },
     },
   ]) {
-    it(`${blockedState.label}: escrita → 402 PAYMENT_REQUIRED, leitura segue 200`, async () => {
+    it(`${blockedState.label}: escrita → 402 PAYMENT_REQUIRED, leitura e checkout seguem`, async () => {
       await setSubscription(firmId, blockedState.patch);
 
-      /* Bug congelado: o próprio POST /billing/checkout é escrita, então a firma bloqueada
-       * por falta de pagamento não alcança o checkout para regularizar. */
+      /* A rota que regulariza NÃO entra na régua: a firma bloqueada precisa alcançar o
+       * checkout, senão fica trancada do lado de fora com o boleto na mão. */
       const checkout = await api.post('/billing/checkout', { planName: 'profissional' });
-      expect(checkout.status).toBe(402);
-      expect(checkout.body.error).toEqual({
-        code: 'PAYMENT_REQUIRED',
-        message: 'Assinatura inativa. Regularize para continuar.',
-      });
+      expect(checkout.status, JSON.stringify(checkout.body)).toBe(201);
+
+      const status = await api.get('/billing/subscription');
+      expect(status.status).toBe(200);
 
       /* Guard roda antes do zodPipe: corpo inválido ainda é 402, não 422. */
       const write = await api.post('/periods', {});
       expect(write.status).toBe(402);
-      expect(write.body.error.code).toBe('PAYMENT_REQUIRED');
+      expect(write.body.error).toEqual({
+        code: 'PAYMENT_REQUIRED',
+        message: 'Assinatura inativa. Regularize para continuar.',
+      });
 
       const read = await api.get('/periods');
       expect(read.status).toBe(200);

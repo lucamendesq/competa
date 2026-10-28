@@ -14,7 +14,7 @@ const DRAIN_TIMEOUT = Duration.seconds(5);
 /**
  * O barramento de eventos de domínio. Por baixo é o eventemitter2 de sempre, porque o
  * observável depende dele: a ordem de registro dos listeners e o array de resultados do
- * `emitAsync` (o reenvio de link lê `includes(true)`, bug congelado #13).
+ * `emitAsync` (o reenvio de link lê `includes(true)` para escolher entre 200 e 503).
  */
 export class Events extends Context.Service<
   Events,

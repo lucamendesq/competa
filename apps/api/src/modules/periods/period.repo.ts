@@ -4,7 +4,7 @@ import type { OpenPeriodBody } from '@competa/contracts';
 import { addDays } from 'date-fns';
 import env from '../../config/env.js';
 import { createToken } from '../../lib/token.js';
-import { Db } from '../../infra/database/effect.js';
+import { Db, type Executor } from '../../infra/database/effect.js';
 import {
   accountant,
   company,
@@ -72,6 +72,37 @@ const make = Effect.gen(function* () {
     });
   });
 
+  /** Solicitação, itens e Link de cada plano do fan-out, na transação de quem chama. */
+  const insertPlans = async (tx: Executor, periodId: string, plans: RequestPlan[]) => {
+    if (plans.length === 0) return new Map<string, string>();
+
+    const requests = await tx
+      .insert(request)
+      .values(plans.map((plan) => ({ periodId, companyId: plan.companyId })))
+      .returning({ id: request.id, companyId: request.companyId });
+
+    const requestIdByCompany = new Map(requests.map((r) => [r.companyId, r.id]));
+
+    const items = plans.flatMap((plan) =>
+      plan.items.map((item) => ({
+        ...item,
+        requestId: requestIdByCompany.get(plan.companyId)!,
+      })),
+    );
+    if (items.length > 0) await tx.insert(requestItem).values(items);
+
+    await tx.insert(uploadLink).values(
+      plans.map((plan) => ({
+        requestId: requestIdByCompany.get(plan.companyId)!,
+        contactId: plan.contactId,
+        tokenHash: plan.tokenHash,
+        expiresAt: plan.expiresAt,
+      })),
+    );
+
+    return requestIdByCompany;
+  };
+
   const openWithFanOut = Effect.fn('PeriodsRepo.openWithFanOut')(function* (
     scope: FirmScope,
     input: { referenceMonth: string; dueDate?: string },
@@ -89,34 +120,7 @@ const make = Effect.gen(function* () {
             })
             .returning();
 
-          if (plans.length === 0)
-            return { period: row, requestIdByCompany: new Map<string, string>() };
-
-          const requests = await tx
-            .insert(request)
-            .values(plans.map((plan) => ({ periodId: row.id, companyId: plan.companyId })))
-            .returning({ id: request.id, companyId: request.companyId });
-
-          const requestIdByCompany = new Map(requests.map((r) => [r.companyId, r.id]));
-
-          const items = plans.flatMap((plan) =>
-            plan.items.map((item) => ({
-              ...item,
-              requestId: requestIdByCompany.get(plan.companyId)!,
-            })),
-          );
-          if (items.length > 0) await tx.insert(requestItem).values(items);
-
-          await tx.insert(uploadLink).values(
-            plans.map((plan) => ({
-              requestId: requestIdByCompany.get(plan.companyId)!,
-              contactId: plan.contactId,
-              tokenHash: plan.tokenHash,
-              expiresAt: plan.expiresAt,
-            })),
-          );
-
-          return { period: row, requestIdByCompany };
+          return { period: row, requestIdByCompany: await insertPlans(tx, row.id, plans) };
         }),
       )
       .pipe(
@@ -128,11 +132,13 @@ const make = Effect.gen(function* () {
       );
   });
 
-  const openPeriod = Effect.fn('PeriodsRepo.openPeriod')(function* (
+  /** O fan-out das Empresas ativas para um mês. `skip` tira quem já tem Solicitação. */
+  const planFor = Effect.fn('PeriodsRepo.planFor')(function* (
     scope: FirmScope,
-    body: OpenPeriodBody,
+    referenceMonth: string,
+    skip: ReadonlySet<string> = new Set(),
   ) {
-    const companies = yield* activeCompanies(scope);
+    const companies = (yield* activeCompanies(scope)).filter((c) => !skip.has(c.id));
     const companyIds = companies.map((c) => c.id);
     const templateIds = [
       ...new Set(companies.map((c) => c.checklistTemplateId).filter(Boolean)),
@@ -180,17 +186,86 @@ const make = Effect.gen(function* () {
       );
     }
 
-    const { plans, warnings } = planFanOut({
+    return planFanOut({
       companies,
       checklistFor: (companyId) => effective.get(companyId) ?? [],
-      referenceMonth: body.referenceMonth,
+      referenceMonth,
       expiresAt: addDays(new Date(), env.UPLOAD_LINK_TTL_DAYS),
       createToken,
     });
+  });
 
+  /** O que a abertura de `referenceMonth` criaria, sem gravar: a tela de abertura contava
+   *  só as 100 primeiras Empresas com template e Responsável, e o número divergia do
+   *  fan-out (checklist vazio no mês, Empresa sem template mas com item avulso). */
+  const previewOpening = Effect.fn('PeriodsRepo.previewOpening')(function* (
+    scope: FirmScope,
+    referenceMonth: string,
+  ) {
+    const { plans, warnings } = yield* planFor(scope, referenceMonth);
+    const planned = new Set(plans.map((plan) => plan.companyId));
+
+    return {
+      requests: plans.map((plan) => ({
+        companyId: plan.companyId,
+        companyName: plan.companyName,
+        contactName: plan.contactName,
+        itemCount: plan.items.length,
+      })),
+      /* Aviso de Empresa que fica de fora vs. aviso sobre quem entra (mais de um
+       * Responsável): a tela mostra os dois de um jeito diferente. */
+      skipped: warnings.filter((row) => !planned.has(row.companyId)),
+      notes: warnings.filter((row) => planned.has(row.companyId)),
+    };
+  });
+
+  const openPeriod = Effect.fn('PeriodsRepo.openPeriod')(function* (
+    scope: FirmScope,
+    body: OpenPeriodBody,
+  ) {
+    const { plans, warnings } = yield* planFor(scope, body.referenceMonth);
     const { period: row, requestIdByCompany } = yield* openWithFanOut(scope, body, plans);
 
     return { period: row, warnings, plans, requestIdByCompany };
+  });
+
+  /** Fan-out tardio: Empresa criada ou ativada depois da abertura não tinha como entrar na
+   *  Competência (ela é única por mês e o fan-out só rodava na abertura). Roda o MESMO
+   *  plano para as ativas que ainda não têm Solicitação aqui. A Competência fica travada
+   *  durante a gravação: dois cliques não criam a mesma Solicitação duas vezes. */
+  const addMissingRequests = Effect.fn('PeriodsRepo.addMissingRequests')(function* (
+    scope: FirmScope,
+    periodId: string,
+  ) {
+    return yield* db.withTransaction(
+      Effect.gen(function* () {
+        const [row] = yield* db.use((tx) =>
+          tx
+            .select()
+            .from(period)
+            .where(and(eq(period.id, periodId), eq(period.accountingFirmId, scope)))
+            .for('update'),
+        );
+        if (!row) return undefined;
+        if (row.status !== 'open') return yield* Effect.fail(new PeriodAlreadyClosed());
+
+        const existing = yield* db.use((tx) =>
+          tx
+            .select({ companyId: request.companyId })
+            .from(request)
+            .where(eq(request.periodId, periodId)),
+        );
+
+        const { plans, warnings } = yield* planFor(
+          scope,
+          row.referenceMonth,
+          new Set(existing.map((r) => r.companyId)),
+        );
+        const requestIdByCompany = yield* db.use((tx) => insertPlans(tx, periodId, plans));
+
+        return { period: row, warnings, plans, requestIdByCompany };
+      }),
+    );
   });
 
   const list = Effect.fn('PeriodsRepo.list')(function* (
@@ -212,7 +287,9 @@ const make = Effect.gen(function* () {
           })
           .from(period)
           .where(where)
-          .orderBy(period.referenceMonth)
+          /* Mais recente primeiro: a tela principal pede só a primeira página, e em ordem
+           * crescente a Competência atual saía dela a partir da 21ª. */
+          .orderBy(desc(period.referenceMonth))
           .limit(query.perPage)
           .offset((query.page - 1) * query.perPage),
         d.select({ value: count() }).from(period).where(where),
@@ -569,6 +646,8 @@ const make = Effect.gen(function* () {
 
   return {
     openPeriod,
+    previewOpening,
+    addMissingRequests,
     activeCompanies,
     openWithFanOut,
     list,

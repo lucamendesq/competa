@@ -38,6 +38,25 @@ export const apiClient = (baseUrl: string, opts: { cookie?: string; ip?: string 
 
 let seq = 0;
 
+const cnpjCheckDigit = (slice: string) => {
+  let weight = slice.length - 7;
+  let sum = 0;
+  for (const digit of slice) {
+    sum += Number(digit) * weight;
+    weight = weight - 1 < 2 ? 9 : weight - 1;
+  }
+  const rest = sum % 11;
+  return rest < 2 ? 0 : 11 - rest;
+};
+
+let cnpjSeq = 0;
+/** CNPJ válido (módulo 11) e único por processo: o banco recusa dois cadastros com o mesmo. */
+export const uniqueCnpj = () => {
+  const base = `${Date.now() % 100_000_000}`.padStart(8, '0') + `${++cnpjSeq}`.padStart(4, '0');
+  const first = cnpjCheckDigit(base);
+  return `${base}${first}${cnpjCheckDigit(`${base}${first}`)}`;
+};
+
 export async function registerFirm(baseUrl: string, firmName = `Contabilidade ${++seq}`) {
   const ip = uniqueIp();
   const email = `tester-${Date.now().toString(36)}-${seq}@example.com`;
@@ -46,6 +65,7 @@ export async function registerFirm(baseUrl: string, firmName = `Contabilidade ${
     userName: 'Tester',
     email,
     password: 'senha-forte-123',
+    cnpj: uniqueCnpj(),
   });
   expect(res.status, 'registro de firma deve funcionar').toBe(201);
 

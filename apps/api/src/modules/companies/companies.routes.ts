@@ -22,13 +22,14 @@ import { handler, paginated } from '../../http/envelope.js';
 import { firmRoute } from '../../http/middleware/auth.js';
 import { body, params, query, route } from '../../http/platform.js';
 import { NotFound, ValidationError } from '../../lib/app-error.js';
-import { EVENTS, type ContactInvitedEvent } from '../../lib/events.js';
+import { EVENTS, type ContactInvitedEvent, type UploadLinkResentEvent } from '../../lib/events.js';
 import { Events } from '../../lib/events.service.js';
 import { createToken } from '../../lib/token.js';
 import { AccountantsRepo } from '../auth/accountant.repo.js';
 import { InvitesRepo } from '../auth/invite.repo.js';
 import type { FirmScope } from '../auth/scope.js';
 import { ContactsRepo } from '../contacts/contact.repo.js';
+import { RequestsRepo } from '../requests/request.repo.js';
 import { CompaniesRepo } from './company.repo.js';
 
 const ContactParam = z.object({ id: z.uuid(), contactId: z.uuid() });
@@ -174,10 +175,23 @@ const sendAccessInvites = route(
         reason?: string;
       }> = [];
 
-      for (const companyId of input.companyIds) {
+      /* Id repetido mandava dois convites, e o segundo revogava o primeiro. */
+      for (const companyId of new Set(input.companyIds)) {
         const found = yield* CompaniesRepo.use((repo) => repo.findById(scope, companyId));
         if (!found) {
           results.push({ companyId, status: 'error', reason: 'Empresa não encontrada.' });
+          continue;
+        }
+
+        /* O guard do Responsável recusa Empresa desativada: a conta criada pelo convite
+         * entraria direto num 403. */
+        if (!found.active) {
+          results.push({
+            companyId,
+            companyName: found.name,
+            status: 'skipped',
+            reason: 'Empresa desativada: ative-a antes de convidar.',
+          });
           continue;
         }
 
@@ -431,31 +445,62 @@ const updateContact = route(
   handler(
     'PATCH',
     Effect.gen(function* () {
+      const events = yield* Events;
       const { scope } = yield* FirmContext;
       const { id, contactId } = yield* params(ContactParam);
       const input = yield* body(PatchContactBody);
 
-      /* Trocar o e-mail é trocar a PESSOA. Sem revogar, o Link de Upload antigo continua
-       * valendo — e ele resolve pelo `contact.id` lendo o e-mail ao vivo, então o token que
-       * ficou com o antigo Responsável passaria a ativar conta no endereço do NOVO. A conta
-       * já vinculada também perde o vínculo. Os dois na mesma transação do UPDATE. */
-      const row = yield* withTransaction(
+      /* Trocar o e-mail é trocar a PESSOA. O Link de Upload resolve pelo `contact.id` lendo
+       * o e-mail ao vivo, então o token que ficou com o antigo Responsável passaria a ativar
+       * conta no endereço do NOVO. A conta já vinculada perde o vínculo na mesma transação
+       * do UPDATE; cada Link aberto ganha token novo (o antigo morre na hora, sem carência) e
+       * o novo endereço recebe o link. Revogar a linha, como antes, matava também os tokens
+       * que o lembrete e o reenvio emitissem depois. */
+      const result = yield* withTransaction(
         Effect.gen(function* () {
           const updated = yield* CompaniesRepo.use((repo) =>
             repo.updateContact(scope, id, contactId, input),
           );
           if (!updated) return undefined;
 
-          if (input.email !== undefined && input.email !== updated.previousEmail) {
-            yield* ContactsRepo.use((repo) => repo.revokeAccess(scope, id, contactId));
+          const personChanged = input.email !== undefined && input.email !== updated.previousEmail;
+          if (personChanged) {
+            yield* ContactsRepo.use((repo) => repo.detachAccount(scope, id, contactId));
           }
 
-          return updated.row;
+          return { row: updated.row, personChanged };
         }),
       );
-      if (!row) return yield* Effect.fail(new NotFound('Responsável não encontrado.'));
+      if (!result) return yield* Effect.fail(new NotFound('Responsável não encontrado.'));
 
-      return row;
+      /* O token antigo morre ANTES do envio de propósito: a pessoa que saiu perde o acesso
+       * mesmo que o e-mail para a nova falhe. O que não pode é o Contador ver sucesso sem a
+       * nova ter recebido nada — a resposta conta os Links não entregues, para reenviar. */
+      let undeliveredLinks = 0;
+      if (result.personChanged) {
+        const open = yield* RequestsRepo.use((repo) => repo.openUploadLinksForContact(contactId));
+        for (const link of open) {
+          const { token, tokenHash } = createToken();
+          const applied = yield* RequestsRepo.use((repo) =>
+            repo.applyUploadToken(link.requestId, tokenHash, contactId, { revokePrevious: true }),
+          );
+          if (!applied) continue;
+
+          const resent: UploadLinkResentEvent = {
+            requestId: link.requestId,
+            referenceMonth: link.referenceMonth,
+            periodDueDate: link.periodDueDate,
+            companyName: link.companyName,
+            contactName: link.contactName,
+            contactEmail: link.contactEmail,
+            uploadUrl: `${env.WEB_URL}/envio/${token}`,
+          };
+          const delivered = yield* events.emitAsync(EVENTS.UploadLinkResent, resent);
+          if (!delivered.includes(true)) undeliveredLinks += 1;
+        }
+      }
+
+      return { ...result.row, undeliveredLinks };
     }),
   ),
   { auth: firmRoute() },

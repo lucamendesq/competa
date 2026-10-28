@@ -76,7 +76,11 @@ const make = Effect.gen(function* () {
     if (!requestItemId) return { ...context, item: undefined };
 
     const [item] = await executor
-      .select({ id: requestItem.id, acceptedFormats: requestItem.acceptedFormats })
+      .select({
+        id: requestItem.id,
+        status: requestItem.status,
+        acceptedFormats: requestItem.acceptedFormats,
+      })
       .from(requestItem)
       .where(and(eq(requestItem.id, requestItemId), eq(requestItem.requestId, scope.requestId)))
       .limit(1);
@@ -173,6 +177,13 @@ const make = Effect.gen(function* () {
           if (context.status === 'closed') {
             return yield* new ValidationError(
               'Esta solicitação foi encerrada: os itens não aceitam mais envios. Envie como Documento Extra.',
+            );
+          }
+          /* Item aceito está resolvido: o arquivo novo não aparecia na revisão (que lista só
+           * os enviados) e recusá-lo reabria o item já aceito. */
+          if (context.item.status === 'accepted') {
+            return yield* new ValidationError(
+              'Este item já foi aceito pela contabilidade. Envie como Documento Extra.',
             );
           }
         }
@@ -284,10 +295,15 @@ const make = Effect.gen(function* () {
         fileName: string;
         reason: string;
         storageKey: string;
+        keepReservation?: boolean;
       }[] = [];
 
       for (const row of pending) {
-        const realBytes = await storage.statSize(row.storageKey);
+        /* Tudo daqui em diante olha a cópia selada: a URL de PUT ainda vale e o original
+         * pode ser reescrito depois desta conferência. */
+        const sealedKey = await storage.seal(row.storageKey);
+        const storageKey = sealedKey ?? row.storageKey;
+        const realBytes = sealedKey ? await storage.statSize(sealedKey) : undefined;
         const sizeReason = confirmationRefusal({
           fileName: row.fileName,
           declaredBytes: row.declaredBytes,
@@ -299,7 +315,11 @@ const make = Effect.gen(function* () {
             documentId: row.id,
             fileName: row.fileName,
             reason: sizeReason,
-            storageKey: row.storageKey,
+            storageKey,
+            /* Arquivo que ainda não chegou fica reservado (`awaiting_upload`): apagar a
+             * linha deixava o PUT atrasado criar um objeto que nenhuma varredura achava. A
+             * de reservas vencidas apaga linha e objeto, e confirmar de novo ainda vale. */
+            keepReservation: !sealedKey,
           });
           continue;
         }
@@ -307,7 +327,7 @@ const make = Effect.gen(function* () {
         let hash: string;
         let firstChunk: Buffer;
         try {
-          const stream = await storage.openRead(row.storageKey);
+          const stream = await storage.openRead(storageKey);
           const inspected = await inspectAndHashStream(stream);
           hash = inspected.hash;
           firstChunk = inspected.firstChunk;
@@ -317,7 +337,7 @@ const make = Effect.gen(function* () {
             documentId: row.id,
             fileName: row.fileName,
             reason: 'Falha ao ler o arquivo no storage.',
-            storageKey: row.storageKey,
+            storageKey,
           });
           continue;
         }
@@ -328,7 +348,7 @@ const make = Effect.gen(function* () {
             documentId: row.id,
             fileName: row.fileName,
             reason: 'O conteúdo do arquivo não corresponde ao formato declarado.',
-            storageKey: row.storageKey,
+            storageKey,
           });
           continue;
         }
@@ -338,17 +358,18 @@ const make = Effect.gen(function* () {
           fileName: row.fileName,
           realBytes: realBytes!,
           checksum: hash,
-          storageKey: row.storageKey,
+          storageKey,
         });
       }
 
-      if (refused.length) {
+      const discarded = refused.filter((row) => !row.keepReservation);
+      if (discarded.length) {
         await discardOn(
           d,
-          refused.map((row) => row.documentId),
+          discarded.map((row) => row.documentId),
         );
         await Promise.all(
-          refused.map((row) => storage.remove(row.storageKey).catch(() => undefined)),
+          discarded.map((row) => storage.remove(row.storageKey).catch(() => undefined)),
         );
       }
 
@@ -407,6 +428,7 @@ const make = Effect.gen(function* () {
                 uploadedAt: new Date(),
                 sizeBytes: row.realBytes,
                 checksum: row.checksum,
+                storageKey: row.storageKey,
               })
               .where(eq(document.id, row.id));
           }

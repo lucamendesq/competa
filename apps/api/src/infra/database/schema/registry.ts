@@ -37,6 +37,9 @@ export const accountingFirm = pgTable(
     name: text().notNull(),
     logoUrl: text('logo_url'),
     contactEmail: text('contact_email'),
+    /** Documento do pagador no gateway: o Asaas não emite cobrança sem ele. Nasce nulo no
+     *  cadastro e vira obrigatório no primeiro checkout. */
+    cnpj: text(),
     /** Preferências de lembrete (cadência do cron). Defaults = comportamento histórico. */
     reminderMax: smallint('reminder_max').notNull().default(2),
     reminderDueSoonDays: smallint('reminder_due_soon_days').notNull().default(3),
@@ -44,6 +47,11 @@ export const accountingFirm = pgTable(
     ...timestamps,
   },
   (t) => [
+    /* Uma Contabilidade por CNPJ: um segundo cadastro da mesma pessoa jurídica seria um
+     * segundo trial de 14 dias. Parcial porque o CNPJ só é exigido no checkout. */
+    uniqueIndex('accounting_firm_cnpj_uidx')
+      .on(t.cnpj)
+      .where(sql`${t.cnpj} is not null`),
     check(
       'accounting_firm_reminder_chk',
       sql`${t.reminderMax} between 0 and 10
@@ -264,6 +272,16 @@ export const subscription = pgTable(
      *  entrar. O webhook de pagamento promove para `plan_name`. */
     pendingPlanName: text('pending_plan_name'),
     pendingCycle: text('pending_cycle'),
+    /** Fatura que paga a intenção acima (`pay_...`) e o link dela. É por este id que o webhook
+     *  sabe que o pagamento é DO plano pendente, e não de uma fatura antiga. */
+    pendingPaymentId: text('pending_payment_id'),
+    pendingInvoiceUrl: text('pending_invoice_url'),
+    /** Assinaturas do gateway que esta linha já teve. A cobrança em aberto de uma assinatura
+     *  substituída continua pagável, e o webhook precisa achar a firma por ela. */
+    previousGatewaySubscriptionIds: text('previous_gateway_subscription_ids')
+      .array()
+      .notNull()
+      .default([]),
     /** `monthly` | `yearly`. O anual é 10× o mensal (2 meses grátis) e é cobrado em boleto
      *  com Pix embutido — o Asaas não faz recorrência Pix pura. */
     cycle: text('cycle').notNull().default('monthly'),

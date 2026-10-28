@@ -1,8 +1,9 @@
 import type { IncomingHttpHeaders } from 'node:http';
+import { APIError } from 'better-auth/api';
 import { fromNodeHeaders } from 'better-auth/node';
 import auth from './better-auth.js';
 import { AuthProvider, AuthSession, SignUpEmailInput } from '../../modules/auth/auth-provider.js';
-import { isFailure, Result, success, tryCatchAsync } from '../../lib/either.js';
+import { failure, isFailure, Result, success, tryCatchAsync } from '../../lib/either.js';
 
 export class BetterAuthAdapter implements AuthProvider {
   async signUpEmail(
@@ -22,6 +23,20 @@ export class BetterAuthAdapter implements AuthProvider {
 
     if (isFailure(result)) {
       return result;
+    }
+
+    /* Com `asResponse`, o erro do Better Auth (e-mail já usado, senha longa demais) volta
+     * como Response não-2xx em vez de lançar. Tratado como sucesso, seguia com `userId`
+     * vazio até estourar no insert — 500, e o ramo de e-mail duplicado de quem chama nunca
+     * disparava. Vira o mesmo `APIError` que o modo sem `asResponse` lançaria. */
+    if (result.value instanceof Response && !result.value.ok) {
+      const body = (await result.value
+        .clone()
+        .json()
+        .catch(() => undefined)) as { code?: string; message?: string } | undefined;
+      return failure(
+        new APIError(result.value.status as ConstructorParameters<typeof APIError>[0], body),
+      );
     }
 
     if (result.value instanceof Response) {

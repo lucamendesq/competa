@@ -446,6 +446,23 @@ layer(RequestsRepo.layer)('RequestsRepo', (it) => {
       }),
   );
 
+  it.effect('Empresa desativada fica fora do aviso de prazo e do lembrete', () =>
+    Effect.gen(function* () {
+      const repo = yield* RequestsRepo;
+      const box = yield* openBox('desativada', { periodDueDate: '2024-01-10' });
+      yield* seedItem(box.requestId, 'Vencido desativada', { dueDate: '2024-01-05' });
+      expect(yield* repo.overdueItems(box.firmId, '2024-06-01')).toHaveLength(1);
+      expect(yield* repo.reminderCandidates(box.firmId)).toHaveLength(1);
+
+      yield* Effect.promise(() =>
+        db.update(company).set({ active: false }).where(eq(company.id, box.companyId)),
+      );
+
+      expect(yield* repo.overdueItems(box.firmId, '2024-06-01')).toEqual([]);
+      expect(yield* repo.reminderCandidates(box.firmId)).toEqual([]);
+    }),
+  );
+
   it.effect('accountantEmails: agrupa por firma e devolve mapa vazio sem ids', () =>
     Effect.gen(function* () {
       const repo = yield* RequestsRepo;
@@ -501,6 +518,33 @@ layer(RequestsRepo.layer)('RequestsRepo', (it) => {
         yield* seedCompany(box.firmId, `Empresa apply sem link ${next()}`),
       );
       expect(yield* repo.applyUploadToken(semLink, hashToken('nada'))).toBe(false);
+    }),
+  );
+
+  it.effect('link revogado não volta à vida pela carência do próximo token', () =>
+    Effect.gen(function* () {
+      const repo = yield* RequestsRepo;
+      const revoke = (requestId: string) =>
+        Effect.promise(() =>
+          db.update(uploadLink).set({ revoked: true }).where(eq(uploadLink.requestId, requestId)),
+        );
+
+      const applied = yield* openBox('revogado-apply');
+      yield* revoke(applied.requestId);
+      yield* repo.applyUploadToken(applied.requestId, hashToken('depois-da-revogacao'));
+      expect(yield* linkRow(applied.requestId)).toMatchObject({
+        tokenHash: hashToken('depois-da-revogacao'),
+        previousTokenHash: null,
+        previousExpiresAt: null,
+      });
+
+      const rotated = yield* openBox('revogado-rotate');
+      yield* revoke(rotated.requestId);
+      expect(yield* repo.rotateUploadToken(rotated.requestId)).toBeTruthy();
+      expect(yield* linkRow(rotated.requestId)).toMatchObject({
+        previousTokenHash: null,
+        previousExpiresAt: null,
+      });
     }),
   );
 

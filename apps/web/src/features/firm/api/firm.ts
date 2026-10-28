@@ -9,6 +9,7 @@ export type Firm = {
   reminderGapDays: number;
   logoUrl: string | null;
   contactEmail: string | null;
+  cnpj: string | null;
 };
 
 export const getFirm = () => api.get<Firm>('/accounting-firm');

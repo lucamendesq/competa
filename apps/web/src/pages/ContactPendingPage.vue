@@ -4,6 +4,7 @@ import { CircleAlert, PartyPopper, Upload } from 'lucide-vue-next';
 import { Button } from '@/components/ui/button';
 import StatusPill from '@/components/StatusPill.vue';
 import { useContactPending } from '@/features/contact-area/composables/useContactPending';
+import type { MyPendingItem } from '@/features/contact-area/api';
 import { dateBr, isOverdue, monthLabel } from '@/utils/format';
 import LoadingRows from '@/components/LoadingRows.vue';
 import UploadFeedback from '@/components/UploadFeedback.vue';
@@ -73,6 +74,14 @@ const groupedItems = computed(() => {
 
   return Array.from(groups.values());
 });
+
+/* A recusa devolve o item para `pending` (nunca fica `rejected`), e a lista vem da mais
+ * antiga para a mais nova: o aviso olha se há recusa e o item ainda não foi reenviado, e
+ * mostra o motivo da última. */
+function latestRejection(item: MyPendingItem['item']) {
+  if (item.status === 'submitted' || item.status === 'accepted') return undefined;
+  return item.rejections[item.rejections.length - 1];
+}
 </script>
 
 <template>
@@ -143,13 +152,13 @@ const groupedItems = computed(() => {
             </p>
 
             <div
-              v-if="row.item.status === 'rejected' && row.item.rejections?.[0]"
+              v-if="latestRejection(row.item)"
               class="bg-danger-surface border-danger-border text-danger-foreground mt-3 flex gap-2.5 rounded-lg border p-3 text-sm"
             >
               <CircleAlert class="text-danger mt-0.5 h-4 w-4 shrink-0" aria-hidden="true" />
               <span>
                 <span class="font-semibold">Motivo da recusa:</span>
-                {{ row.item.rejections[0].reason }}
+                {{ latestRejection(row.item)?.rejectionReason }}
               </span>
             </div>
           </div>

@@ -1,4 +1,5 @@
 import * as z from 'zod';
+import { nonEmptyPatch } from './common.js';
 import { COMPANY_FLAGS, OVERRIDE_ACTIONS, Periodicity } from './registry.js';
 
 /* Item de template: as colunas `periodicity` e `due_month_offset` são NOT NULL no banco,
@@ -52,17 +53,20 @@ export const CreateTemplateItemBody = z
   .refine(annualNeedsMonth, annualMessage);
 export type CreateTemplateItemBody = z.infer<typeof CreateTemplateItemBody>;
 
-export const UpdateTemplateItemBody = z
-  .object({
-    periodicity: Periodicity,
-    annualMonth: z.number().int().min(1).max(12).nullable(),
-    dueDay: z.number().int().min(1).max(31).nullable(),
-    dueMonthOffset: z.number().int().min(0).max(11),
-    conditionFlag: z.enum(COMPANY_FLAGS).nullable(),
-    required: z.boolean(),
-  })
-  .partial()
-  .refine(annualNeedsMonth, annualMessage);
+/* `nonEmptyPatch`: `{}` (ou só chave desconhecida, que o zod descarta) chegava ao drizzle
+ * sem campo nenhum e virava 500 "No values to set". */
+export const UpdateTemplateItemBody = nonEmptyPatch(
+  z
+    .object({
+      periodicity: Periodicity,
+      annualMonth: z.number().int().min(1).max(12).nullable(),
+      dueDay: z.number().int().min(1).max(31).nullable(),
+      dueMonthOffset: z.number().int().min(0).max(11),
+      conditionFlag: z.enum(COMPANY_FLAGS).nullable(),
+      required: z.boolean(),
+    })
+    .partial(),
+).refine(annualNeedsMonth, annualMessage);
 export type UpdateTemplateItemBody = z.infer<typeof UpdateTemplateItemBody>;
 
 export const TemplateItemParam = z.object({ id: z.uuid(), itemId: z.uuid() });

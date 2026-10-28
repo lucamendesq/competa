@@ -85,7 +85,10 @@ const logPlanDenial = (
     Sentry.captureMessage(denied, 'warning');
   });
 
-const resolveFirm = (requires?: PlanCapability): Resolved<FirmContext['Service']> =>
+const resolveFirm = (
+  requires: PlanCapability | undefined,
+  billing: boolean,
+): Resolved<FirmContext['Service']> =>
   Effect.gen(function* () {
     const request = yield* HttpServerRequest.HttpServerRequest;
     const session = yield* currentSession;
@@ -94,9 +97,16 @@ const resolveFirm = (requires?: PlanCapability): Resolved<FirmContext['Service']
     if (!row)
       return yield* Effect.fail(new Forbidden('Esta conta não pertence a uma Contabilidade.'));
 
-    // Defaulting Rule (COM-8): leitura passa, escrita não
-    if (request.method !== 'GET') {
-      const overdue = row.subscriptionStatus === 'OVERDUE' || row.subscriptionStatus === 'CANCELED';
+    /* Defaulting Rule (COM-8): leitura passa, escrita não. A rota de cobrança é a exceção:
+     * é por ela que a firma bloqueada regulariza — bloqueá-la trancava o cliente do lado de
+     * fora com o boleto na mão. */
+    if (request.method !== 'GET' && !billing) {
+      /* Cancelada segue valendo até o fim do período já pago: ninguém perde o que pagou por
+       * ter cancelado cedo. Sem período (trial cancelado) bloqueia na hora. */
+      const canceledAndLapsed =
+        row.subscriptionStatus === 'CANCELED' &&
+        (row.currentPeriodEnd === null || isPast(row.currentPeriodEnd));
+      const overdue = row.subscriptionStatus === 'OVERDUE' || canceledAndLapsed;
       const trialExpired =
         row.subscriptionStatus === 'trialing' &&
         row.trialEndsAt !== null &&
@@ -207,10 +217,13 @@ const resolveUploadToken: Resolved<UploadContext['Service']> = Effect.gen(functi
   return { scope: toUploadScope(link.requestId, link.contactId) };
 });
 
-/** Sessão → `FirmScope`, mais o gate de plano de `requires`. */
+/** Sessão → `FirmScope`, mais o gate de plano de `requires`. `billing` dispensa a régua de
+ *  inadimplência: só para as rotas por onde a firma bloqueada paga ou cancela. */
 export const firmRoute = (options?: {
   readonly requires?: PlanCapability;
-}): RouteProfile<FirmContext> => profileOf(FirmContext, resolveFirm(options?.requires));
+  readonly billing?: boolean;
+}): RouteProfile<FirmContext> =>
+  profileOf(FirmContext, resolveFirm(options?.requires, options?.billing === true));
 
 export const contactRoute: RouteProfile<ContactContext> = profileOf(ContactContext, resolveContact);
 

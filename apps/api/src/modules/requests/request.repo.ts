@@ -101,6 +101,24 @@ const make = Effect.gen(function* () {
       .where(eq(uploadLink.id, uploadLinkId));
   };
 
+  /** Primeiro passo de toda transação de revisão: trava a Solicitação e confere de novo que
+   *  ela não foi encerrada. A checagem de antes da transação é só a mensagem amigável — um
+   *  encerramento concorrente passava por ela e a revisão era aplicada (com rotação de link
+   *  e e-mail) numa Solicitação já fechada. O encerramento trava a mesma linha. */
+  const lockOpenRequest = (requestId: string) =>
+    Effect.gen(function* () {
+      const [row] = yield* db.use((tx) =>
+        tx
+          .select({ status: request.status })
+          .from(request)
+          .where(eq(request.id, requestId))
+          .for('update'),
+      );
+      if (!row || row.status === 'closed') {
+        return yield* new InvalidTransition('Esta solicitação foi encerrada.');
+      }
+    });
+
   /** `request.status` é derivado dos Itens (`complete` automático e reversível): grava
    *  dentro da mesma transação da revisão para não existir estado intermediário. */
   const syncRequestStatusOn = async (tx: Executor, requestId: string) => {
@@ -207,6 +225,8 @@ const make = Effect.gen(function* () {
 
     return yield* db.withTransaction(
       Effect.gen(function* () {
+        yield* lockOpenRequest(context.requestId);
+
         const accepted = yield* db.use((tx) =>
           tx
             .update(document)
@@ -322,6 +342,8 @@ const make = Effect.gen(function* () {
 
     const requestStatus = yield* db.withTransaction(
       Effect.gen(function* () {
+        yield* lockOpenRequest(row.requestId);
+
         /* Condicional, não check-then-act: duas revisões concorrentes no mesmo documento
          * serializam aqui — a segunda encontra 0 linhas e vira 422, em vez de rotacionar o
          * link de novo por cima de uma decisão já tomada (AUTHZ-5). */
@@ -527,6 +549,11 @@ const make = Effect.gen(function* () {
 
     const applied = yield* db.withTransaction(
       Effect.gen(function* () {
+        // Extra se revisa também com a Solicitação encerrada; Item não.
+        if (input.acceptItemIds.length || input.rejectDocuments.length) {
+          yield* lockOpenRequest(requestId);
+        }
+
         for (const itemId of input.acceptItemIds) {
           const [updated] = yield* db.use(async (tx) => {
             await tx
@@ -638,34 +665,41 @@ const make = Effect.gen(function* () {
     scope: FirmScope,
     requestId: string,
   ) {
-    const [row] = yield* db.use((d) =>
-      d
-        .select({ id: request.id, status: request.status })
-        .from(request)
-        .innerJoin(period, eq(period.id, request.periodId))
-        .where(and(eq(request.id, requestId), eq(period.accountingFirmId, scope)))
-        .limit(1),
+    /* Trava a linha da Solicitação (a mesma que as revisões travam): dois encerramentos
+     * concorrentes passavam pela checagem e o segundo reescrevia `closed_at`. */
+    return yield* db.withTransaction(
+      Effect.gen(function* () {
+        const [row] = yield* db.use((d) =>
+          d
+            .select({ id: request.id, status: request.status })
+            .from(request)
+            .innerJoin(period, eq(period.id, request.periodId))
+            .where(and(eq(request.id, requestId), eq(period.accountingFirmId, scope)))
+            .for('update', { of: request })
+            .limit(1),
+        );
+
+        if (!row) return undefined;
+        if (row.status === 'closed') {
+          return yield* Effect.fail(new InvalidTransition('Esta solicitação já foi encerrada.'));
+        }
+
+        return yield* db.use(async (d) => {
+          const [pending] = await d
+            .select({ value: count() })
+            .from(requestItem)
+            .where(and(eq(requestItem.requestId, requestId), ne(requestItem.status, 'accepted')));
+
+          const [closed] = await d
+            .update(request)
+            .set({ status: 'closed', closedAt: new Date() })
+            .where(eq(request.id, requestId))
+            .returning({ id: request.id, status: request.status, closedAt: request.closedAt });
+
+          return { ...closed, pendingItemCount: pending.value };
+        });
+      }),
     );
-
-    if (!row) return undefined;
-    if (row.status === 'closed') {
-      return yield* Effect.fail(new InvalidTransition('Esta solicitação já foi encerrada.'));
-    }
-
-    return yield* db.use(async (d) => {
-      const [pending] = await d
-        .select({ value: count() })
-        .from(requestItem)
-        .where(and(eq(requestItem.requestId, requestId), ne(requestItem.status, 'accepted')));
-
-      const [closed] = await d
-        .update(request)
-        .set({ status: 'closed', closedAt: new Date() })
-        .where(eq(request.id, requestId))
-        .returning({ id: request.id, status: request.status, closedAt: request.closedAt });
-
-      return { ...closed, pendingItemCount: pending.value };
-    });
   });
 
   /** Itens vencidos de Competência/Solicitação abertas. `scope` nulo = varredura do cron,
@@ -701,6 +735,9 @@ const make = Effect.gen(function* () {
           and(
             eq(period.status, 'open'),
             eq(request.status, 'open'),
+            /* Empresa desativada não recebe aviso: o guard do Link a recusa, e o e-mail
+             * chegaria com um link morto. */
+            eq(company.active, true),
             inArray(requestItem.status, ['pending', 'rejected']),
             scope ? eq(period.accountingFirmId, scope) : undefined,
           ),
@@ -755,6 +792,7 @@ const make = Effect.gen(function* () {
             id: uploadLink.id,
             tokenHash: uploadLink.tokenHash,
             expiresAt: uploadLink.expiresAt,
+            revoked: uploadLink.revoked,
           })
           .from(uploadLink)
           .where(eq(uploadLink.requestId, requestId))
@@ -763,19 +801,25 @@ const make = Effect.gen(function* () {
 
         if (!current) return false;
 
+        /* Token revogado não ganha carência: copiá-lo para `previous` com `revoked:false`
+         * o ressuscitava por 48h no próximo lembrete ou reenvio. */
         const now = new Date();
-        const graceExpiresAt =
-          !options?.revokePrevious && current
-            ? new Date(Math.min(current.expiresAt.getTime(), addHours(now, 48).getTime()))
-            : null;
+        const keepPrevious = !options?.revokePrevious && !current.revoked;
+        const graceExpiresAt = keepPrevious
+          ? new Date(Math.min(current.expiresAt.getTime(), addHours(now, 48).getTime()))
+          : null;
 
+        /* `revoked` vale para a linha inteira e ninguém mais a zerava: a revogação de acesso
+         * matava para sempre todo token que o lembrete ou o reenvio emitissem depois. Um
+         * token novo é uma decisão nova sobre este link. */
         const [row] = await tx
           .update(uploadLink)
           .set({
             tokenHash,
             expiresAt: addDays(now, env.UPLOAD_LINK_TTL_DAYS),
-            previousTokenHash: options?.revokePrevious ? null : (current.tokenHash ?? null),
+            previousTokenHash: keepPrevious ? current.tokenHash : null,
             previousExpiresAt: graceExpiresAt,
+            revoked: false,
             ...(contactId ? { contactId } : {}),
           })
           .where(eq(uploadLink.id, current.id))
@@ -799,6 +843,7 @@ const make = Effect.gen(function* () {
             id: uploadLink.id,
             tokenHash: uploadLink.tokenHash,
             expiresAt: uploadLink.expiresAt,
+            revoked: uploadLink.revoked,
           })
           .from(uploadLink)
           .where(eq(uploadLink.requestId, requestId))
@@ -807,18 +852,20 @@ const make = Effect.gen(function* () {
 
         if (!current) return undefined;
 
+        // idem `applyUploadToken`: revogado não ganha carência
         const now = new Date();
-        const graceExpiresAt = new Date(
-          Math.min(current.expiresAt.getTime(), addHours(now, 48).getTime()),
-        );
+        const graceExpiresAt = current.revoked
+          ? null
+          : new Date(Math.min(current.expiresAt.getTime(), addHours(now, 48).getTime()));
 
         const [row] = await tx
           .update(uploadLink)
           .set({
             tokenHash,
             expiresAt: addDays(now, env.UPLOAD_LINK_TTL_DAYS),
-            previousTokenHash: current.tokenHash,
+            previousTokenHash: current.revoked ? null : current.tokenHash,
             previousExpiresAt: graceExpiresAt,
+            revoked: false,
             ...(contactId ? { contactId } : {}),
           })
           .where(eq(uploadLink.id, current.id))
@@ -853,6 +900,30 @@ const make = Effect.gen(function* () {
     );
 
     return row;
+  });
+
+  /** Solicitações abertas cujo Link de Upload é deste Responsável, com o contexto que o
+   *  e-mail de reenvio precisa. É o que a troca de e-mail rotaciona. */
+  const openUploadLinksForContact = Effect.fn('RequestsRepo.openUploadLinksForContact')(function* (
+    contactId: string,
+  ) {
+    return yield* db.use((d) =>
+      d
+        .select({
+          requestId: request.id,
+          referenceMonth: period.referenceMonth,
+          periodDueDate: period.dueDate,
+          companyName: company.name,
+          contactName: contact.name,
+          contactEmail: contact.email,
+        })
+        .from(uploadLink)
+        .innerJoin(request, eq(request.id, uploadLink.requestId))
+        .innerJoin(period, eq(period.id, request.periodId))
+        .innerJoin(company, eq(company.id, request.companyId))
+        .innerJoin(contact, eq(contact.id, uploadLink.contactId))
+        .where(and(eq(uploadLink.contactId, contactId), ne(request.status, 'closed'))),
+    );
   });
 
   const rotateUploadLink = Effect.fn('RequestsRepo.rotateUploadLink')(function* (
@@ -1103,6 +1174,7 @@ const make = Effect.gen(function* () {
     });
     if (refusal) return yield* Effect.fail(new InvalidTransition(refusal));
 
+    /* Sem `lockOpenRequest`: Extra se revisa também com a Solicitação encerrada. */
     const [updated] = yield* db.use((d) =>
       d
         .update(document)
@@ -1140,37 +1212,40 @@ const make = Effect.gen(function* () {
     if (refusal) return yield* Effect.fail(new InvalidTransition(refusal));
 
     return yield* db.withTransaction(
-      db.use(async (tx) => {
-        const reverted = await tx
-          .update(document)
-          .set({ reviewStatus: 'pending', reviewedBy: null, reviewedAt: null })
-          .where(
-            and(
-              eq(document.requestItemId, requestItemId),
-              eq(document.reviewStatus, 'accepted'),
-              eq(document.uploadStatus, 'uploaded'),
-            ),
-          )
-          .returning({ id: document.id });
+      Effect.andThen(
+        lockOpenRequest(context.requestId),
+        db.use(async (tx) => {
+          const reverted = await tx
+            .update(document)
+            .set({ reviewStatus: 'pending', reviewedBy: null, reviewedAt: null })
+            .where(
+              and(
+                eq(document.requestItemId, requestItemId),
+                eq(document.reviewStatus, 'accepted'),
+                eq(document.uploadStatus, 'uploaded'),
+              ),
+            )
+            .returning({ id: document.id });
 
-        const itemStatus = reverted.length > 0 ? 'submitted' : 'pending';
+          const itemStatus = reverted.length > 0 ? 'submitted' : 'pending';
 
-        await tx
-          .update(requestItem)
-          .set({ status: itemStatus })
-          .where(eq(requestItem.id, requestItemId));
+          await tx
+            .update(requestItem)
+            .set({ status: itemStatus })
+            .where(eq(requestItem.id, requestItemId));
 
-        const requestStatus = await syncRequestStatusOn(tx, context.requestId);
+          const requestStatus = await syncRequestStatusOn(tx, context.requestId);
 
-        return {
-          requestId: context.requestId,
-          requestItemId,
-          itemName: context.itemName,
-          itemStatus,
-          revertedDocuments: reverted.length,
-          requestStatus,
-        };
-      }),
+          return {
+            requestId: context.requestId,
+            requestItemId,
+            itemName: context.itemName,
+            itemStatus,
+            revertedDocuments: reverted.length,
+            requestStatus,
+          };
+        }),
+      ),
     );
   });
 
@@ -1197,6 +1272,8 @@ const make = Effect.gen(function* () {
             inArray(requestItem.status, ['pending', 'rejected']),
             eq(request.status, 'open'),
             eq(period.status, 'open'),
+            // idem `overdueItems`: o Link de Empresa desativada não abre
+            eq(company.active, true),
             scope ? eq(period.accountingFirmId, scope) : undefined,
           ),
         );
@@ -1357,6 +1434,7 @@ const make = Effect.gen(function* () {
     applyUploadToken,
     rotateUploadToken,
     uploadLinkContext,
+    openUploadLinksForContact,
     rotateUploadLink,
     markDeadlineNotified,
     documentsForRequestZip,

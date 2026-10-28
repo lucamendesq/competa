@@ -17,6 +17,7 @@ import {
   contactBody,
   createCompany,
   registerFirm,
+  uniqueCnpj,
   uniqueIp,
   type Api,
 } from './support/fixtures.js';
@@ -197,6 +198,82 @@ describe('cadastro público de Contabilidade (POST /auth/register e alias /publi
     expect(me.status).toBe(200);
   });
 
+  it('CNPJ no cadastro fica na firma; repetido → 422 no campo e nenhum user órfão', async () => {
+    const cnpj = uniqueCnpj();
+    const first = await apiClient(app.url).post('/auth/register', {
+      firmName: 'Com CNPJ',
+      userName: 'Dona',
+      email: uniqueEmail('cnpj'),
+      password: PASSWORD,
+      cnpj,
+    });
+    expect(first.status, JSON.stringify(first.body)).toBe(201);
+    const me = await apiClient(app.url, { cookie: cookieOf(first.headers) }).get('/auth/me');
+    expect(me.body.data.accountingFirm.cnpj).toBe(cnpj);
+
+    const email = uniqueEmail('cnpj-repetido');
+    const dup = await apiClient(app.url).post('/auth/register', {
+      firmName: 'Mesmo CNPJ',
+      userName: 'Clone',
+      email,
+      password: PASSWORD,
+      cnpj,
+    });
+    expect(dup.status).toBe(422);
+    expect(dup.body.error.details).toEqual([
+      { path: ['cnpj'], message: 'Já existe uma Contabilidade com este CNPJ.' },
+    ]);
+    /* A compensação do signup apaga o user do better-auth: o e-mail volta a estar livre. */
+    const orphans = await db
+      .select({ id: authUser.id })
+      .from(authUser)
+      .where(eq(authUser.email, email));
+    expect(orphans).toHaveLength(0);
+
+    const blank = await apiClient(app.url).post('/auth/register', {
+      firmName: 'Sem CNPJ',
+      userName: 'Dona',
+      email: uniqueEmail('sem-cnpj'),
+      password: PASSWORD,
+      cnpj: '',
+    });
+    expect(blank.status, 'vazio vale como ausente').toBe(201);
+  });
+
+  it('e-mail já cadastrado → 422 SIGNUP_REJECTED, sem segunda firma', async () => {
+    const email = uniqueEmail('repetido');
+    const body = { firmName: 'Primeira', userName: 'Dona', email, password: PASSWORD };
+    expect((await apiClient(app.url).post('/auth/register', body)).status).toBe(201);
+
+    const again = await apiClient(app.url).post('/auth/register', { ...body, firmName: 'Segunda' });
+    expect(again.status, JSON.stringify(again.body)).toBe(422);
+    expect(again.body.error.code).toBe('SIGNUP_REJECTED');
+  });
+
+  it('nome da firma longo demais ou com caractere de controle → 422, não 500', async () => {
+    for (const firmName of ['F'.repeat(5000), 'Firma\u0000Nula']) {
+      const res = await apiClient(app.url).post('/public-signup', {
+        firmName,
+        userName: 'Dona',
+        email: uniqueEmail('nome-ruim'),
+        password: PASSWORD,
+      });
+      expect(res.status, firmName.slice(0, 20)).toBe(422);
+      expect(res.body.error.code).toBe('VALIDATION_ERROR');
+    }
+  });
+
+  it('senha acima de 128 caracteres → 422 no campo, não 500', async () => {
+    const res = await apiClient(app.url).post('/public-signup', {
+      firmName: 'Senha Longa',
+      userName: 'Dona',
+      email: uniqueEmail('senha-longa'),
+      password: 'a'.repeat(500),
+    });
+    expect(res.status, JSON.stringify(res.body)).toBe(422);
+    expect(res.body.error.code).toBe('VALIDATION_ERROR');
+  });
+
   it('o alias /public-signup provisiona do mesmo jeito', async () => {
     const email = uniqueEmail('alias');
     const res = await apiClient(app.url).post('/public-signup', {
@@ -353,6 +430,7 @@ describe('GET /auth/me', () => {
       planName: 'trial',
       cycle: 'monthly',
       trialEndsAt: expect.any(String),
+      currentPeriodEnd: null,
       priceOverride: null,
     });
   });
@@ -542,12 +620,10 @@ describe('convite de Contador (POST /invites, GET /invites/:token, POST /auth/si
     expect(res.body.error.code).toBe('ONLY_OWNER_CAN_INVITE');
   });
 
-  /* Bug congelado: o branch 409 EMAIL_ALREADY_REGISTERED do sign-up é código morto. Com
-   * `asResponse: true` o better-auth devolve o erro de duplicidade como Response 4xx (não
-   * lança), o adapter embrulha em success com userId VAZIO e o insert de accountant estoura
-   * no Postgres (`invalid input syntax for type uuid: ""`) → 500 INTERNAL_ERROR. O rollback
-   * da transação ao menos preserva o convite (não queima). */
-  it('bug congelado: email convidado que ganhou conta no meio do caminho → 500, sem queimar', async () => {
+  /* Com `asResponse: true` o better-auth devolve a duplicidade como Response 4xx, sem lançar.
+   * O adapter tratava isso como sucesso com userId vazio e o insert estourava em 500; agora
+   * vira APIError e cai no 409 EMAIL_ALREADY_REGISTERED. O convite não é queimado. */
+  it('email convidado que ganhou conta no meio do caminho → 409, sem queimar o convite', async () => {
     const lateEmail = uniqueEmail('atrasada');
     const invited = await firm.api.post('/invites', { email: lateEmail });
     expect(invited.status).toBe(201);
@@ -567,8 +643,8 @@ describe('convite de Contador (POST /invites, GET /invites/:token, POST /auth/si
       email: lateEmail,
       password: PASSWORD,
     });
-    expect(res.status).toBe(500);
-    expect(res.body.error.code).toBe('INTERNAL_ERROR');
+    expect(res.status, JSON.stringify(res.body)).toBe(409);
+    expect(res.body.error.code).toBe('EMAIL_ALREADY_REGISTERED');
     expect((await inviteRowByToken(token)).acceptedAt).toBeNull();
 
     const accounts = await db
@@ -828,6 +904,7 @@ describe('Contabilidade (GET/PATCH /accounting-firm, device-stats)', () => {
       reminderGapDays: 3,
       logoUrl: null,
       contactEmail: null,
+      cnpj: expect.stringMatching(/^\d{14}$/),
       subscription: {
         id: expect.any(String),
         planName: 'trial',
@@ -864,6 +941,30 @@ describe('Contabilidade (GET/PATCH /accounting-firm, device-stats)', () => {
     const cleared = await firm.api.patch('/accounting-firm', { logoUrl: '', contactEmail: '' });
     expect(cleared.status).toBe(200);
     expect(cleared.body.data).toMatchObject({ logoUrl: null, contactEmail: null });
+  });
+
+  /* O CNPJ é o documento do pagador no gateway: pode ser corrigido, nunca apagado, e não
+   * pode repetir o de outra Contabilidade (seria um segundo trial da mesma pessoa jurídica). */
+  it('dono corrige o CNPJ; inválido e repetido → 422 apontando o campo', async () => {
+    const fresh = uniqueCnpj();
+    const res = await firm.api.patch('/accounting-firm', { cnpj: fresh });
+    expect(res.status, JSON.stringify(res.body)).toBe(200);
+    expect(res.body.data.cnpj).toBe(fresh);
+
+    const invalid = await firm.api.patch('/accounting-firm', { cnpj: '12345678000100' });
+    expect(invalid.status).toBe(422);
+    expect(invalid.body.error.code).toBe('VALIDATION_ERROR');
+
+    const other = await registerFirm(app.url);
+    const otherCnpj = (await other.api.get('/accounting-firm')).body.data.cnpj as string;
+    const taken = await firm.api.patch('/accounting-firm', { cnpj: otherCnpj });
+    expect(taken.status).toBe(422);
+    expect(taken.body.error.details).toEqual([
+      { path: ['cnpj'], message: 'Já existe uma Contabilidade com este CNPJ.' },
+    ]);
+
+    const cleared = await firm.api.patch('/accounting-firm', { cnpj: '' });
+    expect(cleared.status, 'CNPJ não se apaga').toBe(422);
   });
 
   it('trial ajusta a cadência de lembretes (capability liberada no teste)', async () => {

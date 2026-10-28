@@ -4,7 +4,10 @@ import { FirmContext } from '../../http/context.js';
 import { handler, paginated } from '../../http/envelope.js';
 import { firmRoute } from '../../http/middleware/auth.js';
 import { params, query, route } from '../../http/platform.js';
+import env from '../../config/env.js';
 import { NotFound } from '../../lib/app-error.js';
+import { createToken } from '../../lib/token.js';
+import { RequestsRepo } from '../requests/request.repo.js';
 import { Reminders } from '../requests/reminders.cron.js';
 import { MessagesRepo } from './message.repo.js';
 
@@ -53,8 +56,17 @@ const resend = route(
 
       /* Bug congelado #14: `resend()` chama `deliver()` sem `channel`, então o reenvio de
        * uma mensagem de whatsapp sai pelo provider default — email. */
-      const outcome = yield* MessagesRepo.use((repo) => repo.resend(scope, id));
+      const { token, tokenHash } = createToken();
+      const outcome = yield* MessagesRepo.use((repo) =>
+        repo.resend(scope, id, `${env.WEB_URL}/envio/${token}`),
+      );
       if (!outcome) return yield* Effect.fail(new NotFound('Mensagem não encontrada.'));
+
+      /* Mesma ordem do reenvio da Solicitação: o token só vale depois da entrega, e o
+       * anterior fica na carência. */
+      if (outcome._tag === 'Delivered' && outcome.carriedLink) {
+        yield* RequestsRepo.use((repo) => repo.applyUploadToken(outcome.requestId, tokenHash));
+      }
 
       /* Bug congelado #15: as quatro causas de "não enviou" existem no tipo mas o fio só
        * carrega o booleano. Distingui-las na resposta é follow-up. */

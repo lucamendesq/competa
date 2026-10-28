@@ -455,7 +455,9 @@ describe('POST /messages/:id/resend', () => {
     expect(malformed.body.error.code).toBe('VALIDATION_ERROR');
   });
 
-  it('reenvia por email uma mensagem já enviada (status não é checado) sem rotacionar o link', async () => {
+  /* O reenvio diz "Seu novo link de envio": manda um /envio/<token> novo, não a Minha Área
+   * (que exige conta). O token anterior fica na carência. */
+  it('reenvia por email uma mensagem já enviada (status não é checado) com link novo', async () => {
     const hashBefore = await tokenHashOf(openBox.requestId);
     const res = await fixture.firm.api.post(`/messages/${openLinkMessageId}/resend`);
 
@@ -471,9 +473,11 @@ describe('POST /messages/:id/resend', () => {
     });
     expect(rows[1].sentAt).not.toBeNull();
 
-    expect(await tokenHashOf(openBox.requestId), 'reenvio de mensagem não rotaciona o link').toBe(
+    expect(await tokenHashOf(openBox.requestId), 'o link entregue virou o oficial').not.toBe(
       hashBefore,
     );
+    const graced = await apiClient(app.url).get(`/upload/${openBox.uploadToken}`);
+    expect(graced.status, 'o link anterior vive na carência').toBe(200);
   });
 
   it('mensagem purpose=resend não tem branch de reenvio: { sent: false } sem linha nova', async () => {
@@ -536,7 +540,11 @@ describe('POST /messages/:id/resend', () => {
 
   it('push com inscrição → { sent: true } e linha nova mirando o endpoint', async () => {
     const body = pushBody();
-    const subscribed = await apiClient(app.url).post(`/upload/${openBox.uploadToken}/push`, body);
+    /* Os reenvios acima já rotacionaram o link mais de uma vez: o token do fixture saiu da
+     * carência. */
+    const rotated = await fixture.firm.api.post(`/requests/${openBox.requestId}/upload-link`);
+    const token = rotated.body.data.uploadUrl.split('/envio/')[1];
+    const subscribed = await apiClient(app.url).post(`/upload/${token}/push`, body);
     expect(subscribed.status, JSON.stringify(subscribed.body)).toBe(201);
 
     const pushRowsBefore = (await messageRowsOf(openBox.requestId)).filter(
@@ -641,7 +649,12 @@ describe('POST /messages/reminders/run — cadência, teto e knobs', () => {
     const res = await fixture.firm.api.post('/messages/reminders/run');
 
     expect(res.status).toBe(201);
-    expect(res.body.data).toEqual({ scanned: 3, sent: 2 });
+    expect(res.body.data).toEqual({ scanned: 3, sent: 2, busy: false });
+
+    /* A entrega é ESPERADA pela varredura, não disparada: a resposta só sai com a linha de
+     * `message` gravada. É ela que a próxima varredura lê — soltar a lease antes deixava
+     * outra instância reenviar o mesmo lembrete. */
+    expect(await messageRowsOf(dueSoon.requestId, 'reminder')).toHaveLength(1);
 
     const [dueSoonReminder] = await waitForMessageRows(dueSoon.requestId, 1, 'reminder');
     expect(dueSoonReminder).toMatchObject({
@@ -658,7 +671,7 @@ describe('POST /messages/reminders/run — cadência, teto e knobs', () => {
   it('segunda varredura imediata respeita o gap mínimo', async () => {
     const res = await fixture.firm.api.post('/messages/reminders/run');
     expect(res.status).toBe(201);
-    expect(res.body.data).toEqual({ scanned: 3, sent: 0 });
+    expect(res.body.data).toEqual({ scanned: 3, sent: 0, busy: false });
     expect(await messageRowsOf(dueSoon.requestId, 'reminder')).toHaveLength(1);
   });
 
@@ -667,7 +680,7 @@ describe('POST /messages/reminders/run — cadência, teto e knobs', () => {
     await backdate(noDueDate.requestId);
 
     const res = await fixture.firm.api.post('/messages/reminders/run');
-    expect(res.body.data).toEqual({ scanned: 3, sent: 1 });
+    expect(res.body.data).toEqual({ scanned: 3, sent: 1, busy: false });
 
     await waitForMessageRows(dueSoon.requestId, 2, 'reminder');
     expect(await messageRowsOf(noDueDate.requestId, 'reminder')).toHaveLength(1);
@@ -677,7 +690,7 @@ describe('POST /messages/reminders/run — cadência, teto e knobs', () => {
     await backdate(dueSoon.requestId);
 
     const res = await fixture.firm.api.post('/messages/reminders/run');
-    expect(res.body.data).toEqual({ scanned: 3, sent: 0 });
+    expect(res.body.data).toEqual({ scanned: 3, sent: 0, busy: false });
     expect(await messageRowsOf(dueSoon.requestId, 'reminder')).toHaveLength(2);
   });
 
@@ -688,7 +701,7 @@ describe('POST /messages/reminders/run — cadência, teto e knobs', () => {
       .where(eq(accountingFirm.id, firmId));
 
     const res = await fixture.firm.api.post('/messages/reminders/run');
-    expect(res.body.data).toEqual({ scanned: 3, sent: 1 });
+    expect(res.body.data).toEqual({ scanned: 3, sent: 1, busy: false });
     await waitForMessageRows(dueFar.requestId, 1, 'reminder');
   });
 
@@ -700,7 +713,7 @@ describe('POST /messages/reminders/run — cadência, teto e knobs', () => {
     await backdate(dueFar.requestId);
 
     const res = await fixture.firm.api.post('/messages/reminders/run');
-    expect(res.body.data).toEqual({ scanned: 3, sent: 0 });
+    expect(res.body.data).toEqual({ scanned: 3, sent: 0, busy: false });
     expect(await messageRowsOf(dueFar.requestId, 'reminder')).toHaveLength(1);
   });
 });
@@ -721,14 +734,38 @@ describe('POST /messages/reminders/run — isolamento entre firmas (AUTHZ-2)', (
 
     const ranByA = await firmA.firm.api.post('/messages/reminders/run');
     expect(ranByA.status).toBe(201);
-    expect(ranByA.body.data).toEqual({ scanned: 1, sent: 1 });
+    expect(ranByA.body.data).toEqual({ scanned: 1, sent: 1, busy: false });
 
     await waitForMessageRows(firmA.boxes.Minha.requestId, 1, 'reminder');
     expect(await messageRowsOf(firmB.boxes.Alheia.requestId, 'reminder')).toHaveLength(0);
 
     const ranByB = await firmB.firm.api.post('/messages/reminders/run');
-    expect(ranByB.body.data).toEqual({ scanned: 1, sent: 1 });
+    expect(ranByB.body.data).toEqual({ scanned: 1, sent: 1, busy: false });
     await waitForMessageRows(firmB.boxes.Alheia.requestId, 1, 'reminder');
+  });
+});
+
+describe('POST /messages/reminders/run — dois cliques ao mesmo tempo', () => {
+  it('o mesmo lembrete sai uma vez só: a segunda varredura encontra a lease tomada', async () => {
+    const firm = await openFirmWithCompanies(['Duplo']);
+    const box = firm.boxes.Duplo;
+    await waitForMessageRows(box.requestId, 1, 'link_delivery');
+    await db
+      .update(requestItem)
+      .set({ dueDate: brazilDayPlus(1) })
+      .where(eq(requestItem.requestId, box.requestId));
+    await db.delete(message).where(eq(message.requestId, box.requestId));
+
+    const [first, second] = await Promise.all([
+      firm.firm.api.post('/messages/reminders/run'),
+      firm.firm.api.post('/messages/reminders/run'),
+    ]);
+    expect(first.status).toBe(201);
+    expect(second.status).toBe(201);
+    expect(first.body.data.sent + second.body.data.sent).toBe(1);
+
+    await app.drainEvents();
+    expect(await messageRowsOf(box.requestId, 'reminder')).toHaveLength(1);
   });
 });
 

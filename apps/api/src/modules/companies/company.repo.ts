@@ -1,5 +1,5 @@
 import { Cause, Context, Effect, Layer } from 'effect';
-import { and, count, eq, ilike, inArray, isNotNull, isNull, or, sql } from 'drizzle-orm';
+import { and, asc, count, eq, ilike, inArray, isNotNull, isNull, ne, or, sql } from 'drizzle-orm';
 import {
   COMPANY_FLAGS,
   type CompanyFlags,
@@ -20,15 +20,27 @@ import {
   checklistTemplate,
   company,
   contact,
+  request,
   subscription,
+  uploadLink,
   user,
 } from '../../infra/database/schema/index.js';
 import type { FirmScope } from '../auth/scope.js';
 
 import { parseCsvRecords } from './csv.js';
+import { ContactHoldsOpenLinks } from './errors.js';
 
 export type ImportLineResult =
-  | { line: number; status: 'created'; companyId: string; name: string; active: boolean }
+  /* `inserted: false` = CNPJ já cadastrado, atualizado pelo upsert. O `status` continua
+   * 'created' para as duas: a web convida todas as linhas gravadas. */
+  | {
+      line: number;
+      status: 'created';
+      companyId: string;
+      name: string;
+      active: boolean;
+      inserted: boolean;
+    }
   | { line: number; status: 'error'; name: string; error: string };
 
 export type PendingImportRow = { line: number; body: CreateCompanyBody };
@@ -56,6 +68,13 @@ const make = Effect.gen(function* () {
    *  prático é que a Competência é única por Contabilidade e o fan-out roda uma vez, então
    *  uma competência nunca cobre mais Empresas que o teto. */
   const capacityOf = async (scope: FirmScope, executor: Executor) => {
+    /* Contar e gravar sem trava deixava N cadastros paralelos lerem o mesmo `current` e
+     * todos caberem (11 → 22 com teto 18). A trava é da Contabilidade e dura a transação de
+     * quem chama — por isso todo chamador conta e grava na MESMA transação. */
+    await executor.execute(
+      sql`select pg_advisory_xact_lock(hashtextextended(${`company-cap:${scope}`}, 0))`,
+    );
+
     const [sub] = await executor
       .select({ planName: subscription.planName })
       .from(subscription)
@@ -276,7 +295,10 @@ const make = Effect.gen(function* () {
       })
       .from(contact)
       .innerJoin(company, eq(company.id, contact.companyId))
-      .where(and(eq(contact.companyId, companyId), eq(company.accountingFirmId, scope)));
+      .where(and(eq(contact.companyId, companyId), eq(company.accountingFirmId, scope)))
+      /* Mesma ordem do fan-out, que manda o Link ao mais antigo: o formulário edita
+       * `contacts[0]` e, sem ordem, podia mostrar outra pessoa que não a do link. */
+      .orderBy(asc(contact.createdAt), asc(contact.id));
 
   const findById = Effect.fn('CompaniesRepo.findById')(function* (
     scope: FirmScope,
@@ -315,6 +337,14 @@ const make = Effect.gen(function* () {
   });
 
   const update = Effect.fn('CompaniesRepo.update')(function* (
+    scope: FirmScope,
+    companyId: string,
+    body: UpdateCompanyBody,
+  ) {
+    return yield* db.withTransaction(patchCompany(scope, companyId, body));
+  });
+
+  const patchCompany = Effect.fnUntraced(function* (
     scope: FirmScope,
     companyId: string,
     body: UpdateCompanyBody,
@@ -360,50 +390,52 @@ const make = Effect.gen(function* () {
     scope: FirmScope,
     companyIds: string[],
   ) {
-    return yield* db.use(async (d) => {
-      const inactive = await d
-        .select({ id: company.id, name: company.name })
-        .from(company)
-        .where(
-          and(
-            eq(company.accountingFirmId, scope),
-            eq(company.active, false),
-            inArray(company.id, companyIds),
-          ),
-        )
-        .orderBy(company.name);
-
-      const { cap, current, limit } = await capacityOf(scope, d);
-      const slots = Math.max(0, limit - current);
-      const fitting = inactive.slice(0, slots);
-
-      if (fitting.length) {
-        await d
-          .update(company)
-          .set({ active: true })
+    return yield* db.withTransaction(
+      db.use(async (d) => {
+        const inactive = await d
+          .select({ id: company.id, name: company.name })
+          .from(company)
           .where(
             and(
               eq(company.accountingFirmId, scope),
-              inArray(
-                company.id,
-                fitting.map((row) => row.id),
-              ),
+              eq(company.active, false),
+              inArray(company.id, companyIds),
             ),
-          );
-      }
+          )
+          .orderBy(company.name);
 
-      const skipped = inactive.length - fitting.length;
+        const { cap, current, limit } = await capacityOf(scope, d);
+        const slots = Math.max(0, limit - current);
+        const fitting = inactive.slice(0, slots);
 
-      return {
-        activated: fitting.length,
-        skipped,
-        companyCap: cap,
-        softCap: limit,
-        reason: skipped
-          ? `${skipped} empresa(s) não entraram: seu plano cobre ${cap} ativas (com folga até ${limit}) e você já tinha ${current}.`
-          : undefined,
-      };
-    });
+        if (fitting.length) {
+          await d
+            .update(company)
+            .set({ active: true })
+            .where(
+              and(
+                eq(company.accountingFirmId, scope),
+                inArray(
+                  company.id,
+                  fitting.map((row) => row.id),
+                ),
+              ),
+            );
+        }
+
+        const skipped = inactive.length - fitting.length;
+
+        return {
+          activated: fitting.length,
+          skipped,
+          companyCap: cap,
+          softCap: limit,
+          reason: skipped
+            ? `${skipped} empresa(s) não entraram: seu plano cobre ${cap} ativas (com folga até ${limit}) e você já tinha ${current}.`
+            : undefined,
+        };
+      }),
+    );
   });
 
   const listContacts = Effect.fn('CompaniesRepo.listContacts')(function* (
@@ -469,22 +501,64 @@ const make = Effect.gen(function* () {
     });
   });
 
+  /** O Link de Upload referencia o Responsável que o recebeu, e nunca é recriado (só
+   *  rotacionado): apagar o contato direto estourava a FK e virava 500. Os links passam para
+   *  o Responsável mais antigo que sobra, REVOGADOS — o token que o removido tem para de
+   *  valer, e o próximo reenvio vai para quem ficou. Sem ninguém para receber, link de
+   *  Solicitação encerrada sai junto; o de Solicitação aberta impede a remoção. */
   const deleteContact = Effect.fn('CompaniesRepo.deleteContact')(function* (
     scope: FirmScope,
     companyId: string,
     contactId: string,
   ) {
-    return yield* db.use(async (d) => {
-      const owned = await findOwnedIdOf(d, scope, companyId);
-      if (!owned) return undefined;
+    const outcome = yield* db.withTransaction(
+      db.use(async (tx) => {
+        const owned = await findOwnedIdOf(tx, scope, companyId);
+        if (!owned) return undefined;
 
-      const [row] = await d
-        .delete(contact)
-        .where(and(eq(contact.id, contactId), eq(contact.companyId, owned)))
-        .returning({ id: contact.id });
+        const [target] = await tx
+          .select({ id: contact.id })
+          .from(contact)
+          .where(and(eq(contact.id, contactId), eq(contact.companyId, owned)))
+          .for('update');
+        if (!target) return undefined;
 
-      return row;
-    });
+        const [heir] = await tx
+          .select({ id: contact.id })
+          .from(contact)
+          .where(and(eq(contact.companyId, owned), ne(contact.id, contactId)))
+          .orderBy(asc(contact.createdAt))
+          .limit(1);
+
+        if (heir) {
+          await tx
+            .update(uploadLink)
+            .set({
+              contactId: heir.id,
+              revoked: true,
+              previousTokenHash: null,
+              previousExpiresAt: null,
+            })
+            .where(eq(uploadLink.contactId, contactId));
+        } else {
+          const [open] = await tx
+            .select({ id: uploadLink.id })
+            .from(uploadLink)
+            .innerJoin(request, eq(request.id, uploadLink.requestId))
+            .where(and(eq(uploadLink.contactId, contactId), ne(request.status, 'closed')))
+            .limit(1);
+          if (open) return 'holds-open-links' as const;
+
+          await tx.delete(uploadLink).where(eq(uploadLink.contactId, contactId));
+        }
+
+        await tx.delete(contact).where(eq(contact.id, contactId));
+        return target;
+      }),
+    );
+
+    if (outcome === 'holds-open-links') return yield* Effect.fail(new ContactHoldsOpenLinks());
+    return outcome;
   });
 
   const findOwnedId = Effect.fn('CompaniesRepo.findOwnedId')(function* (
@@ -598,17 +672,18 @@ const make = Effect.gen(function* () {
                   })),
                 )
                 /* `active` fica FORA do `set`: reenviar a planilha não pode desativar quem o
-                 * Contador já ativou na mão, nem reativar quem ele desativou. */
+                 * Contador já ativou na mão, nem reativar quem ele desativou. Template e
+                 * Contador responsável não são colunas da planilha: chegam nulos e, sem o
+                 * `coalesce`, apagavam o que a Empresa já tinha — e o fan-out seguinte a
+                 * pulava. As flags MESCLAM: coluna ausente não desliga nada. */
                 .onConflictDoUpdate({
                   target: [company.accountingFirmId, company.cnpj],
                   targetWhere: sql`${company.cnpj} is not null`,
                   set: {
                     name: sql`excluded.name`,
-                    checklistTemplateId: sql`excluded.checklist_template_id`,
-                    /* Acompanha `name`/`flags` porque é coluna da planilha, não ajuste
-                     * manual: o `active` é a exceção, e ela está dita acima. */
-                    responsibleAccountantId: sql`excluded.responsible_accountant_id`,
-                    flags: sql`excluded.flags`,
+                    checklistTemplateId: sql`coalesce(excluded.checklist_template_id, ${company.checklistTemplateId})`,
+                    responsibleAccountantId: sql`coalesce(excluded.responsible_accountant_id, ${company.responsibleAccountantId})`,
+                    flags: sql`${company.flags} || excluded.flags`,
                   },
                 })
                 .returning({
@@ -616,6 +691,8 @@ const make = Effect.gen(function* () {
                   name: company.name,
                   cnpj: company.cnpj,
                   active: company.active,
+                  // xmax = 0 só na linha recém-inserida; no ramo de update ela leva o xid
+                  inserted: sql<boolean>`(xmax = 0)`,
                 })
             : [];
 
@@ -634,9 +711,13 @@ const make = Effect.gen(function* () {
                   })),
                 )
                 .returning({ id: company.id, name: company.name, active: company.active })
+                .then((rows) => rows.map((row) => ({ ...row, inserted: true })))
             : [];
 
-          const rowByLine = new Map<number, { id: string; name: string; active: boolean }>();
+          const rowByLine = new Map<
+            number,
+            { id: string; name: string; active: boolean; inserted: boolean }
+          >();
           const companyByCnpj = new Map(upserted.map((row) => [row.cnpj!, row]));
           withCnpj.forEach(({ line, body }) => {
             const matched = companyByCnpj.get(body.cnpj!);
@@ -646,7 +727,7 @@ const make = Effect.gen(function* () {
 
           const contacts = pending.flatMap(({ line, body }) =>
             body.contact && rowByLine.has(line)
-              ? [{ ...body.contact, companyId: rowByLine.get(line)!.id }]
+              ? [{ ...body.contact, companyId: rowByLine.get(line)!.id, companyName: body.name }]
               : [],
           );
 
@@ -661,12 +742,20 @@ const make = Effect.gen(function* () {
               existingContacts.map((c) => `${c.companyId}:${c.email.toLowerCase()}`),
             );
 
-            for (const c of contacts) {
+            for (const { companyName, ...c } of contacts) {
               const key = `${c.companyId}:${c.email.toLowerCase()}`;
               if (existingByCompanyEmail.has(key)) {
+                /* Sem coluna de nome, a prévia preenche o nome do Responsável com o da
+                 * Empresa só para o cadastro novo passar no contrato; num contato que já
+                 * existe isso o renomeava para a razão social. Idem telefone vazio. */
+                const patch = {
+                  ...(c.name !== companyName ? { name: c.name } : {}),
+                  ...(c.phone ? { phone: c.phone } : {}),
+                };
+                if (Object.keys(patch).length === 0) continue;
                 await tx
                   .update(contact)
-                  .set({ name: c.name, phone: c.phone ?? null })
+                  .set(patch)
                   .where(and(eq(contact.companyId, c.companyId), eq(contact.email, c.email)));
               } else {
                 await tx.insert(contact).values(c);
@@ -683,6 +772,7 @@ const make = Effect.gen(function* () {
               companyId: row.id,
               name: row.name,
               active: row.active,
+              inserted: row.inserted,
             };
           });
         }),
@@ -752,17 +842,27 @@ const make = Effect.gen(function* () {
     /* Importar a carteira inteira NUNCA é recusado por teto: as linhas que não couberem
      * entram desativadas, e o Contador ativa quando quiser. Recusar aqui era pedir que o
      * cliente se auto-promovesse de tier só para cadastrar quem ele ainda nem usa. */
-    const { current, limit } = yield* db.use((d) => capacityOf(scope, d));
-    const slots = activate ? Math.max(0, limit - current) : 0;
+    const created = yield* db.withTransaction(
+      Effect.gen(function* () {
+        const { current, limit } = yield* db.use((d) => capacityOf(scope, d));
+        const slots = activate ? Math.max(0, limit - current) : 0;
 
-    const activeByLine = new Map(adding.map(({ line }, index) => [line, index < slots] as const));
+        const activeByLine = new Map(
+          adding.map(({ line }, index) => [line, index < slots] as const),
+        );
 
-    const created = pending.length ? yield* insertBatch(scope, pending, activeByLine) : [];
+        return pending.length ? yield* insertBatch(scope, pending, activeByLine) : [];
+      }),
+    );
 
     return {
       total: pending.length,
-      created: created.length,
-      activated: created.filter((row) => row.status === 'created' && row.active).length,
+      /* Reenvio de CNPJ já cadastrado é atualização, não Empresa nova — e o import nunca
+       * mexe no `active` de quem já existia, então só as novas contam como ativadas. */
+      created: created.filter((row) => row.status === 'created' && row.inserted).length,
+      updated: created.filter((row) => row.status === 'created' && !row.inserted).length,
+      activated: created.filter((row) => row.status === 'created' && row.inserted && row.active)
+        .length,
       failed: 0,
       lines: created,
     };
@@ -796,11 +896,14 @@ export class CompaniesRepo extends Context.Service<CompaniesRepo, Effect.Success
 
 const TRUTHY_FLAG_VALUES = new Set(['sim', 's', 'true', 'verdadeiro', '1']);
 
+/** Só as colunas presentes viram flag (`false` quando a célula não diz sim): o reenvio
+ *  mescla nas flags da Empresa, então coluna ausente não pode valer "não". */
 const parseFlags = (values: Record<string, string | undefined>): CompanyFlags =>
   Object.fromEntries(
-    COMPANY_FLAGS.filter((flag) =>
-      TRUTHY_FLAG_VALUES.has((values[`flag_${flag}`] ?? '').trim().toLowerCase()),
-    ).map((flag) => [flag, true]),
+    COMPANY_FLAGS.filter((flag) => values[`flag_${flag}`] !== undefined).map((flag) => [
+      flag,
+      TRUTHY_FLAG_VALUES.has(values[`flag_${flag}`]!.trim().toLowerCase()),
+    ]),
   );
 
 const firstIssue = (error: z.ZodError) => {

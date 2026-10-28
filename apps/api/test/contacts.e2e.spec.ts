@@ -1023,6 +1023,27 @@ describe('recuperação de acesso (/access/recover)', () => {
     );
   });
 
+  it('segundo Responsável da Empresa não toma o Link enviado ao principal', async () => {
+    const shared = await openFirmWithCompanies([{ name: 'DoisResponsaveis' }]);
+    const primary = shared.boxes.DoisResponsaveis;
+    const second = { name: 'Segunda Pessoa', email: 'segunda-recover@example.com' };
+    const added = await shared.firm.api.post(`/companies/${primary.id}/contacts`, second);
+    expect(added.status, JSON.stringify(added.body)).toBe(201);
+
+    const hashBefore = await currentTokenHash(primary.requestId);
+    const confirmToken = await mintConfirmToken(second.email);
+    const res = await apiClient(app.url).post('/access/recover/confirm', { token: confirmToken });
+    expect(res.status).toBe(201);
+
+    expect(await currentTokenHash(primary.requestId)).toBe(hashBefore);
+    const [link] = await db
+      .select({ contactId: uploadLink.contactId })
+      .from(uploadLink)
+      .where(eq(uploadLink.requestId, primary.requestId));
+    expect(link.contactId).not.toBe(added.body.data.id);
+    expect((await apiClient(app.url).get(`/upload/${primary.uploadToken}`)).status).toBe(200);
+  });
+
   it('token de confirmação adulterado/lixo: resposta cega, sem rotação', async () => {
     const hashBefore = await currentTokenHash(linkOnly.requestId);
     const res = await apiClient(app.url).post('/access/recover/confirm', {

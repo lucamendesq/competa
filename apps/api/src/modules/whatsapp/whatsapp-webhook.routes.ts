@@ -1,6 +1,6 @@
 import { createHmac, timingSafeEqual } from 'node:crypto';
 import { Effect, Layer } from 'effect';
-import { HttpServerRequest } from 'effect/http';
+import { HttpServerRequest, HttpServerResponse } from 'effect/http';
 import * as z from 'zod';
 import env from '../../config/env.js';
 import { handler } from '../../http/envelope.js';
@@ -73,7 +73,9 @@ const verifyChallenge = route(
         return yield* Effect.fail(new Forbidden('Token inválido.'));
       }
 
-      return Number(challenge);
+      /* A Meta confere o corpo cru: o `hub.challenge` ecoado em texto, fora do envelope
+       * JSON. `{"data":123}` reprovava a inscrição do webhook. */
+      return HttpServerResponse.text(String(challenge));
     }),
   ),
   { auth: publicRoute },
