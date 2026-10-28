@@ -87,6 +87,7 @@ Settings → Secrets and variables → Actions:
 | Secret                        | De onde                                      |
 | ----------------------------- | -------------------------------------------- |
 | `FLY_API_TOKEN`               | passo 2                                      |
+| `FLY_API_TOKEN_STAGING`       | passo 7 (environment `staging`)              |
 | `CLOUDFLARE_API_TOKEN`        | passo 3                                      |
 | `CLOUDFLARE_ACCOUNT_ID`       | passo 3                                      |
 | `BACKUP_DATABASE_URL`         | [`backup.md`](./backup.md) (setup do backup) |
@@ -133,6 +134,58 @@ Antes de o primeiro Responsável receber um Link de Upload:
    `POST /reminders/run` e `POST /deadlines/scan` (ambos escopados à própria firm).
    `discardStaleUploads()` e `purgeExpiredFiscalDocuments()` **não** têm gatilho manual —
    só rodam pelo cron.
+
+## 7. Staging
+
+Mesma imagem e mesmo build da produção; o que muda é o app no Fly, o banco, o bucket, o
+projeto no Pages e o Asaas em sandbox. Nada de staging encosta na produção: banco, bucket,
+chaves VAPID e token de deploy são próprios.
+
+- API: `competa-api-staging` (`apps/api/fly.staging.toml`) em `staging-api.competa.com.br`.
+- Web: Pages `competa-web-staging` em `staging-app.competa.com.br`. Os dois sob
+  `competa.com.br`: em `*.fly.dev` + `*.pages.dev` o cookie de sessão vira cross-site e o
+  navegador o barra.
+- Deploy: push na branch `staging`, ou Actions → CI → **Run workflow** escolhendo a branch.
+  Jobs `deploy-api-staging` e `deploy-web-staging`, só depois do CI verde.
+
+Uma vez, com as contas:
+
+1. **Supabase**: projeto novo (o gratuito basta), como no passo 1. Nunca apontar staging
+   para o banco de produção: o `release_command` roda migrations e seed a cada deploy.
+2. **R2**: bucket `competa-staging` e token de API restrito a ele.
+3. **Fly**:
+
+   ```bash
+   flyctl apps create competa-api-staging
+   flyctl secrets set -a competa-api-staging \
+     DB_HOST=... DB_PORT=5432 DB_USER=... DB_PASS=... DB_NAME=competa \
+     DB_SSL_CA="$(cat supabase-staging-ca.crt)" \
+     BETTER_AUTH_SECRET="$(openssl rand -base64 32)" \
+     R2_ACCOUNT_ID=... R2_ACCESS_KEY_ID=... R2_SECRET_ACCESS_KEY=... R2_BUCKET=competa-staging \
+     RESEND_API_KEY=... \
+     VAPID_PUBLIC_KEY=... VAPID_PRIVATE_KEY=... VAPID_SUBJECT=mailto:contato@competa.com.br \
+     SENTRY_DSN=... \
+     ASAAS_API_KEY='$aact_hmlg_...' ASAAS_WEBHOOK_TOKEN="$(openssl rand -hex 32)" \
+     WHATSAPP_ENCRYPTION_KEY="$(openssl rand -hex 32)"
+   flyctl deploy --config apps/api/fly.staging.toml --dockerfile apps/api/Dockerfile
+   flyctl certs add staging-api.competa.com.br -a competa-api-staging
+   flyctl tokens create deploy -a competa-api-staging   # → FLY_API_TOKEN_STAGING
+   ```
+
+   `SENTRY_ENVIRONMENT=staging` e `ASAAS_SANDBOX=true` já estão no `fly.staging.toml`. O
+   `SENTRY_DSN` pode ser o mesmo da produção: o ambiente separa os eventos. Resend é o
+   mesmo, então staging manda e-mail de verdade — teste com endereços seus.
+
+4. **Cloudflare**: `wrangler pages project create competa-web-staging`; Custom domains →
+   `staging-app.competa.com.br`; CNAME `staging-api` → `competa-api-staging.fly.dev`
+   (DNS-only, como na produção).
+5. **GitHub**: Settings → Environments → `staging` → secret `FLY_API_TOKEN_STAGING`. O
+   `CLOUDFLARE_API_TOKEN`/`CLOUDFLARE_ACCOUNT_ID` do repositório já servem.
+6. **Asaas sandbox**: webhook em `https://staging-api.competa.com.br/billing/webhook/asaas`
+   com o mesmo `ASAAS_WEBHOOK_TOKEN` do secret.
+
+Com `min_machines_running = 0` as varreduras das 7h e 9h só rodam com a máquina acordada:
+para testar lembrete, use "Cobrar atrasados" no painel.
 
 ## Fora deste runbook
 
