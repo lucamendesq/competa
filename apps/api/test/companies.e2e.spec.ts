@@ -332,6 +332,20 @@ describe('usage e teto do plano (trial: 15 ativas, folga até 18)', () => {
   });
 });
 
+describe('teto do plano sob concorrência', () => {
+  it('25 cadastros em paralelo param exatamente na folga (18)', async () => {
+    const { api } = await registerFirm(app.url);
+    const results = await Promise.all(
+      Array.from({ length: 25 }, (_, i) => api.post('/companies', { name: `Paralela ${i}` })),
+    );
+
+    expect(results.filter((res) => res.status === 201)).toHaveLength(18);
+    expect(results.filter((res) => res.status === 422)).toHaveLength(7);
+    const usage = await api.get('/companies/usage');
+    expect(usage.body.data.companiesActive).toBe(18);
+  });
+});
+
 describe('POST /companies/import — prévia do CSV (nada é gravado)', () => {
   let api: Api;
 

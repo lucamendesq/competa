@@ -59,6 +59,13 @@ const make = Effect.gen(function* () {
    *  prático é que a Competência é única por Contabilidade e o fan-out roda uma vez, então
    *  uma competência nunca cobre mais Empresas que o teto. */
   const capacityOf = async (scope: FirmScope, executor: Executor) => {
+    /* Contar e gravar sem trava deixava N cadastros paralelos lerem o mesmo `current` e
+     * todos caberem (11 → 22 com teto 18). A trava é da Contabilidade e dura a transação de
+     * quem chama — por isso todo chamador conta e grava na MESMA transação. */
+    await executor.execute(
+      sql`select pg_advisory_xact_lock(hashtextextended(${`company-cap:${scope}`}, 0))`,
+    );
+
     const [sub] = await executor
       .select({ planName: subscription.planName })
       .from(subscription)
@@ -322,6 +329,14 @@ const make = Effect.gen(function* () {
     companyId: string,
     body: UpdateCompanyBody,
   ) {
+    return yield* db.withTransaction(patchCompany(scope, companyId, body));
+  });
+
+  const patchCompany = Effect.fnUntraced(function* (
+    scope: FirmScope,
+    companyId: string,
+    body: UpdateCompanyBody,
+  ) {
     /* Reativar ocupa vaga igual a cadastrar. Só a transição `false → true` custa a query de
      * teto — PATCH de nome ou template numa Empresa já ativa não pode pagar por isso. */
     if (body.active === true) {
@@ -363,50 +378,52 @@ const make = Effect.gen(function* () {
     scope: FirmScope,
     companyIds: string[],
   ) {
-    return yield* db.use(async (d) => {
-      const inactive = await d
-        .select({ id: company.id, name: company.name })
-        .from(company)
-        .where(
-          and(
-            eq(company.accountingFirmId, scope),
-            eq(company.active, false),
-            inArray(company.id, companyIds),
-          ),
-        )
-        .orderBy(company.name);
-
-      const { cap, current, limit } = await capacityOf(scope, d);
-      const slots = Math.max(0, limit - current);
-      const fitting = inactive.slice(0, slots);
-
-      if (fitting.length) {
-        await d
-          .update(company)
-          .set({ active: true })
+    return yield* db.withTransaction(
+      db.use(async (d) => {
+        const inactive = await d
+          .select({ id: company.id, name: company.name })
+          .from(company)
           .where(
             and(
               eq(company.accountingFirmId, scope),
-              inArray(
-                company.id,
-                fitting.map((row) => row.id),
-              ),
+              eq(company.active, false),
+              inArray(company.id, companyIds),
             ),
-          );
-      }
+          )
+          .orderBy(company.name);
 
-      const skipped = inactive.length - fitting.length;
+        const { cap, current, limit } = await capacityOf(scope, d);
+        const slots = Math.max(0, limit - current);
+        const fitting = inactive.slice(0, slots);
 
-      return {
-        activated: fitting.length,
-        skipped,
-        companyCap: cap,
-        softCap: limit,
-        reason: skipped
-          ? `${skipped} empresa(s) não entraram: seu plano cobre ${cap} ativas (com folga até ${limit}) e você já tinha ${current}.`
-          : undefined,
-      };
-    });
+        if (fitting.length) {
+          await d
+            .update(company)
+            .set({ active: true })
+            .where(
+              and(
+                eq(company.accountingFirmId, scope),
+                inArray(
+                  company.id,
+                  fitting.map((row) => row.id),
+                ),
+              ),
+            );
+        }
+
+        const skipped = inactive.length - fitting.length;
+
+        return {
+          activated: fitting.length,
+          skipped,
+          companyCap: cap,
+          softCap: limit,
+          reason: skipped
+            ? `${skipped} empresa(s) não entraram: seu plano cobre ${cap} ativas (com folga até ${limit}) e você já tinha ${current}.`
+            : undefined,
+        };
+      }),
+    );
   });
 
   const listContacts = Effect.fn('CompaniesRepo.listContacts')(function* (
@@ -806,12 +823,18 @@ const make = Effect.gen(function* () {
     /* Importar a carteira inteira NUNCA é recusado por teto: as linhas que não couberem
      * entram desativadas, e o Contador ativa quando quiser. Recusar aqui era pedir que o
      * cliente se auto-promovesse de tier só para cadastrar quem ele ainda nem usa. */
-    const { current, limit } = yield* db.use((d) => capacityOf(scope, d));
-    const slots = activate ? Math.max(0, limit - current) : 0;
+    const created = yield* db.withTransaction(
+      Effect.gen(function* () {
+        const { current, limit } = yield* db.use((d) => capacityOf(scope, d));
+        const slots = activate ? Math.max(0, limit - current) : 0;
 
-    const activeByLine = new Map(adding.map(({ line }, index) => [line, index < slots] as const));
+        const activeByLine = new Map(
+          adding.map(({ line }, index) => [line, index < slots] as const),
+        );
 
-    const created = pending.length ? yield* insertBatch(scope, pending, activeByLine) : [];
+        return pending.length ? yield* insertBatch(scope, pending, activeByLine) : [];
+      }),
+    );
 
     return {
       total: pending.length,
