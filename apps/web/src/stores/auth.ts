@@ -11,6 +11,7 @@ export type Accountant = {
     name: string;
     logoUrl?: string | null;
     contactEmail?: string | null;
+    cnpj?: string | null;
     plan: { name: PlanName; companyCap: number; capabilities: PlanCapability[] };
     subscription?: {
       status: string;
@@ -145,6 +146,7 @@ export const useAuthStore = defineStore('auth', () => {
     email: string;
     password: string;
     firmName: string;
+    cnpj?: string;
   }) {
     await api.post('/auth/register', body);
     setSessionHint('accountant');

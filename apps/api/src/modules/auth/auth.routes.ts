@@ -107,6 +107,7 @@ const me = route(
           name: row.firmName,
           logoUrl: row.firmLogoUrl,
           contactEmail: row.firmContactEmail,
+          cnpj: row.firmCnpj,
           /** A web decide o que renderizar com isto — sem ele o usuário só descobre o gate
            *  tomando 402 depois de clicar. */
           plan: {

@@ -3,7 +3,7 @@ import { computed, ref } from 'vue';
 import { useRouter } from 'vue-router';
 import { useForm, useField } from 'vee-validate';
 import * as z from 'zod';
-import { email as emailSchema } from '@competa/contracts';
+import { Cnpj, email as emailSchema } from '@competa/contracts';
 import { toTypedSchema } from '@vee-validate/zod';
 import {
   ArrowLeft,
@@ -33,6 +33,10 @@ const RegisterFormSchema = z.object({
   email: emailSchema().min(1, 'Informe seu e-mail.'),
   password: z.string().min(8, 'A senha precisa de pelo menos 8 caracteres.'),
   firmName: z.string().trim().min(1, 'Informe o nome da sua contabilidade.'),
+  cnpj: z
+    .string()
+    .trim()
+    .refine((value) => value === '' || Cnpj.safeParse(value).success, 'CNPJ inválido.'),
 });
 
 const { handleSubmit, isSubmitting, setFieldTouched, validateField } = useForm({
@@ -42,6 +46,7 @@ const { handleSubmit, isSubmitting, setFieldTouched, validateField } = useForm({
     email: '',
     password: '',
     firmName: '',
+    cnpj: '',
   },
 });
 
@@ -61,6 +66,7 @@ const {
   errorMessage: firmNameError,
   meta: firmNameMeta,
 } = useField<string>('firmName');
+const { value: cnpj, errorMessage: cnpjError, meta: cnpjMeta } = useField<string>('cnpj');
 
 const benefits = [
   {
@@ -123,6 +129,7 @@ const onSubmit = handleSubmit(async (values) => {
       email: values.email,
       password: values.password,
       firmName: values.firmName,
+      cnpj: values.cnpj || undefined,
     });
     router.push('/competencias');
   } catch (err: any) {
@@ -321,6 +328,28 @@ function submitStep(event: Event) {
                 class="text-destructive text-xs"
               >
                 {{ firmNameError }}
+              </p>
+            </div>
+
+            <div class="flex flex-col gap-1.5">
+              <Label for="firm-cnpj">CNPJ da Contabilidade</Label>
+              <Input
+                id="firm-cnpj"
+                type="text"
+                inputmode="numeric"
+                placeholder="00.000.000/0001-00"
+                v-model="cnpj"
+                :aria-describedby="cnpjError && cnpjMeta.touched ? 'firm-cnpj-error' : undefined"
+              />
+              <p class="text-muted-foreground text-xs">
+                Opcional agora; pedido na hora de assinar um plano.
+              </p>
+              <p
+                v-if="cnpjError && cnpjMeta.touched"
+                id="firm-cnpj-error"
+                class="text-destructive text-xs"
+              >
+                {{ cnpjError }}
               </p>
             </div>
 

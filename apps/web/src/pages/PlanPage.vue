@@ -3,6 +3,8 @@ import { ref, computed } from 'vue';
 import { useRoute } from 'vue-router';
 import { useTitle } from '@vueuse/core';
 import { Button } from '@/components/ui/button';
+import { Input } from '@/components/ui/input';
+import { Label } from '@/components/ui/label';
 import {
   Card,
   CardContent,
@@ -12,6 +14,7 @@ import {
   CardTitle,
 } from '@/components/ui/card';
 import {
+  Cnpj,
   PAID_PLANS,
   PLANS,
   planPrice,
@@ -40,6 +43,11 @@ const highlighted = computed(() => (route.query.plano as string | undefined) ?? 
 const simulatedCheckout = ref(false);
 
 const subscription = computed(() => auth.accountant?.accountingFirm.subscription);
+
+/** O gateway exige o documento do pagador: sem CNPJ gravado, o checkout pede antes. */
+const firmCnpj = computed(() => auth.accountant?.accountingFirm.cnpj ?? null);
+const cnpjDraft = ref('');
+const cnpjError = ref<string | null>(null);
 
 const currentPlan = computed(
   () => PLANS[(subscription.value?.planName ?? 'trial') as PlanName] ?? PLANS.trial,
@@ -116,13 +124,24 @@ const trialFormatted = computed(() => {
 });
 
 async function goToCheckout(planName: string) {
+  cnpjError.value = null;
+  let cnpj: string | undefined;
+  if (!firmCnpj.value) {
+    const parsed = Cnpj.safeParse(cnpjDraft.value);
+    if (!parsed.success) {
+      cnpjError.value = parsed.error.issues[0]?.message ?? 'CNPJ inválido.';
+      return;
+    }
+    cnpj = parsed.data;
+  }
+
   isLoading.value = true;
   simulatedCheckout.value = false;
   try {
     const { checkoutUrl, simulated } = await api.post<{
       checkoutUrl: string;
       simulated: boolean;
-    }>('/billing/checkout', { planName, cycle: cycle.value });
+    }>('/billing/checkout', { planName, cycle: cycle.value, cnpj });
 
     if (simulated || !checkoutUrl) {
       simulatedCheckout.value = true;
@@ -262,6 +281,20 @@ async function goToCheckout(planName: string) {
         <strong>Não existe assinatura mensal no Pix</strong> — no mensal o pagamento é no cartão ou
         por boleto avulso.
       </p>
+
+      <div v-if="!firmCnpj" class="mt-6 flex max-w-sm flex-col gap-1.5">
+        <Label for="checkoutCnpj">CNPJ da Contabilidade</Label>
+        <Input
+          id="checkoutCnpj"
+          v-model="cnpjDraft"
+          inputmode="numeric"
+          placeholder="00.000.000/0001-00"
+        />
+        <p class="text-muted-foreground text-xs">
+          A fatura é emitida no CNPJ do escritório. Fica gravado nas configurações.
+        </p>
+        <p v-if="cnpjError" class="text-danger text-xs">{{ cnpjError }}</p>
+      </div>
 
       <div class="mt-8 grid gap-6 sm:grid-cols-3">
         <Card

@@ -12,7 +12,7 @@ export abstract class BillingProvider {
     name: string;
     email: string;
     externalReference: string;
-    cpfCnpj?: string;
+    cpfCnpj: string;
   }): Promise<{ customerId: string }>;
 
   /** Cria a assinatura e devolve a URL de pagamento DELA (`invoiceUrl` da primeira cobrança

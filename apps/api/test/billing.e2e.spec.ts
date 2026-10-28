@@ -3,7 +3,7 @@ import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 import { bootApp, type RunningApp } from './support/boot.js';
 import { db, truncateAll } from './support/db.js';
 import { subscription } from '../src/infra/database/schema/index.js';
-import { apiClient, registerFirm, uniqueIp, type Api } from './support/fixtures.js';
+import { apiClient, registerFirm, uniqueCnpj, uniqueIp, type Api } from './support/fixtures.js';
 
 /* Ambiente de teste SEM segredos Asaas: NODE_ENV=test escolhe o LogBilling (checkout vira
  * stub de console com `checkoutUrl: ''` e `simulated: true`); ASAAS_WEBHOOK_TOKEN ausente
@@ -163,6 +163,58 @@ describe('POST /billing/checkout — fluxo com LogBilling', () => {
     expect(res.status).toBe(201);
     expect(res.body).toEqual({ data: { checkoutUrl: '', simulated: true } });
     expect(await subscriptionRows(orphanFirmId)).toEqual([]);
+  });
+});
+
+/* O Asaas não emite cobrança sem o documento do pagador. A firma cadastrada sem CNPJ manda no
+ * corpo do checkout, e ele fica gravado para sempre. */
+describe('CNPJ obrigatório no checkout', () => {
+  let api: Api;
+  let firmId: string;
+
+  beforeAll(async () => {
+    const email = `sem-cnpj-${Date.now().toString(36)}@example.com`;
+    const res = await apiClient(app.url).post('/auth/register', {
+      firmName: 'Sem CNPJ',
+      userName: 'Dona',
+      email,
+      password: 'senha-forte-123',
+    });
+    expect(res.status, JSON.stringify(res.body)).toBe(201);
+    const cookie = cookieOf(res.headers);
+    api = apiClient(app.url, { cookie });
+    firmId = await firmIdOf(api);
+  });
+
+  it('firma sem CNPJ e corpo sem CNPJ → 422 apontando o campo; nada gravado', async () => {
+    const res = await api.post('/billing/checkout', { planName: 'essencial' });
+    expect(res.status).toBe(422);
+    expect(res.body.error.details).toEqual([
+      { path: ['cnpj'], message: 'Informe o CNPJ da Contabilidade para emitir a cobrança.' },
+    ]);
+    const [row] = await subscriptionRows(firmId);
+    expect(row.gatewayCustomerId).toBeNull();
+  });
+
+  it('CNPJ inválido no corpo → 422 VALIDATION_ERROR', async () => {
+    const res = await api.post('/billing/checkout', {
+      planName: 'essencial',
+      cnpj: '11111111111111',
+    });
+    expect(res.status).toBe(422);
+    expect(res.body.error.code).toBe('VALIDATION_ERROR');
+  });
+
+  it('CNPJ no corpo: 201, fica gravado na firma e o próximo checkout dispensa', async () => {
+    const cnpj = uniqueCnpj();
+    const res = await api.post('/billing/checkout', { planName: 'essencial', cnpj });
+    expect(res.status, JSON.stringify(res.body)).toBe(201);
+
+    const firm = await api.get('/accounting-firm');
+    expect(firm.body.data.cnpj).toBe(cnpj);
+
+    const again = await api.post('/billing/checkout', { planName: 'profissional' });
+    expect(again.status).toBe(201);
   });
 });
 

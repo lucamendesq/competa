@@ -37,6 +37,9 @@ export const accountingFirm = pgTable(
     name: text().notNull(),
     logoUrl: text('logo_url'),
     contactEmail: text('contact_email'),
+    /** Documento do pagador no gateway: o Asaas não emite cobrança sem ele. Nasce nulo no
+     *  cadastro e vira obrigatório no primeiro checkout. */
+    cnpj: text(),
     /** Preferências de lembrete (cadência do cron). Defaults = comportamento histórico. */
     reminderMax: smallint('reminder_max').notNull().default(2),
     reminderDueSoonDays: smallint('reminder_due_soon_days').notNull().default(3),
@@ -44,6 +47,11 @@ export const accountingFirm = pgTable(
     ...timestamps,
   },
   (t) => [
+    /* Uma Contabilidade por CNPJ: um segundo cadastro da mesma pessoa jurídica seria um
+     * segundo trial de 14 dias. Parcial porque o CNPJ só é exigido no checkout. */
+    uniqueIndex('accounting_firm_cnpj_uidx')
+      .on(t.cnpj)
+      .where(sql`${t.cnpj} is not null`),
     check(
       'accounting_firm_reminder_chk',
       sql`${t.reminderMax} between 0 and 10

@@ -8,7 +8,7 @@ import { firmRoute } from '../../http/middleware/auth.js';
 import { body, route } from '../../http/platform.js';
 import { AccountantsRepo } from '../auth/accountant.repo.js';
 import { OnlyOwnerCanManageTeam } from '../auth/errors.js';
-import { NotFound } from '../../lib/app-error.js';
+import { NotFound, ValidationError } from '../../lib/app-error.js';
 import { AsaasBilling } from './providers/asaas-billing.provider.js';
 import { LogBilling } from './providers/log-billing.provider.js';
 import { squashError } from '../../infra/database/error.js';
@@ -33,6 +33,15 @@ const checkout = route(
       const firm = yield* AccountantsRepo.use((repo) => repo.firm(scope));
       if (!firm) return yield* Effect.die(new Error('Contabilidade não encontrada'));
 
+      /* O gateway não emite cobrança sem o documento do pagador. A firma que ainda não tem
+       * CNPJ manda no corpo do checkout, e ele fica gravado para as próximas. */
+      const cnpj = firm.cnpj ?? input.cnpj;
+      if (!cnpj) {
+        const message = 'Informe o CNPJ da Contabilidade para emitir a cobrança.';
+        return yield* Effect.fail(new ValidationError(message, [{ path: ['cnpj'], message }]));
+      }
+      if (!firm.cnpj) yield* AccountantsRepo.use((repo) => repo.updateFirm(scope, { cnpj }));
+
       /* 1. Cliente no gateway, identificado pelo ID DA FIRMA. O e-mail é só dado de contato:
        * usá-lo como chave fazia toda firma sem e-mail cair no mesmo endereço de fallback e
        * colidir num cliente só. */
@@ -40,6 +49,7 @@ const checkout = route(
         billing.getOrCreateCustomer({
           name: firm.name,
           email: firm.contactEmail || 'faturamento@competa.com.br',
+          cpfCnpj: cnpj,
           externalReference: firm.id,
         }),
       );

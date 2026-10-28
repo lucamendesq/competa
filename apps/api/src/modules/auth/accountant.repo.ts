@@ -2,6 +2,8 @@ import { Context, Effect, Layer } from 'effect';
 import { and, asc, eq, isNull, sql } from 'drizzle-orm';
 import { addDays } from 'date-fns';
 import { Db } from '../../infra/database/effect.js';
+import type { UniqueViolation } from '../../infra/database/error.js';
+import { ValidationError } from '../../lib/app-error.js';
 import {
   accountant,
   accountingFirm,
@@ -19,7 +21,17 @@ type FirmPatch = Partial<{
   reminderGapDays: number;
   logoUrl: string | null;
   contactEmail: string | null;
+  cnpj: string;
 }>;
+
+const cnpjTakenOrDie = (violation: UniqueViolation) =>
+  violation.constraint === 'accounting_firm_cnpj_uidx'
+    ? Effect.fail(
+        new ValidationError('Já existe uma Contabilidade com este CNPJ.', [
+          { path: ['cnpj'], message: 'Já existe uma Contabilidade com este CNPJ.' },
+        ]),
+      )
+    : Effect.die(violation.cause);
 
 const make = Effect.gen(function* () {
   const db = yield* Db;
@@ -88,6 +100,7 @@ const make = Effect.gen(function* () {
           reminderGapDays: accountingFirm.reminderGapDays,
           logoUrl: accountingFirm.logoUrl,
           contactEmail: accountingFirm.contactEmail,
+          cnpj: accountingFirm.cnpj,
           subscription: {
             id: subscription.id,
             planName: subscription.planName,
@@ -110,13 +123,15 @@ const make = Effect.gen(function* () {
     scope: FirmScope,
     patch: FirmPatch,
   ) {
-    const [row] = yield* db.use((d) =>
-      d
-        .update(accountingFirm)
-        .set(patch)
-        .where(eq(accountingFirm.id, scope))
-        .returning({ id: accountingFirm.id }),
-    );
+    const [row] = yield* db
+      .attempt((d) =>
+        d
+          .update(accountingFirm)
+          .set(patch)
+          .where(eq(accountingFirm.id, scope))
+          .returning({ id: accountingFirm.id }),
+      )
+      .pipe(Effect.catchTag('UniqueViolation', cnpjTakenOrDie));
 
     return row;
   });
@@ -135,6 +150,7 @@ const make = Effect.gen(function* () {
           firmName: accountingFirm.name,
           firmLogoUrl: accountingFirm.logoUrl,
           firmContactEmail: accountingFirm.contactEmail,
+          firmCnpj: accountingFirm.cnpj,
           owner: accountant.owner,
           subscriptionStatus: subscription.status,
           subscriptionTrialEndsAt: subscription.trialEndsAt,
@@ -242,12 +258,18 @@ const make = Effect.gen(function* () {
   const provisionFirm = Effect.fn('AccountantsRepo.provisionFirm')(function* (input: {
     authUserId: string;
     firmName: string;
+    cnpj?: string;
   }) {
     yield* db.withTransaction(
       Effect.gen(function* () {
-        const [firmRow] = yield* db.use((d) =>
-          d.insert(accountingFirm).values({ name: input.firmName }).returning(),
-        );
+        const [firmRow] = yield* db
+          .attempt((d) =>
+            d
+              .insert(accountingFirm)
+              .values({ name: input.firmName, cnpj: input.cnpj ?? null })
+              .returning(),
+          )
+          .pipe(Effect.catchTag('UniqueViolation', cnpjTakenOrDie));
 
         yield* db.use((d) =>
           d.insert(subscription).values({

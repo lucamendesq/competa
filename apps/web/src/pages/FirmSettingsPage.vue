@@ -27,6 +27,7 @@ const firmQuery = useQuery({ queryKey: ['accountingFirm'], queryFn: getFirm });
 const draft = ref({
   name: '',
   contactEmail: '',
+  cnpj: '',
   logoUrl: '',
   reminderMax: 2,
   reminderDueSoonDays: 3,
@@ -40,6 +41,7 @@ watch(
     draft.value = {
       name: loaded.name,
       contactEmail: loaded.contactEmail ?? '',
+      cnpj: loaded.cnpj ?? '',
       logoUrl: loaded.logoUrl ?? '',
       reminderMax: loaded.reminderMax,
       reminderDueSoonDays: loaded.reminderDueSoonDays,
@@ -67,6 +69,7 @@ async function save() {
     name: draft.value.name,
     contactEmail: draft.value.contactEmail,
     logoUrl: draft.value.logoUrl,
+    ...(draft.value.cnpj.trim() ? { cnpj: draft.value.cnpj } : {}),
     ...(canTuneReminders.value
       ? {
           reminderMax: Number(draft.value.reminderMax),
@@ -139,6 +142,21 @@ async function save() {
           <p v-if="fieldErrors.contactEmail" class="text-danger text-xs">
             {{ fieldErrors.contactEmail }}
           </p>
+        </div>
+
+        <div class="flex flex-col gap-1.5">
+          <Label for="firmCnpj">CNPJ da Contabilidade</Label>
+          <Input
+            id="firmCnpj"
+            v-model="draft.cnpj"
+            inputmode="numeric"
+            :disabled="!isOwner"
+            placeholder="00.000.000/0001-00"
+          />
+          <p class="text-muted-foreground text-xs">
+            É o documento do pagador na fatura: obrigatório para assinar um plano.
+          </p>
+          <p v-if="fieldErrors.cnpj" class="text-danger text-xs">{{ fieldErrors.cnpj }}</p>
         </div>
 
         <div class="flex flex-col gap-1.5">

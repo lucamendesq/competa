@@ -1,4 +1,5 @@
 import * as z from 'zod';
+import { Cnpj } from './company.js';
 
 /** Segundo eixo de upgrade (D18 §3): o que separa Essencial de Profissional além do volume. */
 export const PLAN_CAPABILITIES = ['branding', 'reminderTuning', 'periodZip'] as const;
@@ -102,6 +103,9 @@ export type BillingCycle = (typeof BILLING_CYCLES)[number];
 export const CheckoutBody = z.object({
   planName: z.enum(PAID_PLAN_NAMES),
   cycle: z.enum(BILLING_CYCLES).default('monthly'),
+  /** Obrigatório quando a Contabilidade ainda não tem CNPJ: o gateway exige o documento do
+   *  pagador para emitir a cobrança. */
+  cnpj: Cnpj.optional(),
 });
 export type CheckoutBody = z.infer<typeof CheckoutBody>;
 

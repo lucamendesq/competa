@@ -44,25 +44,27 @@ const register = Effect.gen(function* () {
   const { userId, setCookie } = created.value;
 
   yield* AccountantsRepo.use((accountants) =>
-    accountants.provisionFirm({ authUserId: userId, firmName: input.firmName }).pipe(
-      Effect.onError((cause) =>
-        accountants.deleteAuthUser(userId).pipe(
-          Effect.catchCause((compensation) =>
-            Effect.sync(() => {
-              logger.error(
-                `Falha ao compensar (apagar user ${userId}) após erro no public signup`,
-                squashError(compensation),
-              );
-            }),
-          ),
-          Effect.andThen(
-            Effect.sync(() => {
-              logger.error('Falha ao provisionar firm', squashError(cause));
-            }),
+    accountants
+      .provisionFirm({ authUserId: userId, firmName: input.firmName, cnpj: input.cnpj })
+      .pipe(
+        Effect.onError((cause) =>
+          accountants.deleteAuthUser(userId).pipe(
+            Effect.catchCause((compensation) =>
+              Effect.sync(() => {
+                logger.error(
+                  `Falha ao compensar (apagar user ${userId}) após erro no public signup`,
+                  squashError(compensation),
+                );
+              }),
+            ),
+            Effect.andThen(
+              Effect.sync(() => {
+                logger.error('Falha ao provisionar firm', squashError(cause));
+              }),
+            ),
           ),
         ),
       ),
-    ),
   );
 
   if (setCookie) {

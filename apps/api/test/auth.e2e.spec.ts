@@ -17,6 +17,7 @@ import {
   contactBody,
   createCompany,
   registerFirm,
+  uniqueCnpj,
   uniqueIp,
   type Api,
 } from './support/fixtures.js';
@@ -195,6 +196,48 @@ describe('cadastro público de Contabilidade (POST /auth/register e alias /publi
 
     const me = await apiClient(app.url, { cookie }).get('/auth/me');
     expect(me.status).toBe(200);
+  });
+
+  it('CNPJ no cadastro fica na firma; repetido → 422 no campo e nenhum user órfão', async () => {
+    const cnpj = uniqueCnpj();
+    const first = await apiClient(app.url).post('/auth/register', {
+      firmName: 'Com CNPJ',
+      userName: 'Dona',
+      email: uniqueEmail('cnpj'),
+      password: PASSWORD,
+      cnpj,
+    });
+    expect(first.status, JSON.stringify(first.body)).toBe(201);
+    const me = await apiClient(app.url, { cookie: cookieOf(first.headers) }).get('/auth/me');
+    expect(me.body.data.accountingFirm.cnpj).toBe(cnpj);
+
+    const email = uniqueEmail('cnpj-repetido');
+    const dup = await apiClient(app.url).post('/auth/register', {
+      firmName: 'Mesmo CNPJ',
+      userName: 'Clone',
+      email,
+      password: PASSWORD,
+      cnpj,
+    });
+    expect(dup.status).toBe(422);
+    expect(dup.body.error.details).toEqual([
+      { path: ['cnpj'], message: 'Já existe uma Contabilidade com este CNPJ.' },
+    ]);
+    /* A compensação do signup apaga o user do better-auth: o e-mail volta a estar livre. */
+    const orphans = await db
+      .select({ id: authUser.id })
+      .from(authUser)
+      .where(eq(authUser.email, email));
+    expect(orphans).toHaveLength(0);
+
+    const blank = await apiClient(app.url).post('/auth/register', {
+      firmName: 'Sem CNPJ',
+      userName: 'Dona',
+      email: uniqueEmail('sem-cnpj'),
+      password: PASSWORD,
+      cnpj: '',
+    });
+    expect(blank.status, 'vazio vale como ausente').toBe(201);
   });
 
   it('o alias /public-signup provisiona do mesmo jeito', async () => {
@@ -828,6 +871,7 @@ describe('Contabilidade (GET/PATCH /accounting-firm, device-stats)', () => {
       reminderGapDays: 3,
       logoUrl: null,
       contactEmail: null,
+      cnpj: expect.stringMatching(/^\d{14}$/),
       subscription: {
         id: expect.any(String),
         planName: 'trial',
@@ -864,6 +908,30 @@ describe('Contabilidade (GET/PATCH /accounting-firm, device-stats)', () => {
     const cleared = await firm.api.patch('/accounting-firm', { logoUrl: '', contactEmail: '' });
     expect(cleared.status).toBe(200);
     expect(cleared.body.data).toMatchObject({ logoUrl: null, contactEmail: null });
+  });
+
+  /* O CNPJ é o documento do pagador no gateway: pode ser corrigido, nunca apagado, e não
+   * pode repetir o de outra Contabilidade (seria um segundo trial da mesma pessoa jurídica). */
+  it('dono corrige o CNPJ; inválido e repetido → 422 apontando o campo', async () => {
+    const fresh = uniqueCnpj();
+    const res = await firm.api.patch('/accounting-firm', { cnpj: fresh });
+    expect(res.status, JSON.stringify(res.body)).toBe(200);
+    expect(res.body.data.cnpj).toBe(fresh);
+
+    const invalid = await firm.api.patch('/accounting-firm', { cnpj: '12345678000100' });
+    expect(invalid.status).toBe(422);
+    expect(invalid.body.error.code).toBe('VALIDATION_ERROR');
+
+    const other = await registerFirm(app.url);
+    const otherCnpj = (await other.api.get('/accounting-firm')).body.data.cnpj as string;
+    const taken = await firm.api.patch('/accounting-firm', { cnpj: otherCnpj });
+    expect(taken.status).toBe(422);
+    expect(taken.body.error.details).toEqual([
+      { path: ['cnpj'], message: 'Já existe uma Contabilidade com este CNPJ.' },
+    ]);
+
+    const cleared = await firm.api.patch('/accounting-firm', { cnpj: '' });
+    expect(cleared.status, 'CNPJ não se apaga').toBe(422);
   });
 
   it('trial ajusta a cadência de lembretes (capability liberada no teste)', async () => {

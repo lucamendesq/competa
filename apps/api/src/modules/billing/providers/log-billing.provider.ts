@@ -11,7 +11,7 @@ export class LogBilling implements BillingProvider {
     name: string;
     email: string;
     externalReference: string;
-    cpfCnpj?: string;
+    cpfCnpj: string;
   }) {
     this.logger.log(`Mock: Criando customer para ${input.name} (${input.externalReference})`);
     return { customerId: `mock_cus_${randomUUID()}` };

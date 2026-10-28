@@ -9,6 +9,7 @@ interface AsaasList<T> {
 
 interface AsaasCustomer {
   id: string;
+  cpfCnpj?: string | null;
 }
 
 interface AsaasSubscription {
@@ -54,7 +55,7 @@ export class AsaasBilling implements BillingProvider {
     name: string;
     email: string;
     externalReference: string;
-    cpfCnpj?: string;
+    cpfCnpj: string;
   }) {
     /* A busca é pelo `externalReference` (id da Contabilidade), NUNCA pelo e-mail: firmas
      * sem e-mail de contato caíam num endereço de fallback compartilhado e colidiam todas
@@ -63,7 +64,17 @@ export class AsaasBilling implements BillingProvider {
       `/customers?externalReference=${encodeURIComponent(input.externalReference)}`,
     );
     const existing = found.data?.[0];
-    if (existing) return { customerId: existing.id };
+    if (existing) {
+      /* Cliente criado antes de o CNPJ ser exigido, ou com CNPJ corrigido depois: sem o
+       * documento o Asaas recusa a cobrança, não o cliente. */
+      if (existing.cpfCnpj !== input.cpfCnpj) {
+        await this.call<unknown>(`/customers/${existing.id}`, {
+          method: 'PUT',
+          body: JSON.stringify({ cpfCnpj: input.cpfCnpj }),
+        });
+      }
+      return { customerId: existing.id };
+    }
 
     const created = await this.call<AsaasCustomer>('/customers', {
       method: 'POST',
