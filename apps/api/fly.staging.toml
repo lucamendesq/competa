@@ -1,0 +1,39 @@
+# Staging: mesma imagem da produção (apps/api/Dockerfile), outro app, outro banco, outro
+# bucket e Asaas em sandbox. O que é segredo (DSN do Sentry, chaves, banco) vai por
+# `fly secrets set -a competa-api-staging`, nunca aqui — ver docs/deploy.md.
+app = "competa-api-staging"
+primary_region = "gru"
+
+[build]
+  dockerfile = "Dockerfile"
+
+[deploy]
+  release_command = "sh -c 'node_modules/.bin/drizzle-kit migrate && node_modules/.bin/tsx src/infra/database/seeds/index.ts'"
+
+[env]
+  # `production` é o modo que liga R2, Resend e Asaas de verdade; o que separa staging é o
+  # resto desta seção e os secrets do app.
+  NODE_ENV = "production"
+  PORT = "3000"
+  BETTER_AUTH_URL = "https://staging-api.competa.com.br"
+  WEB_URL = "https://staging-app.competa.com.br"
+  EMAIL_FROM = "nao-responda@competa.com.br"
+  SENTRY_ENVIRONMENT = "staging"
+  # Aqui e não em secret: staging nunca cobra de verdade, nem com uma chave de produção
+  # colada por engano.
+  ASAAS_SANDBOX = "true"
+
+[http_service]
+  internal_port = 3000
+  force_https = true
+  auto_stop_machines = true
+  auto_start_machines = true
+  # Zero para não pagar máquina parada. As varreduras de prazo (7h) e de lembrete (9h) só
+  # rodam com a máquina acordada: para testar, use "Cobrar atrasados" ou suba para 1.
+  min_machines_running = 0
+
+  [[http_service.checks]]
+    path = "/health"
+    interval = "15s"
+    timeout = "5s"
+    grace_period = "10s"

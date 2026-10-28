@@ -58,6 +58,9 @@ const envSchema = z
     VAPID_SUBJECT: z.string().optional().default('mailto:contato@example.com'),
     STORAGE_LOCAL_DIR: z.string().optional().default('.storage'),
     SENTRY_DSN: blankAsMissing(z.string()),
+    /* Staging roda com NODE_ENV=production (é o único modo que usa R2, Resend e Asaas de
+     * verdade): sem isto, o erro de staging chegava ao Sentry marcado como produção. */
+    SENTRY_ENVIRONMENT: blankAsMissing(z.string()),
     LOG_LEVEL: z
       .enum(['fatal', 'error', 'warn', 'info', 'debug', 'trace'])
       .optional()
