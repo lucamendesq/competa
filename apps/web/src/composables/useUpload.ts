@@ -82,8 +82,11 @@ export function useUpload(deps: Dependencies) {
         const confirmation = await deps.confirm(sent);
         const refused = new Map(confirmation.refused.map((ref) => [ref.documentId, ref.reason]));
 
+        /* Só os que subiram: o PUT que falhou já ganhou a linha de erro acima, e listá-lo
+         * de novo aqui o mostrava também como enviado. */
+        const confirmed = new Set(sent);
         for (const authorized of authorization.files) {
-          if (!authorized.accepted) continue;
+          if (!authorized.accepted || !confirmed.has(authorized.documentId)) continue;
 
           const reason = refused.get(authorized.documentId);
           results.value.push(
