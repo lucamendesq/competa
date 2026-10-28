@@ -24,7 +24,7 @@ import {
   type PlanName,
 } from '@competa/contracts';
 import { useQuery } from '@tanstack/vue-query';
-import { checkout, getSubscription } from '@/features/billing/api/billing';
+import { cancelSubscription, checkout, getSubscription } from '@/features/billing/api/billing';
 import { useAuthStore } from '@/stores/auth';
 import { toast } from 'vue-sonner';
 import { apiErrorMessage } from '@/api/error';
@@ -38,6 +38,8 @@ useTitle('Plano e Assinatura | Competa');
 const auth = useAuthStore();
 const route = useRoute();
 const isLoading = ref(false);
+const cancelling = ref(false);
+const isOwner = computed(() => auth.accountant?.accountant.owner === true);
 
 /** Vem do CTA do banner de excedente: o tier recomendado chega já destacado. */
 const highlighted = computed(() => (route.query.plano as string | undefined) ?? 'profissional');
@@ -123,15 +125,48 @@ const statusLabel = computed(() => {
   return status;
 });
 
+const longDate = (dateStr: string) =>
+  new Intl.DateTimeFormat('pt-BR', { day: '2-digit', month: 'long', year: 'numeric' }).format(
+    new Date(dateStr),
+  );
+
 const trialFormatted = computed(() => {
   const dateStr = subscription.value?.trialEndsAt;
-  if (!dateStr) return null;
-  return new Intl.DateTimeFormat('pt-BR', {
-    day: '2-digit',
-    month: 'long',
-    year: 'numeric',
-  }).format(new Date(dateStr));
+  return dateStr ? longDate(dateStr) : null;
 });
+
+/** Até quando o acesso vale: cancelada ou ativa, é o fim do período já pago. */
+const periodEndFormatted = computed(() => {
+  const dateStr = billingQuery.data.value?.currentPeriodEnd;
+  return dateStr ? longDate(dateStr) : null;
+});
+
+const canCancel = computed(
+  () =>
+    isOwner.value &&
+    (subscription.value?.status === 'ACTIVE' || subscription.value?.status === 'OVERDUE'),
+);
+
+async function cancelPlan() {
+  if (
+    !window.confirm(
+      'Cancelar a assinatura? O acesso continua até o fim do período já pago; depois disso a escrita é bloqueada e as empresas continuam conseguindo enviar.',
+    )
+  ) {
+    return;
+  }
+
+  cancelling.value = true;
+  try {
+    await cancelSubscription();
+    toast.success('Assinatura cancelada.');
+    await Promise.all([auth.reloadAccountant(), billingQuery.refetch()]);
+  } catch (error) {
+    toast.error(apiErrorMessage(error, 'Não foi possível cancelar a assinatura.'));
+  } finally {
+    cancelling.value = false;
+  }
+}
 
 async function goToCheckout(planName: string) {
   cnpjError.value = null;
@@ -148,15 +183,29 @@ async function goToCheckout(planName: string) {
   isLoading.value = true;
   simulatedCheckout.value = false;
   try {
-    const { checkoutUrl, simulated } = await checkout({
+    const { checkoutUrl, simulated, applied } = await checkout({
       planName: planName as PaidPlanName,
       cycle: cycle.value,
       cnpj,
     });
 
-    if (simulated || !checkoutUrl) {
+    if (applied) {
+      toast.success('Plano atualizado. A próxima fatura já sai no valor novo.');
+      await Promise.all([auth.reloadAccountant(), billingQuery.refetch()]);
+      return;
+    }
+
+    if (simulated) {
       simulatedCheckout.value = true;
       toast.info('Pagamento simulado: nenhuma cobrança foi criada neste ambiente.');
+      await Promise.all([auth.reloadAccountant(), billingQuery.refetch()]);
+      return;
+    }
+
+    /* Troca registrada sem fatura para pagar agora: vale na próxima cobrança. */
+    if (!checkoutUrl) {
+      toast.success('Troca registrada: vale a partir da próxima fatura.');
+      await Promise.all([auth.reloadAccountant(), billingQuery.refetch()]);
       return;
     }
 
@@ -224,6 +273,18 @@ async function goToCheckout(planName: string) {
             <p class="text-sm font-medium text-muted-foreground">Encerramento do Trial</p>
             <p class="text-lg font-semibold text-foreground mt-1">{{ trialFormatted }}</p>
           </div>
+          <div
+            class="flex-1"
+            v-if="
+              (subscription?.status === 'ACTIVE' || subscription?.status === 'CANCELED') &&
+              periodEndFormatted
+            "
+          >
+            <p class="text-sm font-medium text-muted-foreground">
+              {{ subscription?.status === 'CANCELED' ? 'Acesso até' : 'Período pago até' }}
+            </p>
+            <p class="text-lg font-semibold text-foreground mt-1">{{ periodEndFormatted }}</p>
+          </div>
           <div class="flex-1" v-if="usage">
             <p class="text-sm font-medium text-muted-foreground">Empresas ativas</p>
             <p
@@ -266,6 +327,12 @@ async function goToCheckout(planName: string) {
           <Button as="a" :href="invoiceUrl" target="_blank" rel="noopener">Pagar fatura</Button>
         </div>
       </CardContent>
+
+      <CardFooter v-if="canCancel" class="justify-end">
+        <Button variant="ghost" size="sm" :disabled="cancelling" @click="cancelPlan">
+          Cancelar assinatura
+        </Button>
+      </CardFooter>
     </Card>
 
     <div class="mt-8">

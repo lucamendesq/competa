@@ -3,6 +3,7 @@ import { Db } from '../infra/database/effect.js';
 import { AccountantsRepo } from '../modules/auth/accountant.repo.js';
 import { InvitesRepo } from '../modules/auth/invite.repo.js';
 import { UserDevicesRepo } from '../modules/auth/user-device.repo.js';
+import { BillingSweep } from '../modules/billing/billing.cron.js';
 import { SubscriptionsRepo } from '../modules/billing/subscription.repo.js';
 import { ChecklistsRepo } from '../modules/checklists/checklist.repo.js';
 import { CompaniesRepo } from '../modules/companies/company.repo.js';
@@ -39,10 +40,11 @@ export const AppRepos = Layer.mergeAll(
 export type RepoContext = Layer.Success<typeof AppRepos> | Db;
 
 /** Tudo de que uma rota, um listener ou um cron pode depender, sobre um `Db` a escolher. */
-export const AppServices = Layer.mergeAll(DeadlineScan.layer, Reminders.layer).pipe(
-  Layer.provideMerge(EventsLive),
-  Layer.provideMerge(AppRepos),
-);
+export const AppServices = Layer.mergeAll(
+  DeadlineScan.layer,
+  BillingSweep.layer,
+  Reminders.layer,
+).pipe(Layer.provideMerge(EventsLive), Layer.provideMerge(AppRepos));
 
 /** A MESMA árvore sobre a trava sem banco (`Db.layerTest`), para quem testa o que não deve
  *  consultar. Montada aqui porque a ordem dos `provideMerge` acima é a parte que

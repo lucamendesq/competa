@@ -13,9 +13,19 @@ export type SubscriptionStatusResponse = {
   invoiceUrl: string | null;
 };
 
-export type CheckoutResponse = { checkoutUrl: string; simulated: boolean };
+/** `applied`: a troca valeu na hora (preço igual ou menor com assinatura em dia) — não há o
+ *  que pagar. `checkoutUrl` nulo sem `applied`: a troca vale na próxima fatura. */
+export type CheckoutResponse = {
+  checkoutUrl: string | null;
+  simulated: boolean;
+  applied: boolean;
+};
+
+export type CancelResponse = { status: 'CANCELED'; currentPeriodEnd: string | null };
 
 export const getSubscription = () => api.get<SubscriptionStatusResponse>('/billing/subscription');
 
 export const checkout = (body: CheckoutBody) =>
   api.post<CheckoutResponse>('/billing/checkout', body);
+
+export const cancelSubscription = () => api.delete<CancelResponse>('/billing/subscription');

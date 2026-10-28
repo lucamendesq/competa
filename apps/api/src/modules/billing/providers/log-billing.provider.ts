@@ -38,11 +38,21 @@ export class LogBilling implements BillingProvider {
 
   async changeSubscriptionPlan(
     subscriptionId: string,
-    input: { planName: string; cycle: BillingCycle; value: number },
+    input: { planName: string; cycle: BillingCycle; value: number; nextDueDate?: Date },
   ) {
     this.logger.log(
       `Mock: Trocando ${subscriptionId} para ${input.planName} ${input.cycle} (R$ ${input.value})`,
     );
+  }
+
+  async createCharge(input: {
+    customerId: string;
+    value: number;
+    description: string;
+    externalReference: string;
+  }) {
+    this.logger.log(`Mock: Cobrança avulsa de R$ ${input.value} para ${input.customerId}`);
+    return { paymentId: `mock_pay_${randomUUID()}`, invoiceUrl: '' };
   }
 
   async deactivateSubscription(subscriptionId: string) {

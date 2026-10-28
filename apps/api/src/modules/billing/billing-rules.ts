@@ -110,3 +110,27 @@ export const periodFrom = (anchor: Date, cycle: string) => ({
 /** `YYYY-MM-DD` do Asaas, lido como meia-noite UTC. Qualquer outra coisa é ausência. */
 export const asaasDate = (value: string | null | undefined): Date | undefined =>
   value && /^\d{4}-\d{2}-\d{2}$/.test(value) ? new Date(`${value}T00:00:00Z`) : undefined;
+
+/** Menor cobrança que o Asaas emite. Abaixo disto não há o que cobrar agora. */
+export const MIN_CHARGE = 5;
+
+const round2 = (value: number) => Math.round(value * 100) / 100;
+
+/** Upgrade com assinatura em dia e sem fatura em aberto: cobra AGORA o novo ciclo inteiro,
+ *  descontado o que sobrou do período já pago, e o novo período começa hoje. Sem isto a
+ *  troca só valia na próxima fatura — até 12 meses no anual. `null` = não há o que cobrar
+ *  (o crédito cobre o novo ciclo): aplica na hora. */
+export const upgradeChargeNow = (input: {
+  readonly currentPrice: number;
+  readonly newPrice: number;
+  readonly periodStart: Date;
+  readonly periodEnd: Date;
+  readonly now: Date;
+}): number | null => {
+  const total = input.periodEnd.getTime() - input.periodStart.getTime();
+  const remaining = Math.min(Math.max(input.periodEnd.getTime() - input.now.getTime(), 0), total);
+  const credit = total > 0 ? (input.currentPrice * remaining) / total : 0;
+  const due = round2(input.newPrice - credit);
+
+  return due >= MIN_CHARGE ? due : null;
+};

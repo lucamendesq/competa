@@ -8,6 +8,7 @@ const logger = new Logger('Crons');
 export const CRON_TIMEZONE = 'America/Sao_Paulo';
 
 export const DEADLINE_CRON = '0 7 * * *';
+export const BILLING_CRON = '30 7 * * *';
 export const REMINDERS_CRON = '0 9 * * *';
 
 const SENTRY_CHECKIN_MARGIN_MIN = 5;
@@ -63,15 +64,17 @@ const scheduled = <E>(slug: string, expression: string, job: Effect.Effect<void,
     Effect.forkScoped,
   );
 
-/** As duas varreduras diárias. As fibras morrem com o scope da layer: `close()` interrompe a
+/** As varreduras diárias. As fibras morrem com o scope da layer: `close()` interrompe a
  *  varredura em curso, e a lease é devolvida no `ensuring` dela. */
 export const cronsLayer = <E>(jobs: {
   readonly deadlines: Effect.Effect<void, E>;
+  readonly billing: Effect.Effect<void, E>;
   readonly reminders: Effect.Effect<void, E>;
 }) =>
   Layer.effectDiscard(
     Effect.gen(function* () {
       yield* scheduled('deadline-daily', DEADLINE_CRON, jobs.deadlines);
+      yield* scheduled('billing-daily', BILLING_CRON, jobs.billing);
       yield* scheduled('reminders-daily', REMINDERS_CRON, jobs.reminders);
     }),
   );

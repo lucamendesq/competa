@@ -2,6 +2,7 @@ import { Logger } from '../../../lib/logger.js';
 import type { BillingCycle } from '@competa/contracts';
 import { BillingProvider } from './billing.provider.js';
 import env from '../../../config/env.js';
+import { GatewayUnavailable } from '../errors.js';
 
 interface AsaasList<T> {
   data?: T[];
@@ -32,6 +33,12 @@ const INVOICE_RETRY_MS = 400;
 
 const sleep = (ms: number) => new Promise((resolve) => setTimeout(resolve, ms));
 
+/** O `fetch` sem prazo segurava a requisição do Contador indefinidamente quando o Asaas
+ *  demorava; `Effect.promise` não é interrompível. */
+const GATEWAY_TIMEOUT_MS = 10_000;
+
+const asaasDay = (date: Date) => date.toISOString().split('T')[0];
+
 export class AsaasBilling implements BillingProvider {
   readonly simulated = false;
   private readonly logger = new Logger(AsaasBilling.name);
@@ -43,13 +50,25 @@ export class AsaasBilling implements BillingProvider {
     return { 'Content-Type': 'application/json', access_token: env.ASAAS_API_KEY! };
   }
 
+  /* O corpo do erro do Asaas vai para o log (é onde a causa está: campo faltando, cliente
+   * inválido); para o Contador sobe um 503 genérico. */
   private async call<T>(path: string, init?: RequestInit): Promise<T> {
-    const res = await fetch(`${this.baseUrl}${path}`, { ...init, headers: this.headers() });
+    let res: Response;
+    try {
+      res = await fetch(`${this.baseUrl}${path}`, {
+        ...init,
+        headers: this.headers(),
+        signal: AbortSignal.timeout(GATEWAY_TIMEOUT_MS),
+      });
+    } catch (error) {
+      this.logger.error(`Asaas ${init?.method ?? 'GET'} ${path} sem resposta`, String(error));
+      throw new GatewayUnavailable();
+    }
     const data = (await res.json().catch(() => ({}))) as T;
 
     if (!res.ok) {
       this.logger.error(`Asaas ${init?.method ?? 'GET'} ${path} falhou (${res.status})`, data);
-      throw new Error('Falha na integração de pagamento');
+      throw new GatewayUnavailable();
     }
 
     return data;
@@ -111,7 +130,7 @@ export class AsaasBilling implements BillingProvider {
         customer: input.customerId,
         billingType: yearly ? 'BOLETO' : 'UNDEFINED',
         value: input.value,
-        nextDueDate: new Date(Date.now() + 1000 * 60 * 60 * 24 * 3).toISOString().split('T')[0],
+        nextDueDate: asaasDay(new Date(Date.now() + 1000 * 60 * 60 * 24 * 3)),
         cycle: yearly ? 'YEARLY' : 'MONTHLY',
         description: `Plano ${input.planName} (${yearly ? 'anual' : 'mensal'}) - Competa`,
         externalReference: input.externalReference,
@@ -143,7 +162,7 @@ export class AsaasBilling implements BillingProvider {
     }
 
     this.logger.error(`Assinatura ${subscriptionId} criada sem cobrança para faturar`);
-    throw new Error('Falha na integração de pagamento');
+    throw new GatewayUnavailable();
   }
 
   /* `updatePendingPayments: true` conserta a cobrança JÁ emitida em vez de deixar o cliente
@@ -154,7 +173,7 @@ export class AsaasBilling implements BillingProvider {
    * o sandbox antes de entrar aqui: 100 → 250 → 1890, relendo a assinatura a cada passo. */
   async changeSubscriptionPlan(
     subscriptionId: string,
-    input: { planName: string; cycle: BillingCycle; value: number },
+    input: { planName: string; cycle: BillingCycle; value: number; nextDueDate?: Date },
   ) {
     const yearly = input.cycle === 'yearly';
 
@@ -166,8 +185,36 @@ export class AsaasBilling implements BillingProvider {
         billingType: yearly ? 'BOLETO' : 'UNDEFINED',
         description: `Plano ${input.planName} (${yearly ? 'anual' : 'mensal'}) - Competa`,
         updatePendingPayments: true,
+        ...(input.nextDueDate ? { nextDueDate: asaasDay(input.nextDueDate) } : {}),
       }),
     });
+  }
+
+  /* Vence hoje: é cobrança de upgrade, o Contador está na tela esperando o link. */
+  async createCharge(input: {
+    customerId: string;
+    value: number;
+    description: string;
+    externalReference: string;
+  }) {
+    const payment = await this.call<AsaasPayment>('/payments', {
+      method: 'POST',
+      body: JSON.stringify({
+        customer: input.customerId,
+        billingType: 'UNDEFINED',
+        value: input.value,
+        dueDate: asaasDay(new Date()),
+        description: input.description,
+        externalReference: input.externalReference,
+      }),
+    });
+
+    if (!payment.invoiceUrl) {
+      this.logger.error(`Cobrança ${payment.id} criada sem invoiceUrl`);
+      throw new GatewayUnavailable();
+    }
+
+    return { paymentId: payment.id, invoiceUrl: payment.invoiceUrl };
   }
 
   /* `status: INACTIVE` e não `DELETE`: remover a assinatura apaga junto as cobranças

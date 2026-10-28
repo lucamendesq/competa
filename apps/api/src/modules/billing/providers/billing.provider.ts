@@ -28,11 +28,22 @@ export abstract class BillingProvider {
 
   /** Troca plano e ciclo NA assinatura existente, e corrige a cobrança em aberto junto.
    *  Verificado no sandbox: a mesma fatura é atualizada, não nasce uma nova. É assim que a
-   *  troca de plano deve ser feita — criar outra assinatura deixava duas vivas. */
+   *  troca de plano deve ser feita — criar outra assinatura deixava duas vivas.
+   *  `nextDueDate` move a próxima cobrança recorrente: no upgrade pago agora, o novo
+   *  período começa hoje. */
   abstract changeSubscriptionPlan(
     subscriptionId: string,
-    input: { planName: string; cycle: BillingCycle; value: number },
+    input: { planName: string; cycle: BillingCycle; value: number; nextDueDate?: Date },
   ): Promise<void>;
+
+  /** Cobrança avulsa (upgrade pro-rata). Sem `subscription`: o webhook acha a firma pelo
+   *  `externalReference`. */
+  abstract createCharge(input: {
+    customerId: string;
+    value: number;
+    description: string;
+    externalReference: string;
+  }): Promise<{ paymentId: string; invoiceUrl: string }>;
 
   /** Para de gerar cobranças NOVAS, preservando as já emitidas. Sobra para o caso em que a
    *  assinatura antiga não dá para reaproveitar. */

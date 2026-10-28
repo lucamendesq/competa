@@ -2,6 +2,7 @@ import { Effect, Exit, Layer, Scope } from 'effect';
 import { TestClock } from 'effect/testing';
 import { describe, expect, it } from 'vitest';
 import {
+  BILLING_CRON,
   CRON_TIMEZONE,
   DEADLINE_CRON,
   REMINDERS_CRON,
@@ -21,6 +22,9 @@ const fakes = () => {
     deadlines: Effect.sync(() => {
       fired.push('deadline');
     }),
+    billing: Effect.sync(() => {
+      fired.push('billing');
+    }),
     reminders: Effect.sync(() => {
       fired.push('reminders');
     }),
@@ -39,11 +43,12 @@ describe('crons: agendamento em Schedule.cron', () => {
    * "America/Sao_Paulo" de "fuso do processo" quando o host NÃO está em UTC-3. */
   it('usa as expressões e o fuso dos @Cron do @nestjs/schedule', () => {
     expect(DEADLINE_CRON).toBe('0 7 * * *');
+    expect(BILLING_CRON).toBe('30 7 * * *');
     expect(REMINDERS_CRON).toBe('0 9 * * *');
     expect(CRON_TIMEZONE).toBe('America/Sao_Paulo');
   });
 
-  it('dispara às 7h e às 9h de America/Sao_Paulo, nunca no boot', async () => {
+  it('dispara às 7h, 7h30 e 9h de America/Sao_Paulo, nunca no boot', async () => {
     const jobs = fakes();
 
     await Effect.runPromise(
@@ -64,15 +69,28 @@ describe('crons: agendamento em Schedule.cron', () => {
           yield* runUntil('2026-10-24T10:00:00.000Z');
           expect(jobs.fired).toEqual(['deadline']);
 
-          yield* runUntil('2026-10-24T11:59:59.000Z');
+          yield* runUntil('2026-10-24T10:29:59.000Z');
           expect(jobs.fired).toEqual(['deadline']);
 
-          yield* runUntil('2026-10-24T12:00:00.000Z');
-          expect(jobs.fired).toEqual(['deadline', 'reminders']);
+          yield* runUntil('2026-10-24T10:30:00.000Z');
+          expect(jobs.fired).toEqual(['deadline', 'billing']);
 
-          // dia seguinte: as duas repetem, uma vez cada
+          yield* runUntil('2026-10-24T11:59:59.000Z');
+          expect(jobs.fired).toEqual(['deadline', 'billing']);
+
+          yield* runUntil('2026-10-24T12:00:00.000Z');
+          expect(jobs.fired).toEqual(['deadline', 'billing', 'reminders']);
+
+          // dia seguinte: as três repetem, uma vez cada
           yield* runUntil('2026-10-25T12:00:00.000Z');
-          expect(jobs.fired).toEqual(['deadline', 'reminders', 'deadline', 'reminders']);
+          expect(jobs.fired).toEqual([
+            'deadline',
+            'billing',
+            'reminders',
+            'deadline',
+            'billing',
+            'reminders',
+          ]);
         }),
       ).pipe(Effect.provide(TestClock.layer())),
     );
@@ -85,6 +103,7 @@ describe('crons: agendamento em Schedule.cron', () => {
         attempts += 1;
         return Effect.fail(new Error('banco fora'));
       }),
+      billing: Effect.void,
       reminders: Effect.void,
     };
 
@@ -136,6 +155,7 @@ describe('crons: agendamento em Schedule.cron', () => {
         Effect.andThen(Effect.sync(() => steps.push('terminou'))),
         Effect.ensuring(Effect.sync(() => steps.push('lease devolvida'))),
       ),
+      billing: Effect.void,
       reminders: Effect.void,
     };
 

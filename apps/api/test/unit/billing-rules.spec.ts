@@ -6,6 +6,7 @@ import {
   periodFrom,
   statusForPaymentEvent,
   statusForSubscriptionEvent,
+  upgradeChargeNow,
 } from '../../src/modules/billing/billing-rules.js';
 
 /* Casos derivados da tabela "Payment events" da doc do Asaas
@@ -142,5 +143,35 @@ describe('paymentIsCurrent e periodFrom', () => {
     expect(asaasDate(undefined)).toBeUndefined();
     expect(asaasDate('03/11/2026')).toBeUndefined();
     expect(asaasDate('')).toBeUndefined();
+  });
+});
+
+describe('upgradeChargeNow — upgrade com assinatura em dia', () => {
+  const day = (iso: string) => new Date(`${iso}T00:00:00Z`);
+  const period = { periodStart: day('2026-11-01'), periodEnd: day('2026-12-01') };
+
+  it('cobra o novo ciclo descontado do que sobrou do atual', () => {
+    /* Metade do mês de Essencial (119) já usada: crédito 59,50 sobre Profissional 189. */
+    expect(
+      upgradeChargeNow({ currentPrice: 119, newPrice: 189, now: day('2026-11-16'), ...period }),
+    ).toBe(129.5);
+  });
+
+  it('período inteiro ainda por vir: cobra só a diferença; período acabado: cobra tudo', () => {
+    expect(
+      upgradeChargeNow({ currentPrice: 119, newPrice: 189, now: day('2026-11-01'), ...period }),
+    ).toBe(70);
+    expect(
+      upgradeChargeNow({ currentPrice: 119, newPrice: 189, now: day('2026-12-15'), ...period }),
+    ).toBe(189);
+  });
+
+  it('crédito que cobre o novo ciclo, ou sobra abaixo do mínimo do gateway, não cobra: aplica na hora', () => {
+    expect(
+      upgradeChargeNow({ currentPrice: 1890, newPrice: 189, now: day('2026-11-02'), ...period }),
+    ).toBeNull();
+    expect(
+      upgradeChargeNow({ currentPrice: 189, newPrice: 190, now: day('2026-11-01'), ...period }),
+    ).toBeNull();
   });
 });

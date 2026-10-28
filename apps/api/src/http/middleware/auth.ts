@@ -101,7 +101,12 @@ const resolveFirm = (
      * é por ela que a firma bloqueada regulariza — bloqueá-la trancava o cliente do lado de
      * fora com o boleto na mão. */
     if (request.method !== 'GET' && !billing) {
-      const overdue = row.subscriptionStatus === 'OVERDUE' || row.subscriptionStatus === 'CANCELED';
+      /* Cancelada segue valendo até o fim do período já pago: ninguém perde o que pagou por
+       * ter cancelado cedo. Sem período (trial cancelado) bloqueia na hora. */
+      const canceledAndLapsed =
+        row.subscriptionStatus === 'CANCELED' &&
+        (row.currentPeriodEnd === null || isPast(row.currentPeriodEnd));
+      const overdue = row.subscriptionStatus === 'OVERDUE' || canceledAndLapsed;
       const trialExpired =
         row.subscriptionStatus === 'trialing' &&
         row.trialEndsAt !== null &&

@@ -108,7 +108,7 @@ describe('POST /billing/checkout — fluxo com LogBilling', () => {
   it('checkout devolve 201 com checkoutUrl VAZIA e simulated true (stub de console)', async () => {
     const res = await api.post('/billing/checkout', { planName: 'profissional', cycle: 'yearly' });
     expect(res.status, JSON.stringify(res.body)).toBe(201);
-    expect(res.body).toEqual({ data: { checkoutUrl: '', simulated: true } });
+    expect(res.body).toEqual({ data: { checkoutUrl: '', simulated: true, applied: false } });
   });
 
   /* O checkout grava INTENÇÃO, não plano. O gate de capability lê `planName`, então gravar
@@ -140,7 +140,8 @@ describe('POST /billing/checkout — fluxo com LogBilling', () => {
 
     const res = await api.post('/billing/checkout', { planName: 'essencial' });
     expect(res.status).toBe(201);
-    expect(res.body).toEqual({ data: { checkoutUrl: '', simulated: true } });
+    /* Troca sem fatura em aberto no stub: a intenção fica gravada e vale na próxima. */
+    expect(res.body).toEqual({ data: { checkoutUrl: null, simulated: true, applied: false } });
 
     const rows = await subscriptionRows(firmId);
     expect(rows).toHaveLength(1);
@@ -161,7 +162,7 @@ describe('POST /billing/checkout — fluxo com LogBilling', () => {
      * sem subscription — mas o update-sem-linha é comportamento a preservar na migração. */
     const res = await orphan.api.post('/billing/checkout', { planName: 'escritorio' });
     expect(res.status).toBe(201);
-    expect(res.body).toEqual({ data: { checkoutUrl: '', simulated: true } });
+    expect(res.body).toEqual({ data: { checkoutUrl: '', simulated: true, applied: false } });
     expect(await subscriptionRows(orphanFirmId)).toEqual([]);
   });
 });
@@ -215,6 +216,135 @@ describe('CNPJ obrigatório no checkout', () => {
 
     const again = await api.post('/billing/checkout', { planName: 'profissional' });
     expect(again.status).toBe(201);
+  });
+});
+
+describe('troca de plano com assinatura em dia', () => {
+  let api: Api;
+  let firmId: string;
+
+  beforeAll(async () => {
+    ({ api } = await registerFirm(app.url));
+    firmId = await firmIdOf(api);
+    const first = await api.post('/billing/checkout', { planName: 'profissional' });
+    expect(first.status, JSON.stringify(first.body)).toBe(201);
+    await setSubscription(firmId, {
+      status: 'ACTIVE',
+      planName: 'profissional',
+      cycle: 'monthly',
+      pendingPlanName: null,
+      pendingCycle: null,
+      pendingPaymentId: null,
+      currentPeriodStart: new Date(Date.now() - 10 * 86_400_000),
+      currentPeriodEnd: new Date(Date.now() + 20 * 86_400_000),
+    });
+  });
+
+  /* Preço igual ou menor não tem o que cobrar: vale na hora, e a próxima fatura já sai no
+   * valor novo. */
+  it('downgrade vale na hora: applied, sem fatura, plano trocado', async () => {
+    const res = await api.post('/billing/checkout', { planName: 'essencial' });
+    expect(res.status, JSON.stringify(res.body)).toBe(201);
+    expect(res.body.data).toEqual({ checkoutUrl: null, simulated: true, applied: true });
+
+    const [row] = await subscriptionRows(firmId);
+    expect(row).toMatchObject({
+      planName: 'essencial',
+      cycle: 'monthly',
+      status: 'ACTIVE',
+      pendingPlanName: null,
+      pendingPaymentId: null,
+    });
+  });
+
+  /* Upgrade cobra agora o novo ciclo descontado do que sobrou: nasce uma cobrança avulsa e
+   * o plano só muda quando ela for paga (webhook, pelo id gravado). */
+  it('upgrade cria cobrança avulsa e grava a intenção com o id dela', async () => {
+    const res = await api.post('/billing/checkout', { planName: 'escritorio', cycle: 'yearly' });
+    expect(res.status, JSON.stringify(res.body)).toBe(201);
+    expect(res.body.data).toEqual({ checkoutUrl: '', simulated: true, applied: false });
+
+    const [row] = await subscriptionRows(firmId);
+    expect(row).toMatchObject({
+      planName: 'essencial',
+      pendingPlanName: 'escritorio',
+      pendingCycle: 'yearly',
+    });
+    expect(row.pendingPaymentId).toMatch(/^mock_pay_/);
+  });
+});
+
+describe('DELETE /billing/subscription — cancelamento', () => {
+  let api: Api;
+  let firmId: string;
+
+  beforeAll(async () => {
+    ({ api } = await registerFirm(app.url));
+    firmId = await firmIdOf(api);
+    const checkout = await api.post('/billing/checkout', { planName: 'essencial' });
+    expect(checkout.status).toBe(201);
+    await setSubscription(firmId, {
+      status: 'ACTIVE',
+      planName: 'essencial',
+      currentPeriodStart: new Date(Date.now() - 10 * 86_400_000),
+      currentPeriodEnd: new Date(Date.now() + 20 * 86_400_000),
+    });
+  });
+
+  it('membro não cancela: 403; a assinatura fica como estava', async () => {
+    const memberApi = await registerMember(api);
+    const res = await memberApi.delete('/billing/subscription');
+    expect(res.status).toBe(403);
+    expect(res.body.error.code).toBe('ONLY_OWNER_CAN_MANAGE_TEAM');
+    expect((await subscriptionRows(firmId))[0].status).toBe('ACTIVE');
+  });
+
+  it('dono cancela: CANCELED, intenção limpa, e a escrita segue até o fim do período pago', async () => {
+    const res = await api.delete('/billing/subscription');
+    expect(res.status, JSON.stringify(res.body)).toBe(200);
+    expect(res.body.data).toMatchObject({ status: 'CANCELED' });
+    expect(res.body.data.currentPeriodEnd).toBeTruthy();
+
+    const [row] = await subscriptionRows(firmId);
+    expect(row).toMatchObject({
+      status: 'CANCELED',
+      pendingPlanName: null,
+      pendingPaymentId: null,
+    });
+
+    /* Guard passa (422 é o zod do corpo vazio, não o 402 da régua). */
+    const write = await api.post('/periods', {});
+    expect(write.status).toBe(422);
+
+    await setSubscription(firmId, { currentPeriodEnd: new Date(Date.now() - 86_400_000) });
+    const lapsed = await api.post('/periods', {});
+    expect(lapsed.status).toBe(402);
+
+    /* Cancelar de novo é idempotente, e alcançável mesmo com a escrita bloqueada. */
+    const again = await api.delete('/billing/subscription');
+    expect(again.status).toBe(200);
+  });
+});
+
+describe('GET /billing/subscription — link da fatura só para o dono', () => {
+  it('o dono vê o invoiceUrl gravado no checkout; o membro recebe null', async () => {
+    const { api } = await registerFirm(app.url);
+    const firmId = await firmIdOf(api);
+    await setSubscription(firmId, {
+      pendingPlanName: 'profissional',
+      pendingInvoiceUrl: 'https://sandbox.asaas.com/i/pay_teste',
+    });
+
+    const owner = await api.get('/billing/subscription');
+    expect(owner.body.data.invoiceUrl).toBe('https://sandbox.asaas.com/i/pay_teste');
+
+    const member = await registerMember(api);
+    const viaMember = await member.get('/billing/subscription');
+    expect(viaMember.status).toBe(200);
+    expect(viaMember.body.data).toMatchObject({
+      pendingPlanName: 'profissional',
+      invoiceUrl: null,
+    });
   });
 });
 

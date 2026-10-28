@@ -79,6 +79,7 @@ const make = Effect.gen(function* () {
           subscriptionStatus: subscription.status,
           subscriptionPlanName: subscription.planName,
           trialEndsAt: subscription.trialEndsAt,
+          currentPeriodEnd: subscription.currentPeriodEnd,
         })
         .from(accountant)
         .leftJoin(subscription, eq(subscription.accountingFirmId, accountant.accountingFirmId))
