@@ -889,6 +889,7 @@ const make = Effect.gen(function* () {
             inArray(requestItem.status, PENDING_ITEM_STATUS),
             eq(request.status, 'open'),
             eq(period.status, 'open'),
+            eq(company.active, true),
             scope ? eq(period.accountingFirmId, scope) : undefined,
           ),
         );

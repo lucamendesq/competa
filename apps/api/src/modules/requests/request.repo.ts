@@ -701,6 +701,9 @@ const make = Effect.gen(function* () {
           and(
             eq(period.status, 'open'),
             eq(request.status, 'open'),
+            /* Empresa desativada não recebe aviso: o guard do Link a recusa, e o e-mail
+             * chegaria com um link morto. */
+            eq(company.active, true),
             inArray(requestItem.status, ['pending', 'rejected']),
             scope ? eq(period.accountingFirmId, scope) : undefined,
           ),
@@ -1226,6 +1229,8 @@ const make = Effect.gen(function* () {
             inArray(requestItem.status, ['pending', 'rejected']),
             eq(request.status, 'open'),
             eq(period.status, 'open'),
+            // idem `overdueItems`: o Link de Empresa desativada não abre
+            eq(company.active, true),
             scope ? eq(period.accountingFirmId, scope) : undefined,
           ),
         );
