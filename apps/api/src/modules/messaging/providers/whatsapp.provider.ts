@@ -19,6 +19,15 @@ interface MetaSendResponse {
   error?: { message?: string };
 }
 
+/** Telefone no formato da Cloud API (país + DDD + número, só dígitos). O cadastro guarda
+ *  sem o 55 (a máscara da web vai até 11 dígitos), então quem tem até 11 dígitos ganha o
+ *  código do país. Olhar só o prefixo `55` confundia o DDD 55 (Santa Maria/RS) com o país:
+ *  `55991234567` saía como DDD 99. */
+export const normalizePhone = (phone: string): string => {
+  const numbers = phone.replace(/\D/g, '');
+  return numbers.length <= 11 ? `55${numbers}` : numbers;
+};
+
 export class WhatsappProvider extends MessageProvider {
   override readonly channel = 'whatsapp';
   private readonly logger = new Logger(WhatsappProvider.name);
@@ -50,7 +59,7 @@ export class WhatsappProvider extends MessageProvider {
     }
 
     const token = this.crypto.decrypt(integration.accessToken);
-    const to = this.normalizePhone(message.recipient);
+    const to = normalizePhone(message.recipient);
 
     // Mapeamento ingênuo de template com base no propósito, assumindo pt_BR e aprovação prévia.
     const templateName = this.mapPurposeToTemplate(message.purpose);
@@ -96,11 +105,6 @@ export class WhatsappProvider extends MessageProvider {
 
     // Retorna o ID da mensagem no Meta (para webhook tracking)
     return data.messages?.[0]?.id;
-  }
-
-  private normalizePhone(phone: string): string {
-    const numbers = phone.replace(/\D/g, '');
-    return numbers.startsWith('55') ? numbers : `55${numbers}`;
   }
 
   private mapPurposeToTemplate(purpose?: string): string | undefined {
