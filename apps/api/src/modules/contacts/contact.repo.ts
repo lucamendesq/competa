@@ -284,7 +284,12 @@ const make = Effect.gen(function* () {
       db.use(async (tx) => {
         const row = await lockOwnedContact(tx, scope, companyId, contactId);
         if (!row) return undefined;
-        if (!row.authUserId) return { detached: false as const };
+        /* As notificações assinadas pelo Link de Upload são do aparelho da pessoa que saiu,
+         * com ou sem conta: ficando, ela recebia os avisos (e o link) da pessoa nova. */
+        if (!row.authUserId) {
+          await tx.delete(pushSubscription).where(eq(pushSubscription.contactId, contactId));
+          return { detached: false as const };
+        }
 
         await detachAccountOn(tx, contactId, row.authUserId);
         return { detached: true as const };

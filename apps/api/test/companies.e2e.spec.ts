@@ -7,6 +7,7 @@ import {
   contact,
   invite,
   message,
+  pushSubscription,
   uploadLink,
   user as userTable,
 } from '../src/infra/database/schema/index.js';
@@ -1059,6 +1060,11 @@ describe('PATCH contato: troca de e-mail rotaciona o Link de Upload', () => {
   it('Responsável sem conta: o token antigo morre na hora e o novo e-mail recebe o reenvio', async () => {
     const before = await linkRow();
     expect((await apiClient(app.url).get(`/upload/${uploadToken}`)).status).toBe(200);
+    const subscribed = await apiClient(app.url).post(`/upload/${uploadToken}/push`, {
+      endpoint: 'https://fcm.googleapis.com/fcm/send/aparelho-da-antiga',
+      keys: { p256dh: 'chave-p256dh', auth: 'chave-auth' },
+    });
+    expect(subscribed.status, JSON.stringify(subscribed.body)).toBe(201);
 
     const res = await api.patch(`/companies/${companyId}/contacts/${contactId}`, {
       email: 'nova-pessoa@example.com',
@@ -1066,6 +1072,12 @@ describe('PATCH contato: troca de e-mail rotaciona o Link de Upload', () => {
     expect(res.status, JSON.stringify(res.body)).toBe(200);
     expect(res.body.data.undeliveredLinks, 'o e-mail com o link novo saiu').toBe(0);
     await app.drainEvents();
+
+    const devices = await db
+      .select({ id: pushSubscription.id })
+      .from(pushSubscription)
+      .where(eq(pushSubscription.contactId, contactId));
+    expect(devices, 'o aparelho da pessoa que saiu para de receber').toEqual([]);
 
     const after = await linkRow();
     expect(after.tokenHash).not.toBe(before.tokenHash);
