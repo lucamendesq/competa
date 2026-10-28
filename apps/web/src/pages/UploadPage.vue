@@ -26,7 +26,7 @@ import { dateBr, monthLabel } from '@/utils/format';
 import { displayItemStatus, needsResend } from '@/utils/item-status';
 import { isOverdue } from '@/utils/format';
 import { toast } from 'vue-sonner';
-import { apiErrorCode, apiErrorMessage } from '@/api/error';
+import { ApiError, apiErrorCode, apiErrorMessage, failureKind } from '@/api/error';
 
 const route = useRoute();
 const token = computed(() => route.params.linkToken as string);
@@ -43,6 +43,17 @@ const push = usePush();
  * de Upload, e sem isso ela vai no Referer para o host do logo — que é escolhido pelo
  * tenant e pode ser qualquer um. */
 const firmLogoUrl = computed(() => checklistQuery.data.value?.accountingFirmLogoUrl ?? null);
+
+/* Só 404/410/403 dizem que o link morreu. Um 429 (o limite de 60/min é dividido com os
+ * envios) ou uma falha do servidor é passageira: mandar a pessoa pedir link novo por isso
+ * era mentir para ela. */
+const linkTemporarilyUnavailable = computed(() => {
+  const error = checklistQuery.error.value;
+  const kind = failureKind(error);
+  return (
+    kind === 'offline' || kind === 'server' || (error instanceof ApiError && error.status === 429)
+  );
+});
 const logoBroken = ref(false);
 const activatingAccess = ref(false);
 const accountExists = ref(false);
@@ -62,7 +73,7 @@ async function handleActivateAccess() {
   } catch (error) {
     if (
       apiErrorCode(error) === 'EMAIL_ALREADY_REGISTERED' ||
-      apiErrorCode(error) === 'ACCESS_ALREADY_EXISTS'
+      apiErrorCode(error) === 'CONTACT_ACCESS_ALREADY_EXISTS'
     ) {
       accountExists.value = true;
       toast.info('Seu e-mail já possui uma conta ativa. Acesse em /minha-area/acesso.');
@@ -175,6 +186,21 @@ async function send(files: File[], requestItemId: string | null) {
       aria-label="Carregando"
     >
       <LoadingRows :count="5" />
+    </main>
+
+    <main
+      v-else-if="checklistQuery.isError.value && linkTemporarilyUnavailable"
+      class="mx-auto flex w-full max-w-xl flex-1 flex-col items-center justify-center p-6 text-center"
+    >
+      <h1 class="font-display text-xl font-semibold tracking-tight">
+        Não foi possível abrir agora
+      </h1>
+      <p class="text-muted-foreground mt-2 text-sm">
+        Seu link continua valendo. Aguarde um minuto e tente de novo.
+      </p>
+      <Button class="mt-6" variant="outline" @click="checklistQuery.refetch()">
+        Tentar de novo
+      </Button>
     </main>
 
     <main
