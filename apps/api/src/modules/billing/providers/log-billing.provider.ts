@@ -29,7 +29,11 @@ export class LogBilling implements BillingProvider {
         `(R$ ${input.value})`,
     );
 
-    return { subscriptionId: `mock_sub_${randomUUID()}`, checkoutUrl: '' };
+    return {
+      subscriptionId: `mock_sub_${randomUUID()}`,
+      paymentId: `mock_pay_${randomUUID()}`,
+      checkoutUrl: '',
+    };
   }
 
   async changeSubscriptionPlan(
@@ -49,7 +53,7 @@ export class LogBilling implements BillingProvider {
     this.logger.log(`Mock: Cancelando assinatura ${subscriptionId}`);
   }
 
-  async pendingInvoiceUrl(subscriptionId: string) {
+  async pendingInvoice(subscriptionId: string) {
     this.logger.log(`Mock: Fatura em aberto de ${subscriptionId}`);
     return null;
   }

@@ -5,10 +5,10 @@ import * as z from 'zod';
 import env from '../../config/env.js';
 import { handler } from '../../http/envelope.js';
 import { body, publicRoute, route } from '../../http/platform.js';
-import { throttleDefault } from '../../http/throttle.js';
-import { Forbidden, ServiceUnavailable } from '../../lib/app-error.js';
+import type { Bucket } from '../../http/throttle.js';
+import { BadRequest, Forbidden, ServiceUnavailable } from '../../lib/app-error.js';
 import { secretEquals } from '../../lib/token.js';
-import { statusForPaymentEvent } from './billing-rules.js';
+import { asaasDate } from './billing-rules.js';
 import { SubscriptionsRepo } from './subscription.repo.js';
 
 /* `passthrough` de propósito: a doc do Asaas avisa que novos atributos entram no payload
@@ -19,11 +19,32 @@ const AsaasWebhookPayload = z
     id: z.string().min(1).optional(),
     event: z.string().optional(),
     payment: z
-      .object({ subscription: z.string().min(1).optional() })
+      .object({
+        id: z.string().min(1).optional(),
+        subscription: z.string().min(1).nullable().optional(),
+        value: z.number().optional(),
+        dueDate: z.string().nullable().optional(),
+        paymentDate: z.string().nullable().optional(),
+        externalReference: z.string().nullable().optional(),
+      })
+      .passthrough()
+      .optional(),
+    subscription: z
+      .object({
+        id: z.string().min(1).optional(),
+        externalReference: z.string().nullable().optional(),
+      })
       .passthrough()
       .optional(),
   })
   .passthrough();
+
+/* Só o balde sustentado: o `short` global (30/10s por IP) derrubava a rajada do dia 1, em
+ * que o Asaas despacha os `PAYMENT_OVERDUE` do mês de uma vez. Um 429 conta como falha para
+ * o gateway, e 15 falhas seguidas PAUSAM a fila dele — todo pagamento seguinte fica preso
+ * até alguém religar no painel. O limite aqui existe só contra enxurrada; quem autoriza é
+ * o token. */
+const WEBHOOK_THROTTLE: readonly Bucket[] = [{ name: 'default', limit: 600, ttlMs: 60_000 }];
 
 const logger = new Logger('AsaasWebhookController');
 
@@ -50,38 +71,46 @@ const webhook = route(
         return yield* Effect.fail(new Forbidden('Webhook não autorizado.'));
       }
 
+      /* Todo evento do Asaas tem `id` (`evt_...`); é ele que barra o reenvio. Sem id não há
+       * como processar uma vez só, e um 400 não é falha para a fila deles. */
       const { id, event } = payload;
-      const subscriptionId = payload.payment?.subscription;
+      if (!id) return yield* Effect.fail(new BadRequest('Evento sem id.'));
+      if (!event) return { received: true };
 
-      logger.log(`Webhook Asaas recebido: ${event} para assinatura ${subscriptionId}`);
+      const gatewaySubscriptionId =
+        payload.payment?.subscription ?? payload.subscription?.id ?? null;
+      const externalReference =
+        payload.payment?.externalReference ?? payload.subscription?.externalReference ?? null;
 
-      if (!subscriptionId || !event) return { received: true };
+      logger.log(
+        `Webhook Asaas recebido: ${event} (${id}) para assinatura ${gatewaySubscriptionId}`,
+      );
 
-      /* Idempotência antes do efeito: o Asaas reenvia em qualquer resposta não-2xx e pode
-       * repetir uma entrega que deu certo. Sem isto, um `PAYMENT_RECEIVED` repetido
-       * reabriria o período de cobrança a partir do novo `now()`. Evento sem `id` (payload
-       * legado ou teste manual) segue em frente — melhor processar duas vezes que ignorar
-       * um pagamento. */
-      if (id) {
-        const first = yield* SubscriptionsRepo.use((repo) => repo.claimEvent(id, event));
-        if (!first) {
-          logger.log(`Evento ${id} já processado; ignorando reenvio.`);
-          return { received: true };
-        }
-      }
+      const result = yield* SubscriptionsRepo.use((repo) =>
+        repo.applyEvent({
+          eventId: id,
+          event,
+          gatewaySubscriptionId,
+          externalReference,
+          payment: {
+            id: payload.payment?.id,
+            value: payload.payment?.value,
+            dueDate: asaasDate(payload.payment?.dueDate),
+            paymentDate: asaasDate(payload.payment?.paymentDate),
+          },
+        }),
+      );
 
-      const status = statusForPaymentEvent(event);
-      if (status) {
-        yield* SubscriptionsRepo.use((repo) => repo.updateStatus(subscriptionId, status));
+      if (result.outcome === 'duplicate')
+        logger.log(`Evento ${id} já processado; ignorando reenvio.`);
+      if (result.outcome === 'ignored' && result.reason !== 'event') {
+        logger.warn(`Evento ${id} (${event}) ignorado: ${result.reason}.`);
       }
 
       return { received: true };
     }),
   ),
-  /* O balde global (30/10s por IP) derrubava rajada do gateway, e um 429 que esgote a
-   * retentativa do Asaas é um pagamento PERDIDO — firma paga e nunca ativa. O limite aqui
-   * existe só contra enxurrada; quem autoriza é o token. */
-  { auth: publicRoute, throttle: throttleDefault(600, 60_000) },
+  { auth: publicRoute, throttle: WEBHOOK_THROTTLE },
 );
 
 export const asaasWebhookRoutes = Layer.mergeAll(webhook);

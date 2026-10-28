@@ -24,7 +24,7 @@ export abstract class BillingProvider {
     cycle: BillingCycle;
     value: number; // Valor em reais do ciclo escolhido
     externalReference: string;
-  }): Promise<{ subscriptionId: string; checkoutUrl: string }>;
+  }): Promise<{ subscriptionId: string; paymentId: string | null; checkoutUrl: string }>;
 
   /** Troca plano e ciclo NA assinatura existente, e corrige a cobrança em aberto junto.
    *  Verificado no sandbox: a mesma fatura é atualizada, não nasce uma nova. É assim que a
@@ -42,8 +42,11 @@ export abstract class BillingProvider {
    *  deliberado — na troca de plano use `deactivateSubscription`. */
   abstract cancelSubscription(subscriptionId: string): Promise<void>;
 
-  /** Link da cobrança em aberto da assinatura, para o Contador pagar ou trocar a forma de
-   *  pagamento NA PÁGINA DO ASAAS. É assim que a troca de cartão acontece sem que dado de
-   *  cartão passe por nós — o que nos manteria no escopo do PCI-DSS. */
-  abstract pendingInvoiceUrl(subscriptionId: string): Promise<string | null>;
+  /** Cobrança em aberto (pendente ou vencida) da assinatura: o id, para o webhook casar o
+   *  pagamento com a intenção, e o link, para o Contador pagar ou trocar a forma de pagamento
+   *  NA PÁGINA DO ASAAS. É assim que a troca de cartão acontece sem que dado de cartão passe
+   *  por nós — o que nos manteria no escopo do PCI-DSS. */
+  abstract pendingInvoice(
+    subscriptionId: string,
+  ): Promise<{ id: string; invoiceUrl: string } | null>;
 }

@@ -13,8 +13,15 @@ export const pinoOptions: { pinoHttp: Options } = {
     autoLogging: {
       ignore: (req) => (req as RequestWithScope).url === '/health',
     },
+    /* Os headers de webhook SÃO o segredo: o pino-http serializa todos os headers da
+     * requisição, e sem isto o token do Asaas e a assinatura da Meta iam para o log. */
     redact: {
-      paths: ['req.headers.authorization', 'req.headers.cookie'],
+      paths: [
+        'req.headers.authorization',
+        'req.headers.cookie',
+        'req.headers["asaas-access-token"]',
+        'req.headers["x-hub-signature-256"]',
+      ],
       censor: '[redacted]',
     },
     customProps: (req: IncomingMessage) => {

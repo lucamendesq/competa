@@ -272,6 +272,16 @@ export const subscription = pgTable(
      *  entrar. O webhook de pagamento promove para `plan_name`. */
     pendingPlanName: text('pending_plan_name'),
     pendingCycle: text('pending_cycle'),
+    /** Fatura que paga a intenção acima (`pay_...`) e o link dela. É por este id que o webhook
+     *  sabe que o pagamento é DO plano pendente, e não de uma fatura antiga. */
+    pendingPaymentId: text('pending_payment_id'),
+    pendingInvoiceUrl: text('pending_invoice_url'),
+    /** Assinaturas do gateway que esta linha já teve. A cobrança em aberto de uma assinatura
+     *  substituída continua pagável, e o webhook precisa achar a firma por ela. */
+    previousGatewaySubscriptionIds: text('previous_gateway_subscription_ids')
+      .array()
+      .notNull()
+      .default([]),
     /** `monthly` | `yearly`. O anual é 10× o mensal (2 meses grátis) e é cobrado em boleto
      *  com Pix embutido — o Asaas não faz recorrência Pix pura. */
     cycle: text('cycle').notNull().default('monthly'),

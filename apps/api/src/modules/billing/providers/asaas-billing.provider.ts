@@ -17,8 +17,12 @@ interface AsaasSubscription {
 }
 
 interface AsaasPayment {
+  id: string;
+  status?: string;
   invoiceUrl?: string;
 }
+
+const OPEN_PAYMENT_STATUSES = new Set(['PENDING', 'OVERDUE']);
 
 /** O Asaas gera a primeira cobrança logo após criar a assinatura, mas não há garantia de
  *  que ela já exista na resposta seguinte. Poucas tentativas curtas resolvem a corrida sem
@@ -114,19 +118,26 @@ export class AsaasBilling implements BillingProvider {
       }),
     });
 
-    return { subscriptionId: subscription.id, checkoutUrl: await this.invoiceUrl(subscription.id) };
+    const invoice = await this.firstInvoice(subscription.id);
+
+    return {
+      subscriptionId: subscription.id,
+      paymentId: invoice.id,
+      checkoutUrl: invoice.invoiceUrl,
+    };
   }
 
-  /** `GET /subscriptions/{id}/payments` → `invoiceUrl` da cobrança gerada. É este o link que
-   *  o pagador deve abrir: o pagamento feito nele nasce com `payment.subscription`
-   *  preenchido, que é exatamente o que o webhook usa para achar a Contabilidade. */
-  private async invoiceUrl(subscriptionId: string) {
+  /** `GET /subscriptions/{id}/payments` → a cobrança gerada. É o `invoiceUrl` dela que o
+   *  pagador deve abrir: o pagamento feito nele nasce com `payment.subscription` preenchido,
+   *  que é o que o webhook usa para achar a Contabilidade; o `id` fica gravado para o webhook
+   *  saber que o pagamento é desta fatura. */
+  private async firstInvoice(subscriptionId: string) {
     for (let attempt = 1; attempt <= INVOICE_ATTEMPTS; attempt += 1) {
       const payments = await this.call<AsaasList<AsaasPayment>>(
         `/subscriptions/${subscriptionId}/payments`,
       );
-      const url = payments.data?.[0]?.invoiceUrl;
-      if (url) return url;
+      const payment = payments.data?.[0];
+      if (payment?.invoiceUrl) return { id: payment.id, invoiceUrl: payment.invoiceUrl };
 
       if (attempt < INVOICE_ATTEMPTS) await sleep(INVOICE_RETRY_MS);
     }
@@ -174,11 +185,16 @@ export class AsaasBilling implements BillingProvider {
     await this.call<unknown>(`/subscriptions/${subscriptionId}`, { method: 'DELETE' });
   }
 
-  async pendingInvoiceUrl(subscriptionId: string) {
+  /* Vencida também conta: a firma OVERDUE paga a fatura vencida, não uma nova. O filtro por
+   * status da API aceita um valor só, então a lista vem inteira e o corte é aqui. */
+  async pendingInvoice(subscriptionId: string) {
     const payments = await this.call<AsaasList<AsaasPayment>>(
-      `/subscriptions/${subscriptionId}/payments?status=PENDING`,
+      `/subscriptions/${subscriptionId}/payments`,
+    );
+    const open = payments.data?.find(
+      (payment) => payment.invoiceUrl && OPEN_PAYMENT_STATUSES.has(payment.status ?? ''),
     );
 
-    return payments.data?.[0]?.invoiceUrl ?? null;
+    return open ? { id: open.id, invoiceUrl: open.invoiceUrl! } : null;
   }
 }

@@ -87,10 +87,13 @@ const checkout = route(
 
       let subscriptionId = previous!;
       let checkoutUrl = '';
+      let paymentId: string | null = null;
 
       if (changed) {
         /* A fatura é a MESMA de antes, com o valor corrigido — não nasce cobrança nova. */
-        checkoutUrl = (yield* Effect.promise(() => billing.pendingInvoiceUrl(previous!))) ?? '';
+        const invoice = yield* Effect.promise(() => billing.pendingInvoice(previous!));
+        checkoutUrl = invoice?.invoiceUrl ?? '';
+        paymentId = invoice?.id ?? null;
       } else {
         const created = yield* Effect.promise(() =>
           billing.createSubscription({
@@ -103,6 +106,7 @@ const checkout = route(
         );
         subscriptionId = created.subscriptionId;
         checkoutUrl = created.checkoutUrl;
+        paymentId = created.paymentId;
 
         if (previous && previous !== subscriptionId) {
           yield* Effect.promise(() => billing.deactivateSubscription(previous)).pipe(
@@ -126,6 +130,8 @@ const checkout = route(
           cycle,
           gatewayCustomerId: customerId,
           gatewaySubscriptionId: subscriptionId,
+          pendingPaymentId: paymentId,
+          pendingInvoiceUrl: checkoutUrl || null,
         }),
       );
 
@@ -157,9 +163,8 @@ const subscriptionStatus = route(
       /* Só consulta o gateway quando há assinatura lá: o FAQ deles pede para não usar GET
        * como polling, e firma em trial não tem o que consultar. */
       const invoiceUrl = current.gatewaySubscriptionId
-        ? yield* Effect.promise(() =>
-            billing.pendingInvoiceUrl(current.gatewaySubscriptionId!),
-          ).pipe(
+        ? yield* Effect.promise(() => billing.pendingInvoice(current.gatewaySubscriptionId!)).pipe(
+            Effect.map((invoice) => invoice?.invoiceUrl ?? null),
             Effect.catchCause((cause) =>
               Effect.sync(() => {
                 logger.error(

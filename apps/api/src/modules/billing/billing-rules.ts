@@ -1,4 +1,11 @@
-import type { SubscriptionStatus } from '@competa/contracts';
+import {
+  PLANS,
+  planPrice,
+  type BillingCycle,
+  type PaidPlanName,
+  type PriceOverride,
+  type SubscriptionStatus,
+} from '@competa/contracts';
 
 /** O que cada evento de cobrança do Asaas faz com a assinatura. `null` = evento conhecido
  *  que não mexe no acesso (visualização, negativação, split, ciclo de vida da cobrança).
@@ -30,3 +37,76 @@ export const statusForPaymentEvent = (event: string): SubscriptionStatus | null 
       return null;
   }
 };
+
+/** Eventos da PRÓPRIA assinatura. Inativar ou apagar no painel do Asaas encerra a cobrança
+ *  recorrente: a firma fica `CANCELED` e o acesso vale até o fim do período já pago. */
+export const statusForSubscriptionEvent = (event: string): SubscriptionStatus | null =>
+  event === 'SUBSCRIPTION_INACTIVATED' || event === 'SUBSCRIPTION_DELETED' ? 'CANCELED' : null;
+
+export type PaymentFacts = {
+  readonly id?: string;
+  readonly value?: number;
+  readonly dueDate?: Date;
+  readonly paymentDate?: Date;
+};
+
+export type PendingPlan = {
+  readonly planName: PaidPlanName;
+  readonly cycle: BillingCycle;
+  readonly paymentId: string | null;
+  readonly priceOverride: PriceOverride | null;
+};
+
+/** A intenção do checkout só vira plano quando o pagamento é DO plano pendente. Um
+ *  `PAYMENT_RECEIVED` atrasado da fatura antiga (no cartão ele chega 32 dias depois do
+ *  `CONFIRMED`) promovia qualquer checkout feito nesse meio-tempo sem um centavo a mais.
+ *
+ *  Com o id da fatura gravado no checkout, é ele que decide. Sem ele (checkout anterior a
+ *  esta regra), vale um valor que cubra o preço do plano pendente. */
+export const paymentCoversPendingPlan = (payment: PaymentFacts, pending: PendingPlan): boolean => {
+  if (pending.paymentId) return payment.id === pending.paymentId;
+  if (payment.value === undefined) return false;
+
+  const price = planPrice(
+    PLANS[pending.planName],
+    pending.cycle,
+    pending.priceOverride?.[pending.planName],
+  );
+
+  return payment.value >= price;
+};
+
+/** Cobrança de um período que já ficou para trás não derruba a firma: o operador que apaga
+ *  a fatura antiga depois de o cliente pagar a nova gerava `PAYMENT_DELETED` → `OVERDUE`
+ *  numa assinatura em dia. Sem data (payload legado) ou sem período aberto, vale. */
+export const paymentIsCurrent = (
+  dueDate: Date | undefined,
+  currentPeriodStart: Date | null,
+): boolean =>
+  dueDate === undefined ||
+  currentPeriodStart === null ||
+  dueDate.getTime() >= currentPeriodStart.getTime();
+
+/* Aritmética em UTC, não no fuso do processo: `addMonths` do date-fns soma no horário
+ * local, e 31/01 00:00Z (30/01 21:00 em São Paulo) virava 01/03 00:00Z em vez de 28/02. */
+const addUtcMonths = (date: Date, months: number) => {
+  const result = new Date(date);
+  const dayOfMonth = result.getUTCDate();
+  result.setUTCDate(1);
+  result.setUTCMonth(result.getUTCMonth() + months);
+  const lastDay = new Date(Date.UTC(result.getUTCFullYear(), result.getUTCMonth() + 1, 0));
+  result.setUTCDate(Math.min(dayOfMonth, lastDay.getUTCDate()));
+  return result;
+};
+
+/** O período ancora na data de VENCIMENTO da fatura, que é onde o Asaas ancora o ciclo da
+ *  assinatura — não no instante em que o webhook chegou. Um reenvio dias depois, ou um
+ *  boleto pago com atraso, não ganha dias de graça nem desalinha a próxima cobrança. */
+export const periodFrom = (anchor: Date, cycle: string) => ({
+  currentPeriodStart: anchor,
+  currentPeriodEnd: addUtcMonths(anchor, cycle === 'yearly' ? 12 : 1),
+});
+
+/** `YYYY-MM-DD` do Asaas, lido como meia-noite UTC. Qualquer outra coisa é ausência. */
+export const asaasDate = (value: string | null | undefined): Date | undefined =>
+  value && /^\d{4}-\d{2}-\d{2}$/.test(value) ? new Date(`${value}T00:00:00Z`) : undefined;
