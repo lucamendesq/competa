@@ -24,7 +24,8 @@ import {
   usePeriodsFeature,
   usePeriodDetailFeature,
 } from '@/features/periods/composables/usePeriodsFeature';
-import { useCompaniesFeature } from '@/features/companies/composables/useCompaniesFeature';
+import { getPeriodPreview } from '@/features/periods/api/periods';
+import { useQuery } from '@tanstack/vue-query';
 import { monthLabel, dateTimeBr, defaultReferenceMonth, MONTH_OPTIONS } from '@/utils/format';
 import { toast } from 'vue-sonner';
 import { apiErrorMessage } from '@/api/error';
@@ -100,24 +101,27 @@ const years = Array.from(
   (_, index) => Number(defaultReferenceMonth().slice(0, 4)) - 2 + index,
 );
 
-const activePage = ref(1);
-const activePerPage = ref(100);
-const { companiesQuery: activeCompaniesQuery } = useCompaniesFeature(
-  activePage,
-  activePerPage,
-  ref('true'),
-);
+/* A prévia é o fan-out de verdade rodado sem gravar: contar no navegador só via as 100
+ * primeiras Empresas e não sabia de checklist vazio no mês nem de item avulso. */
+const previewQuery = useQuery({
+  queryKey: computed(() => ['periodPreview', opening.value.referenceMonth]),
+  queryFn: () => getPeriodPreview(opening.value.referenceMonth),
+  enabled: computed(() => modalOpen.value && /^\d{4}-\d{2}$/.test(opening.value.referenceMonth)),
+});
 
 const preview = computed(() => {
-  const rows = activeCompaniesQuery.data.value?.data ?? [];
-  const withoutTemplate = rows.filter((row: any) => !row.checklistTemplateId);
-  const recipients = rows.filter((row: any) => row.contactCount > 0 && row.checklistTemplateId);
+  const data = previewQuery.data.value;
+  const recipients = (data?.requests ?? []).map((row) => ({
+    id: row.companyId,
+    name: row.companyName,
+  }));
   return {
     created: recipients.length,
     recipients,
     emailCount: recipients.length,
-    withoutContact: rows.filter((row: any) => row.contactCount === 0 && row.checklistTemplateId),
-    withoutTemplate,
+    withoutTemplate: (data?.skipped ?? [])
+      .filter((row) => row.blockedBy === 'template')
+      .map((row) => ({ id: row.companyId, name: row.companyName })),
   };
 });
 

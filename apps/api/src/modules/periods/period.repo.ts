@@ -195,6 +195,30 @@ const make = Effect.gen(function* () {
     });
   });
 
+  /** O que a abertura de `referenceMonth` criaria, sem gravar: a tela de abertura contava
+   *  só as 100 primeiras Empresas com template e Responsável, e o número divergia do
+   *  fan-out (checklist vazio no mês, Empresa sem template mas com item avulso). */
+  const previewOpening = Effect.fn('PeriodsRepo.previewOpening')(function* (
+    scope: FirmScope,
+    referenceMonth: string,
+  ) {
+    const { plans, warnings } = yield* planFor(scope, referenceMonth);
+    const planned = new Set(plans.map((plan) => plan.companyId));
+
+    return {
+      requests: plans.map((plan) => ({
+        companyId: plan.companyId,
+        companyName: plan.companyName,
+        contactName: plan.contactName,
+        itemCount: plan.items.length,
+      })),
+      /* Aviso de Empresa que fica de fora vs. aviso sobre quem entra (mais de um
+       * Responsável): a tela mostra os dois de um jeito diferente. */
+      skipped: warnings.filter((row) => !planned.has(row.companyId)),
+      notes: warnings.filter((row) => planned.has(row.companyId)),
+    };
+  });
+
   const openPeriod = Effect.fn('PeriodsRepo.openPeriod')(function* (
     scope: FirmScope,
     body: OpenPeriodBody,
@@ -622,6 +646,7 @@ const make = Effect.gen(function* () {
 
   return {
     openPeriod,
+    previewOpening,
     addMissingRequests,
     activeCompanies,
     openWithFanOut,

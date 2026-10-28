@@ -243,6 +243,41 @@ describe('POST /periods/:id/requests — Empresa que chegou depois da abertura',
   });
 });
 
+describe('GET /periods/preview — prévia da abertura', () => {
+  it('bate com o que a abertura cria e não grava nada', async () => {
+    const { api } = await registerFirm(app.url);
+    const [monthly, annual] = await documentTypeIds(api, 2);
+    const templateId = await createTemplate(api, [{ documentTypeId: monthly, dueDay: 5 }]);
+    const annualOnly = await createTemplate(api, [
+      { documentTypeId: annual, periodicity: 'annual', annualMonth: 3 },
+    ]);
+    await createCompany(api, {
+      name: 'Entra',
+      checklistTemplateId: templateId,
+      contact: contactBody('Eva'),
+    });
+    await createCompany(api, {
+      name: 'Só em março',
+      checklistTemplateId: annualOnly,
+      contact: contactBody('Mara'),
+    });
+    await createCompany(api, { name: 'Sem Responsável', checklistTemplateId: templateId });
+
+    const res = await api.get('/periods/preview?referenceMonth=2026-05');
+    expect(res.status, JSON.stringify(res.body)).toBe(200);
+    expect(res.body.data.requests).toEqual([
+      expect.objectContaining({ companyName: 'Entra', contactName: 'Eva', itemCount: 1 }),
+    ]);
+    expect(
+      res.body.data.skipped.map((row: { companyName: string }) => row.companyName).sort(),
+    ).toEqual(['Sem Responsável', 'Só em março']);
+    expect((await api.get('/periods')).body.meta.total, 'a prévia não abre nada').toBe(0);
+
+    const opened = await api.post('/periods', { referenceMonth: '2026-05' });
+    expect(opened.body.data.requests).toHaveLength(res.body.data.requests.length);
+  });
+});
+
 describe('listagem, detalhe e encerramento', () => {
   let api: Api;
   let periodId: string;

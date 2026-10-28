@@ -58,6 +58,16 @@ export const openPeriod = (body: { referenceMonth: string; dueDate?: string }) =
 export const addMissingRequests = (id: string) =>
   api.post<Pick<PeriodOpening, 'warnings' | 'requests'>>(`/periods/${id}/requests`);
 
+export type PeriodPreview = {
+  requests: { companyId: string; companyName: string; contactName: string; itemCount: number }[];
+  skipped: PeriodOpening['warnings'];
+  notes: PeriodOpening['warnings'];
+};
+
+/** O que abrir `referenceMonth` criaria, sem gravar: o mesmo fan-out da abertura. */
+export const getPeriodPreview = (referenceMonth: string) =>
+  api.get<PeriodPreview>(`/periods/preview?referenceMonth=${encodeURIComponent(referenceMonth)}`);
+
 export const closePeriod = (id: string) => api.post<PeriodClosing>(`/periods/${id}/close`);
 
 /** `busy`: outra varredura (o cron ou outro clique) já está cobrando esta Contabilidade. */

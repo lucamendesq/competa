@@ -1,4 +1,4 @@
-import { IdParam, OpenPeriodBody, PaginationQuery } from '@competa/contracts';
+import { IdParam, OpenPeriodBody, PaginationQuery, PeriodPreviewQuery } from '@competa/contracts';
 import { Effect, Layer } from 'effect';
 import { HttpServerRequest } from 'effect/http';
 import env from '../../config/env.js';
@@ -85,6 +85,21 @@ const addMissingRequests = route(
 
       const requests = yield* announce(added);
       return { warnings: added.warnings, requests };
+    }),
+  ),
+  { auth: firmRoute() },
+);
+
+const preview = route(
+  'GET',
+  '/periods/preview',
+  handler(
+    'GET',
+    Effect.gen(function* () {
+      const { scope } = yield* FirmContext;
+      const { referenceMonth } = yield* query(PeriodPreviewQuery);
+
+      return yield* PeriodsRepo.use((repo) => repo.previewOpening(scope, referenceMonth));
     }),
   ),
   { auth: firmRoute() },
@@ -203,6 +218,7 @@ const close = route(
 export const periodsRoutes = Layer.mergeAll(
   open,
   addMissingRequests,
+  preview,
   list,
   get,
   listRequests,

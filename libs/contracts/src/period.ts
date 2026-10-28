@@ -18,3 +18,7 @@ export const OpenPeriodBody = z
     message: 'O prazo não pode ser anterior ao mês da competência.',
   });
 export type OpenPeriodBody = z.infer<typeof OpenPeriodBody>;
+
+/** Prévia da abertura: o mesmo fan-out, sem gravar nada. */
+export const PeriodPreviewQuery = z.object({ referenceMonth: ReferenceMonth });
+export type PeriodPreviewQuery = z.infer<typeof PeriodPreviewQuery>;
