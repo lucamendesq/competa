@@ -2,7 +2,7 @@ import { eq } from 'drizzle-orm';
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 import { bootApp, type RunningApp } from './support/boot.js';
 import { db, truncateAll } from './support/db.js';
-import { subscription } from '../src/infra/database/schema/index.js';
+import { company, subscription } from '../src/infra/database/schema/index.js';
 import { apiClient, registerFirm, uniqueCnpj, uniqueIp, type Api } from './support/fixtures.js';
 
 /* Ambiente de teste SEM segredos Asaas: NODE_ENV=test escolhe o LogBilling (checkout vira
@@ -216,6 +216,30 @@ describe('CNPJ obrigatório no checkout', () => {
 
     const again = await api.post('/billing/checkout', { planName: 'profissional' });
     expect(again.status).toBe(201);
+  });
+});
+
+describe('descer de plano com mais Empresas ativas que a folga do plano novo', () => {
+  it('422 dizendo quantas desativar; plano e intenção ficam como estavam', async () => {
+    const { api } = await registerFirm(app.url);
+    const firmId = await firmIdOf(api);
+    await setSubscription(firmId, { status: 'ACTIVE', planName: 'profissional' });
+    await db.insert(company).values(
+      Array.from({ length: 40 }, (_, i) => ({
+        accountingFirmId: firmId,
+        name: `Carteira ${i}`,
+        active: true,
+      })),
+    );
+
+    const res = await api.post('/billing/checkout', { planName: 'essencial' });
+    expect(res.status, JSON.stringify(res.body)).toBe(422);
+    expect(res.body.error.message).toBe(
+      'O plano Essencial cobre até 36 empresas ativas e você tem 40. Desative 4 empresa(s) antes de mudar.',
+    );
+
+    const [row] = await subscriptionRows(firmId);
+    expect(row).toMatchObject({ planName: 'profissional', pendingPlanName: null });
   });
 });
 

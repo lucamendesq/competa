@@ -2,6 +2,7 @@ import {
   CheckoutBody,
   PLANS,
   planPrice,
+  planSoftCap,
   type BillingCycle,
   type PlanName,
 } from '@competa/contracts';
@@ -12,6 +13,7 @@ import { handler } from '../../http/envelope.js';
 import { firmRoute } from '../../http/middleware/auth.js';
 import { body, route } from '../../http/platform.js';
 import { AccountantsRepo } from '../auth/accountant.repo.js';
+import { CompaniesRepo } from '../companies/company.repo.js';
 import { OnlyOwnerCanManageTeam } from '../auth/errors.js';
 import { NotFound, ValidationError } from '../../lib/app-error.js';
 import { squashError } from '../../infra/database/error.js';
@@ -59,6 +61,18 @@ const checkout = route(
         return yield* Effect.fail(new ValidationError(message, [{ path: ['cnpj'], message }]));
       }
       if (!firm.cnpj) yield* AccountantsRepo.use((repo) => repo.updateFirm(scope, { cnpj }));
+
+      /* O teto só era conferido ao cadastrar ou ativar Empresa: descer de plano com mais
+       * ativas que a folga do plano novo deixava a firma pagando menos pela mesma carteira. */
+      const { companiesActive } = yield* CompaniesRepo.use((repo) => repo.usage(scope));
+      const targetSoftCap = planSoftCap(PLANS[input.planName].companyCap);
+      if (companiesActive > targetSoftCap) {
+        const excess = companiesActive - targetSoftCap;
+        const message =
+          `O plano ${PLANS[input.planName].label} cobre até ${targetSoftCap} empresas ativas e ` +
+          `você tem ${companiesActive}. Desative ${excess} empresa(s) antes de mudar.`;
+        return yield* Effect.fail(new ValidationError(message, [{ path: ['planName'], message }]));
+      }
 
       return yield* withFirmFlight(
         firm.id,
