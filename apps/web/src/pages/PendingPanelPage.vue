@@ -240,8 +240,9 @@ async function handleResendUploadLink(line: any) {
 
 async function resendReminders() {
   try {
-    await runRemindersMutation.mutateAsync();
-    toast.success('Varredura de lembretes disparada.');
+    const result = await runRemindersMutation.mutateAsync();
+    if (result.busy) toast.info('Já há uma cobrança em andamento. Confira em instantes.');
+    else toast.success('Varredura de lembretes disparada.');
     panelQuery.refetch();
   } catch (error) {
     toast.error(apiErrorMessage(error, 'Não foi possível disparar os lembretes.'));

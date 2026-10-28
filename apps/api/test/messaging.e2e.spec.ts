@@ -649,7 +649,7 @@ describe('POST /messages/reminders/run — cadência, teto e knobs', () => {
     const res = await fixture.firm.api.post('/messages/reminders/run');
 
     expect(res.status).toBe(201);
-    expect(res.body.data).toEqual({ scanned: 3, sent: 2 });
+    expect(res.body.data).toEqual({ scanned: 3, sent: 2, busy: false });
 
     /* A entrega é ESPERADA pela varredura, não disparada: a resposta só sai com a linha de
      * `message` gravada. É ela que a próxima varredura lê — soltar a lease antes deixava
@@ -671,7 +671,7 @@ describe('POST /messages/reminders/run — cadência, teto e knobs', () => {
   it('segunda varredura imediata respeita o gap mínimo', async () => {
     const res = await fixture.firm.api.post('/messages/reminders/run');
     expect(res.status).toBe(201);
-    expect(res.body.data).toEqual({ scanned: 3, sent: 0 });
+    expect(res.body.data).toEqual({ scanned: 3, sent: 0, busy: false });
     expect(await messageRowsOf(dueSoon.requestId, 'reminder')).toHaveLength(1);
   });
 
@@ -680,7 +680,7 @@ describe('POST /messages/reminders/run — cadência, teto e knobs', () => {
     await backdate(noDueDate.requestId);
 
     const res = await fixture.firm.api.post('/messages/reminders/run');
-    expect(res.body.data).toEqual({ scanned: 3, sent: 1 });
+    expect(res.body.data).toEqual({ scanned: 3, sent: 1, busy: false });
 
     await waitForMessageRows(dueSoon.requestId, 2, 'reminder');
     expect(await messageRowsOf(noDueDate.requestId, 'reminder')).toHaveLength(1);
@@ -690,7 +690,7 @@ describe('POST /messages/reminders/run — cadência, teto e knobs', () => {
     await backdate(dueSoon.requestId);
 
     const res = await fixture.firm.api.post('/messages/reminders/run');
-    expect(res.body.data).toEqual({ scanned: 3, sent: 0 });
+    expect(res.body.data).toEqual({ scanned: 3, sent: 0, busy: false });
     expect(await messageRowsOf(dueSoon.requestId, 'reminder')).toHaveLength(2);
   });
 
@@ -701,7 +701,7 @@ describe('POST /messages/reminders/run — cadência, teto e knobs', () => {
       .where(eq(accountingFirm.id, firmId));
 
     const res = await fixture.firm.api.post('/messages/reminders/run');
-    expect(res.body.data).toEqual({ scanned: 3, sent: 1 });
+    expect(res.body.data).toEqual({ scanned: 3, sent: 1, busy: false });
     await waitForMessageRows(dueFar.requestId, 1, 'reminder');
   });
 
@@ -713,7 +713,7 @@ describe('POST /messages/reminders/run — cadência, teto e knobs', () => {
     await backdate(dueFar.requestId);
 
     const res = await fixture.firm.api.post('/messages/reminders/run');
-    expect(res.body.data).toEqual({ scanned: 3, sent: 0 });
+    expect(res.body.data).toEqual({ scanned: 3, sent: 0, busy: false });
     expect(await messageRowsOf(dueFar.requestId, 'reminder')).toHaveLength(1);
   });
 });
@@ -734,14 +734,38 @@ describe('POST /messages/reminders/run — isolamento entre firmas (AUTHZ-2)', (
 
     const ranByA = await firmA.firm.api.post('/messages/reminders/run');
     expect(ranByA.status).toBe(201);
-    expect(ranByA.body.data).toEqual({ scanned: 1, sent: 1 });
+    expect(ranByA.body.data).toEqual({ scanned: 1, sent: 1, busy: false });
 
     await waitForMessageRows(firmA.boxes.Minha.requestId, 1, 'reminder');
     expect(await messageRowsOf(firmB.boxes.Alheia.requestId, 'reminder')).toHaveLength(0);
 
     const ranByB = await firmB.firm.api.post('/messages/reminders/run');
-    expect(ranByB.body.data).toEqual({ scanned: 1, sent: 1 });
+    expect(ranByB.body.data).toEqual({ scanned: 1, sent: 1, busy: false });
     await waitForMessageRows(firmB.boxes.Alheia.requestId, 1, 'reminder');
+  });
+});
+
+describe('POST /messages/reminders/run — dois cliques ao mesmo tempo', () => {
+  it('o mesmo lembrete sai uma vez só: a segunda varredura encontra a lease tomada', async () => {
+    const firm = await openFirmWithCompanies(['Duplo']);
+    const box = firm.boxes.Duplo;
+    await waitForMessageRows(box.requestId, 1, 'link_delivery');
+    await db
+      .update(requestItem)
+      .set({ dueDate: brazilDayPlus(1) })
+      .where(eq(requestItem.requestId, box.requestId));
+    await db.delete(message).where(eq(message.requestId, box.requestId));
+
+    const [first, second] = await Promise.all([
+      firm.firm.api.post('/messages/reminders/run'),
+      firm.firm.api.post('/messages/reminders/run'),
+    ]);
+    expect(first.status).toBe(201);
+    expect(second.status).toBe(201);
+    expect(first.body.data.sent + second.body.data.sent).toBe(1);
+
+    await app.drainEvents();
+    expect(await messageRowsOf(box.requestId, 'reminder')).toHaveLength(1);
   });
 });
 

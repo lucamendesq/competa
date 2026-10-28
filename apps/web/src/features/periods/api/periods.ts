@@ -60,7 +60,9 @@ export const addMissingRequests = (id: string) =>
 
 export const closePeriod = (id: string) => api.post<PeriodClosing>(`/periods/${id}/close`);
 
-export const runReminders = () => api.post<unknown>('/messages/reminders/run');
+/** `busy`: outra varredura (o cron ou outro clique) já está cobrando esta Contabilidade. */
+export const runReminders = () =>
+  api.post<{ scanned: number; sent: number; busy: boolean }>('/messages/reminders/run');
 
 export const downloadPeriodZip = (id: string, referenceMonth: string) =>
   api.download(`/periods/${id}/zip`, `competencia-${referenceMonth.slice(0, 7)}.zip`);
