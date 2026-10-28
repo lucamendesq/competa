@@ -168,7 +168,21 @@ const confirmRestart = ref(false);
 const inviting = ref(false);
 const invitesSent = ref<number | null>(null);
 
-async function ensureConfirmed(): Promise<string[]> {
+/* Os dois botões ("Enviar convites" e "Importar") confirmam a importação. Cada um só se
+ * desabilitava no próprio estado, e clicar nos dois disparava dois confirms: linha sem
+ * CNPJ não tem chave para o upsert e entrava duplicada. Agora a confirmação em curso é
+ * uma só, e os dois botões ficam desabilitados enquanto ela roda. */
+let confirmInFlight: Promise<string[]> | null = null;
+const busy = computed(() => confirming.value || inviting.value);
+
+function ensureConfirmed(): Promise<string[]> {
+  confirmInFlight ??= confirmOnce().finally(() => {
+    confirmInFlight = null;
+  });
+  return confirmInFlight;
+}
+
+async function confirmOnce(): Promise<string[]> {
   const already = confirmed.value;
   if (already) {
     return already.lines
@@ -289,7 +303,7 @@ function downloadTemplate() {
           <Button variant="outline" class="shadow-xs" @click="restart"
             >Importar outra planilha</Button
           >
-          <Button :disabled="confirming" class="shadow-xs font-medium" @click="finish">{{
+          <Button :disabled="busy" class="shadow-xs font-medium" @click="finish">{{
             finishLabel
           }}</Button>
         </div>
@@ -340,7 +354,7 @@ function downloadTemplate() {
           </p>
           <Button
             variant="outline"
-            :disabled="inviting"
+            :disabled="busy"
             class="shadow-xs font-medium"
             @click="doSendInvites"
           >
