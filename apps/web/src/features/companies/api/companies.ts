@@ -135,8 +135,19 @@ export const saveOverride = (companyId: string, body: CreateOverrideBody) =>
 export const removerOverride = (companyId: string, documentTypeId: string) =>
   api.delete<void>(`/companies/${companyId}/checklist-overrides/${documentTypeId}`);
 
+export type AccessInviteResult = {
+  companyId: string;
+  companyName?: string;
+  email?: string;
+  status: 'invited' | 'skipped' | 'error';
+  reason?: string;
+};
+
 export const sendAccessInvites = (companyIds: string[]) =>
-  api.post<{ invited: number; skipped: number }>('/companies/access-invites', { companyIds });
+  api.post<{ invited: number; skipped: number; results: AccessInviteResult[] }>(
+    '/companies/access-invites',
+    { companyIds },
+  );
 
 export const applyTemplate = (companyIds: string[], checklistTemplateId: string) =>
   api.post<{ updated: number }>('/companies/apply-template', { companyIds, checklistTemplateId });
