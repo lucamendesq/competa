@@ -1,6 +1,7 @@
 import * as z from 'zod';
+import { newPassword } from './common.js';
 
 export const SetPasswordBody = z.object({
-  password: z.string().min(8, 'Use pelo menos 8 caracteres.'),
+  password: newPassword('Use pelo menos 8 caracteres.'),
 });
 export type SetPasswordBody = z.infer<typeof SetPasswordBody>;

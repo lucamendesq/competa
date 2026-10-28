@@ -1,5 +1,5 @@
 import * as z from 'zod';
-import { email, optionalText } from './common.js';
+import { email, newPassword, optionalText } from './common.js';
 
 export const CreateInviteBody = z.object({ email: email() });
 export type CreateInviteBody = z.infer<typeof CreateInviteBody>;
@@ -11,7 +11,7 @@ export const SignUpBody = z.object({
     .min(1, 'Informe seu nome.')
     .max(255, 'O nome deve ter no máximo 255 caracteres.'),
   email: email('Informe um e-mail válido.'),
-  password: z.string().min(8, 'A senha precisa de pelo menos 8 caracteres.'),
+  password: newPassword('A senha precisa de pelo menos 8 caracteres.'),
   token: z.string().min(1, 'Token do convite é obrigatório.'),
 });
 export type SignUpBody = z.infer<typeof SignUpBody>;
@@ -25,7 +25,7 @@ export type InviteTokenParam = z.infer<typeof InviteTokenParam>;
  *  mandá-lo no corpo só abriria espaço para divergir do que foi convidado. */
 export const AcceptContactInviteBody = z.object({
   name: optionalText(255),
-  password: z.string().min(8, 'A senha precisa de pelo menos 8 caracteres.'),
+  password: newPassword('A senha precisa de pelo menos 8 caracteres.'),
 });
 export type AcceptContactInviteBody = z.infer<typeof AcceptContactInviteBody>;
 

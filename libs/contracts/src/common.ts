@@ -23,6 +23,11 @@ export const optionalText = (max = 200) =>
 export const email = (message = 'E-mail inválido.') =>
   z.string().trim().toLowerCase().regex(z.regexes.html5Email, message);
 
+/** Senha de conta nova. O teto é o `maxPasswordLength` padrão do Better Auth: acima dele a
+ *  recusa vinha de lá, depois de o resto do cadastro já ter rodado. */
+export const newPassword = (minMessage: string) =>
+  z.string().min(8, minMessage).max(128, 'A senha pode ter no máximo 128 caracteres.');
+
 /* Nome que vai parar em assunto/corpo de email, em nome de arquivo dentro do zip e em
  * tela: quebra de linha é injeção de cabeçalho (OPS/SEC), caractere de controle corrompe
  * o nome no storage, e `<`, `>` e `"` só aparecem em tentativa de marcação. É bloqueio,

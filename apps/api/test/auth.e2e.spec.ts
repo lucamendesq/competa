@@ -240,6 +240,27 @@ describe('cadastro público de Contabilidade (POST /auth/register e alias /publi
     expect(blank.status, 'vazio vale como ausente').toBe(201);
   });
 
+  it('e-mail já cadastrado → 422 SIGNUP_REJECTED, sem segunda firma', async () => {
+    const email = uniqueEmail('repetido');
+    const body = { firmName: 'Primeira', userName: 'Dona', email, password: PASSWORD };
+    expect((await apiClient(app.url).post('/auth/register', body)).status).toBe(201);
+
+    const again = await apiClient(app.url).post('/auth/register', { ...body, firmName: 'Segunda' });
+    expect(again.status, JSON.stringify(again.body)).toBe(422);
+    expect(again.body.error.code).toBe('SIGNUP_REJECTED');
+  });
+
+  it('senha acima de 128 caracteres → 422 no campo, não 500', async () => {
+    const res = await apiClient(app.url).post('/public-signup', {
+      firmName: 'Senha Longa',
+      userName: 'Dona',
+      email: uniqueEmail('senha-longa'),
+      password: 'a'.repeat(500),
+    });
+    expect(res.status, JSON.stringify(res.body)).toBe(422);
+    expect(res.body.error.code).toBe('VALIDATION_ERROR');
+  });
+
   it('o alias /public-signup provisiona do mesmo jeito', async () => {
     const email = uniqueEmail('alias');
     const res = await apiClient(app.url).post('/public-signup', {
@@ -586,12 +607,10 @@ describe('convite de Contador (POST /invites, GET /invites/:token, POST /auth/si
     expect(res.body.error.code).toBe('ONLY_OWNER_CAN_INVITE');
   });
 
-  /* Bug congelado: o branch 409 EMAIL_ALREADY_REGISTERED do sign-up é código morto. Com
-   * `asResponse: true` o better-auth devolve o erro de duplicidade como Response 4xx (não
-   * lança), o adapter embrulha em success com userId VAZIO e o insert de accountant estoura
-   * no Postgres (`invalid input syntax for type uuid: ""`) → 500 INTERNAL_ERROR. O rollback
-   * da transação ao menos preserva o convite (não queima). */
-  it('bug congelado: email convidado que ganhou conta no meio do caminho → 500, sem queimar', async () => {
+  /* Com `asResponse: true` o better-auth devolve a duplicidade como Response 4xx, sem lançar.
+   * O adapter tratava isso como sucesso com userId vazio e o insert estourava em 500; agora
+   * vira APIError e cai no 409 EMAIL_ALREADY_REGISTERED. O convite não é queimado. */
+  it('email convidado que ganhou conta no meio do caminho → 409, sem queimar o convite', async () => {
     const lateEmail = uniqueEmail('atrasada');
     const invited = await firm.api.post('/invites', { email: lateEmail });
     expect(invited.status).toBe(201);
@@ -611,8 +630,8 @@ describe('convite de Contador (POST /invites, GET /invites/:token, POST /auth/si
       email: lateEmail,
       password: PASSWORD,
     });
-    expect(res.status).toBe(500);
-    expect(res.body.error.code).toBe('INTERNAL_ERROR');
+    expect(res.status, JSON.stringify(res.body)).toBe(409);
+    expect(res.body.error.code).toBe('EMAIL_ALREADY_REGISTERED');
     expect((await inviteRowByToken(token)).acceptedAt).toBeNull();
 
     const accounts = await db

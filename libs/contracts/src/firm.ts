@@ -1,5 +1,5 @@
 import * as z from 'zod';
-import { email, plainName } from './common.js';
+import { email, newPassword, plainName } from './common.js';
 import { Cnpj } from './company.js';
 
 /** Campo de texto opcional: vazio chega como `''` e vale como ausente. */
@@ -50,7 +50,7 @@ export const PublicSignUpBody = z.object({
   firmName: z.string().trim().min(1, 'Nome da contabilidade é obrigatório.'),
   userName: z.string().trim().min(1, 'Seu nome é obrigatório.'),
   email: email(),
-  password: z.string().min(8, 'A senha precisa ter no mínimo 8 caracteres.'),
+  password: newPassword('A senha precisa ter no mínimo 8 caracteres.'),
   cnpj: optionalCnpj,
 });
 export type PublicSignUpBody = z.infer<typeof PublicSignUpBody>;
