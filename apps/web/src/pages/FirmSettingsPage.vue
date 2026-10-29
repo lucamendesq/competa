@@ -1,7 +1,7 @@
 <script setup lang="ts">
 import { computed, ref, watch } from 'vue';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/vue-query';
-import { UpdateFirmBody } from '@competa/contracts';
+import { DEFAULT_REMINDER_SETTINGS, UpdateFirmBody } from '@competa/contracts';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
@@ -34,6 +34,17 @@ const draft = ref({
   reminderGapDays: 3,
 });
 
+/* Sem a capability o cron ignora o que está gravado (as colunas sobrevivem ao downgrade para
+ * o re-upgrade restaurá-las); a tela mostra o que vale, não o que está guardado. */
+const remindersInEffect = (loaded: NonNullable<typeof firmQuery.data.value>) =>
+  canTuneReminders.value
+    ? {
+        reminderMax: loaded.reminderMax,
+        reminderDueSoonDays: loaded.reminderDueSoonDays,
+        reminderGapDays: loaded.reminderGapDays,
+      }
+    : { ...DEFAULT_REMINDER_SETTINGS };
+
 watch(
   () => firmQuery.data.value,
   (loaded) => {
@@ -43,9 +54,7 @@ watch(
       contactEmail: loaded.contactEmail ?? '',
       cnpj: loaded.cnpj ?? '',
       logoUrl: loaded.logoUrl ?? '',
-      reminderMax: loaded.reminderMax,
-      reminderDueSoonDays: loaded.reminderDueSoonDays,
-      reminderGapDays: loaded.reminderGapDays,
+      ...remindersInEffect(loaded),
     };
   },
   { immediate: true },
@@ -86,9 +95,23 @@ async function save() {
     return;
   }
 
+  /* Só o que esta janela mudou: com outra aba aberta, reenviar o rascunho inteiro desfazia
+   * em silêncio o que a outra acabou de salvar. */
+  const loaded = firmQuery.data.value;
+  const changed = Object.fromEntries(
+    Object.entries(parsed.data).filter(
+      ([key, value]) => !loaded || (loaded[key as keyof typeof loaded] ?? null) !== value,
+    ),
+  ) as UpdateFirmBody;
+
+  if (Object.keys(changed).length === 0) {
+    toast.success('Nada para salvar.');
+    return;
+  }
+
   saving.value = true;
   try {
-    await saveMutation.mutateAsync(parsed.data);
+    await saveMutation.mutateAsync(changed);
     toast.success('Configurações salvas.');
     await auth.reloadAccountant();
   } catch (error) {

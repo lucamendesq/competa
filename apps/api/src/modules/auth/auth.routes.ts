@@ -35,7 +35,7 @@ const signUp = route(
       }
 
       const { accountingFirmId } = found;
-      if (!accountingFirmId) return yield* Effect.fail(new InviteTargetUnsupported());
+      if (!accountingFirmId) return yield* Effect.fail(new InviteTargetUnsupported('contact'));
 
       const created = yield* Effect.promise(() =>
         auth.signUpEmail({ name: input.name, email: input.email, password: input.password }),

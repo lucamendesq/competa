@@ -1,5 +1,5 @@
 import { layer } from '@effect/vitest';
-import { Effect } from 'effect';
+import { Cause, Effect, Exit } from 'effect';
 import { mkdir, writeFile } from 'node:fs/promises';
 import { dirname, join, resolve } from 'node:path';
 import { eq, inArray } from 'drizzle-orm';
@@ -265,6 +265,43 @@ layer(DocumentsRepo.layer)('DocumentsRepo', (it) => {
       expect(rows[0]).toMatchObject({ uploadStatus: 'uploaded', sizeBytes: content.length });
       expect(rows[0].checksum).toBeTruthy();
       expect(yield* itemStatus(box.itemId)).toBe('submitted');
+    }),
+  );
+
+  it.effect('confirm: o mesmo documento em paralelo confirma uma vez só; o outro é 404', () =>
+    Effect.gen(function* () {
+      const repo = yield* DocumentsRepo;
+      const box = yield* openBox('confirmparalelo');
+      const content = pdf(`paralelo ${box.tag}`);
+
+      const presigned = yield* repo.presign(box.scope, {
+        requestItemId: box.itemId,
+        files: [
+          { fileName: 'nota.pdf', contentType: 'application/pdf', sizeBytes: content.length },
+        ],
+      });
+      const documentId = presigned.files[0].documentId!;
+      yield* putFile(yield* storageKeyOf(documentId), content);
+
+      const [first, second] = yield* Effect.all(
+        [
+          Effect.exit(repo.confirm(box.scope, [documentId])),
+          Effect.exit(repo.confirm(box.scope, [documentId])),
+        ],
+        { concurrency: 'unbounded' },
+      );
+
+      const outcomes = [first, second].map((exit) =>
+        Exit.isSuccess(exit) ? exit.value.confirmed : 'falhou',
+      );
+      expect(outcomes.sort()).toEqual([1, 'falhou']);
+      const failed = [first, second].find(Exit.isFailure)!;
+      expect(Cause.squash(failed.cause)).toBeInstanceOf(NotFound);
+
+      const rows = yield* documentRows(box.requestId);
+      expect(rows).toEqual([
+        expect.objectContaining({ uploadStatus: 'uploaded', sizeBytes: content.length }),
+      ]);
     }),
   );
 

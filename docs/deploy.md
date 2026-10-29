@@ -122,7 +122,7 @@ Antes de o primeiro Responsável receber um Link de Upload:
      min_machines_running = 1
    ```
 
-   Custo: ~US$2/mês (1 × `shared-cpu-1x` 256MB em `gru`). Também elimina o cold start
+   Custo: ~US$3/mês (1 × `shared-cpu-1x` 512MB em `gru`, declarado em `[[vm]]` nos dois `fly*.toml`: com o default de 256MB o hash de senha de logins em paralelo levava o processo ao OOM kill). Também elimina o cold start
    do NestJS na primeira requisição do dia — que hoje cairia justamente em cima do
    Responsável clicando no link do email.
 

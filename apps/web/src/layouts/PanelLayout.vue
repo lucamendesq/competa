@@ -13,6 +13,7 @@ import {
 } from 'lucide-vue-next';
 import { useAuthStore } from '../stores/auth';
 import Logo from '../components/Logo.vue';
+import Callout from '../components/Callout.vue';
 
 const auth = useAuthStore();
 const router = useRouter();
@@ -159,16 +160,18 @@ async function sair() {
     </nav>
 
     <main id="conteudo" class="min-w-0 flex-1 flex flex-col">
-      <div
-        v-if="auth.isOverdue"
-        class="bg-destructive/10 text-destructive border-b border-destructive/20 px-4 py-3 text-sm text-center font-medium"
-      >
-        Sua assinatura está pendente e o acesso de escrita foi bloqueado.
-        <RouterLink to="/configuracoes/plano" class="underline underline-offset-2 ml-1"
-          >Regularizar agora</RouterLink
-        >.
-      </div>
       <div class="mx-auto flex max-w-[1600px] flex-col gap-6 w-full p-4 sm:p-6">
+        <Callout v-if="auth.isOverdue" tone="danger" heading="Sua assinatura está pendente">
+          <p>O acesso de escrita foi bloqueado até a regularização.</p>
+          <template #actions>
+            <RouterLink
+              to="/configuracoes/plano"
+              class="self-center rounded-md border border-danger-border px-3 py-1.5 text-sm font-semibold whitespace-nowrap underline-offset-2 hover:underline focus-visible:ring-2 focus-visible:ring-ring focus-visible:outline-none"
+            >
+              Regularizar agora
+            </RouterLink>
+          </template>
+        </Callout>
         <RouterView />
       </div>
     </main>

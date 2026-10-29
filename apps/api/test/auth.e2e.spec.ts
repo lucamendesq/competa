@@ -675,7 +675,10 @@ describe('convite de Contador (POST /invites, GET /invites/:token, POST /auth/si
       password: PASSWORD,
     });
     expect(res.status).toBe(422);
-    expect(res.body.error.code).toBe('INVITE_TARGET_UNSUPPORTED');
+    expect(res.body.error).toEqual({
+      code: 'INVITE_TARGET_UNSUPPORTED',
+      message: 'Este convite é de Responsável: aceite em POST /invites/:token/contact-account.',
+    });
   });
 
   it('token desconhecido → 404 e expirado → 410, no sign-up e no preview', async () => {

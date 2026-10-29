@@ -24,7 +24,7 @@ import {
   useChecklistsFeature,
   useTemplateDetailFeature,
 } from '@/features/checklists/composables/useChecklistsFeature';
-import { useSettingsStore } from '@/stores/settings';
+import { useAccountants } from '@/features/team/composables/useAccountants';
 import { toast } from 'vue-sonner';
 import { apiErrorMessage, apiFieldErrors } from '@/api/error';
 import { CATEGORY_LABEL, FLAG_LABEL, PERIODICITY_LABEL } from '@/utils/format';
@@ -41,8 +41,8 @@ const {
   removeContactMutation,
 } = useCompanyDetailFeature(computed(() => props.id));
 const { templatesQuery } = useChecklistsFeature();
-const settingsStore = useSettingsStore();
-const teamAccountants = computed(() => settingsStore.accountants);
+const accountantsQuery = useAccountants();
+const teamAccountants = computed(() => accountantsQuery.data.value ?? []);
 
 /* Flags e categorias vêm do contrato: a lista local editava flags que a API descartava em
  * silêncio e nunca deixava ligar cartão/estoque, então esses itens não entravam no fan-out. */

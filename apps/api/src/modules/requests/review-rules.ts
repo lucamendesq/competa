@@ -70,7 +70,8 @@ export const undoAcceptRefusal = (input: {
 
 /** Só Item obrigatório segura o `complete`: `required` existia no template e nos overrides
  *  mas era descartado na abertura, e um Item marcado como opcional bloqueava o fechamento
- *  igual a um obrigatório. */
+ *  igual a um obrigatório. Sem obrigatório, completa quando todos os opcionais estão aceitos
+ *  (D20): o Responsável entregou tudo o que foi pedido e merece o email de conclusão. */
 export const requestStatusAfterReview = (
   current: RequestStatus,
   items: { status: ItemStatus; required: boolean }[],
@@ -78,7 +79,8 @@ export const requestStatusAfterReview = (
   if (current === 'closed') return 'closed';
 
   const required = items.filter((item) => item.required);
-  const allAccepted = required.length > 0 && required.every((item) => item.status === 'accepted');
+  const gating = required.length > 0 ? required : items;
+  const allAccepted = gating.length > 0 && gating.every((item) => item.status === 'accepted');
 
   return allAccepted ? 'complete' : 'open';
 };

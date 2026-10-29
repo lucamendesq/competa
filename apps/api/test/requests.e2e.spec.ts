@@ -1066,7 +1066,7 @@ describe('item opcional não segura o complete', () => {
     expect(undone.body.data.requestStatus).toBe('open');
   });
 
-  it('checklist só de opcionais nunca completa (regra congelada)', async () => {
+  it('checklist só de opcionais completa quando todos estão aceitos (D20)', async () => {
     const fixture = await openFirm(['SoOpcional'], () => [
       { documentTypeId: docTypeId('Notas fiscais emitidas'), dueDay: 5, required: false },
     ]);
@@ -1080,7 +1080,7 @@ describe('item opcional não segura o complete', () => {
     );
     const accepted = await fixture.firm.api.post(`/request-items/${detail.items[0].id}/accept`);
     expect(accepted.status).toBe(201);
-    expect(accepted.body.data).toMatchObject({ requestStatus: 'open', completed: false });
+    expect(accepted.body.data).toMatchObject({ requestStatus: 'complete', completed: true });
   });
 });
 
@@ -1857,5 +1857,33 @@ describe('prazos estourados — POST /deadlines/scan e o cron diário', () => {
     await app.runDeadlineSweep();
 
     expect(await messagesFor(swept.boxes.Cron.requestId, 'deadline_missed')).toHaveLength(2);
+  });
+});
+
+describe('POST /deadlines/scan em paralelo', () => {
+  it('uma varredura avisa e a outra recebe 409, sem aviso em dobro', async () => {
+    const opened = await openFirm(['Paralela']);
+    const detail = await requestDetail(opened.firm.api, opened.boxes.Paralela.requestId);
+    await db
+      .update(requestItem)
+      .set({ dueDate: '2000-01-01' })
+      .where(eq(requestItem.id, detail.items[0].id));
+
+    const results = await Promise.all([
+      opened.firm.api.post('/deadlines/scan'),
+      opened.firm.api.post('/deadlines/scan'),
+    ]);
+
+    /* Quem chega com a outra em voo leva 409; quem chega depois dela já acha o item
+     * carimbado. Nos dois casos o aviso sai uma vez só. */
+    const notified = results.flatMap((res) => (res.status === 201 ? res.body.data.notified : []));
+    expect(notified).toHaveLength(1);
+    for (const res of results.filter((res) => res.status !== 201)) {
+      expect(res.status).toBe(409);
+      expect(res.body.error.code).toBe('DEADLINE_SCAN_IN_FLIGHT');
+    }
+
+    const again = await opened.firm.api.post('/deadlines/scan');
+    expect(again.body.data).toMatchObject({ alreadyNotified: 1, notified: [] });
   });
 });

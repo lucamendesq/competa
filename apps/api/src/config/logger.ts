@@ -2,6 +2,11 @@ import type { IncomingMessage, ServerResponse } from 'node:http';
 import type { Options } from 'pino-http';
 import env from './env.js';
 
+/* O token do Link de Upload e o do convite SÃO a credencial: quem lê a URL no log envia
+ * documentos em nome do Responsável. Toda saída de `req.url` passa por aqui. */
+export const maskPathTokens = (url: string | undefined): string | undefined =>
+  url?.replace(/^\/(upload|invites)\/[^/?#]+/, '/$1/[token]');
+
 type RequestWithScope = IncomingMessage & {
   firmScope?: string;
   accountantId?: string;
@@ -24,6 +29,9 @@ export const pinoOptions: { pinoHttp: Options } = {
       ],
       censor: '[redacted]',
     },
+    serializers: {
+      req: (req: { url?: string }) => ({ ...req, url: maskPathTokens(req.url) }),
+    },
     customProps: (req: IncomingMessage) => {
       const r = req as RequestWithScope;
       return {
@@ -32,9 +40,9 @@ export const pinoOptions: { pinoHttp: Options } = {
       };
     },
     customSuccessMessage: (req: IncomingMessage, res: ServerResponse, responseTime: number) =>
-      `${req.method} ${req.url} ${res.statusCode} (${responseTime}ms)`,
+      `${req.method} ${maskPathTokens(req.url)} ${res.statusCode} (${responseTime}ms)`,
     customErrorMessage: (req: IncomingMessage, res: ServerResponse) =>
-      `${req.method} ${req.url} ${res.statusCode}`,
+      `${req.method} ${maskPathTokens(req.url)} ${res.statusCode}`,
     genReqId: (req) => req.headers['x-request-id'] ?? crypto.randomUUID(),
     ...(env.NODE_ENV !== 'production' && {
       transport: {

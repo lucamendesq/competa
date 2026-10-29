@@ -168,14 +168,18 @@ async function send(files: File[], requestItemId: string | null) {
     <header
       class="bg-white border-b border-border w-full px-4 py-3 flex items-center justify-between sm:px-6"
     >
-      <img
-        v-if="firmLogoUrl && !logoBroken"
-        :src="firmLogoUrl"
-        :alt="checklistQuery.data.value?.accountingFirm"
-        class="h-6 w-auto max-w-[160px] object-contain"
-        referrerpolicy="no-referrer"
-        @error="logoBroken = true"
-      />
+      <div v-if="firmLogoUrl && !logoBroken" class="flex min-w-0 items-center gap-2">
+        <img
+          :src="firmLogoUrl"
+          alt=""
+          class="h-6 w-auto max-w-[120px] shrink-0 object-contain"
+          referrerpolicy="no-referrer"
+          @error="logoBroken = true"
+        />
+        <span class="truncate text-sm font-semibold text-foreground">
+          {{ checklistQuery.data.value?.accountingFirm }}
+        </span>
+      </div>
       <Logo v-else variant="icon" surface="auto" class="h-6" />
       <InstallButton variant="card" />
     </header>

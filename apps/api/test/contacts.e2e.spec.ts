@@ -550,7 +550,10 @@ describe('aceite de convite de Responsável (POST /invites/:token/contact-accoun
     const token = await mintInvite({ accountingFirmId }, contactBody().email);
     const res = await acceptInvite(token, { password: PASSWORD });
     expect(res.status).toBe(422);
-    expect(res.body.error.code).toBe('INVITE_TARGET_UNSUPPORTED');
+    expect(res.body.error).toEqual({
+      code: 'INVITE_TARGET_UNSUPPORTED',
+      message: 'Este convite é de Contador: aceite em POST /auth/sign-up.',
+    });
   });
 
   it('email do convite sem Responsável na Empresa → 404 sem queimar o convite', async () => {
