@@ -25,7 +25,14 @@ import PageHeader from '@/components/PageHeader.vue';
 import ErrorState from '@/components/ErrorState.vue';
 import LoadingRows from '@/components/LoadingRows.vue';
 import Modal from '@/components/Modal.vue';
-import Pagination from '@/components/ui/pagination/Pagination.vue';
+import {
+  Pagination,
+  PaginationContent,
+  PaginationEllipsis,
+  PaginationItem,
+  PaginationNext,
+  PaginationPrevious,
+} from '@/components/ui/pagination';
 import StatusPill from '@/components/StatusPill.vue';
 import EmptyState from '@/components/ui/empty/EmptyState.vue';
 import PlanCapBanner from '@/components/PlanCapBanner.vue';
@@ -48,6 +55,9 @@ watch(search, (val) => {
   timer = setTimeout(() => {
     debouncedSearch.value = val;
   }, 300);
+});
+watch([active, debouncedSearch], () => {
+  page.value = 1;
 });
 
 const queryClient = useQueryClient();
@@ -492,7 +502,31 @@ async function applyTemplateToSelected() {
           </Table>
         </div>
 
-        <Pagination v-model:page="page" :total="meta.total" :items-per-page="perPage" />
+        <Pagination
+          v-if="meta.total > perPage"
+          v-slot="{ page: current }"
+          v-model:page="page"
+          :total="meta.total"
+          :items-per-page="perPage"
+          :sibling-count="1"
+          show-edges
+          class="mt-4"
+        >
+          <PaginationContent v-slot="{ items }">
+            <PaginationPrevious />
+            <template v-for="(item, index) in items" :key="index">
+              <PaginationItem
+                v-if="item.type === 'page'"
+                :value="item.value"
+                :is-active="item.value === current"
+              >
+                {{ item.value }}
+              </PaginationItem>
+              <PaginationEllipsis v-else :index="index" />
+            </template>
+            <PaginationNext />
+          </PaginationContent>
+        </Pagination>
       </div>
     </template>
   </section>
