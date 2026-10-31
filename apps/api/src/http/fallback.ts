@@ -2,6 +2,7 @@ import type { IncomingMessage, ServerResponse } from 'node:http';
 import { NodeHttpServerRequest } from '@effect/platform-node';
 import { Effect } from 'effect';
 import { HttpMethod, HttpRouter, HttpServerRequest, HttpServerResponse } from 'effect/http';
+import { InvalidUploadLink } from '../modules/auth/errors.js';
 import { JSON_UTF8, applyEtag } from './envelope.js';
 import { runGlobalStack } from './platform.js';
 
@@ -23,10 +24,16 @@ const fallback = (request: HttpServerRequest.HttpServerRequest) =>
     const proceed = yield* Effect.promise(() => runGlobalStack(nodeRequest, nodeResponse));
     if (!proceed) return HttpServerResponse.empty();
 
+    /* Token acima do `maxParamLength` do roteador não casa `/upload/:token` e chega aqui; a
+     * resposta tem de ser a mesma do token inválido, senão o tamanho vira um oráculo. */
+    const error = nodeRequest.url?.startsWith('/upload/')
+      ? new InvalidUploadLink()
+      : { code: 'NOT_FOUND', message: 'Recurso não encontrado.' };
+
     return applyEtag(
       yield* HttpServerRequest.HttpServerRequest,
       HttpServerResponse.jsonUnsafe(
-        { error: { code: 'NOT_FOUND', message: 'Recurso não encontrado.' } },
+        { error: { code: error.code, message: error.message } },
         { status: 404, contentType: JSON_UTF8 },
       ),
     );

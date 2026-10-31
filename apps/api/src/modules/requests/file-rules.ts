@@ -184,7 +184,8 @@ export const isFormatCompatible = (
   if (normalized === 'xls') return detectedExt === 'cfb' || detectedExt === 'xls';
 
   if (['csv', 'xml', 'ofx'].includes(normalized)) {
-    if (detectedExt !== undefined) return false;
+    const sniffedAs = normalized === 'xml' ? [undefined, 'xml'] : [undefined];
+    if (!sniffedAs.includes(detectedExt)) return false;
     if (firstChunk && firstChunk.includes(0)) return false;
     return true;
   }

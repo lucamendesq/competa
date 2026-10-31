@@ -489,6 +489,30 @@ async function goToCheckout(planName: string) {
         </div>
       </section>
 
+      <div class="mt-8 grid gap-4 md:grid-cols-2">
+        <section class="border-border rounded-xl border p-4">
+          <h3 class="text-foreground text-sm font-semibold">Contadores ilimitados, de verdade</h3>
+          <p class="text-muted-foreground mt-1 text-sm">
+            Toda suíte cobra por usuário. Um escritório de 4 pessoas paga cerca de R$200/mês no Omie
+            G-Click <strong class="text-foreground">só em assentos</strong>. Aqui, a 5ª pessoa da
+            equipe custa R$0, em qualquer plano.
+          </p>
+        </section>
+        <section class="border-border rounded-xl border p-4">
+          <h3 class="text-foreground text-sm font-semibold">
+            {{ brl(PLANS.profissional.priceMonthly / PLANS.profissional.companyCap) }} por cliente
+          </h3>
+          <p class="text-muted-foreground mt-1 text-sm">
+            No Profissional, {{ brl(PLANS.profissional.priceMonthly) }} dividido por
+            {{ PLANS.profissional.companyCap }} empresas dá
+            <strong class="text-foreground"
+              >{{ brl(PLANS.profissional.priceMonthly / PLANS.profissional.companyCap) }} por
+              empresa/mês</strong
+            >, contra um honorário de R$300 a R$500 que você cobra de cada uma.
+          </p>
+        </section>
+      </div>
+
       <Callout tone="warning" heading="O WhatsApp é cobrado pela Meta, não por nós" class="mt-8">
         A integração é no seu próprio número: você conecta sua conta oficial e a
         <strong>Meta cobra você direto</strong>, sem intermediário nem margem nossa. No uso típico

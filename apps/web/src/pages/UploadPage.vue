@@ -27,6 +27,7 @@ import { displayItemStatus, needsResend } from '@/utils/item-status';
 import { isOverdue } from '@/utils/format';
 import { toast } from 'vue-sonner';
 import { ApiError, apiErrorCode, apiErrorMessage, failureKind } from '@/api/error';
+import TermsConsent from '@/components/TermsConsent.vue';
 
 const route = useRoute();
 const token = computed(() => route.params.linkToken as string);
@@ -168,14 +169,18 @@ async function send(files: File[], requestItemId: string | null) {
     <header
       class="bg-white border-b border-border w-full px-4 py-3 flex items-center justify-between sm:px-6"
     >
-      <img
-        v-if="firmLogoUrl && !logoBroken"
-        :src="firmLogoUrl"
-        :alt="checklistQuery.data.value?.accountingFirm"
-        class="h-6 w-auto max-w-[160px] object-contain"
-        referrerpolicy="no-referrer"
-        @error="logoBroken = true"
-      />
+      <div v-if="firmLogoUrl && !logoBroken" class="flex min-w-0 items-center gap-2">
+        <img
+          :src="firmLogoUrl"
+          alt=""
+          class="h-6 w-auto max-w-[120px] shrink-0 object-contain"
+          referrerpolicy="no-referrer"
+          @error="logoBroken = true"
+        />
+        <span class="truncate text-sm font-semibold text-foreground">
+          {{ checklistQuery.data.value?.accountingFirm }}
+        </span>
+      </div>
       <Logo v-else variant="icon" surface="auto" class="h-6" />
       <InstallButton variant="card" />
     </header>
@@ -303,6 +308,7 @@ async function send(files: File[], requestItemId: string | null) {
                 Mandamos um link de acesso para o seu email e você acompanha pendências e histórico
                 na sua área exclusiva.
               </p>
+              <TermsConsent action="Ao criar seu acesso" class="mt-1.5" />
             </div>
           </div>
           <Button
@@ -361,6 +367,11 @@ async function send(files: File[], requestItemId: string | null) {
                   </Button>
                 </template>
               </div>
+              <TermsConsent
+                v-if="!accessEmailSent && !accountExists"
+                action="Ao criar seu acesso"
+                class="mt-3"
+              />
             </template>
           </div>
         </div>

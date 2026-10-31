@@ -1,6 +1,7 @@
 import type { IncomingHttpHeaders } from 'node:http';
 import { APIError } from 'better-auth/api';
 import { fromNodeHeaders } from 'better-auth/node';
+import env from '../../config/env.js';
 import auth from './better-auth.js';
 import { AuthProvider, AuthSession, SignUpEmailInput } from '../../modules/auth/auth-provider.js';
 import { failure, isFailure, Result, success, tryCatchAsync } from '../../lib/either.js';
@@ -59,7 +60,10 @@ export class BetterAuthAdapter implements AuthProvider {
   }
 
   async sendSignInLink(email: string) {
-    await auth.api.signInMagicLink({ body: { email }, headers: new Headers() });
+    await auth.api.signInMagicLink({
+      body: { email, callbackURL: `${env.WEB_URL}/minha-area/pendencias` },
+      headers: new Headers(),
+    });
   }
 
   async setPassword(headers: IncomingHttpHeaders, newPassword: string) {

@@ -249,7 +249,7 @@ Regras de leitura:
 | TASK-052 | Exportação e exclusão a pedido do titular (arts. 18 IV/VI): runbook manual + SQL, incluindo `contact` e `push_subscription` | —       | —             | `docs/retention.md` ganha a seção "pedido do titular" com prazo de 15 dias |
 | TASK-053 | Registro das operações de tratamento (art. 37): inventário dado→finalidade→destino                                          | —       | —             | `docs/lgpd-registro.md` — tabela completa dos dados coletados              |
 | TASK-054 | Plano de resposta a incidente (art. 48): quem avisa, em quanto tempo, com que texto                                         | —       | —             | `docs/incident-response.md` com runbook e modelos de comunicação           |
-| TASK-055 | DPO nomeado + canal público de contato                                                                                      | 051     | —             | nome/email do encarregado publicado em `/privacidade`                      |
+| TASK-056 | DPO nomeado + canal público de contato                                                                                      | 051     | —             | nome/email do encarregado publicado em `/privacidade`                      |
 
 ## Adiados com gatilho (decisão de 2026-09-11)
 

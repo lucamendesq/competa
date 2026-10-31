@@ -20,13 +20,13 @@ import Modal from '@/components/Modal.vue';
 import StatusPill from '@/components/StatusPill.vue';
 import {
   createInvite,
-  getAccountants,
   getPendingInvites,
   removeAccountant,
   revokeInvite,
   type PendingInvite,
   type TeamAccountant,
 } from '@/features/team/api/team';
+import { ACCOUNTANTS_KEY, useAccountants } from '@/features/team/composables/useAccountants';
 import { useAuthStore } from '@/stores/auth';
 import { CreateInviteBody } from '@competa/contracts';
 import { toast } from 'vue-sonner';
@@ -39,7 +39,7 @@ const queryClient = useQueryClient();
 
 const isOwner = computed(() => auth.accountant?.accountant.owner === true);
 
-const accountantsQuery = useQuery({ queryKey: ['accountants'], queryFn: getAccountants });
+const accountantsQuery = useAccountants();
 const invitesQuery = useQuery({ queryKey: ['invites'], queryFn: getPendingInvites });
 
 const inviteOpen = ref(false);
@@ -56,7 +56,7 @@ const inviteMutation = useMutation({
 
 const removeMutation = useMutation({
   mutationFn: (id: string) => removeAccountant(id),
-  onSuccess: () => queryClient.invalidateQueries({ queryKey: ['accountants'] }),
+  onSuccess: () => queryClient.invalidateQueries({ queryKey: ACCOUNTANTS_KEY }),
 });
 
 const revokeMutation = useMutation({

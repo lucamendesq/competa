@@ -91,8 +91,12 @@ export class InviteTargetUnsupported extends AppError {
   readonly code = 'INVITE_TARGET_UNSUPPORTED';
   readonly status = 422;
 
-  constructor() {
-    super('Este convite é de Responsável: aceite em POST /invites/:token/contact-account.');
+  constructor(inviteFor: 'contact' | 'accountant') {
+    super(
+      inviteFor === 'contact'
+        ? 'Este convite é de Responsável: aceite em POST /invites/:token/contact-account.'
+        : 'Este convite é de Contador: aceite em POST /auth/sign-up.',
+    );
   }
 }
 

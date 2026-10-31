@@ -184,15 +184,21 @@ async function save() {
 
   try {
     const name = draftName.value.trim();
-    if (name && name !== detailQuery.data.value?.name) {
+    const renamed = name && name !== detailQuery.data.value?.name;
+    const removals = [...removedIds.value];
+    /* Cada mutação invalida `['templates']`, e o refetch reseta o rascunho pelo `watch`:
+     * lido dentro do laço, o rascunho já voltou ao salvo e as edições somem em silêncio. */
+    const changedItems = visibleItems.value.filter((item) => item.added || isDirty(item));
+
+    if (renamed) {
       await renameTemplateMutation.mutateAsync({ id: props.id, name });
     }
 
-    for (const itemId of removedIds.value) {
+    for (const itemId of removals) {
       await removeItemMutation.mutateAsync(itemId);
     }
 
-    for (const item of visibleItems.value) {
+    for (const item of changedItems) {
       const scheduling = {
         periodicity: item.periodicity as any,
         annualMonth: item.annualMonth,
@@ -207,7 +213,7 @@ async function save() {
           documentTypeId: item.documentTypeId,
           ...scheduling,
         });
-      } else if (isDirty(item)) {
+      } else {
         await updateItemMutation.mutateAsync({
           itemId: item.id,
           body: scheduling,
@@ -400,8 +406,8 @@ function resolveLeave(leave: boolean) {
                   class="h-9 w-24 focus-visible:ring-ring focus-visible:border-primary"
                   placeholder="Livre"
                   :disabled="isProductTemplate"
-                  :value="item.dueDay ?? ''"
-                  @input="changeDay(item, ($event.target as HTMLInputElement).value)"
+                  :model-value="item.dueDay ?? ''"
+                  @update:model-value="changeDay(item, String($event))"
                 />
               </div>
             </template>

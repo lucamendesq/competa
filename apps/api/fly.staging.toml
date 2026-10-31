@@ -23,6 +23,15 @@ primary_region = "gru"
   # colada por engano.
   ASAAS_SANDBOX = "true"
 
+# Sem esta seção a máquina sobe com o default de 256 MB, e o RSS-base do node já encosta no
+# limite: o hash de senha (scrypt do better-auth) de 3–4 logins em paralelo, até com senha
+# errada, levava o processo ao OOM kill (exit 137) e a API ficava fora 1–2 min. Staging e
+# produção usam a mesma VM.
+[[vm]]
+  memory = "512mb"
+  cpu_kind = "shared"
+  cpus = 1
+
 [http_service]
   internal_port = 3000
   force_https = true

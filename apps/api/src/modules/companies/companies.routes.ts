@@ -305,8 +305,6 @@ const confirmImport = route(
         yield* requireTemplate(scope, templateId);
       }
 
-      /* Bug congelado #4: o id é validado aqui e o `insertBatch` nunca grava a coluna —
-       * a Empresa importada nasce com `responsibleAccountantId: null`. */
       const accountantIds = [
         ...new Set(
           input.pending

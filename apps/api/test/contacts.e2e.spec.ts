@@ -1,5 +1,7 @@
 import { desc, eq, like } from 'drizzle-orm';
-import { afterAll, beforeAll, describe, expect, it } from 'vitest';
+import { afterAll, beforeAll, describe, expect, it, vi } from 'vitest';
+import env from '../src/config/env.js';
+import { Logger } from '../src/lib/logger.js';
 import { bootApp, type RunningApp } from './support/boot.js';
 import { db, truncateAll } from './support/db.js';
 import {
@@ -550,7 +552,10 @@ describe('aceite de convite de Responsável (POST /invites/:token/contact-accoun
     const token = await mintInvite({ accountingFirmId }, contactBody().email);
     const res = await acceptInvite(token, { password: PASSWORD });
     expect(res.status).toBe(422);
-    expect(res.body.error.code).toBe('INVITE_TARGET_UNSUPPORTED');
+    expect(res.body.error).toEqual({
+      code: 'INVITE_TARGET_UNSUPPORTED',
+      message: 'Este convite é de Contador: aceite em POST /auth/sign-up.',
+    });
   });
 
   it('email do convite sem Responsável na Empresa → 404 sem queimar o convite', async () => {
@@ -979,6 +984,7 @@ describe('recuperação de acesso (/access/recover)', () => {
 
   it('contato com acesso recebe magic link direto (sem rotação)', async () => {
     const hashBefore = await currentTokenHash(withAccess.requestId);
+    const logged = vi.spyOn(Logger.prototype, 'log');
     const res = await apiClient(app.url).post('/access/recover', {
       email: withAccess.contactEmail,
     });
@@ -987,6 +993,15 @@ describe('recuperação de acesso (/access/recover)', () => {
     expect(res.body.data).toEqual({ message: SAME_MESSAGE });
     expect(await magicLinkTokenFor(withAccess.contactEmail)).toBeDefined();
     expect(await currentTokenHash(withAccess.requestId)).toBe(hashBefore);
+
+    const sentUrl = logged.mock.calls
+      .map(([message]) => String(message))
+      .find((message) => message.startsWith(`magic link para ${withAccess.contactEmail}`))
+      ?.split(': ')[1];
+    logged.mockRestore();
+    expect(new URL(sentUrl!).searchParams.get('callbackURL')).toBe(
+      `${env.WEB_URL}/minha-area/pendencias`,
+    );
   });
 
   it('confirmação com token válido rotaciona o Link, registra o reenvio e mata o antigo', async () => {

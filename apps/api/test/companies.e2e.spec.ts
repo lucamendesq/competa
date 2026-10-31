@@ -297,6 +297,13 @@ describe('usage e teto do plano (trial: 15 ativas, folga até 18)', () => {
     expect(res.body.error.message).toContain('você já tem 18');
   });
 
+  /* D17 §5: o teto barra cadastro e ativação, nunca a Competência. Bloquear aqui travaria o
+   * mês do cliente justamente quando ele está na folga. */
+  it('abrir a Competência com a firma acima do teto passa', async () => {
+    const res = await api.post('/periods', { referenceMonth: '2026-09' });
+    expect(res.status, JSON.stringify(res.body)).toBe(201);
+  });
+
   it('ativação em lote sem vaga: nada ativa e o motivo explica o teto', async () => {
     const res = await api.post('/companies/activate', { companyIds: inactiveIds });
     expect(res.status).toBe(201);

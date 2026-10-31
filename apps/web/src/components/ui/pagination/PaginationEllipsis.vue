@@ -19,7 +19,7 @@ const delegatedProps = reactiveOmit(props, 'class');
   >
     <slot>
       <DotsHorizontalIcon class="size-4" />
-      <span class="sr-only">More pages</span>
+      <span class="sr-only">Mais páginas</span>
     </slot>
   </PaginationEllipsis>
 </template>

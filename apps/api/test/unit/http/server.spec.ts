@@ -159,6 +159,13 @@ describe('GET /health servido pelo shell Effect', () => {
     await wrongMethod.text();
   });
 
+  it('token de Link acima do limite do roteador responde como token inválido', async () => {
+    const response = await fetch(`${app.url}/upload/${'k'.repeat(1500)}`);
+
+    expect(response.status).toBe(404);
+    expect((await response.json()).error.code).toBe('UPLOAD_LINK_INVALID');
+  });
+
   it('o 404 do curinga não é contado no throttle', async () => {
     const ip = '198.51.100.9';
     for (let hit = 0; hit < 40; hit += 1) {

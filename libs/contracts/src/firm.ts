@@ -8,6 +8,20 @@ const optionalCnpj = z.preprocess(
   Cnpj.optional(),
 );
 
+/** Cadência (docs/domain.md, risco 2) que vale sem a capability `reminderTuning`: o cron
+ *  usa estes valores e a tela de Configurações os mostra no lugar dos gravados. */
+export type ReminderSettings = {
+  reminderMax: number;
+  reminderDueSoonDays: number;
+  reminderGapDays: number;
+};
+
+export const DEFAULT_REMINDER_SETTINGS: ReminderSettings = {
+  reminderMax: 2,
+  reminderDueSoonDays: 3,
+  reminderGapDays: 3,
+};
+
 /** PATCH /accounting-firm — nome e preferências de lembrete (só o dono). Parcial: manda o
  *  que mudou. As faixas espelham o CHECK `accounting_firm_reminder_chk`. */
 export const UpdateFirmBody = z
