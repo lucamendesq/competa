@@ -68,9 +68,23 @@ const saveMutation = useMutation({
   onSuccess: () => queryClient.invalidateQueries({ queryKey: ['accountingFirm'] }),
 });
 
+const REMINDER_FIELDS = ['reminderMax', 'reminderDueSoonDays', 'reminderGapDays'] as const;
+
 async function save() {
   if (saving.value) return;
   fieldErrors.value = {};
+
+  /* Campo apagado chega como '' e `Number('')` é 0: o lembrete vazio virava "0 desliga as
+   * cobranças" sem ninguém ter escolhido isso. */
+  const blankReminders = canTuneReminders.value
+    ? REMINDER_FIELDS.filter((field) => String(draft.value[field] ?? '').trim() === '')
+    : [];
+  if (blankReminders.length) {
+    fieldErrors.value = Object.fromEntries(
+      blankReminders.map((field) => [field, 'Preencha este campo.']),
+    );
+    return;
+  }
 
   /* Sem a capability, os três knobs nem entram no corpo: mandá-los faria o PATCH tomar 402
    * mesmo quando o Contador só renomeou o escritório. */
