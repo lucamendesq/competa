@@ -1,5 +1,7 @@
 import { desc, eq, like } from 'drizzle-orm';
-import { afterAll, beforeAll, describe, expect, it } from 'vitest';
+import { afterAll, beforeAll, describe, expect, it, vi } from 'vitest';
+import env from '../src/config/env.js';
+import { Logger } from '../src/lib/logger.js';
 import { bootApp, type RunningApp } from './support/boot.js';
 import { db, truncateAll } from './support/db.js';
 import {
@@ -982,6 +984,7 @@ describe('recuperação de acesso (/access/recover)', () => {
 
   it('contato com acesso recebe magic link direto (sem rotação)', async () => {
     const hashBefore = await currentTokenHash(withAccess.requestId);
+    const logged = vi.spyOn(Logger.prototype, 'log');
     const res = await apiClient(app.url).post('/access/recover', {
       email: withAccess.contactEmail,
     });
@@ -990,6 +993,15 @@ describe('recuperação de acesso (/access/recover)', () => {
     expect(res.body.data).toEqual({ message: SAME_MESSAGE });
     expect(await magicLinkTokenFor(withAccess.contactEmail)).toBeDefined();
     expect(await currentTokenHash(withAccess.requestId)).toBe(hashBefore);
+
+    const sentUrl = logged.mock.calls
+      .map(([message]) => String(message))
+      .find((message) => message.startsWith(`magic link para ${withAccess.contactEmail}`))
+      ?.split(': ')[1];
+    logged.mockRestore();
+    expect(new URL(sentUrl!).searchParams.get('callbackURL')).toBe(
+      `${env.WEB_URL}/minha-area/pendencias`,
+    );
   });
 
   it('confirmação com token válido rotaciona o Link, registra o reenvio e mata o antigo', async () => {
