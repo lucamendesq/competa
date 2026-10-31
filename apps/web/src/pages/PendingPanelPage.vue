@@ -78,9 +78,13 @@ const lines = computed(() => {
   const data = panelQuery.data.value ?? [];
   return data.map((line) => {
     const total = Object.values(line.counts).reduce((sum, val) => sum + val, 0);
-    const overdueCount = line.missing.filter((item) => isOverdue(item.dueDate)).length;
+    const awaiting = line.missing.filter((item) => item.status !== 'submitted');
+    const toReview = line.missing.filter((item) => item.status === 'submitted');
+    const overdueCount = awaiting.filter((item) => isOverdue(item.dueDate)).length;
     return {
       ...line,
+      awaiting,
+      toReview,
       cnpj: cnpjByCompany.value.get(line.companyId) ?? null,
       total,
       percent: total ? Math.round((line.counts.accepted / total) * 100) : 0,
@@ -625,31 +629,55 @@ function maskedCnpj(cnpj: string | null) {
               </div>
             </template>
             <template v-else>
-              <h4
-                class="text-xs font-semibold uppercase tracking-wider text-muted-foreground mb-2.5 px-1"
-              >
-                Aguardando Envio ({{ line.missing.length }})
-              </h4>
-              <ul
-                class="border-border bg-card divide-border divide-y rounded-xl border shadow-xs overflow-hidden"
-              >
-                <li
-                  v-for="item in line.missing"
-                  :key="item.id"
-                  class="flex flex-col sm:flex-row sm:items-center sm:justify-between p-3.5 gap-2 hover:bg-slate-50/75 transition-colors"
+              <template v-if="line.awaiting.length">
+                <h4
+                  class="text-xs font-semibold uppercase tracking-wider text-muted-foreground mb-2.5 px-1"
                 >
-                  <div class="min-w-0">
+                  Aguardando Envio ({{ line.awaiting.length }})
+                </h4>
+                <ul
+                  class="border-border bg-card divide-border divide-y rounded-xl border shadow-xs overflow-hidden"
+                >
+                  <li
+                    v-for="item in line.awaiting"
+                    :key="item.id"
+                    class="flex flex-col sm:flex-row sm:items-center sm:justify-between p-3.5 gap-2 hover:bg-slate-50/75 transition-colors"
+                  >
+                    <div class="min-w-0">
+                      <p class="text-sm font-medium text-foreground">{{ item.name }}</p>
+                      <p
+                        v-if="item.status === 'rejected'"
+                        class="text-danger mt-0.5 text-xs font-medium"
+                      >
+                        Recusado: aguardando reenvio
+                      </p>
+                    </div>
+                    <DueDate :date="item.dueDate" class="text-xs shrink-0" />
+                  </li>
+                </ul>
+              </template>
+              <template v-if="line.toReview.length">
+                <h4
+                  class="text-xs font-semibold uppercase tracking-wider text-muted-foreground mb-2.5 px-1"
+                  :class="{ 'mt-4': line.awaiting.length }"
+                >
+                  Enviado, a conferir ({{ line.toReview.length }})
+                </h4>
+                <ul
+                  class="border-border bg-card divide-border divide-y rounded-xl border shadow-xs overflow-hidden"
+                >
+                  <li
+                    v-for="item in line.toReview"
+                    :key="item.id"
+                    class="flex flex-col sm:flex-row sm:items-center sm:justify-between p-3.5 gap-2 hover:bg-slate-50/75 transition-colors"
+                  >
                     <p class="text-sm font-medium text-foreground">{{ item.name }}</p>
-                    <p
-                      v-if="item.status === 'rejected'"
-                      class="text-danger mt-0.5 text-xs font-medium"
-                    >
-                      Recusado: aguardando reenvio
-                    </p>
-                  </div>
-                  <DueDate :date="item.dueDate" class="text-xs shrink-0" />
-                </li>
-              </ul>
+                    <span class="text-muted-foreground text-xs shrink-0">
+                      {{ item.resent ? 'Reenviado após recusa' : 'Enviado' }}
+                    </span>
+                  </li>
+                </ul>
+              </template>
             </template>
           </div>
         </div>
