@@ -4,12 +4,14 @@ import {
   getCompanyDetail,
   getEffectiveChecklist,
   getOverrides,
+  getAccesses,
   createCompany,
   updateCompany,
   deactivateCompany,
   addContact,
   updateContact,
   removeContact,
+  revokeAccess,
   saveOverride,
   removerOverride,
   sendAccessInvites,
@@ -108,8 +110,24 @@ export function useCompanyDetailFeature(id: Ref<string | undefined>) {
     onSuccess: () => queryClient.invalidateQueries({ queryKey: ['company', id.value] }),
   });
 
+  const accessesQuery = useQuery({
+    queryKey: computed(() => ['company', id.value, 'accesses']),
+    queryFn: () => getAccesses(id.value!),
+    enabled: computed(() => !!id.value),
+  });
+
+  const revokeAccessMutation = useMutation({
+    mutationFn: (contactId: string) => revokeAccess(id.value!, contactId),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['company', id.value] });
+      queryClient.invalidateQueries({ queryKey: ['companies'] });
+    },
+  });
+
   return {
     detailQuery,
+    accessesQuery,
+    revokeAccessMutation,
     createCompanyMutation,
     updateCompanyMutation,
     deactivateCompanyMutation,
