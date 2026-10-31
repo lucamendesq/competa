@@ -27,6 +27,7 @@ import { displayItemStatus, needsResend } from '@/utils/item-status';
 import { isOverdue } from '@/utils/format';
 import { toast } from 'vue-sonner';
 import { ApiError, apiErrorCode, apiErrorMessage, failureKind } from '@/api/error';
+import TermsConsent from '@/components/TermsConsent.vue';
 
 const route = useRoute();
 const token = computed(() => route.params.linkToken as string);
@@ -307,6 +308,7 @@ async function send(files: File[], requestItemId: string | null) {
                 Mandamos um link de acesso para o seu email e você acompanha pendências e histórico
                 na sua área exclusiva.
               </p>
+              <TermsConsent action="Ao criar seu acesso" class="mt-1.5" />
             </div>
           </div>
           <Button
@@ -365,6 +367,11 @@ async function send(files: File[], requestItemId: string | null) {
                   </Button>
                 </template>
               </div>
+              <TermsConsent
+                v-if="!accessEmailSent && !accountExists"
+                action="Ao criar seu acesso"
+                class="mt-3"
+              />
             </template>
           </div>
         </div>

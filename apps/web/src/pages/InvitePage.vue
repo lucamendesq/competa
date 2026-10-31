@@ -12,6 +12,7 @@ import Logo from '@/components/Logo.vue';
 import { useAuthStore } from '@/stores/auth';
 import { api } from '@/api/client';
 import { apiErrorMessage } from '@/api/error';
+import TermsConsent from '@/components/TermsConsent.vue';
 
 const route = useRoute();
 const router = useRouter();
@@ -196,6 +197,7 @@ const onSubmit = handleSubmit(async (values) => {
             {{ isSubmitting ? 'Criando conta…' : 'Criar conta' }}
             <ArrowRight class="ml-2 h-4 w-4" aria-hidden="true" />
           </Button>
+          <TermsConsent action="Ao criar sua conta" class="text-center" />
         </form>
       </div>
     </div>
