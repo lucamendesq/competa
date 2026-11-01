@@ -164,6 +164,12 @@ export const FLAG_LABEL: Record<string, string> = {
   has_inventory: 'Controla estoque',
 };
 
+export const foldAccents = (text: string) =>
+  text
+    .normalize('NFD')
+    .replace(/\p{Diacritic}/gu, '')
+    .toLowerCase();
+
 export const slug = (text: string) =>
   text
     .normalize('NFD')

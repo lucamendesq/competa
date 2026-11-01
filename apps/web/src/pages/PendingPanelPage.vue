@@ -42,7 +42,7 @@ import { useCopy } from '@/composables/useCopy';
 import { useAuthStore } from '@/stores/auth';
 import PlanGateNotice from '@/components/PlanGateNotice.vue';
 import { planGateMessage } from '@competa/contracts';
-import { monthLabel, isOverdue, slug } from '@/utils/format';
+import { monthLabel, isOverdue, slug, foldAccents } from '@/utils/format';
 
 const props = defineProps<{ id: string }>();
 
@@ -127,12 +127,12 @@ const accountantChips = computed(() => {
 });
 
 const visible = computed(() => {
-  const term = search.value.trim().toLowerCase();
+  const term = foldAccents(search.value.trim());
   const f = filter.value;
   const acc = selectedAccountant.value;
 
   return lines.value.filter((line) => {
-    if (term && !line.companyName.toLowerCase().includes(term)) return false;
+    if (term && !foldAccents(line.companyName).includes(term)) return false;
     if (f === 'pending' && !(line.requestStatus === 'open' && line.missing.length > 0))
       return false;
     if (f === 'overdue' && !(line.overdue > 0)) return false;
@@ -491,7 +491,19 @@ function maskedCnpj(cnpj: string | null) {
         </button>
       </div>
 
-      <div class="space-y-3" role="list">
+      <section
+        v-if="visible.length === 0"
+        class="border-border bg-card rounded-xl border-2 border-dashed p-12 text-center shadow-xs"
+      >
+        <p class="text-muted-foreground text-sm">
+          {{
+            lines.length
+              ? 'Nenhuma empresa encontrada com essa busca ou filtro.'
+              : 'Nenhuma empresa nesta competência.'
+          }}
+        </p>
+      </section>
+      <div v-else class="space-y-3" role="list">
         <div
           v-for="line in visible"
           :key="line.requestId"
