@@ -21,6 +21,7 @@ import UploadFeedback from '@/components/UploadFeedback.vue';
 import Logo from '@/components/Logo.vue';
 import InstallButton from '@/components/InstallButton.vue';
 import { useUploadFeature } from '@/features/upload/composables/useUploadFeature';
+import type { ChecklistItem } from '@/features/upload/api/upload';
 import { usePush } from '@/composables/usePush';
 import { dateBr, monthLabel } from '@/utils/format';
 import { displayItemStatus, needsResend } from '@/utils/item-status';
@@ -120,6 +121,11 @@ const offerAccess = computed(
     !accessEmailSent.value &&
     !accountExists.value,
 );
+
+const itemPillStatus = (item: ChecklistItem) =>
+  item.status === 'pending' && !needsResend(item) && isOverdue(item.dueDate)
+    ? 'overdue'
+    : displayItemStatus(item);
 
 /* Só `needsResend` muda de posição (precisa chamar atenção lá em cima). Fora isso, a
  * ordem é sempre alfabética e não se mexe quando o status do item muda — um envio bem
@@ -412,7 +418,7 @@ async function send(files: File[], requestItemId: string | null) {
             <span class="min-w-0 flex-1">
               <span class="flex items-center gap-2 flex-wrap">
                 <span class="truncate text-sm font-semibold text-foreground">{{ item.name }}</span>
-                <StatusPill :status="displayItemStatus(item)" />
+                <StatusPill :status="itemPillStatus(item)" />
               </span>
               <span class="text-muted-foreground mt-1 flex flex-wrap gap-x-2 gap-y-1 text-xs">
                 <span
