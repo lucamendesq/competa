@@ -98,17 +98,28 @@ const progress = computed(() => {
   return {
     total: items.length,
     delivered: delivered.length,
+    pending: items.length - delivered.length,
     percent: items.length ? Math.round((delivered.length / items.length) * 100) : 0,
   };
 });
 
-const allSent = computed(() => {
-  const items = checklistQuery.data.value?.items ?? [];
-  return (
-    items.length > 0 &&
-    items.every((item) => item.status !== 'pending' && item.status !== 'rejected')
-  );
-});
+const allSent = computed(() => progress.value.total > 0 && progress.value.pending === 0);
+
+const allAccepted = computed(() =>
+  (checklistQuery.data.value?.items ?? []).every((item) => item.status === 'accepted'),
+);
+
+const hasSentSomething = computed(
+  () => progress.value.delivered > 0 || (checklistQuery.data.value?.extraDocuments.length ?? 0) > 0,
+);
+
+const offerAccess = computed(
+  () =>
+    hasSentSomething.value &&
+    !checklistQuery.data.value?.hasAccess &&
+    !accessEmailSent.value &&
+    !accountExists.value,
+);
 
 /* Só `needsResend` muda de posição (precisa chamar atenção lá em cima). Fora isso, a
  * ordem é sempre alfabética e não se mexe quando o status do item muda — um envio bem
@@ -299,64 +310,60 @@ async function send(files: File[], requestItemId: string | null) {
       </div>
 
       <div
-        v-else-if="!allSent && !closed && !checklistQuery.data.value.hasAccess"
-        class="bg-card border-border mb-6 rounded-xl border p-4 shadow-sm"
+        v-if="closed && !allSent"
+        class="bg-muted border-border mb-6 rounded-xl border p-5"
+        role="status"
       >
-        <div class="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
-          <div class="flex items-start gap-3">
-            <span
-              class="bg-primary/10 text-primary flex size-9 shrink-0 items-center justify-center rounded-lg mt-0.5"
-            >
-              <Lock class="h-4 w-4" />
-            </span>
-            <div>
-              <p class="text-sm font-semibold text-foreground">
-                Acesse quando quiser sem depender do link
-              </p>
-              <p class="text-muted-foreground text-xs mt-0.5">
-                Mandamos um link de acesso para o seu email e você acompanha pendências e histórico
-                na sua área exclusiva.
-              </p>
-              <TermsConsent action="Ao criar seu acesso" class="mt-1.5" />
-            </div>
+        <div class="flex items-start gap-4">
+          <Lock class="text-muted-foreground mt-1 h-5 w-5 shrink-0" aria-hidden="true" />
+          <div class="min-w-0 flex-1">
+            <h2 class="text-base font-semibold tracking-tight text-foreground">
+              Competência encerrada com pendências
+            </h2>
+            <p class="mt-1 text-sm text-foreground/80">
+              A contabilidade encerrou esta competência com
+              {{
+                progress.pending === 1 ? '1 item sem envio' : `${progress.pending} itens sem envio`
+              }}. Se ainda tiver algum desses documentos, mande pelo bloco de documento extra no fim
+              da página.
+            </p>
           </div>
-          <Button
-            variant="outline"
-            size="sm"
-            class="shrink-0"
-            :disabled="activatingAccess"
-            @click="handleActivateAccess"
-          >
-            {{ activatingAccess ? 'Enviando…' : 'Criar meu acesso' }}
-          </Button>
         </div>
       </div>
 
       <div
-        v-else-if="(allSent || closed) && !checklistQuery.data.value.hasAccess"
+        v-else-if="allSent"
         class="bg-primary/10 border-primary/20 mb-6 rounded-xl border p-5"
+        role="status"
       >
         <div class="flex items-start gap-4">
           <PartyPopper class="text-primary mt-1 shrink-0 text-2xl" aria-hidden="true" />
           <div class="min-w-0 flex-1">
             <h2 class="text-base font-semibold tracking-tight text-foreground">
-              Tudo entregue, mês fechado!
+              {{ allAccepted ? 'Tudo entregue e aprovado!' : 'Tudo enviado!' }}
             </h2>
-            <p class="mt-1 text-sm text-foreground/80">A contabilidade já foi notificada.</p>
-            <template v-if="!push.subscribed.value">
+            <p class="mt-1 text-sm text-foreground/80">
+              {{
+                allAccepted
+                  ? 'A contabilidade conferiu e aprovou todos os documentos deste mês.'
+                  : 'Agora a contabilidade confere os documentos. Se algum for recusado, o motivo aparece aqui e você reenvia pelo mesmo link.'
+              }}
+            </p>
+            <template
+              v-if="
+                !checklistQuery.data.value.hasAccess && !accessEmailSent && !push.subscribed.value
+              "
+            >
               <p class="mt-3 text-sm text-foreground/80">
                 Quer ser lembrado mês que vem e não depender do WhatsApp?
               </p>
               <div class="mt-4 flex flex-wrap gap-2">
-                <p v-if="accessEmailSent" class="mt-3 text-sm font-medium text-foreground">
-                  Enviamos um link de acesso para {{ accessEmailSent }}. Abra seu email para entrar.
-                </p>
-                <Button v-else-if="accountExists" variant="default" as-child>
+                <Button v-if="accountExists" variant="default" as-child>
                   <RouterLink to="/minha-area/acesso">
                     <LogIn class="mr-2 h-4 w-4" /> Entre na sua conta
                   </RouterLink>
                 </Button>
-                <template v-else-if="!accessEmailSent">
+                <template v-else>
                   <Button
                     v-if="push.available.value"
                     variant="default"
@@ -376,11 +383,7 @@ async function send(files: File[], requestItemId: string | null) {
                   </Button>
                 </template>
               </div>
-              <TermsConsent
-                v-if="!accessEmailSent && !accountExists"
-                action="Ao criar seu acesso"
-                class="mt-3"
-              />
+              <TermsConsent v-if="!accountExists" action="Ao criar seu acesso" class="mt-3" />
             </template>
           </div>
         </div>
@@ -525,6 +528,40 @@ async function send(files: File[], requestItemId: string | null) {
         </li>
       </ul>
 
+      <div
+        v-if="offerAccess && !allSent && !closed"
+        class="bg-card border-border mt-6 rounded-xl border p-4 shadow-sm"
+      >
+        <div class="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
+          <div class="flex items-start gap-3">
+            <span
+              class="bg-primary/10 text-primary flex size-9 shrink-0 items-center justify-center rounded-lg mt-0.5"
+            >
+              <Lock class="h-4 w-4" />
+            </span>
+            <div>
+              <p class="text-sm font-semibold text-foreground">
+                Acesse quando quiser sem depender do link
+              </p>
+              <p class="text-muted-foreground text-xs mt-0.5">
+                Mandamos um link de acesso para o seu email e você acompanha pendências e histórico
+                na sua área exclusiva.
+              </p>
+              <TermsConsent action="Ao criar seu acesso" class="mt-1.5" />
+            </div>
+          </div>
+          <Button
+            variant="outline"
+            size="sm"
+            class="shrink-0"
+            :disabled="activatingAccess"
+            @click="handleActivateAccess"
+          >
+            {{ activatingAccess ? 'Enviando…' : 'Criar meu acesso' }}
+          </Button>
+        </div>
+      </div>
+
       <section class="bg-card border-border mt-6 rounded-xl border p-4 shadow-sm">
         <h2 class="font-display text-base font-semibold text-foreground">Enviar documento extra</h2>
         <p class="text-muted-foreground mt-1 text-sm">Se não estiver na lista acima, envie aqui.</p>
@@ -581,7 +618,7 @@ async function send(files: File[], requestItemId: string | null) {
       <footer
         class="mt-8 flex flex-col items-center justify-center gap-2 text-center text-xs text-muted-foreground sm:flex-row sm:gap-4"
       >
-        <template v-if="!checklistQuery.data.value.hasAccess && !accessEmailSent">
+        <template v-if="offerAccess">
           <div>
             <span>Ainda não tem acesso? </span>
             <button
