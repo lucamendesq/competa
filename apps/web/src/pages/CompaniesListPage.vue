@@ -535,11 +535,11 @@ async function applyTemplateToSelected() {
     :open="confirmDeactivate !== null"
     @update:open="$event ? null : (confirmDeactivate = null)"
     title="Desativar empresa?"
-    description="Empresa desativada não entra no fan-out das próximas competências."
+    description="Empresa desativada não recebe solicitação nas próximas competências."
   >
     <p class="text-sm text-foreground">
-      {{ confirmDeactivate?.name }} deixa de ser cobrada. As solicitações já abertas continuam como
-      estão, e você pode reativá-la depois.
+      {{ confirmDeactivate?.name }} deixa de ser cobrada. Nas solicitações já abertas, o Link de
+      Upload para de abrir e os lembretes param. Ao reativar a empresa, o link volta a funcionar.
     </p>
 
     <div
