@@ -214,6 +214,16 @@ describe('GET /companies — listagem, busca e filtros', () => {
     expect(res.body.data[0].name).toBe('Beta Mercado');
   });
 
+  it('busca ignora acentos nos dois lados', async () => {
+    for (const search of ['paes', 'PÃES', 'Alfa Pàes']) {
+      const res = await api.get(`/companies?search=${encodeURIComponent(search)}`);
+      expect(
+        res.body.data.map((row: any) => row.name),
+        search,
+      ).toEqual(['Alfa Pães']);
+    }
+  });
+
   it('busca por CNPJ ignora pontuação', async () => {
     const dotted = `${alphaCnpj.slice(0, 2)}.${alphaCnpj.slice(2, 5)}.${alphaCnpj.slice(5, 8)}`;
     const res = await api.get(`/companies?search=${encodeURIComponent(dotted)}`);

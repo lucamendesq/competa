@@ -208,7 +208,7 @@ const make = Effect.gen(function* () {
     const cleanDigits = searchTrimmed ? searchTrimmed.replace(/\D/g, '') : '';
     const searchFilter = searchTrimmed
       ? or(
-          ilike(company.name, `%${searchTrimmed.replace(/[\\%_]/g, '\\$&')}%`),
+          sql`unaccent(${company.name}) ilike unaccent(${`%${searchTrimmed.replace(/[\\%_]/g, '\\$&')}%`})`,
           cleanDigits ? ilike(company.cnpj, `%${cleanDigits}%`) : undefined,
         )
       : undefined;
