@@ -32,6 +32,11 @@ export const openDocumentContent = (documentId: string) =>
 export const downloadRequestZip = (requestId: string, filename: string) =>
   api.download(`/requests/${requestId}/zip`, filename);
 
+export const closeRequest = (requestId: string) =>
+  api.post<{ id: string; status: string; pendingItemCount: number; warning: string | null }>(
+    `/requests/${requestId}/close`,
+  );
+
 export const resendUploadLink = (requestId: string) =>
   api.post<{ contactEmail: string }>(`/requests/${requestId}/upload-link/resend`);
 

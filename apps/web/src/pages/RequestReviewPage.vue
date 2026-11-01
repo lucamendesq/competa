@@ -2,7 +2,7 @@
 import { computed, ref } from 'vue';
 import { useRouter } from 'vue-router';
 import { useQuery } from '@tanstack/vue-query';
-import { Check, ExternalLink, Undo2, X } from 'lucide-vue-next';
+import { Check, ExternalLink, Lock, Undo2, X } from 'lucide-vue-next';
 import { Button } from '@/components/ui/button';
 import { Textarea } from '@/components/ui/textarea';
 import PageHeader from '@/components/PageHeader.vue';
@@ -11,6 +11,7 @@ import LoadingRows from '@/components/LoadingRows.vue';
 import StatusPill from '@/components/StatusPill.vue';
 import ResendNotice from '@/components/ResendNotice.vue';
 import DueDate from '@/components/DueDate.vue';
+import CloseRequestModal from '@/components/CloseRequestModal.vue';
 import {
   getRequestDetail,
   openDocumentContent,
@@ -41,6 +42,7 @@ const extras = ref<Map<string, { decision: 'accepted' | 'rejected'; rejectionRea
 const acting = ref(false);
 
 const closed = computed(() => detailQuery.data.value?.status === 'closed');
+const confirmClose = ref(false);
 
 const reviewableItems = computed(() =>
   (detailQuery.data.value?.items ?? []).filter((item) => item.status === 'submitted'),
@@ -185,6 +187,14 @@ async function publish() {
     "
   >
     <Button variant="outline" class="shadow-xs" @click="router.back()">Voltar</Button>
+    <Button
+      v-if="detailQuery.data.value && !closed"
+      variant="outline"
+      class="text-danger hover:text-danger hover:bg-danger-surface border-border ml-2 shadow-xs"
+      @click="confirmClose = true"
+    >
+      <Lock class="mr-2 h-4 w-4" /> Encerrar
+    </Button>
   </PageHeader>
 
   <div class="mt-8 pb-24">
@@ -394,6 +404,16 @@ async function publish() {
       </section>
     </template>
   </div>
+
+  <CloseRequestModal
+    v-if="detailQuery.data.value"
+    v-model:open="confirmClose"
+    :request-id="props.id"
+    :company-name="detailQuery.data.value.companyName"
+    :unaccepted="detailQuery.data.value.items.filter((item) => item.status !== 'accepted').length"
+    :to-review="reviewableItems.length"
+    @closed="detailQuery.refetch()"
+  />
 
   <div
     v-if="decisionCount > 0"

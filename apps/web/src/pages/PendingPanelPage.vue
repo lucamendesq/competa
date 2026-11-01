@@ -24,6 +24,7 @@ import LoadingRows from '@/components/LoadingRows.vue';
 import Modal from '@/components/Modal.vue';
 import StatusPill from '@/components/StatusPill.vue';
 import DueDate from '@/components/DueDate.vue';
+import CloseRequestModal from '@/components/CloseRequestModal.vue';
 import {
   usePeriodDetailFeature,
   usePeriodsFeature,
@@ -170,6 +171,7 @@ const chips = [
 ] as const;
 
 const confirmClose = ref(false);
+const closingLine = ref<(typeof lines.value)[number] | null>(null);
 
 const closeImpact = computed(() => {
   const open = lines.value.filter((line) => line.requestStatus !== 'closed');
@@ -609,6 +611,15 @@ function maskedCnpj(cnpj: string | null) {
                 >
                   <FileArchive class="mr-2 h-4 w-4" /> .zip
                 </Button>
+                <Button
+                  v-if="line.requestStatus !== 'closed'"
+                  variant="outline"
+                  size="sm"
+                  class="text-danger hover:text-danger hover:bg-danger-surface border-border shadow-xs"
+                  @click="closingLine = line"
+                >
+                  <Lock class="mr-2 h-4 w-4" /> Encerrar
+                </Button>
               </div>
             </div>
           </div>
@@ -712,6 +723,17 @@ function maskedCnpj(cnpj: string | null) {
       </div>
     </template>
   </div>
+
+  <CloseRequestModal
+    v-if="closingLine"
+    :open="true"
+    :request-id="closingLine.requestId"
+    :company-name="closingLine.companyName"
+    :unaccepted="closingLine.missing.length"
+    :to-review="closingLine.toReview.length"
+    @update:open="closingLine = null"
+    @closed="panelQuery.refetch()"
+  />
 
   <Modal
     v-model:open="confirmClose"
