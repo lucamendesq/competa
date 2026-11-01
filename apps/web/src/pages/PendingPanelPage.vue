@@ -171,6 +171,15 @@ const chips = [
 
 const confirmClose = ref(false);
 
+const closeImpact = computed(() => {
+  const open = lines.value.filter((line) => line.requestStatus !== 'closed');
+  return {
+    unaccepted: open.reduce((sum, line) => sum + line.missing.length, 0),
+    companies: open.filter((line) => line.missing.length > 0).length,
+    toReview: open.reduce((sum, line) => sum + line.toReview.length, 0),
+  };
+});
+
 function toggle(companyId: string) {
   const newSet = new Set(expanded.value);
   if (newSet.has(companyId)) newSet.delete(companyId);
@@ -709,9 +718,24 @@ function maskedCnpj(cnpj: string | null) {
     title="Encerrar competência?"
     description="Encerrar é a palavra final: as solicitações desta competência também são encerradas, mesmo com pendências."
   >
-    <p class="text-sm text-foreground">
-      Os Responsáveis não poderão mais enviar documentos nos itens — apenas documentos extras.
-    </p>
+    <div class="flex flex-col gap-3 text-sm text-foreground">
+      <p v-if="closeImpact.unaccepted">
+        <strong class="tabular-nums">{{ closeImpact.unaccepted }}</strong> item(ns) ainda sem aceite
+        em <strong class="tabular-nums">{{ closeImpact.companies }}</strong> empresa(s).
+      </p>
+      <p v-else>Todos os itens desta competência já foram aceitos.</p>
+      <p
+        v-if="closeImpact.toReview"
+        class="rounded-lg border border-danger-border bg-danger-surface p-3 text-danger-foreground"
+      >
+        <strong class="tabular-nums">{{ closeImpact.toReview }}</strong> item(ns) já enviado(s) e
+        ainda não conferido(s). Depois de encerrar, esses documentos não poderão mais ser aceitos e
+        ficam fora do zip final. Confira-os antes de encerrar.
+      </p>
+      <p>
+        Os Responsáveis não poderão mais enviar documentos nos itens — apenas documentos extras.
+      </p>
+    </div>
     <div
       class="border-border bg-sunken/40 -mx-6 -mb-6 mt-6 flex flex-wrap justify-end gap-2.5 border-t p-4"
     >
