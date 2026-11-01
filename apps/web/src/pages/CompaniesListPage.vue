@@ -362,7 +362,9 @@ async function applyTemplateToSelected() {
                     @change="toggleSelected(company.id)"
                   />
                 </TableCell>
-                <TableCell class="font-medium font-display text-foreground">
+                <TableCell
+                  class="font-medium font-display text-foreground min-w-40 whitespace-normal break-words"
+                >
                   <RouterLink
                     :to="`/empresas/${company.id}/editar`"
                     class="hover:text-primary transition-colors hover:underline"
@@ -373,7 +375,7 @@ async function applyTemplateToSelected() {
                 <TableCell class="tabular-nums text-muted-foreground text-xs sm:text-sm">
                   {{ maskedCnpj(company.cnpj) }}
                 </TableCell>
-                <TableCell>
+                <TableCell class="min-w-40 whitespace-normal">
                   <template v-if="!company.contactCount || !company.contacts.length">
                     <span
                       class="inline-flex items-center gap-1 rounded-full border border-danger-border bg-danger-surface px-2.5 py-0.5 text-[11px] font-semibold text-danger"
@@ -403,7 +405,7 @@ async function applyTemplateToSelected() {
                           </span>
                         </template>
                       </div>
-                      <span class="text-muted-foreground text-xs">{{
+                      <span class="text-muted-foreground text-xs break-all">{{
                         company.contacts[0].email
                       }}</span>
                       <span
@@ -415,7 +417,7 @@ async function applyTemplateToSelected() {
                     </div>
                   </template>
                 </TableCell>
-                <TableCell>
+                <TableCell class="whitespace-normal">
                   <template v-if="company.templateName">
                     <RouterLink
                       :to="`/empresas/${company.id}/checklist`"
