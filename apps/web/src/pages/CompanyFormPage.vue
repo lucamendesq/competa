@@ -385,8 +385,6 @@ const onSubmit = handleSubmit(async (values) => {
     @submit="onSubmit"
   >
     <div class="flex flex-1 flex-col gap-6 w-full">
-      <Callout v-if="error" tone="danger" :heading="error" />
-
       <section class="bg-card border-border shadow-sm rounded-xl p-6 border flex flex-col gap-6">
         <div class="border-b border-border/80 pb-4">
           <h2 class="font-display text-base font-semibold leading-7 text-foreground">
@@ -553,6 +551,8 @@ const onSubmit = handleSubmit(async (values) => {
           </div>
         </div>
       </section>
+
+      <Callout v-if="error" tone="danger" :heading="error" />
 
       <div class="border-border flex items-center gap-3 border-t pt-4">
         <Button variant="ghost" type="button" @click="router.back()">Cancelar</Button>
