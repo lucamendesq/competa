@@ -2,6 +2,7 @@ import { Cause, Context, Effect, Layer } from 'effect';
 import { and, asc, count, eq, ilike, inArray, isNotNull, isNull, ne, or, sql } from 'drizzle-orm';
 import {
   COMPANY_FLAGS,
+  type CompanyFlag,
   type CompanyFlags,
   CreateCompanyBody,
   type ContactBody,
@@ -609,10 +610,16 @@ const make = Effect.gen(function* () {
         continue;
       }
 
+      const flags = parseFlags(values);
+      if ('error' in flags) {
+        lines.push({ line, status: 'error', name, error: flags.error });
+        continue;
+      }
+
       const parsed = CreateCompanyBody.safeParse({
         name,
         cnpj: cnpjCell(values.cnpj),
-        flags: parseFlags(values),
+        flags: flags.flags,
         contact: hasContact
           ? {
               name: values.contact_name || name,
@@ -910,16 +917,46 @@ export class CompaniesRepo extends Context.Service<CompaniesRepo, Effect.Success
 const cnpjCell = (value: string | undefined) =>
   value && /^\d{12,13}$/.test(value) ? value.padStart(14, '0') : value || undefined;
 
-const TRUTHY_FLAG_VALUES = new Set(['sim', 's', 'true', 'verdadeiro', '1']);
+const FLAG_CELL_VALUES = new Map([
+  ...['sim', 's', 'true', 'verdadeiro', '1'].map((cell) => [cell, true] as const),
+  ...['nao', 'n', 'false', 'falso', '0', ''].map((cell) => [cell, false] as const),
+]);
 
-/** Só as colunas presentes viram flag (`false` quando a célula não diz sim): o reenvio
- *  mescla nas flags da Empresa, então coluna ausente não pode valer "não". */
-const parseFlags = (values: Record<string, string | undefined>): CompanyFlags =>
-  Object.fromEntries(
-    COMPANY_FLAGS.filter((flag) => values[`flag_${flag}`] !== undefined).map((flag) => [
-      flag,
-      TRUTHY_FLAG_VALUES.has(values[`flag_${flag}`]!.trim().toLowerCase()),
-    ]),
+const FLAG_HEADER: Record<CompanyFlag, string> = {
+  has_employees: 'Tem funcionários',
+  accepts_card_payments: 'Aceita pagamento por cartão',
+  has_inventory: 'Controla estoque',
+};
+
+const flagCell = (value: string) =>
+  FLAG_CELL_VALUES.get(
+    value
+      .trim()
+      .toLowerCase()
+      .normalize('NFD')
+      .replace(/\p{Diacritic}/gu, ''),
   );
+
+/** Só as colunas presentes viram flag: o reenvio mescla nas flags da Empresa, então coluna
+ *  ausente não pode valer "não". Célula que não é sim nem não vira erro da linha, em vez de
+ *  "não" calado que tira Itens condicionais do checklist. */
+const parseFlags = (
+  values: Record<string, string | undefined>,
+): { flags: CompanyFlags } | { error: string } => {
+  const flags: CompanyFlags = {};
+
+  for (const flag of COMPANY_FLAGS) {
+    const cell = values[`flag_${flag}`];
+    if (cell === undefined) continue;
+
+    const parsed = flagCell(cell);
+    if (parsed === undefined) {
+      return { error: `${FLAG_HEADER[flag]}: use Sim ou Não (veio "${cell.trim()}").` };
+    }
+    flags[flag] = parsed;
+  }
+
+  return { flags };
+};
 
 const firstIssue = (error: z.ZodError) => error.issues[0].message;

@@ -428,6 +428,25 @@ describe('POST /companies/import — prévia do CSV (nada é gravado)', () => {
     expect(scientific.error).toContain('notação científica');
   });
 
+  it('flag aceita sim/não com ou sem acento e recusa qualquer outro valor', async () => {
+    const csv = [
+      'Empresa;Tem funcionários;Controla estoque',
+      'Com Acento;Sim;Não',
+      'Sem Acento;nao;S',
+      'Na Dúvida;Talvez;Sim',
+    ].join('\n');
+
+    const res = await api.post('/companies/import', { csv });
+    expect(res.status, JSON.stringify(res.body)).toBe(201);
+    const [accented, plain, unsure] = res.body.data.lines;
+    expect(accented.body.flags).toEqual({ has_employees: true, has_inventory: false });
+    expect(plain.body.flags).toEqual({ has_employees: false, has_inventory: true });
+    expect(unsure).toMatchObject({
+      status: 'error',
+      error: 'Tem funcionários: use Sim ou Não (veio "Talvez").',
+    });
+  });
+
   it('prévia não grava empresa nenhuma', async () => {
     const res = await api.get('/companies');
     expect(res.body.meta.total).toBe(0);
