@@ -217,9 +217,18 @@ async function send(files: File[], requestItemId: string | null) {
         Link indisponível ou expirado
       </h1>
       <p class="text-muted-foreground mt-2 text-sm">
-        O link de envio expirou ou a competência foi encerrada. Peça um novo link para a
-        contabilidade.
+        Este link de envio expirou ou foi substituído por um mais novo. Informe seu e-mail e
+        enviamos o link atual para você.
       </p>
+      <Button class="mt-6" as-child>
+        <RouterLink to="/perdi-meu-link">Receber o link atual</RouterLink>
+      </Button>
+      <RouterLink
+        to="/minha-area/acesso"
+        class="text-muted-foreground hover:text-foreground mt-4 text-sm font-medium hover:underline"
+      >
+        Já tem acesso? Entrar na Minha Área
+      </RouterLink>
     </main>
 
     <main
