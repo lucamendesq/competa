@@ -12,31 +12,34 @@ export function useContactPending() {
     queryFn: getMyPending,
   });
 
-  const sendFiles = async (files: File[], requestId: string, requestItemId: string | null) => {
-    const { uploadFiles } = useUpload({
-      presign: async (fs: { fileName: string; contentType: string; sizeBytes: number }[]) => {
-        const res = await presignMyDocuments({ requestId, requestItemId, files: fs });
-        return {
-          files: (res?.files ?? []).map((f) =>
-            f.accepted
-              ? {
-                  fileName: f.fileName,
-                  accepted: true as const,
-                  documentId: f.documentId!,
-                  uploadUrl: f.uploadUrl!,
-                }
-              : { fileName: f.fileName, accepted: false as const, reason: f.reason! },
-          ),
-        };
-      },
-      send: (url: string, file: File) => putFileToStorage(url, file),
-      confirm: async (docIds: string[]) => {
-        const res = await confirmMyDocuments(requestId, docIds);
-        return res ?? { refused: [] };
-      },
-    });
+  let target: { requestId: string; requestItemId: string | null } | null = null;
 
-    const results = await uploadFiles(files);
+  const upload = useUpload({
+    presign: async (files) => {
+      const res = await presignMyDocuments({ ...target!, files });
+      return {
+        files: (res?.files ?? []).map((f) =>
+          f.accepted
+            ? {
+                fileName: f.fileName,
+                accepted: true as const,
+                documentId: f.documentId!,
+                uploadUrl: f.uploadUrl!,
+              }
+            : { fileName: f.fileName, accepted: false as const, reason: f.reason! },
+        ),
+      };
+    },
+    send: putFileToStorage,
+    confirm: async (docIds) => {
+      const res = await confirmMyDocuments(target!.requestId, docIds);
+      return res ?? { refused: [] };
+    },
+  });
+
+  const sendFiles = async (files: File[], requestId: string, requestItemId: string | null) => {
+    target = { requestId, requestItemId };
+    const results = await upload.uploadFiles(files);
 
     queryClient.invalidateQueries({ queryKey });
 
@@ -46,5 +49,6 @@ export function useContactPending() {
   return {
     pendingQuery,
     sendFiles,
+    uploadPercent: upload.percent,
   };
 }

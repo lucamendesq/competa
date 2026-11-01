@@ -27,22 +27,24 @@ export function useUploadFeature(token: string) {
     mutationFn: (body?: { name?: string; password?: string }) => activateAccess(token, body),
   });
 
+  let targetItemId: string | null = null;
+
+  const upload = useUpload({
+    presign: async (files) => {
+      const res = await presignFiles(token, { requestItemId: targetItemId, files });
+      return res ?? { files: [] };
+    },
+    send: putFileToStorage,
+    confirm: async (docIds) => {
+      const res = await confirmFiles(token, docIds);
+      return res ?? { refused: [] };
+    },
+  });
+
   const sendFiles = async (files: File[], requestItemId: string | null) => {
-    const { uploadFiles } = useUpload({
-      presign: async (fs: { fileName: string; contentType: string; sizeBytes: number }[]) => {
-        const res = await presignFiles(token, { requestItemId, files: fs });
-        return res ?? { files: [] };
-      },
-      send: (url: string, file: File) => putFileToStorage(url, file),
-      confirm: async (docIds: string[]) => {
-        const res = await confirmFiles(token, docIds);
-        return res ?? { refused: [] };
-      },
-    });
+    targetItemId = requestItemId;
+    const results = await upload.uploadFiles(files);
 
-    const results = await uploadFiles(files);
-
-    // reload query
     queryClient.invalidateQueries({ queryKey });
 
     return results;
@@ -53,5 +55,6 @@ export function useUploadFeature(token: string) {
     subscribePushMutation,
     activateAccessMutation,
     sendFiles,
+    uploadPercent: upload.percent,
   };
 }

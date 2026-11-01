@@ -34,7 +34,8 @@ const route = useRoute();
 const token = computed(() => route.params.linkToken as string);
 
 const feature = useUploadFeature(token.value);
-const { checklistQuery, subscribePushMutation, activateAccessMutation, sendFiles } = feature;
+const { checklistQuery, subscribePushMutation, activateAccessMutation, sendFiles, uploadPercent } =
+  feature;
 
 const push = usePush();
 
@@ -490,7 +491,22 @@ async function send(files: File[], requestItemId: string | null) {
             >
               <Upload class="text-primary animate-bounce text-xl" aria-hidden="true" />
               <span class="text-sm font-medium">Enviando arquivos…</span>
-              <span class="text-muted-foreground text-xs">Aguarde a confirmação</span>
+              <div
+                class="bg-muted h-2 w-full max-w-xs overflow-hidden rounded-full"
+                role="progressbar"
+                aria-label="Progresso do envio"
+                aria-valuemin="0"
+                aria-valuemax="100"
+                :aria-valuenow="uploadPercent"
+              >
+                <div
+                  class="bg-primary h-full transition-all"
+                  :style="{ width: `${uploadPercent}%` }"
+                />
+              </div>
+              <span class="text-muted-foreground text-xs" aria-hidden="true">
+                {{ uploadPercent < 100 ? `${uploadPercent}%` : 'Aguarde a confirmação' }}
+              </span>
             </div>
             <div v-else>
               <label
@@ -580,7 +596,19 @@ async function send(files: File[], requestItemId: string | null) {
         >
           <Upload class="text-primary animate-bounce text-xl" aria-hidden="true" />
           <span class="text-sm font-medium">Enviando arquivos…</span>
-          <span class="text-muted-foreground text-xs">Aguarde a confirmação</span>
+          <div
+            class="bg-muted h-2 w-full max-w-xs overflow-hidden rounded-full"
+            role="progressbar"
+            aria-label="Progresso do envio"
+            aria-valuemin="0"
+            aria-valuemax="100"
+            :aria-valuenow="uploadPercent"
+          >
+            <div class="bg-primary h-full transition-all" :style="{ width: `${uploadPercent}%` }" />
+          </div>
+          <span class="text-muted-foreground text-xs" aria-hidden="true">
+            {{ uploadPercent < 100 ? `${uploadPercent}%` : 'Aguarde a confirmação' }}
+          </span>
         </div>
         <label
           v-else

@@ -12,7 +12,7 @@ import UploadFeedback from '@/components/UploadFeedback.vue';
 import type { FileResult } from '@/composables/useUpload';
 import { toast } from 'vue-sonner';
 
-const { pendingQuery, sendFiles } = useContactPending();
+const { pendingQuery, sendFiles, uploadPercent } = useContactPending();
 
 const sendingItemId = ref<string | null>(null);
 const results = ref<FileResult[] | null>(null);
@@ -180,7 +180,9 @@ function latestRejection(item: MyPendingItem['item']) {
               @click="triggerFileInput(row.item.id)"
             >
               <Upload class="mr-2 h-4 w-4" aria-hidden="true" />
-              {{ sendingItemId === row.item.id ? 'Enviando…' : 'Enviar arquivos' }}
+              {{
+                sendingItemId === row.item.id ? `Enviando… ${uploadPercent}%` : 'Enviar arquivos'
+              }}
             </Button>
           </div>
         </li>
