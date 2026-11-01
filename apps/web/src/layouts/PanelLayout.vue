@@ -10,6 +10,7 @@ import {
   Settings,
   ChevronDown,
   LogOut,
+  Mail,
 } from 'lucide-vue-next';
 import { useAuthStore } from '../stores/auth';
 import Logo from '../components/Logo.vue';
@@ -38,6 +39,7 @@ const nav = [
   { path: '/competencias', label: 'Competências', icon: CalendarRange },
   { path: '/empresas', label: 'Empresas', icon: Building2 },
   { path: '/templates', label: 'Checklists', icon: SquareCheckBig },
+  { path: '/mensagens', label: 'Mensagens', icon: Mail },
   { path: '/configuracoes/contabilidade', label: 'Contabilidade', icon: Settings },
   { path: '/configuracoes/whatsapp', label: 'WhatsApp', icon: Settings },
   { path: '/configuracoes/plano', label: 'Plano e Assinatura', icon: SquareCheckBig },

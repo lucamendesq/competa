@@ -22,7 +22,7 @@ configuração para funcionar. Complementa o [`roadmap.md`](./roadmap.md).
 | `/empresas/importar`                     | Importar planilha + relatório por linha                                                                              | completa (.xlsx e .csv, cabeçalhos PT aceitos)              |
 | `/empresas/:id/checklist`                | Overrides por Empresa                                                                                                | completa                                                    |
 | `/checklists`, `/checklists/:id`         | Templates do produto e derivados editáveis                                                                           | completa                                                    |
-| `/mensagens`                             | Log de entrega + detalhe do erro                                                                                     | completa (2026-09-15)                                       |
+| `/mensagens`                             | Log de entrega + detalhe do erro + reenvio por mensagem                                                              | completa (portada para o Vue em 2026-11-01, COM-253)        |
 | `/configuracoes/*`                       | Contabilidade (nome editável) · Contadores (lista/remover/convites) · Lembretes (preferências) · Canais              | completa desde 2026-09-11, menos Canais (WhatsApp = Fase 8) |
 | `/envio/:token`                          | **Página pública de envio** (mobile-first, sem senha)                                                                | completa                                                    |
 | `/minha-area/*`                          | Área do Responsável (acesso, pendências, histórico, envio logado, preview/baixar documento, multi-empresa com badge) | completa                                                    |
@@ -43,7 +43,7 @@ endpoint. **Revisão 2026-09-11: a maioria das lacunas fechou** — ficou assim:
 5. ~~Baixar/visualizar um Documento avulso~~ — ✅ preview/baixar na revisão
    (`GET /documents/:id/content`) e na área do Responsável (`GET /my/documents/:id/content`).
 6. ~~Reenviar mensagem individual~~ — ✅ `POST /messages/:id/resend` e botão "Reenviar mensagem"
-   no detalhe do envio em `/mensagens`.
+   na linha da mensagem em `/mensagens`.
 7. ~~Colunas ausentes~~ — ✅ "Aberta em" da Competência, nome/e-mail do Responsável na lista de
    Empresas, "empresas usando" no template.
 8. ~~Filtros de Mensagens~~ — ✅ filtros por Empresa (`companyId`), Canal (`channel`) e Tipo

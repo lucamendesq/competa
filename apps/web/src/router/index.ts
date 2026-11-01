@@ -126,6 +126,11 @@ const routes: RouteRecordRaw[] = [
         props: true,
       },
       {
+        path: 'mensagens',
+        name: 'Messages',
+        component: () => import('../pages/MessagesPage.vue'),
+      },
+      {
         path: 'solicitacoes/:id',
         name: 'RequestReview',
         component: () => import('../pages/RequestReviewPage.vue'),
