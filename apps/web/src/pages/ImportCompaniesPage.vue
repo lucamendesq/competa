@@ -270,7 +270,7 @@ function discard() {
 }
 
 function downloadTemplate() {
-  const header = COLUMNS.map((column) => column.header).join(',');
+  const header = COLUMNS.map((column) => column.header).join(';');
   const example = [
     'Padaria Pão Quente Ltda',
     '11.222.333/0001-81',
@@ -280,9 +280,10 @@ function downloadTemplate() {
     'Sim',
     'Não',
     'Não',
-  ].join(',');
+  ].join(';');
 
-  const blob = new Blob([`${header}\n${example}\n`], { type: 'text/csv;charset=utf-8' });
+  /* Excel em pt-BR só separa as colunas com ";" e só lê os acentos como UTF-8 com o BOM. */
+  const blob = new Blob([`\uFEFF${header}\n${example}\n`], { type: 'text/csv;charset=utf-8' });
   const url = URL.createObjectURL(blob);
   const anchor = document.createElement('a');
 
