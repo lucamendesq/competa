@@ -122,7 +122,10 @@ async function read(f: File) {
       const XLSX = await import('xlsx');
       const workbook = XLSX.read(await f.arrayBuffer(), { type: 'array' });
       const firstSheet = workbook.Sheets[workbook.SheetNames[0]];
-      file.value = { name: f.name, content: XLSX.utils.sheet_to_csv(firstSheet) };
+      file.value = {
+        name: f.name,
+        content: XLSX.utils.sheet_to_csv(firstSheet, { rawNumbers: true }),
+      };
     } catch {
       error.value = 'Não foi possível ler esta planilha. Exporte como CSV e tente de novo.';
     }

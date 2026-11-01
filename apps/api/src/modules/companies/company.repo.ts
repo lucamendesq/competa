@@ -598,9 +598,20 @@ const make = Effect.gen(function* () {
         values.contact_email || values.contact_name || values.contact_phone,
       );
 
+      if (/e\+\d+$/i.test(values.cnpj ?? '')) {
+        lines.push({
+          line,
+          status: 'error',
+          name,
+          error:
+            'cnpj: a planilha guardou o CNPJ em notação científica. Formate a coluna CNPJ como texto e exporte de novo.',
+        });
+        continue;
+      }
+
       const parsed = CreateCompanyBody.safeParse({
         name,
-        cnpj: values.cnpj || undefined,
+        cnpj: cnpjCell(values.cnpj),
         flags: parseFlags(values),
         contact: hasContact
           ? {
@@ -893,6 +904,11 @@ export class CompaniesRepo extends Context.Service<CompaniesRepo, Effect.Success
   static readonly layerNoDeps = Layer.effect(CompaniesRepo, make);
   static readonly layer = this.layerNoDeps.pipe(Layer.provide(Db.layer));
 }
+
+/** Célula numérica do Excel perde os zeros à esquerda do CNPJ (01.234.… vira 1234…). Só a
+ *  célula só de dígitos é completada: CNPJ digitado com pontuação chega inteiro. */
+const cnpjCell = (value: string | undefined) =>
+  value && /^\d{12,13}$/.test(value) ? value.padStart(14, '0') : value || undefined;
 
 const TRUTHY_FLAG_VALUES = new Set(['sim', 's', 'true', 'verdadeiro', '1']);
 

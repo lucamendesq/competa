@@ -413,6 +413,21 @@ describe('POST /companies/import — prévia do CSV (nada é gravado)', () => {
     });
   });
 
+  it('CNPJ salvo como número: completa os zeros à esquerda e recusa a notação científica', async () => {
+    const leadingZero = validCnpj();
+    expect(leadingZero).toMatch(/^0/);
+    const csv = ['Empresa,CNPJ', `Sem Zero,${leadingZero.slice(1)}`, 'Científica,6.28411E+13'].join(
+      '\n',
+    );
+
+    const res = await api.post('/companies/import', { csv });
+    expect(res.status, JSON.stringify(res.body)).toBe(201);
+    const [padded, scientific] = res.body.data.lines;
+    expect(padded).toMatchObject({ status: 'pending', body: { cnpj: leadingZero } });
+    expect(scientific.status).toBe('error');
+    expect(scientific.error).toContain('notação científica');
+  });
+
   it('prévia não grava empresa nenhuma', async () => {
     const res = await api.get('/companies');
     expect(res.body.meta.total).toBe(0);
