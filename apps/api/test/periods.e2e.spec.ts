@@ -273,8 +273,15 @@ describe('GET /periods/preview — prévia da abertura', () => {
     ).toEqual(['Sem Responsável', 'Só em março']);
     expect((await api.get('/periods')).body.meta.total, 'a prévia não abre nada').toBe(0);
 
+    expect(res.body.data.existingPeriodId).toBeNull();
+
     const opened = await api.post('/periods', { referenceMonth: '2026-05' });
     expect(opened.body.data.requests).toHaveLength(res.body.data.requests.length);
+
+    const again = await api.get('/periods/preview?referenceMonth=2026-05');
+    expect(again.body.data.existingPeriodId, 'mês já aberto aparece já na prévia').toBe(
+      opened.body.data.id,
+    );
   });
 });
 

@@ -32,7 +32,7 @@ import { apiErrorMessage } from '@/api/error';
 import { useCopy } from '@/composables/useCopy';
 import { useAuthStore } from '@/stores/auth';
 import PlanGateNotice from '@/components/PlanGateNotice.vue';
-import { planGateMessage } from '@competa/contracts';
+import { OpenPeriodBody, planGateMessage } from '@competa/contracts';
 
 const auth = useAuthStore();
 const canPeriodZip = computed(() => auth.can('periodZip'));
@@ -125,9 +125,22 @@ const preview = computed(() => {
   };
 });
 
+const existingPeriodId = computed(() => previewQuery.data.value?.existingPeriodId ?? null);
+
+const dueDateError = computed(() => {
+  const parsed = OpenPeriodBody.safeParse({
+    referenceMonth: opening.value.referenceMonth,
+    dueDate: opening.value.dueDate || undefined,
+  });
+  return parsed.success
+    ? null
+    : (parsed.error.issues.find((issue) => issue.path[0] === 'dueDate')?.message ?? null);
+});
+
 const step = ref<'form' | 'confirm'>('form');
 
 function review() {
+  if (existingPeriodId.value || dueDateError.value) return;
   openError.value = null;
   step.value = 'confirm';
 }
@@ -497,6 +510,15 @@ async function downloadZip(id: string, refMonth: string) {
           <p id="month-help" class="text-muted-foreground text-xs mt-1">
             O mês a que os documentos se referem — normalmente o mês passado.
           </p>
+          <p v-if="existingPeriodId" class="text-danger text-xs font-medium" role="alert">
+            A competência {{ monthLabel(opening.referenceMonth) }} já foi aberta.
+            <RouterLink
+              :to="`/competencias/${existingPeriodId}/pendencias`"
+              class="underline"
+              @click="modalOpen = false"
+              >Ver painel</RouterLink
+            >
+          </p>
         </fieldset>
 
         <div class="flex flex-col gap-1.5">
@@ -508,10 +530,14 @@ async function downloadZip(id: string, refMonth: string) {
             type="date"
             v-model="opening.dueDate"
             aria-describedby="due-date-help"
+            :aria-invalid="dueDateError ? true : undefined"
             class="bg-surface shadow-xs focus-visible:ring-ring focus-visible:border-primary"
           />
           <p id="due-date-help" class="text-muted-foreground text-xs">
             Usado quando o item não tem prazo próprio.
+          </p>
+          <p v-if="dueDateError" class="text-danger text-xs font-medium" role="alert">
+            {{ dueDateError }}
           </p>
         </div>
 
@@ -602,7 +628,7 @@ async function downloadZip(id: string, refMonth: string) {
           <Button
             type="submit"
             form="open-period-form"
-            :disabled="preview.created === 0"
+            :disabled="preview.created === 0 || !!existingPeriodId || !!dueDateError"
             class="font-medium"
             >Revisar envios</Button
           >

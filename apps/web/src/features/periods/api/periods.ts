@@ -59,6 +59,7 @@ export const addMissingRequests = (id: string) =>
   api.post<Pick<PeriodOpening, 'warnings' | 'requests'>>(`/periods/${id}/requests`);
 
 export type PeriodPreview = {
+  existingPeriodId: string | null;
   requests: { companyId: string; companyName: string; contactName: string; itemCount: number }[];
   skipped: PeriodOpening['warnings'];
   notes: PeriodOpening['warnings'];
