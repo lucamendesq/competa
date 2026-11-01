@@ -753,7 +753,11 @@ describe('área logada do Responsável (/my) com vínculo multi-empresa', () => 
 
     const second = await session.api.post('/my/password', { password: 'mais-uma-senha-valida-9' });
     expect(second.status).toBe(400);
-    expect(second.body.error.code).toBe('PASSWORD_ALREADY_SET');
+    expect(second.body.error).toEqual({
+      code: 'PASSWORD_ALREADY_SET',
+      message:
+        'Você já tem uma senha cadastrada. Entre com ela ou pelo link enviado ao seu e-mail.',
+    });
   });
 
   it('senha curta em POST /my/password → 422 antes da better-auth', async () => {

@@ -8,6 +8,7 @@ import {
   PushSubscriptionBody,
   SetPasswordBody,
 } from '@competa/contracts';
+import { APIError } from 'better-auth/api';
 import { Effect, Layer } from 'effect';
 import { HttpServerRequest, HttpServerResponse } from 'effect/http';
 import * as z from 'zod';
@@ -25,6 +26,7 @@ import { servedContentType } from '../requests/file-rules.js';
 import { RequestsRepo } from '../requests/request.repo.js';
 import { effectiveDueDate } from '../requests/review-rules.js';
 import { ContactsRepo } from './contact.repo.js';
+import { PasswordAlreadySet } from './errors.js';
 
 const auth = new BetterAuthAdapter();
 
@@ -190,7 +192,16 @@ const setPassword = route(
       const request = yield* HttpServerRequest.HttpServerRequest;
       const headers = (NodeHttpServerRequest.toIncomingMessage(request) as IncomingMessage).headers;
 
-      yield* Effect.promise(() => auth.setPassword(headers, input.password));
+      yield* Effect.tryPromise({
+        try: () => auth.setPassword(headers, input.password),
+        catch: (cause) => cause,
+      }).pipe(
+        Effect.catch((cause) =>
+          cause instanceof APIError && cause.body?.code === 'PASSWORD_ALREADY_SET'
+            ? Effect.fail(new PasswordAlreadySet())
+            : Effect.die(cause),
+        ),
+      );
     }),
     204,
   ),
