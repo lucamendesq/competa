@@ -193,6 +193,11 @@ service worker do Angular (`ngsw-config.json`) com **prefetch só de casca e ass
 Não há `dataGroups`: resposta de API nunca é cacheada — documento contábil velho em tela é
 pior do que tela vazia. Verificado com build de produção: SW ativo, casca abre offline.
 
+O SW gerado pelo `vite-plugin-pwa` importa `public/push-handler.js`, que exibe o push (o
+payload da API ainda vem no formato `{ notification }` do service worker do Angular) e abre a
+URL dele no clique. Sem SW registrado (o dev não registra), "Me avise neste aparelho" desiste
+em 10 s com erro em vez de ficar em "Ativando…".
+
 ## Novo Design System (Outubro/2026)
 
 - **Paleta Canônica:** Noite Azulada (`#0F172A`) & Âmbar Solar (`#D97706` / `#B45309`) sobre Canvas claro e arejado (`#FAFAFA`) e superfícies puras (`#FFFFFF`).

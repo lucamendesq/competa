@@ -14,6 +14,7 @@ export default defineConfig({
       includeAssets: ['favicon.svg', 'robots.txt'],
       manifest: false,
       workbox: {
+        importScripts: ['push-handler.js'],
         globPatterns: ['**/*.{js,css,html,ico,png,svg,woff2}'],
         runtimeCaching: [
           {
