@@ -355,7 +355,7 @@ function maskedCnpj(cnpj: string | null) {
     </template>
   </PageHeader>
 
-  <main class="mt-8">
+  <div class="mt-8">
     <template v-if="panelQuery.isError.value">
       <ErrorState title="Não foi possível carregar." @retry="panelQuery.refetch()" />
     </template>
@@ -683,7 +683,7 @@ function maskedCnpj(cnpj: string | null) {
         </div>
       </div>
     </template>
-  </main>
+  </div>
 
   <Modal
     v-model:open="confirmClose"

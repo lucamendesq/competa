@@ -304,7 +304,7 @@ function resolveLeave(leave: boolean) {
     </Button>
   </PageHeader>
 
-  <main class="mt-8">
+  <div class="mt-8">
     <template v-if="detailQuery.isLoading.value">
       <LoadingRows />
     </template>
@@ -356,7 +356,7 @@ function resolveLeave(leave: boolean) {
                   Modificado
                 </span>
               </div>
-              <h3 class="font-display text-base font-semibold text-foreground">{{ item.name }}</h3>
+              <h2 class="font-display text-base font-semibold text-foreground">{{ item.name }}</h2>
               <p v-if="item.description" class="text-muted-foreground mt-1.5 text-sm">
                 {{ item.description }}
               </p>
@@ -488,7 +488,7 @@ function resolveLeave(leave: boolean) {
         </div>
       </div>
     </template>
-  </main>
+  </div>
 
   <!-- Sticky Footer Bar -->
   <div

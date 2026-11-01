@@ -86,7 +86,7 @@ async function createBlank() {
     </Button>
   </PageHeader>
 
-  <main class="mt-8">
+  <div class="mt-8">
     <template v-if="templatesQuery.isLoading.value">
       <LoadingRows />
     </template>
@@ -173,7 +173,7 @@ async function createBlank() {
         </div>
       </div>
     </template>
-  </main>
+  </div>
 
   <Modal
     :open="deriveOpen !== null"

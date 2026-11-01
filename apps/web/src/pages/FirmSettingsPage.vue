@@ -143,7 +143,7 @@ async function save() {
     description="Dados do escritório e cadência das cobranças automáticas."
   />
 
-  <main class="mt-8 max-w-2xl">
+  <div class="mt-8 max-w-2xl">
     <template v-if="firmQuery.isLoading.value">
       <LoadingRows :count="5" />
     </template>
@@ -290,5 +290,5 @@ async function save() {
         </Button>
       </div>
     </form>
-  </main>
+  </div>
 </template>

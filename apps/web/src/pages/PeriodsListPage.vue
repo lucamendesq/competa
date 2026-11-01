@@ -199,7 +199,7 @@ async function downloadZip(id: string, refMonth: string) {
     </Button>
   </PageHeader>
 
-  <main class="mt-8">
+  <div class="mt-8">
     <PlanGateNotice v-if="!canPeriodZip" capability="periodZip" class="mb-4">
       Baixar o zip da competência inteira (o zip por empresa continua liberado)
     </PlanGateNotice>
@@ -368,7 +368,7 @@ async function downloadZip(id: string, refMonth: string) {
         </div>
       </div>
     </template>
-  </main>
+  </div>
 
   <Modal
     v-model:open="modalOpen"

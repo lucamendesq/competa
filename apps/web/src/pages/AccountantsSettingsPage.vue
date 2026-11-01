@@ -130,7 +130,7 @@ async function doRevoke() {
     </Button>
   </PageHeader>
 
-  <main class="mt-8 flex flex-col gap-8">
+  <div class="mt-8 flex flex-col gap-8">
     <section>
       <h2 class="mb-3 text-base font-semibold font-display text-foreground">Contadores</h2>
       <template v-if="accountantsQuery.isLoading.value">
@@ -228,7 +228,7 @@ async function doRevoke() {
     <p v-if="!isOwner" class="text-muted-foreground text-xs">
       Apenas o dono da Contabilidade pode convidar ou remover contadores.
     </p>
-  </main>
+  </div>
 
   <Modal
     v-model:open="inviteOpen"

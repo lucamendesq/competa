@@ -187,7 +187,7 @@ async function publish() {
     <Button variant="outline" class="shadow-xs" @click="router.back()">Voltar</Button>
   </PageHeader>
 
-  <main class="mt-8 pb-24">
+  <div class="mt-8 pb-24">
     <template v-if="detailQuery.isLoading.value">
       <LoadingRows :count="6" />
     </template>
@@ -393,7 +393,7 @@ async function publish() {
         </ul>
       </section>
     </template>
-  </main>
+  </div>
 
   <div
     v-if="decisionCount > 0"

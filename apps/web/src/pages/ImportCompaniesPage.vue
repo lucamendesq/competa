@@ -287,7 +287,7 @@ function downloadTemplate() {
     </Button>
   </PageHeader>
 
-  <main class="mt-8">
+  <div class="mt-8">
     <section v-if="preview" class="flex flex-col gap-6">
       <div class="flex flex-col gap-4 sm:flex-row sm:items-start sm:justify-between">
         <div>
@@ -523,7 +523,7 @@ function downloadTemplate() {
         </ul>
       </aside>
     </div>
-  </main>
+  </div>
 
   <Modal
     :open="confirmRestart"
