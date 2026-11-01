@@ -6,6 +6,7 @@ import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import PageHeader from '@/components/PageHeader.vue';
 import ErrorState from '@/components/ErrorState.vue';
+import NotFoundState from '@/components/NotFoundState.vue';
 import LoadingRows from '@/components/LoadingRows.vue';
 import Modal from '@/components/Modal.vue';
 import CatalogPicker, { type CatalogDocument } from '@/components/CatalogPicker.vue';
@@ -15,7 +16,7 @@ import {
   useChecklistsFeature,
 } from '@/features/checklists/composables/useChecklistsFeature';
 import { toast } from 'vue-sonner';
-import { apiErrorMessage } from '@/api/error';
+import { apiErrorMessage, isNotFound } from '@/api/error';
 import { COMPANY_FLAGS } from '@competa/contracts';
 import { CATEGORY_LABEL, FLAG_LABEL } from '@/utils/format';
 
@@ -292,14 +293,18 @@ function resolveLeave(leave: boolean) {
   >
     <Button variant="outline" class="mr-2 shadow-xs" @click="router.back()">Voltar</Button>
     <Button
-      v-if="isProductTemplate"
+      v-if="detailQuery.data.value && isProductTemplate"
       :disabled="acting"
       class="shadow-xs font-medium"
       @click="deriveAndEdit"
     >
       <Copy class="mr-2 h-4 w-4" aria-hidden="true" /> Duplicar para editar
     </Button>
-    <Button v-else class="shadow-xs font-medium" @click="catalogOpen = true">
+    <Button
+      v-else-if="detailQuery.data.value"
+      class="shadow-xs font-medium"
+      @click="catalogOpen = true"
+    >
       <Plus class="mr-2 h-4 w-4" aria-hidden="true" /> Adicionar documento
     </Button>
   </PageHeader>
@@ -307,6 +312,9 @@ function resolveLeave(leave: boolean) {
   <div class="mt-8">
     <template v-if="detailQuery.isLoading.value">
       <LoadingRows />
+    </template>
+    <template v-else-if="isNotFound(detailQuery.error.value)">
+      <NotFoundState title="Template não encontrado" to="/templates" back-label="Ver templates" />
     </template>
     <template v-else-if="detailQuery.isError.value">
       <ErrorState title="Não foi possível carregar." @retry="detailQuery.refetch()" />

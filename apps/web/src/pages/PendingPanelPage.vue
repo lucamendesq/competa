@@ -25,6 +25,7 @@ import Modal from '@/components/Modal.vue';
 import StatusPill from '@/components/StatusPill.vue';
 import DueDate from '@/components/DueDate.vue';
 import CloseRequestModal from '@/components/CloseRequestModal.vue';
+import NotFoundState from '@/components/NotFoundState.vue';
 import {
   usePeriodDetailFeature,
   usePeriodsFeature,
@@ -38,7 +39,7 @@ import {
 } from '@/features/requests/api/requests';
 import { useQuery } from '@tanstack/vue-query';
 import { toast } from 'vue-sonner';
-import { apiErrorMessage } from '@/api/error';
+import { apiErrorMessage, isNotFound } from '@/api/error';
 import { useCopy } from '@/composables/useCopy';
 import { useAuthStore } from '@/stores/auth';
 import PlanGateNotice from '@/components/PlanGateNotice.vue';
@@ -60,6 +61,10 @@ const panelQuery = useQuery({
 });
 
 const { companiesQuery } = useCompaniesFeature(ref(1), ref(100));
+
+const notFound = computed(
+  () => isNotFound(detailQuery.error.value) || isNotFound(panelQuery.error.value),
+);
 
 const cnpjByCompany = computed(() => {
   const map = new Map<string, string>();
@@ -330,7 +335,7 @@ function maskedCnpj(cnpj: string | null) {
 </script>
 
 <template>
-  <PlanGateNotice v-if="!canPeriodZip" capability="periodZip" class="mb-4">
+  <PlanGateNotice v-if="!canPeriodZip && !notFound" capability="periodZip" class="mb-4">
     Baixar o zip da competência inteira (o zip por empresa continua liberado)
   </PlanGateNotice>
 
@@ -343,7 +348,11 @@ function maskedCnpj(cnpj: string | null) {
     "
     description="Acompanhe o painel de pendências desta competência."
   >
-    <span class="mr-2 inline-block" :title="canPeriodZip ? undefined : periodZipHint">
+    <span
+      v-if="!notFound"
+      class="mr-2 inline-block"
+      :title="canPeriodZip ? undefined : periodZipHint"
+    >
       <Button
         variant="outline"
         class="shadow-xs"
@@ -374,7 +383,14 @@ function maskedCnpj(cnpj: string | null) {
   </PageHeader>
 
   <div class="mt-8">
-    <template v-if="panelQuery.isError.value">
+    <template v-if="notFound">
+      <NotFoundState
+        title="Competência não encontrada"
+        to="/competencias"
+        back-label="Ver competências"
+      />
+    </template>
+    <template v-else-if="panelQuery.isError.value">
       <ErrorState title="Não foi possível carregar." @retry="panelQuery.refetch()" />
     </template>
     <template v-else-if="panelQuery.isLoading.value">

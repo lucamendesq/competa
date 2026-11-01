@@ -52,6 +52,8 @@ export const apiErrorCode = (error: unknown): string | undefined => {
   return body.error?.code;
 };
 
+export const isNotFound = (error: unknown) => error instanceof ApiError && error.status === 404;
+
 export type FailureKind = 'offline' | 'gone' | 'server' | 'other';
 
 export const failureKind = (error: unknown): FailureKind => {

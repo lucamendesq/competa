@@ -17,6 +17,7 @@ import { Label } from '@/components/ui/label';
 import PageHeader from '@/components/PageHeader.vue';
 import Callout from '@/components/Callout.vue';
 import Modal from '@/components/Modal.vue';
+import NotFoundState from '@/components/NotFoundState.vue';
 import {
   useCompanyChecklistFeature,
   useCompanyDetailFeature,
@@ -27,7 +28,7 @@ import {
 } from '@/features/checklists/composables/useChecklistsFeature';
 import { useAccountants } from '@/features/team/composables/useAccountants';
 import { toast } from 'vue-sonner';
-import { apiErrorMessage, apiFieldErrors } from '@/api/error';
+import { apiErrorMessage, apiFieldErrors, isNotFound } from '@/api/error';
 import { CATEGORY_LABEL, FLAG_LABEL, PERIODICITY_LABEL } from '@/utils/format';
 
 const props = defineProps<{ id?: string }>();
@@ -371,7 +372,14 @@ const onSubmit = handleSubmit(async (values) => {
 <template>
   <PageHeader :title="editing ? 'Editar empresa' : 'Nova empresa'" />
 
+  <NotFoundState
+    v-if="isNotFound(detailQuery.error.value)"
+    title="Empresa não encontrada"
+    to="/empresas"
+    back-label="Ver empresas"
+  />
   <form
+    v-else
     novalidate
     class="mx-auto mt-8 flex max-w-5xl flex-col items-start gap-8 lg:flex-row"
     @submit="onSubmit"

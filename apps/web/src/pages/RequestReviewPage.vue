@@ -12,6 +12,7 @@ import StatusPill from '@/components/StatusPill.vue';
 import ResendNotice from '@/components/ResendNotice.vue';
 import DueDate from '@/components/DueDate.vue';
 import CloseRequestModal from '@/components/CloseRequestModal.vue';
+import NotFoundState from '@/components/NotFoundState.vue';
 import {
   getRequestDetail,
   openDocumentContent,
@@ -21,7 +22,7 @@ import {
   type RequestItem,
 } from '@/features/requests/api/requests';
 import { toast } from 'vue-sonner';
-import { apiErrorMessage } from '@/api/error';
+import { apiErrorMessage, isNotFound } from '@/api/error';
 import { dateTimeBr, fileSize, monthLabel } from '@/utils/format';
 import { displayItemStatus, needsResend, wasResent } from '@/utils/item-status';
 
@@ -201,6 +202,13 @@ async function publish() {
   <div class="mt-8 pb-24">
     <template v-if="detailQuery.isLoading.value">
       <LoadingRows :count="6" />
+    </template>
+    <template v-else-if="isNotFound(detailQuery.error.value)">
+      <NotFoundState
+        title="Solicitação não encontrada"
+        to="/competencias"
+        back-label="Ver competências"
+      />
     </template>
     <template v-else-if="detailQuery.isError.value">
       <ErrorState title="Não foi possível carregar." @retry="detailQuery.refetch()" />
