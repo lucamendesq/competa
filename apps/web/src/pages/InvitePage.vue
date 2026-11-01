@@ -12,7 +12,7 @@ import { Label } from '@/components/ui/label';
 import Logo from '@/components/Logo.vue';
 import { useAuthStore } from '@/stores/auth';
 import { api } from '@/api/client';
-import { apiErrorMessage } from '@/api/error';
+import { ApiError, apiErrorMessage } from '@/api/error';
 import TermsConsent from '@/components/TermsConsent.vue';
 
 const route = useRoute();
@@ -28,12 +28,16 @@ const invite = ref<{
 } | null>(null);
 const loading = ref(true);
 const inviteError = ref<string | null>(null);
+const signInPath = ref('/entrar');
 
 onMounted(async () => {
   try {
     invite.value = await api.get(`/invites/${token}`);
   } catch (err: any) {
     inviteError.value = apiErrorMessage(err, 'Convite não encontrado ou expirado.');
+    if (err instanceof ApiError && (err.body as any)?.error?.details?.target === 'company') {
+      signInPath.value = '/minha-area/acesso';
+    }
   } finally {
     loading.value = false;
   }
@@ -107,7 +111,7 @@ const onSubmit = handleSubmit(async (values) => {
         </div>
         <h1 class="font-display text-xl font-semibold tracking-tight">Convite inválido</h1>
         <p class="text-muted-foreground mt-2 text-sm">{{ inviteError }}</p>
-        <Button class="mt-6 w-full" variant="outline" @click="router.push('/entrar')">
+        <Button class="mt-6 w-full" variant="outline" @click="router.push(signInPath)">
           Ir para o login
         </Button>
       </div>
@@ -146,8 +150,9 @@ const onSubmit = handleSubmit(async (values) => {
 
         <form novalidate class="flex flex-col gap-4" @submit="onSubmit">
           <div class="flex flex-col gap-1.5">
-            <Label>E-mail</Label>
+            <Label for="invite-email">E-mail</Label>
             <Input
+              id="invite-email"
               type="email"
               :model-value="invite.email"
               disabled

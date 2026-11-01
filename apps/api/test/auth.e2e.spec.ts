@@ -609,7 +609,10 @@ describe('convite de Contador (POST /invites, GET /invites/:token, POST /auth/si
 
     const preview = await apiClient(app.url).get(`/invites/${guestToken}`);
     expect(preview.status).toBe(409);
-    expect(preview.body.error.code).toBe('INVITE_ALREADY_ACCEPTED');
+    expect(preview.body.error).toMatchObject({
+      code: 'INVITE_ALREADY_ACCEPTED',
+      details: { target: 'accounting_firm' },
+    });
   });
 
   it('membro não convida → 403 ONLY_OWNER_CAN_INVITE', async () => {

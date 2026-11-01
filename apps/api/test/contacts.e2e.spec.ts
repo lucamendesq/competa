@@ -510,6 +510,10 @@ describe('aceite de convite de Responsável (POST /invites/:token/contact-accoun
     const res = await acceptInvite(acceptedToken, { password: PASSWORD });
     expect(res.status).toBe(409);
     expect(res.body.error.code).toBe('INVITE_ALREADY_ACCEPTED');
+
+    const preview = await apiClient(app.url).get(`/invites/${acceptedToken}`);
+    expect(preview.status).toBe(409);
+    expect(preview.body.error.details).toEqual({ target: 'company' });
   });
 
   it('contato que já tem acesso → 409 CONTACT_ACCESS_ALREADY_EXISTS sem queimar o convite', async () => {
