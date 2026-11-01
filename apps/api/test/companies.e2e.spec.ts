@@ -403,7 +403,7 @@ describe('POST /companies/import — prévia do CSV (nada é gravado)', () => {
     });
 
     expect(badCnpj).toMatchObject({ line: 3, status: 'error' });
-    expect(badCnpj.error).toContain('cnpj');
+    expect(badCnpj.error).toMatch(/^CNPJ/);
     expect(missingName).toMatchObject({ line: 4, status: 'error' });
     expect(missingName.error).toContain('Informe o nome da Empresa.');
     expect(duplicated).toMatchObject({

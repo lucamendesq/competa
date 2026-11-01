@@ -4,6 +4,8 @@ import { createApp } from 'vue';
 import { createPinia } from 'pinia';
 import { VueQueryPlugin } from '@tanstack/vue-query';
 import { toast } from 'vue-sonner';
+/* Carrega a voz PT-BR do zod para todo schema, inclusive os locais das páginas. */
+import '@competa/contracts';
 import './main.css';
 import App from './App.vue';
 import router from './router';

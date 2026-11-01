@@ -1025,6 +1025,14 @@ describe('Contabilidade (GET/PATCH /accounting-firm, device-stats)', () => {
     }
   });
 
+  it('validação: lembrete fora da faixa ou fracionado responde na voz do produto', async () => {
+    for (const reminderMax of [99, 2.5, -1]) {
+      const res = await firm.api.patch('/accounting-firm', { reminderMax });
+      expect(res.status).toBe(422);
+      expect(res.body.error.details[0].message).toBe('Informe um número inteiro de 0 a 10.');
+    }
+  });
+
   it('device-stats: começa zerado e agrega os devices da equipe por plataforma', async () => {
     const zeroAudience = {
       total: 0,

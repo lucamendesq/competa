@@ -450,7 +450,7 @@ layer(CompaniesRepo.layer)('CompaniesRepo', (it) => {
       expect(preview.lines[1]).toMatchObject({
         line: 3,
         status: 'error',
-        error: 'contact.email: E-mail inválido.',
+        error: 'E-mail inválido.',
       });
       expect(preview.lines[2]).toMatchObject({
         line: 4,
@@ -460,7 +460,7 @@ layer(CompaniesRepo.layer)('CompaniesRepo', (it) => {
       expect(preview.lines[3]).toMatchObject({
         line: 5,
         status: 'error',
-        error: 'name: Informe o nome da Empresa.',
+        error: 'Informe o nome da Empresa.',
       });
 
       const companies = yield* Effect.promise(() =>

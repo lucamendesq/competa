@@ -4,6 +4,7 @@ import { useRoute, useRouter } from 'vue-router';
 import { useForm, useField } from 'vee-validate';
 import * as z from 'zod';
 import { toTypedSchema } from '@vee-validate/zod';
+import { newPassword, plainName } from '@competa/contracts';
 import { ArrowRight, CircleAlert, Building, Building2 } from 'lucide-vue-next';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -39,12 +40,13 @@ onMounted(async () => {
 });
 
 const schema = z.object({
-  name: z.string().trim().min(1, 'Informe seu nome.'),
-  password: z.string().min(8, 'A senha precisa de pelo menos 8 caracteres.'),
+  name: plainName(255, 'Informe seu nome.', 'O nome deve ter no máximo 255 caracteres.'),
+  password: newPassword('A senha precisa de pelo menos 8 caracteres.'),
 });
 
 const { handleSubmit, isSubmitting } = useForm({
   validationSchema: toTypedSchema(schema),
+  initialValues: { name: '', password: '' },
 });
 
 const { value: name, errorMessage: nameError, meta: nameMeta } = useField<string>('name');

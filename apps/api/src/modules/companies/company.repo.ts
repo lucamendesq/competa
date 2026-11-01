@@ -906,8 +906,4 @@ const parseFlags = (values: Record<string, string | undefined>): CompanyFlags =>
     ]),
   );
 
-const firstIssue = (error: z.ZodError) => {
-  const issue = error.issues[0];
-
-  return `${issue.path.join('.') || 'linha'}: ${issue.message}`;
-};
+const firstIssue = (error: z.ZodError) => error.issues[0].message;
