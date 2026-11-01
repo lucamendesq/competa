@@ -404,7 +404,7 @@ async function send(files: File[], requestItemId: string | null) {
         >
           <button
             type="button"
-            class="hover:bg-muted/40 focus-visible:bg-muted/40 focus-visible:ring-ring flex items-start justify-between gap-4 p-4 text-left focus-visible:outline-none transition-colors"
+            class="hover:bg-muted/40 focus-visible:bg-muted/40 focus-visible:ring-ring focus-visible:ring-2 focus-visible:ring-inset flex items-start justify-between gap-4 p-4 text-left focus-visible:outline-none transition-colors"
             :aria-expanded="expanded === item.id"
             :aria-controls="'upload-' + item.id"
             @click="toggle(item.id)"
