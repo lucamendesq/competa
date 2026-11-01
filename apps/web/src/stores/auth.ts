@@ -154,7 +154,9 @@ export const useAuthStore = defineStore('auth', () => {
 
   async function resetPassword(newPassword: string, token: string) {
     const { error } = await authClient.resetPassword({ newPassword, token });
-    if (error) throw new Error('Link inválido ou expirado. Peça um novo.');
+    if (!error) return 'done';
+    if (error.code === 'INVALID_TOKEN') return 'invalid-link';
+    throw new Error('Não foi possível redefinir a senha. Tente de novo.');
   }
 
   async function signOut() {
