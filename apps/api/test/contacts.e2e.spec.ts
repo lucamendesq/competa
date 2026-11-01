@@ -12,6 +12,7 @@ import {
   message,
   pushSubscription,
   request,
+  requestItem,
   uploadLink,
   user as authUser,
   verification,
@@ -861,7 +862,7 @@ describe('upload logado (/my/documents) e leitura de conteúdo', () => {
     });
   });
 
-  it('upload mirado num Item marca o Item como submitted', async () => {
+  it('upload mirado num Item marca o Item como submitted e o tira do que falta', async () => {
     const pending = await session.api.get('/my/pending');
     const itemId = pending.body.data[0].item.id as string;
 
@@ -873,8 +874,14 @@ describe('upload logado (/my/documents) e leitura de conteúdo', () => {
     );
     expect(confirmed).toMatchObject({ confirmed: 1, submittedItemIds: [itemId] });
 
+    const [row] = await db
+      .select({ status: requestItem.status })
+      .from(requestItem)
+      .where(eq(requestItem.id, itemId));
+    expect(row.status).toBe('submitted');
+
     const after = await session.api.get('/my/pending');
-    expect(after.body.data[0].item.status).toBe('submitted');
+    expect(after.body.data.map((pendingRow: any) => pendingRow.item.id)).not.toContain(itemId);
   });
 
   it('Solicitação de outra Empresa → 404; sem requestId → 422 do guard', async () => {

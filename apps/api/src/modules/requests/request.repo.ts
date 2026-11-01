@@ -1055,6 +1055,7 @@ const make = Effect.gen(function* () {
             inArray(request.companyId, companyIdsOf(scope)),
             eq(period.status, 'open'),
             ne(request.status, 'closed'),
+            inArray(requestItem.status, ['pending', 'rejected']),
           ),
         )
         .orderBy(asc(requestItem.dueDate), asc(requestItem.name));

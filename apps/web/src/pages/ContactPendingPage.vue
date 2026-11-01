@@ -6,6 +6,7 @@ import StatusPill from '@/components/StatusPill.vue';
 import { useContactPending } from '@/features/contact-area/composables/useContactPending';
 import type { MyPendingItem } from '@/features/contact-area/api';
 import { dateBr, isOverdue, monthLabel } from '@/utils/format';
+import { displayItemStatus, needsResend } from '@/utils/item-status';
 import LoadingRows from '@/components/LoadingRows.vue';
 import UploadFeedback from '@/components/UploadFeedback.vue';
 import type { FileResult } from '@/composables/useUpload';
@@ -75,17 +76,16 @@ const groupedItems = computed(() => {
   return Array.from(groups.values());
 });
 
-/* A recusa devolve o item para `pending` (nunca fica `rejected`), e a lista vem da mais
- * antiga para a mais nova: o aviso olha se há recusa e o item ainda não foi reenviado, e
- * mostra o motivo da última. */
+/* As recusas vêm da mais antiga para a mais nova: o aviso mostra o motivo da última. */
 function latestRejection(item: MyPendingItem['item']) {
-  if (item.status === 'submitted' || item.status === 'accepted') return undefined;
   return item.rejections[item.rejections.length - 1];
 }
 </script>
 
 <template>
   <div class="flex flex-col gap-6">
+    <h1 class="font-display text-foreground text-2xl font-bold tracking-tight">O que falta</h1>
+
     <LoadingRows v-if="pendingQuery.isLoading.value" :count="4" />
 
     <div
@@ -95,9 +95,9 @@ function latestRejection(item: MyPendingItem['item']) {
       <div class="flex items-start gap-4">
         <PartyPopper class="text-primary mt-1 shrink-0" aria-hidden="true" />
         <div>
-          <h1 class="text-foreground text-base font-semibold tracking-tight">
+          <h2 class="text-foreground text-base font-semibold tracking-tight">
             Tudo certo por aqui!
-          </h1>
+          </h2>
           <p class="text-foreground/80 mt-1 text-sm">
             Nenhuma empresa sua tem documento pendente neste momento.
           </p>
@@ -122,8 +122,8 @@ function latestRejection(item: MyPendingItem['item']) {
           :key="row.item.id"
           class="flex flex-col gap-3 p-4 sm:flex-row sm:items-start sm:justify-between"
           :class="{
-            'bg-amber-50/40': row.item.status === 'pending',
-            'bg-rose-50/30': row.item.status === 'rejected',
+            'bg-amber-50/40': !needsResend(row.item),
+            'bg-rose-50/30': needsResend(row.item),
           }"
         >
           <div class="min-w-0 flex-1">
@@ -131,9 +131,9 @@ function latestRejection(item: MyPendingItem['item']) {
               <span class="text-foreground truncate text-sm font-semibold">
                 {{ row.item.name }}
               </span>
-              <StatusPill :status="row.item.status" />
+              <StatusPill :status="displayItemStatus(row.item)" />
               <span
-                v-if="row.item.status !== 'rejected' && isOverdue(row.item.dueDate)"
+                v-if="!needsResend(row.item) && isOverdue(row.item.dueDate)"
                 class="text-danger-foreground border-danger-border bg-danger-surface inline-flex items-center rounded-full border px-2 py-0.5 text-[11px] font-semibold"
               >
                 Atrasado
@@ -168,6 +168,7 @@ function latestRejection(item: MyPendingItem['item']) {
               type="file"
               :id="`file-${row.item.id}`"
               class="sr-only"
+              tabindex="-1"
               multiple
               :accept="acceptAttr(row.item.acceptedFormats)"
               @change="onPick($event, group.requestId, row.item.id)"
