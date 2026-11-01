@@ -36,6 +36,7 @@ export const resendUploadLink = (requestId: string) =>
   api.post<{ contactEmail: string }>(`/requests/${requestId}/upload-link/resend`);
 
 /** Só o hash do token fica salvo (ver `collection.ts`), então não existe "ver o link atual"
- *  sem gerar um novo — toda chamada aqui rotaciona e invalida o link anterior. */
+ *  sem gerar um novo — toda chamada aqui rotaciona o link, e o anterior ainda vale por até
+ *  48 h (a carência de `rotateUploadLink`). */
 export const getUploadLink = (requestId: string) =>
   api.post<{ uploadUrl: string; contactEmail: string }>(`/requests/${requestId}/upload-link`);

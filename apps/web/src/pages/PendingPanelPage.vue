@@ -216,7 +216,7 @@ async function handleCopyUploadLink(line: any) {
     const link = await getUploadLink(line.requestId);
     await copy(
       link.uploadUrl,
-      `Novo link de ${line.companyName} copiado — o link anterior deixou de funcionar.`,
+      `Novo link de ${line.companyName} copiado. O link anterior continua valendo por até 48 h.`,
       line.requestId,
     );
   } catch (error) {
