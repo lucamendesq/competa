@@ -179,13 +179,23 @@ function discard() {
   }
 }
 
+const nameError = ref<string | null>(null);
+watch(draftName, () => {
+  nameError.value = null;
+});
+
 async function save() {
   if (!hasChanges.value) return;
+  const name = draftName.value.trim();
+  if (!name) {
+    nameError.value = 'Informe o nome do template.';
+    toast.error(nameError.value);
+    return;
+  }
   acting.value = true;
 
   try {
-    const name = draftName.value.trim();
-    const renamed = name && name !== detailQuery.data.value?.name;
+    const renamed = name !== detailQuery.data.value?.name;
     const removals = [...removedIds.value];
     /* Cada mutação invalida `['templates']`, e o refetch reseta o rascunho pelo `watch`:
      * lido dentro do laço, o rascunho já voltou ao salvo e as edições somem em silêncio. */
@@ -331,7 +341,10 @@ function resolveLeave(leave: boolean) {
           v-model="draftName"
           class="focus-visible:ring-ring focus-visible:border-primary shadow-xs"
           :disabled="isProductTemplate"
+          :aria-invalid="nameError ? true : undefined"
+          :aria-describedby="nameError ? 'templateNameError' : undefined"
         />
+        <p v-if="nameError" id="templateNameError" class="text-danger text-sm">{{ nameError }}</p>
         <p v-if="isProductTemplate" class="text-muted-foreground text-xs">
           Templates padrão são somente leitura. Duplique para ajustar ao seu uso.
         </p>
