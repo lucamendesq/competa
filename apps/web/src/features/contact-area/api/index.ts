@@ -41,3 +41,51 @@ export const confirmMyDocuments = (requestId: string, documentIds: string[]) =>
     '/my/documents/confirm',
     { requestId, documentIds },
   );
+
+export type MyPeriod = {
+  requestId: string;
+  requestStatus: 'open' | 'complete' | 'closed';
+  periodId: string;
+  referenceMonth: string;
+  periodStatus: 'open' | 'closed';
+  dueDate: string | null;
+  companyId: string;
+  companyName: string;
+  itemCount: number;
+  pendingCount: number;
+  deliveredCount: number;
+};
+
+export type MyDocument = {
+  id: string;
+  requestItemId: string | null;
+  fileName: string;
+  sizeBytes: number | null;
+  uploadedAt: string;
+  reviewStatus: 'pending' | 'accepted' | 'rejected';
+  rejectionReason: string | null;
+  uploadedByName: string | null;
+};
+
+export type MyPeriodDetail = Omit<MyPeriod, 'itemCount' | 'pendingCount' | 'deliveredCount'> & {
+  items: {
+    id: string;
+    name: string;
+    status: MyPendingItem['item']['status'];
+    dueDate: string | null;
+    documents: MyDocument[];
+  }[];
+  extraDocuments: MyDocument[];
+};
+
+export const getMyPeriods = (page: number, perPage: number) =>
+  api.page<MyPeriod>('/my/periods', { page, perPage });
+
+export const getMyPeriod = (periodId: string, companyId: string) =>
+  api.get<MyPeriodDetail>(`/my/periods/${periodId}`, { companyId });
+
+export const openMyDocument = (documentId: string) =>
+  api.blobUrl(`/my/documents/${documentId}/content`);
+
+export const downloadMyDocument = (documentId: string, fileName: string) =>
+  api.download(`/my/documents/${documentId}/content`, fileName);
