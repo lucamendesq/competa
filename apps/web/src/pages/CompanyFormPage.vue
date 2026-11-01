@@ -84,6 +84,8 @@ const optionalEmail = () =>
     message: 'E-mail inválido.',
   });
 
+const CONTACT_EMAIL_REQUIRED = 'Sem e-mail o Responsável não recebe o link de cobrança.';
+
 const CompanyForm = z
   .object({
     name: CreateCompanyBody.shape.name,
@@ -95,7 +97,7 @@ const CompanyForm = z
     contactPhone: z.string().trim(),
   })
   .refine((value) => !value?.contactName || value.contactEmail !== '', {
-    message: 'Sem e-mail o Responsável não recebe o link de cobrança.',
+    message: CONTACT_EMAIL_REQUIRED,
     path: ['contactEmail'],
   });
 
@@ -119,6 +121,12 @@ const { value: cnpj } = useField<string>('cnpj');
 const { value: contactName } = useField<string>('contactName');
 const { value: contactEmail } = useField<string>('contactEmail');
 const { value: contactPhone } = useField<string>('contactPhone');
+
+const contactEmailError = computed(
+  () =>
+    errors.value.contactEmail ??
+    (contactName.value.trim() && !contactEmail.value.trim() ? CONTACT_EMAIL_REQUIRED : undefined),
+);
 
 function cnpjInputMask(value: string | null) {
   if (!value) return '';
@@ -437,7 +445,7 @@ const onSubmit = handleSubmit(async (values) => {
               v-model="contactEmail"
               class="focus-visible:ring-ring focus-visible:border-primary shadow-xs"
             />
-            <p v-if="errors.contactEmail" class="text-danger text-sm">{{ errors.contactEmail }}</p>
+            <p v-if="contactEmailError" class="text-danger text-sm">{{ contactEmailError }}</p>
           </div>
 
           <div class="flex flex-col gap-1.5">

@@ -3,7 +3,7 @@ import { computed, ref } from 'vue';
 import { useRouter } from 'vue-router';
 import { useForm, useField } from 'vee-validate';
 import * as z from 'zod';
-import { Cnpj, email as emailSchema } from '@competa/contracts';
+import { Cnpj, PublicSignUpBody, email as emailSchema, newPassword } from '@competa/contracts';
 import { toTypedSchema } from '@vee-validate/zod';
 import {
   ArrowLeft,
@@ -29,10 +29,10 @@ const currentStep = ref<1 | 2>(1);
 const submitError = ref<string | null>(null);
 
 const RegisterFormSchema = z.object({
-  userName: z.string().trim().min(1, 'Informe seu nome completo.'),
+  userName: PublicSignUpBody.shape.userName,
   email: emailSchema().min(1, 'Informe seu e-mail.'),
-  password: z.string().min(8, 'A senha precisa de pelo menos 8 caracteres.'),
-  firmName: z.string().trim().min(1, 'Informe o nome da sua contabilidade.'),
+  password: newPassword('A senha precisa de pelo menos 8 caracteres.'),
+  firmName: PublicSignUpBody.shape.firmName,
   cnpj: z
     .string()
     .trim()
@@ -54,19 +54,32 @@ const {
   value: userName,
   errorMessage: userNameError,
   meta: userNameMeta,
+  handleBlur: userNameBlur,
 } = useField<string>('userName');
-const { value: email, errorMessage: emailError, meta: emailMeta } = useField<string>('email');
+const {
+  value: email,
+  errorMessage: emailError,
+  meta: emailMeta,
+  handleBlur: emailBlur,
+} = useField<string>('email');
 const {
   value: password,
   errorMessage: passwordError,
   meta: passwordMeta,
+  handleBlur: passwordBlur,
 } = useField<string>('password');
 const {
   value: firmName,
   errorMessage: firmNameError,
   meta: firmNameMeta,
+  handleBlur: firmNameBlur,
 } = useField<string>('firmName');
-const { value: cnpj, errorMessage: cnpjError, meta: cnpjMeta } = useField<string>('cnpj');
+const {
+  value: cnpj,
+  errorMessage: cnpjError,
+  meta: cnpjMeta,
+  handleBlur: cnpjBlur,
+} = useField<string>('cnpj');
 
 const benefits = [
   {
@@ -240,6 +253,7 @@ function submitStep(event: Event) {
                 autocomplete="name"
                 placeholder="Ex.: Carlos Mendes"
                 v-model="userName"
+                @blur="userNameBlur($event, true)"
                 :aria-describedby="
                   userNameError && userNameMeta.touched ? 'user-name-error' : undefined
                 "
@@ -265,6 +279,7 @@ function submitStep(event: Event) {
                 inputmode="email"
                 placeholder="contador@escritorio.com.br"
                 v-model="email"
+                @blur="emailBlur($event, true)"
                 :aria-describedby="emailError && emailMeta.touched ? 'email-error' : undefined"
               />
               <p
@@ -287,6 +302,7 @@ function submitStep(event: Event) {
                 autocomplete="new-password"
                 placeholder="Mínimo de 8 caracteres"
                 v-model="password"
+                @blur="passwordBlur($event, true)"
                 :aria-describedby="
                   passwordError && passwordMeta.touched ? 'password-error' : undefined
                 "
@@ -318,6 +334,7 @@ function submitStep(event: Event) {
                 autocomplete="organization"
                 placeholder="Ex.: Mendes & Silva Contabilidade"
                 v-model="firmName"
+                @blur="firmNameBlur($event, true)"
                 :aria-describedby="
                   firmNameError && firmNameMeta.touched ? 'firm-name-error' : undefined
                 "
@@ -339,6 +356,7 @@ function submitStep(event: Event) {
                 inputmode="numeric"
                 placeholder="00.000.000/0001-00"
                 v-model="cnpj"
+                @blur="cnpjBlur($event, true)"
                 :aria-describedby="cnpjError && cnpjMeta.touched ? 'firm-cnpj-error' : undefined"
               />
               <p class="text-muted-foreground text-xs">
