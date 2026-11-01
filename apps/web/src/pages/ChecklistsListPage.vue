@@ -155,7 +155,9 @@ async function createBlank() {
                       as-child
                       class="h-8 px-2.5 text-xs text-muted-foreground hover:text-foreground"
                     >
-                      <RouterLink :to="`/templates/${template.id}`"> Editar </RouterLink>
+                      <RouterLink :to="`/templates/${template.id}`">
+                        {{ template.isProduct ? 'Ver' : 'Editar' }}
+                      </RouterLink>
                     </Button>
                     <Button
                       variant="ghost"

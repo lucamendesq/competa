@@ -557,7 +557,7 @@ async function applyTemplateToSelected() {
   <div v-if="selectedIds.size" class="h-20" aria-hidden="true"></div>
   <div
     v-if="selectedIds.size"
-    class="border-border bg-card fixed inset-x-0 bottom-0 z-40 border-t p-3.5 shadow-[0_-4px_16px_rgba(15,23,42,0.08)]"
+    class="border-border bg-card fixed inset-x-0 bottom-0 z-40 border-t p-3.5 shadow-[0_-4px_16px_rgba(15,23,42,0.08)] lg:left-[260px]"
     role="region"
     aria-label="Ações em lote nas empresas selecionadas"
   >

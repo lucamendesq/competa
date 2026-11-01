@@ -261,11 +261,11 @@ async function doDeleteTemplate() {
   acting.value = true;
   try {
     await deleteTemplateMutation.mutateAsync(props.id);
-    toast.success('Modelo excluído com sucesso.');
+    toast.success('Template excluído.');
     confirmDelete.value = false;
     router.push('/templates');
   } catch (error) {
-    toast.error(apiErrorMessage(error, 'Não foi possível excluir o modelo.'));
+    toast.error(apiErrorMessage(error, 'Não foi possível excluir o template.'));
   } finally {
     acting.value = false;
   }
@@ -297,7 +297,7 @@ function resolveLeave(leave: boolean) {
     title="Editar Checklist"
     :description="
       detailQuery.data.value?.accountingFirmId === null
-        ? 'Este é um template padrão e não pode ser apagado, mas pode ser ajustado para o seu uso.'
+        ? 'Este é um template padrão, somente leitura. Duplique para ajustar ao seu uso.'
         : 'Ajuste os documentos exigidos para empresas com este template.'
     "
   >
@@ -527,7 +527,7 @@ function resolveLeave(leave: boolean) {
   <!-- Sticky Footer Bar -->
   <div
     v-if="hasChanges"
-    class="border-border bg-card fixed inset-x-0 bottom-0 z-40 border-t p-3.5 shadow-[0_-4px_16px_rgba(15,23,42,0.08)]"
+    class="border-border bg-card fixed inset-x-0 bottom-0 z-40 border-t p-3.5 shadow-[0_-4px_16px_rgba(15,23,42,0.08)] lg:left-[260px]"
   >
     <div class="mx-auto flex max-w-5xl items-center justify-between">
       <span
@@ -576,7 +576,7 @@ function resolveLeave(leave: boolean) {
   <Modal
     v-model:open="confirmDelete"
     title="Excluir template?"
-    description="Isto deixará as empresas deste template sem checklist nas próximas competências."
+    description="Só dá para excluir um template que nenhuma empresa usa. As solicitações já abertas não mudam."
   >
     <div
       class="border-border bg-muted/40 -mx-6 -mb-6 mt-5 flex flex-wrap justify-end gap-2 border-t p-4"
