@@ -399,6 +399,34 @@ async function publish() {
               </div>
             </div>
             <ResendNotice v-if="needsResend(item)" :item="item" />
+            <ul v-if="item.documents.length" class="flex flex-col gap-1">
+              <li
+                v-for="doc in item.documents"
+                :key="doc.id"
+                class="flex flex-wrap items-center justify-between gap-2 pl-3"
+              >
+                <div class="min-w-0">
+                  <p class="truncate text-xs font-medium text-foreground">{{ doc.fileName }}</p>
+                  <p class="text-muted-foreground text-xs">
+                    {{ fileSize(doc.sizeBytes) }} · {{ dateTimeBr(doc.uploadedAt) }}
+                  </p>
+                </div>
+                <div class="flex items-center gap-2">
+                  <StatusPill
+                    v-if="doc.reviewStatus !== 'pending' && doc.reviewStatus !== item.status"
+                    :status="doc.reviewStatus"
+                  />
+                  <Button
+                    variant="ghost"
+                    size="sm"
+                    class="hover:bg-sunken text-muted-foreground hover:text-foreground text-xs"
+                    @click="openDocument(doc)"
+                  >
+                    <ExternalLink class="mr-1.5 h-3.5 w-3.5" /> Abrir
+                  </Button>
+                </div>
+              </li>
+            </ul>
           </li>
         </ul>
       </section>
