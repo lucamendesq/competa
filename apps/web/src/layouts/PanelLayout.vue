@@ -85,8 +85,8 @@ async function sair() {
 
     <nav
       id="menu-lateral"
-      class="bg-white text-slate-900 border-r border-border fixed inset-y-0 left-0 z-50 flex w-[260px] flex-col transition-transform lg:sticky lg:top-0 lg:h-dvh lg:translate-x-0"
-      :class="{ '-translate-x-full': !menuOpen }"
+      class="bg-white text-slate-900 border-r border-border fixed inset-y-0 left-0 z-50 flex w-[260px] flex-col transition-[translate,visibility] lg:visible lg:sticky lg:top-0 lg:h-dvh lg:translate-x-0"
+      :class="{ 'invisible -translate-x-full': !menuOpen }"
       aria-label="Navegação principal"
     >
       <div class="border-b border-border flex h-14 items-center gap-2.5 px-4 lg:h-16">
