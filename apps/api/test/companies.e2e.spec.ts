@@ -230,6 +230,22 @@ describe('GET /companies — listagem, busca e filtros', () => {
     expect(active.body.meta.total).toBe(2);
   });
 
+  it('% e _ na busca são literais, não curingas', async () => {
+    await createCompany(api, { name: 'Cem % Natural' });
+
+    for (const [search, names] of [
+      ['%', ['Cem % Natural']],
+      ['zzz%', []],
+      ['_', []],
+    ] as const) {
+      const res = await api.get(`/companies?search=${encodeURIComponent(search)}`);
+      expect(
+        res.body.data.map((row: any) => row.name),
+        search,
+      ).toEqual(names);
+    }
+  });
+
   it('query inválida → 422', async () => {
     for (const query of ['page=abc', 'perPage=0', 'active=talvez']) {
       const res = await api.get(`/companies?${query}`);
