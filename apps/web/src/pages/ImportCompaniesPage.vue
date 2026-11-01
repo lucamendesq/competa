@@ -172,7 +172,10 @@ async function importCsv() {
 
 const confirmRestart = ref(false);
 const inviting = ref(false);
-const invitesSent = ref<number | null>(null);
+const invitesSent = shallowRef<{
+  invited: number;
+  skipped: { reason: string; count: number }[];
+} | null>(null);
 
 /* Os dois botões ("Enviar convites" e "Importar") confirmam a importação. Cada um só se
  * desabilitava no próprio estado, e clicar nos dois disparava dois confirms: linha sem
@@ -218,12 +221,21 @@ async function doSendInvites() {
   try {
     const companyIds = await ensureConfirmed();
     const result = await sendAccessInvites(companyIds);
-    invitesSent.value = result.invited;
-    toast.success(
+    const skipped = new Map<string, number>();
+    for (const row of result.results) {
+      if (row.status === 'invited' || !row.reason) continue;
+      skipped.set(row.reason, (skipped.get(row.reason) ?? 0) + 1);
+    }
+    invitesSent.value = {
+      invited: result.invited,
+      skipped: [...skipped].map(([reason, count]) => ({ reason, count })),
+    };
+    const sent =
       result.invited === 1
         ? '1 convite de acesso enviado.'
-        : `${result.invited} convites de acesso enviados.`,
-    );
+        : `${result.invited} convites de acesso enviados.`;
+    if (result.invited) toast.success(sent);
+    else toast.info(sent);
   } catch (err) {
     toast.error(apiErrorMessage(err, 'Não foi possível enviar os convites.'));
   } finally {
@@ -380,14 +392,18 @@ function downloadTemplate() {
           </Button>
         </template>
         <template v-else>
-          <p
-            class="flex min-w-0 flex-1 items-center gap-2 text-xs sm:text-sm text-success font-medium"
-          >
-            <CircleCheck class="shrink-0 h-4 w-4" aria-hidden="true" />
-            {{ invitesSent }}
-            {{ invitesSent === 1 ? 'convite enviado' : 'convites enviados' }}. Quem já tinha convite
-            em aberto não recebeu outro.
-          </p>
+          <div class="flex min-w-0 flex-1 flex-col gap-1 text-xs sm:text-sm">
+            <p class="flex items-center gap-2 font-medium text-success">
+              <CircleCheck class="shrink-0 h-4 w-4" aria-hidden="true" />
+              {{ invitesSent.invited }}
+              {{ invitesSent.invited === 1 ? 'convite enviado.' : 'convites enviados.' }}
+            </p>
+            <ul v-if="invitesSent.skipped.length" class="text-muted-foreground pl-6">
+              <li v-for="skip in invitesSent.skipped" :key="skip.reason">
+                {{ skip.count }} sem convite — {{ skip.reason }}
+              </li>
+            </ul>
+          </div>
         </template>
       </div>
 
