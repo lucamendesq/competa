@@ -47,7 +47,9 @@ export type ImportLineResult =
 export type PendingImportRow = { line: number; body: CreateCompanyBody };
 
 export type ImportPreviewLine =
-  | ({ line: number; status: 'pending'; name: string } & PendingImportRow)
+  /* `existingName`: o CNPJ já está cadastrado e a linha atualiza essa Empresa, sem ocupar
+   * vaga nova. */
+  | ({ line: number; status: 'pending'; name: string; existingName?: string } & PendingImportRow)
   | { line: number; status: 'error'; name: string; error: string };
 
 const cnpjTakenOrDie = (violation: UniqueViolation) =>
@@ -573,7 +575,10 @@ const make = Effect.gen(function* () {
    *  empresa antes do Contador confirmar: reenviar a planilha depois de corrigir outras
    *  linhas duplicava quem já tinha dado certo. Agora só entra no banco em `confirmImport`,
    *  quando o Contador confirma de fato (ao enviar convite ou ao concluir). */
-  const validateCsv = Effect.fn('CompaniesRepo.validateCsv')(function* (csv: string) {
+  const validateCsv = Effect.fn('CompaniesRepo.validateCsv')(function* (
+    scope: FirmScope,
+    csv: string,
+  ) {
     const records = parseCsvRecords(csv);
 
     if (records.length > MAX_IMPORT_ROWS) {
@@ -650,6 +655,23 @@ const make = Effect.gen(function* () {
       }
 
       lines.push({ line, status: 'pending', name, body: parsed.data });
+    }
+
+    const cnpjs = [...seenCnpj.keys()];
+    const existing = cnpjs.length
+      ? yield* db.use((d) =>
+          d
+            .select({ cnpj: company.cnpj, name: company.name })
+            .from(company)
+            .where(and(eq(company.accountingFirmId, scope), inArray(company.cnpj, cnpjs))),
+        )
+      : [];
+    const existingByCnpj = new Map(existing.map((row) => [row.cnpj, row.name]));
+
+    for (const row of lines) {
+      if (row.status !== 'pending' || !row.body.cnpj) continue;
+      const existingName = existingByCnpj.get(row.body.cnpj);
+      if (existingName !== undefined) row.existingName = existingName;
     }
 
     return {

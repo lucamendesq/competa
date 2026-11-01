@@ -79,7 +79,7 @@ export type ImportResult = {
 export type PendingImportRow = { line: number; body: CreateCompanyBody };
 
 export type ImportPreviewLine =
-  | ({ status: 'pending'; name: string } & PendingImportRow)
+  | ({ status: 'pending'; name: string; existingName?: string } & PendingImportRow)
   | { line: number; status: 'error'; name: string; error: string };
 
 export type ImportPreviewResult = {

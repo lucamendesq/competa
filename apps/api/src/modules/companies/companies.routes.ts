@@ -276,9 +276,10 @@ const importCompanies = route(
   handler(
     'POST',
     Effect.gen(function* () {
+      const { scope } = yield* FirmContext;
       const input = yield* body(ImportCompaniesBody);
 
-      return yield* CompaniesRepo.use((repo) => repo.validateCsv(input.csv));
+      return yield* CompaniesRepo.use((repo) => repo.validateCsv(scope, input.csv));
     }),
   ),
   { auth: firmRoute() },

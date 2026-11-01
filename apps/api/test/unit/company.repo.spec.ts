@@ -425,6 +425,7 @@ layer(CompaniesRepo.layer)('CompaniesRepo', (it) => {
   it.effect('validateCsv monta a prévia por linha sem gravar nada', () =>
     Effect.gen(function* () {
       const repo = yield* CompaniesRepo;
+      const firmId = yield* seedFirm('Firma Prévia');
       const csv = [
         'name,cnpj,contact_name,contact_email,flag_has_employees',
         'Boa Ltda,11.222.333/0001-81,Resp Bom,resp-bom@example.com,sim',
@@ -433,7 +434,7 @@ layer(CompaniesRepo.layer)('CompaniesRepo', (it) => {
         ',,,resp-sem-nome@example.com,',
       ].join('\n');
 
-      const preview = yield* repo.validateCsv(csv);
+      const preview = yield* repo.validateCsv(firmId, csv);
       expect(preview.total).toBe(4);
       expect(preview.failed).toBe(3);
       expect(preview.lines[0]).toMatchObject({
@@ -470,6 +471,7 @@ layer(CompaniesRepo.layer)('CompaniesRepo', (it) => {
 
       const over = yield* repo
         .validateCsv(
+          firmId,
           ['name', ...Array.from({ length: 1001 }, (_, index) => `Empresa ${index + 1}`)].join(
             '\n',
           ),
@@ -478,6 +480,25 @@ layer(CompaniesRepo.layer)('CompaniesRepo', (it) => {
       expect(over).toMatchObject({
         message: 'A planilha tem 1001 linhas; o limite por importação é 1000. Divida em lotes.',
       });
+    }),
+  );
+
+  it.effect('validateCsv avisa qual Empresa a linha de CNPJ já cadastrado vai atualizar', () =>
+    Effect.gen(function* () {
+      const repo = yield* CompaniesRepo;
+      const firmId = yield* seedFirm('Firma Reimporta');
+      const otherFirmId = yield* seedFirm('Firma Vizinha');
+      yield* seedCompany(firmId, 'Nome Antigo', { cnpj: '11222333000181' });
+      yield* seedCompany(otherFirmId, 'De Outra Firma', { cnpj: '00000000000191' });
+
+      const preview = yield* repo.validateCsv(
+        firmId,
+        ['name,cnpj', 'Nome Novo,11222333000181', 'Nova,00000000000191', 'Sem CNPJ,'].join('\n'),
+      );
+
+      expect(preview.lines[0]).toMatchObject({ status: 'pending', existingName: 'Nome Antigo' });
+      expect(preview.lines[1]).not.toHaveProperty('existingName');
+      expect(preview.lines[2]).not.toHaveProperty('existingName');
     }),
   );
 

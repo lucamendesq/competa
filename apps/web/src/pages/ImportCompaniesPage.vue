@@ -87,10 +87,11 @@ const activate = ref(true);
 const split = computed(() => {
   const usage = usageData.value;
   const ready = pendingRows.value.length;
-  const slots = usage ? Math.max(0, usage.softCap - usage.companiesActive) : ready;
-  const active = activate.value ? Math.min(ready, slots) : 0;
+  const fresh = pendingRows.value.filter((row) => row.existingName === undefined).length;
+  const slots = usage ? Math.max(0, usage.softCap - usage.companiesActive) : fresh;
+  const active = activate.value ? Math.min(fresh, slots) : 0;
 
-  return { ready, active, inactive: ready - active, usage };
+  return { ready, fresh, updating: ready - fresh, active, inactive: fresh - active, usage };
 });
 
 watch(
@@ -98,7 +99,7 @@ watch(
   () => {
     const usage = usageData.value;
     if (!usage || !preview.value) return;
-    activate.value = pendingRows.value.length <= usage.softCap - usage.companiesActive;
+    activate.value = split.value.fresh <= usage.softCap - usage.companiesActive;
   },
 );
 
@@ -323,7 +324,16 @@ function downloadTemplate() {
         <p class="text-foreground text-sm">
           <strong>{{ split.ready }}</strong>
           {{ split.ready === 1 ? 'empresa será importada' : 'empresas serão importadas' }}.
-          <template v-if="split.usage">
+          <template v-if="split.updating">
+            <strong>{{ split.updating }}</strong>
+            {{
+              split.updating === 1
+                ? 'já está cadastrada e terá os dados substituídos pelos da planilha'
+                : 'já estão cadastradas e terão os dados substituídos pelos da planilha'
+            }}, sem ocupar vaga nova.
+          </template>
+          <template v-if="split.usage && split.fresh">
+            <template v-if="split.updating">Das novas,</template>
             <strong>{{ split.active }}</strong>
             {{ split.active === 1 ? 'ficará ativa' : 'ficarão ativas' }} (seu plano cobre
             {{ split.usage.companyCap }} e você já tem {{ split.usage.companiesActive }}) e
@@ -425,7 +435,13 @@ function downloadTemplate() {
                 <TableCell class="text-muted-foreground text-xs sm:text-sm">
                   <template v-if="line.status === 'error'">{{ line.error }}</template>
                   <template v-else-if="line.status === 'created'">
-                    {{ line.active ? 'Empresa criada e ativa.' : 'Empresa criada, inativa.' }}
+                    <template v-if="!line.inserted">Empresa já cadastrada, atualizada.</template>
+                    <template v-else>{{
+                      line.active ? 'Empresa criada e ativa.' : 'Empresa criada, inativa.'
+                    }}</template>
+                  </template>
+                  <template v-else-if="line.existingName">
+                    Vai atualizar a empresa já cadastrada {{ line.existingName }}.
                   </template>
                   <template v-else>Aguardando confirmação.</template>
                 </TableCell>
