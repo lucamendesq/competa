@@ -42,7 +42,7 @@ import { useCopy } from '@/composables/useCopy';
 import { useAuthStore } from '@/stores/auth';
 import PlanGateNotice from '@/components/PlanGateNotice.vue';
 import { planGateMessage } from '@competa/contracts';
-import { monthLabel, isOverdue } from '@/utils/format';
+import { monthLabel, isOverdue, slug } from '@/utils/format';
 
 const props = defineProps<{ id: string }>();
 
@@ -182,10 +182,6 @@ function isExpanded(companyId: string) {
   return expanded.value.has(companyId);
 }
 
-function slug(text: string) {
-  return text.toLowerCase().replace(/[^a-z0-9]+/g, '-');
-}
-
 const auth = useAuthStore();
 const canPeriodZip = computed(() => auth.can('periodZip'));
 const periodZipHint = planGateMessage('periodZip');
@@ -202,7 +198,8 @@ async function doDownloadPeriodZip() {
 
 async function doDownloadCompanyZip(requestId: string, companyName: string) {
   try {
-    await downloadRequestZip(requestId, `${slug(companyName)}.zip`);
+    const month = detailQuery.data.value?.referenceMonth.slice(0, 7);
+    await downloadRequestZip(requestId, `${slug(companyName)}${month ? `-${month}` : ''}.zip`);
     toast.success(`Download de ${companyName} concluído.`);
   } catch (error) {
     toast.error(apiErrorMessage(error, 'Não foi possível baixar o zip.'));
