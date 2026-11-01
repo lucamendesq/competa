@@ -243,7 +243,17 @@ async function resendReminders() {
   try {
     const result = await runRemindersMutation.mutateAsync();
     if (result.busy) toast.info('Já há uma cobrança em andamento. Confira em instantes.');
-    else toast.success('Varredura de lembretes disparada.');
+    else if (result.scanned === 0) toast.info('Nenhuma Solicitação com pendência para cobrar.');
+    else if (result.sent === 0)
+      toast.info(
+        `Nenhum lembrete enviado: as ${result.scanned} Solicitação(ões) com pendência já foram cobradas há poucos dias, atingiram o limite de lembretes ou ainda estão longe do prazo.`,
+      );
+    else
+      toast.success(
+        result.sent === result.scanned
+          ? `${result.sent} lembrete(s) enviado(s).`
+          : `${result.sent} lembrete(s) enviado(s). As outras ${result.scanned - result.sent} Solicitação(ões) já foram cobradas há poucos dias, atingiram o limite de lembretes ou ainda estão longe do prazo.`,
+      );
     panelQuery.refetch();
   } catch (error) {
     toast.error(apiErrorMessage(error, 'Não foi possível disparar os lembretes.'));
