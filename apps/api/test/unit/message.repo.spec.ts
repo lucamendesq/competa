@@ -588,6 +588,29 @@ layer(MessagesRepo.layer)('MessagesRepo', (it) => {
     }),
   );
 
+  it.effect('resend: mensagem de whatsapp sai de novo pelo whatsapp, não pelo email', () =>
+    Effect.gen(function* () {
+      const repo = yield* MessagesRepo;
+      const box = yield* openBox('resendwhatsapp');
+      const phone = `+5511${900000000 + box.tag}`;
+      const whatsappId = yield* seedMessage(box.requestId, {
+        channel: 'whatsapp',
+        purpose: 'reminder',
+        recipient: phone,
+        status: 'failed',
+      });
+
+      expect(yield* repo.resend(box.firmId, whatsappId, LINK)).toEqual(
+        delivered(box.requestId, true),
+      );
+
+      const attempts = (yield* messageRows(box.requestId)).filter((row) => row.id !== whatsappId);
+      expect(attempts).toEqual([
+        expect.objectContaining({ channel: 'whatsapp', recipient: phone, status: 'sent' }),
+      ]);
+    }),
+  );
+
   it.effect('resend: reminder, rejection e deadline_missed geram uma entrega cada', () =>
     Effect.gen(function* () {
       const repo = yield* MessagesRepo;

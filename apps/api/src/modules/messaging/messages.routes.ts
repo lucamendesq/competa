@@ -54,8 +54,6 @@ const resend = route(
       const { scope } = yield* FirmContext;
       const { id } = yield* params(IdParam);
 
-      /* Bug congelado #14: `resend()` chama `deliver()` sem `channel`, então o reenvio de
-       * uma mensagem de whatsapp sai pelo provider default — email. */
       const { token, tokenHash } = createToken();
       const outcome = yield* MessagesRepo.use((repo) =>
         repo.resend(scope, id, `${env.WEB_URL}/envio/${token}`),
