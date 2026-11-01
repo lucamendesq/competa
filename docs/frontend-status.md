@@ -90,6 +90,10 @@ aceita o convite inicial do `create-firm`, ou seja, quem entra pelo e-mail do es
 `accountant.owner` marca isso, `accountant_owner_uidx` garante um por Contabilidade, e
 `GET /auth/me` devolve o campo para a tela decidir o que oferecer.
 
+Para o membro (não-dono), Contabilidade, Plano e WhatsApp abrem em **somente leitura**: o
+aviso no topo e as ações do dono desabilitadas (salvar, CNPJ e "Assinar…", conectar e
+desconectar o WhatsApp). O envio de teste do WhatsApp segue aberto a qualquer membro.
+
 Escolhi ancorar em "primeiro Contador" e não em "o e-mail bate com o da Contabilidade"
 porque hoje não existe coluna de e-mail no `accounting_firm` — e amarrar uma regra de
 autorização a um campo de texto editável significaria que trocar o e-mail transfere o

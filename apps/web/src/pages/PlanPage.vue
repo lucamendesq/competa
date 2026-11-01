@@ -233,6 +233,10 @@ async function goToCheckout(planName: string) {
 
     <PlanCapBanner class="mb-6" />
 
+    <Callout v-if="!isOwner" tone="info" heading="Somente leitura" class="mb-6">
+      Apenas o dono da Contabilidade pode assinar ou trocar de plano.
+    </Callout>
+
     <Card class="border border-border shadow-sm rounded-xl">
       <CardHeader>
         <CardTitle class="flex items-center gap-2 font-display">
@@ -379,6 +383,7 @@ async function goToCheckout(planName: string) {
         <Input
           id="checkoutCnpj"
           v-model="cnpjDraft"
+          :disabled="!isOwner"
           inputmode="numeric"
           placeholder="00.000.000/0001-00"
         />
@@ -436,7 +441,7 @@ async function goToCheckout(planName: string) {
           <CardFooter>
             <Button
               @click="goToCheckout(plan.name)"
-              :disabled="isLoading || isCurrent(plan)"
+              :disabled="!isOwner || isLoading || isCurrent(plan)"
               class="w-full"
             >
               <Loader2 v-if="isLoading" class="mr-2 h-4 w-4 animate-spin" />
