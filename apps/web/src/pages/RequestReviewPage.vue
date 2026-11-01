@@ -40,6 +40,7 @@ const extras = ref<Map<string, { decision: 'accepted' | 'rejected'; rejectionRea
   new Map(),
 );
 const acting = ref(false);
+const REASON_MAX_LENGTH = 500;
 
 const closed = computed(() => detailQuery.data.value?.status === 'closed');
 const confirmClose = ref(false);
@@ -286,9 +287,13 @@ async function publish() {
                   :model-value="rejections.get(doc.id)"
                   placeholder="Motivo da recusa (o Responsável recebe este texto)"
                   rows="2"
+                  :maxlength="REASON_MAX_LENGTH"
                   class="border-danger-border focus-visible:ring-ring focus-visible:border-primary text-sm shadow-xs"
                   @update:model-value="setRejectionReason(doc.id, String($event))"
                 />
+                <p class="text-muted-foreground mt-1 text-right text-xs tabular-nums">
+                  {{ rejections.get(doc.id)?.length ?? 0 }}/{{ REASON_MAX_LENGTH }}
+                </p>
               </div>
             </li>
           </ul>
@@ -361,9 +366,13 @@ async function publish() {
                 :model-value="extras.get(doc.id)?.rejectionReason"
                 placeholder="Motivo da recusa"
                 rows="2"
+                :maxlength="REASON_MAX_LENGTH"
                 class="border-danger-border focus-visible:ring-ring focus-visible:border-primary text-sm shadow-xs"
                 @update:model-value="setExtraReason(doc.id, String($event))"
               />
+              <p class="text-muted-foreground mt-1 text-right text-xs tabular-nums">
+                {{ extras.get(doc.id)?.rejectionReason.length ?? 0 }}/{{ REASON_MAX_LENGTH }}
+              </p>
             </div>
           </li>
         </ul>
