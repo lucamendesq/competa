@@ -396,16 +396,20 @@ function resolveLeave(leave: boolean) {
               variant="ghost"
               size="icon"
               class="text-muted-foreground hover:text-danger hover:bg-danger/10 h-8 w-8 rounded-lg transition-colors"
+              :aria-label="`Remover ${item.name}`"
               @click="confirmRemoval = item"
             >
-              <Trash2 class="h-4 w-4" />
+              <Trash2 class="h-4 w-4" aria-hidden="true" />
             </Button>
           </div>
 
           <div class="border-border mt-4 flex flex-wrap gap-4 border-t pt-4">
             <div class="flex flex-col gap-1.5 min-w-[140px]">
-              <label class="text-xs font-medium text-foreground">Frequência</label>
+              <label :for="`periodicity-${item.id}`" class="text-xs font-medium text-foreground"
+                >Frequência</label
+              >
               <select
+                :id="`periodicity-${item.id}`"
                 class="flex h-9 w-full rounded-md border border-input bg-background px-3 py-1 text-sm shadow-xs transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:border-primary disabled:cursor-not-allowed disabled:opacity-50"
                 :disabled="isProductTemplate"
                 :value="item.periodicity"
@@ -419,8 +423,11 @@ function resolveLeave(leave: boolean) {
 
             <template v-if="item.periodicity === 'monthly'">
               <div class="flex flex-col gap-1.5 min-w-[140px]">
-                <label class="text-xs font-medium text-foreground">Prazo (Dia)</label>
+                <label :for="`due-day-${item.id}`" class="text-xs font-medium text-foreground"
+                  >Prazo (Dia)</label
+                >
                 <Input
+                  :id="`due-day-${item.id}`"
                   type="number"
                   min="1"
                   max="31"
@@ -435,8 +442,11 @@ function resolveLeave(leave: boolean) {
 
             <template v-if="item.periodicity === 'annual'">
               <div class="flex flex-col gap-1.5 min-w-[140px]">
-                <label class="text-xs font-medium text-foreground">Mês do envio</label>
+                <label :for="`annual-month-${item.id}`" class="text-xs font-medium text-foreground"
+                  >Mês do envio</label
+                >
                 <select
+                  :id="`annual-month-${item.id}`"
                   class="flex h-9 w-32 rounded-md border border-input bg-background px-3 py-1 text-sm shadow-xs transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:border-primary disabled:cursor-not-allowed disabled:opacity-50"
                   :disabled="isProductTemplate"
                   :value="item.annualMonth"
@@ -459,8 +469,11 @@ function resolveLeave(leave: boolean) {
             </template>
 
             <div class="flex flex-col gap-1.5 min-w-[180px]">
-              <label class="text-xs font-medium text-foreground">Condição (Opcional)</label>
+              <label :for="`condition-${item.id}`" class="text-xs font-medium text-foreground"
+                >Condição (Opcional)</label
+              >
               <select
+                :id="`condition-${item.id}`"
                 class="flex h-9 w-full rounded-md border border-input bg-background px-3 py-1 text-sm shadow-xs transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:border-primary disabled:cursor-not-allowed disabled:opacity-50"
                 :disabled="isProductTemplate"
                 :value="item.conditionFlag ?? ''"
