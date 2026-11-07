@@ -570,7 +570,10 @@ sempre.
 4. **Troca de plano com assinatura em dia tem efeito agora:** preço igual ou menor aplica na
    hora (a próxima fatura sai no valor novo); upgrade cobra hoje o novo ciclo descontado do
    que sobrou do atual (cobrança avulsa, achada pelo `externalReference`) e promove no
-   pagamento. Sem isto a troca só valia na próxima fatura — até 12 meses no anual.
+   pagamento. Sem isto a troca só valia na próxima fatura — até 12 meses no anual. O
+   estorno ou chargeback dessa cobrança desfaz a troca (plano, ciclo, período e valor da
+   assinatura voltam) enquanto a fatura seguinte não avançou o período; depois disso o
+   plano novo já está sendo pago e a perda fica limitada à diferença de um período.
 5. **As rotas de cobrança passam pela régua de inadimplência** (`firmRoute({ billing: true })`):
    é por elas que a firma bloqueada paga ou cancela.
 6. **O CNPJ da Contabilidade é exigido no primeiro checkout** (opcional no cadastro) e é

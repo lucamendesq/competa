@@ -570,6 +570,124 @@ layer(SubscriptionsRepo.layer)('SubscriptionsRepo', (it) => {
       }),
   );
 
+  const upgradedFirm = (label: string) =>
+    Effect.gen(function* () {
+      const repo = yield* SubscriptionsRepo;
+      const firm = yield* seedFirm(label);
+      yield* seedSubscription(firm, {
+        gatewaySubscriptionId: `sub_${label}`,
+        status: 'ACTIVE',
+        planName: 'essencial',
+        cycle: 'monthly',
+        currentPeriodStart: day('2027-01-01'),
+        currentPeriodEnd: day('2027-02-01'),
+        pendingPlanName: 'escritorio',
+        pendingCycle: 'yearly',
+        pendingPaymentId: `pay_${label}`,
+      });
+      yield* repo.applyEvent(
+        event(null, 'PAYMENT_CONFIRMED', { id: `pay_${label}`, dueDate: day('2027-01-20') }, firm),
+      );
+      expect(yield* subscriptionRow(firm)).toMatchObject({ planName: 'escritorio' });
+      return firm;
+    });
+
+  it.effect(
+    'applyEvent: estorno da avulsa que promoveu volta ao plano e ao período anteriores e reajusta de volta',
+    () =>
+      Effect.gen(function* () {
+        const repo = yield* SubscriptionsRepo;
+        const firm = yield* upgradedFirm('estorno');
+
+        const calls: GatewayReprice[] = [];
+        const refunded = yield* repo.applyEvent(
+          event(null, 'PAYMENT_REFUNDED', { id: 'pay_estorno', dueDate: day('2027-01-20') }, firm),
+          (change) => Effect.sync(() => void calls.push(change)),
+        );
+
+        expect(refunded).toEqual({ outcome: 'reverted' });
+        expect(calls).toEqual([
+          {
+            subscriptionId: 'sub_estorno',
+            planName: 'essencial',
+            cycle: 'monthly',
+            value: planPrice(PLANS.essencial, 'monthly'),
+            nextDueDate: day('2027-02-01'),
+          },
+        ]);
+        expect(yield* subscriptionRow(firm)).toMatchObject({
+          status: 'ACTIVE',
+          planName: 'essencial',
+          cycle: 'monthly',
+          currentPeriodStart: day('2027-01-01'),
+          currentPeriodEnd: day('2027-02-01'),
+        });
+
+        const again = yield* repo.applyEvent(
+          event(null, 'PAYMENT_CHARGEBACK_REQUESTED', { id: 'pay_estorno' }, firm),
+        );
+        expect(again).toEqual({ outcome: 'ignored', reason: 'charge' });
+      }),
+  );
+
+  it.effect(
+    'applyEvent: chargeback da avulsa com período anterior já vencido reajusta para hoje',
+    () =>
+      Effect.gen(function* () {
+        const repo = yield* SubscriptionsRepo;
+        const firm = yield* seedFirm('chargeback');
+        yield* seedSubscription(firm, {
+          gatewaySubscriptionId: 'sub_cb',
+          status: 'ACTIVE',
+          planName: 'essencial',
+          currentPeriodStart: day('2026-09-01'),
+          currentPeriodEnd: day('2026-10-01'),
+          pendingPlanName: 'profissional',
+          pendingCycle: 'monthly',
+          pendingPaymentId: 'pay_cb',
+        });
+        yield* repo.applyEvent(
+          event(null, 'PAYMENT_CONFIRMED', { id: 'pay_cb', dueDate: day('2026-09-20') }, firm),
+        );
+
+        const calls: GatewayReprice[] = [];
+        const charged = yield* repo.applyEvent(
+          event(null, 'PAYMENT_CHARGEBACK_REQUESTED', { id: 'pay_cb' }, firm),
+          (change) => Effect.sync(() => void calls.push(change)),
+        );
+
+        expect(charged).toEqual({ outcome: 'reverted' });
+        expect(calls).toHaveLength(1);
+        expect(calls[0]).toMatchObject({ planName: 'essencial', cycle: 'monthly' });
+        expect(calls[0].nextDueDate.getTime()).toBeGreaterThan(Date.now() - 86_400_000);
+        expect(yield* subscriptionRow(firm)).toMatchObject({
+          planName: 'essencial',
+          currentPeriodEnd: day('2026-10-01'),
+        });
+      }),
+  );
+
+  it.effect('applyEvent: estorno da avulsa depois da fatura seguinte paga mantém o plano', () =>
+    Effect.gen(function* () {
+      const repo = yield* SubscriptionsRepo;
+      const firm = yield* upgradedFirm('estornotarde');
+
+      yield* repo.applyEvent(
+        event('sub_estornotarde', 'PAYMENT_CONFIRMED', { dueDate: day('2028-01-20') }),
+      );
+
+      const late = yield* repo.applyEvent(
+        event(null, 'PAYMENT_REFUNDED', { id: 'pay_estornotarde' }, firm),
+        () => Effect.die(new Error('não reajusta')),
+      );
+      expect(late).toEqual({ outcome: 'ignored', reason: 'charge' });
+      expect(yield* subscriptionRow(firm)).toMatchObject({
+        planName: 'escritorio',
+        currentPeriodEnd: day('2029-01-20'),
+      });
+    }),
+  );
+
   it.effect('applyEvent: gateway falhou no reajuste → nada fica gravado e o reenvio aplica', () =>
     Effect.gen(function* () {
       const repo = yield* SubscriptionsRepo;

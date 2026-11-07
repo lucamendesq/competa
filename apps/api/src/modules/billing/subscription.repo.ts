@@ -1,7 +1,13 @@
 import { Context, Effect, Layer } from 'effect';
 import { and, eq, or, sql } from 'drizzle-orm';
 import * as z from 'zod';
-import { PLANS, planPrice, type BillingCycle, type PaidPlanName } from '@competa/contracts';
+import {
+  PAID_PLAN_NAMES,
+  PLANS,
+  planPrice,
+  type BillingCycle,
+  type PaidPlanName,
+} from '@competa/contracts';
 import { Db } from '../../infra/database/effect.js';
 import type { AppError } from '../../lib/app-error.js';
 import { billingWebhookEvent, subscription } from '../../infra/database/schema/index.js';
@@ -43,7 +49,24 @@ export type WebhookOutcome =
       readonly outcome: 'ignored';
       readonly reason: 'event' | 'unknown' | 'stale' | 'canceled' | 'trial' | 'charge';
     }
-  | { readonly outcome: 'applied'; readonly status: string; readonly promoted: boolean };
+  | { readonly outcome: 'applied'; readonly status: string; readonly promoted: boolean }
+  | { readonly outcome: 'reverted' };
+
+const REVERSAL_EVENTS = new Set(['PAYMENT_REFUNDED', 'PAYMENT_CHARGEBACK_REQUESTED']);
+
+const clearedUpgrade = {
+  upgradePaymentId: null,
+  preUpgradePlanName: null,
+  preUpgradeCycle: null,
+  preUpgradePeriodStart: null,
+  preUpgradePeriodEnd: null,
+};
+
+const startOfUtcDay = (date: Date) =>
+  new Date(Date.UTC(date.getUTCFullYear(), date.getUTCMonth(), date.getUTCDate()));
+
+const isPaidPlan = (name: string | null): name is PaidPlanName =>
+  PAID_PLAN_NAMES.includes(name as PaidPlanName);
 
 const make = Effect.gen(function* () {
   const db = yield* Db;
@@ -109,6 +132,7 @@ const make = Effect.gen(function* () {
           pendingCycle: null,
           pendingPaymentId: null,
           pendingInvoiceUrl: null,
+          ...clearedUpgrade,
         })
         .where(eq(subscription.accountingFirmId, input.firmId)),
     );
@@ -183,6 +207,42 @@ const make = Effect.gen(function* () {
       return undefined;
     });
 
+  const revertUpgrade = (
+    row: typeof subscription.$inferSelect,
+    reprice: (change: GatewayReprice) => Effect.Effect<void, AppError>,
+  ) =>
+    Effect.gen(function* () {
+      const planName = row.preUpgradePlanName ?? row.planName;
+      const cycle = (row.preUpgradeCycle ?? row.cycle) as BillingCycle;
+
+      yield* db.use((d) =>
+        d
+          .update(subscription)
+          .set({
+            planName,
+            cycle,
+            currentPeriodStart: row.preUpgradePeriodStart,
+            currentPeriodEnd: row.preUpgradePeriodEnd,
+            ...clearedUpgrade,
+          })
+          .where(eq(subscription.id, row.id)),
+      );
+
+      if (!row.gatewaySubscriptionId || row.status === 'CANCELED' || !isPaidPlan(planName)) return;
+
+      const today = startOfUtcDay(new Date());
+      yield* reprice({
+        subscriptionId: row.gatewaySubscriptionId,
+        planName,
+        cycle,
+        value: planPrice(PLANS[planName], cycle, row.priceOverride?.[planName]),
+        nextDueDate:
+          row.preUpgradePeriodEnd && row.preUpgradePeriodEnd > today
+            ? row.preUpgradePeriodEnd
+            : today,
+      });
+    });
+
   /** Reivindicação e efeito na MESMA transação: se o efeito falhar, a reivindicação volta e
    *  o reenvio do Asaas processa de novo. Separados, a falha deixava o evento marcado como
    *  visto e o pagamento perdido para sempre. */
@@ -201,6 +261,16 @@ const make = Effect.gen(function* () {
 
         const row = yield* findByGateway(input.gatewaySubscriptionId, input.externalReference);
         if (!row) return { outcome: 'ignored', reason: 'unknown' } as const;
+
+        if (
+          REVERSAL_EVENTS.has(input.event) &&
+          !input.gatewaySubscriptionId &&
+          input.payment.id &&
+          input.payment.id === row.upgradePaymentId
+        ) {
+          yield* revertUpgrade(row, reprice);
+          return { outcome: 'reverted' } as const;
+        }
 
         /* Só a assinatura ATUAL tira acesso. A substituída no checkout ainda gera eventos — o
          * próprio fallback do checkout a inativa (`SUBSCRIPTION_INACTIVATED`) e o Asaas apaga
@@ -318,6 +388,19 @@ const make = Effect.gen(function* () {
           return { outcome: 'ignored', reason: 'stale' } as const;
         }
 
+        const oneOffPromotion = coversPending && !input.gatewaySubscriptionId;
+        const upgrade = oneOffPromotion
+          ? {
+              upgradePaymentId: input.payment.id ?? null,
+              preUpgradePlanName: row.planName,
+              preUpgradeCycle: row.cycle,
+              preUpgradePeriodStart: row.currentPeriodStart,
+              preUpgradePeriodEnd: row.currentPeriodEnd,
+            }
+          : 'currentPeriodEnd' in periodPatch
+            ? clearedUpgrade
+            : {};
+
         const canceled =
           status === 'CANCELED'
             ? {
@@ -331,20 +414,14 @@ const make = Effect.gen(function* () {
         yield* db.use((d) =>
           d
             .update(subscription)
-            .set({ status, ...promoted, ...periodPatch, ...canceled })
+            .set({ status, ...promoted, ...periodPatch, ...upgrade, ...canceled })
             .where(eq(subscription.id, row.id)),
         );
 
         /* A troca paga por cobrança avulsa só reajusta a assinatura agora: reajustar no
          * checkout cobrava o plano novo de quem nunca pagou a diferença. O próximo
          * vencimento é o fim do período que esta cobrança abriu. */
-        if (
-          coversPending &&
-          pending &&
-          !input.gatewaySubscriptionId &&
-          row.gatewaySubscriptionId &&
-          period
-        ) {
+        if (oneOffPromotion && pending && row.gatewaySubscriptionId && period) {
           yield* reprice({
             subscriptionId: row.gatewaySubscriptionId,
             planName: pending.planName,

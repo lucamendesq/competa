@@ -276,6 +276,11 @@ export const subscription = pgTable(
      *  sabe que o pagamento é DO plano pendente, e não de uma fatura antiga. */
     pendingPaymentId: text('pending_payment_id'),
     pendingInvoiceUrl: text('pending_invoice_url'),
+    upgradePaymentId: text('upgrade_payment_id'),
+    preUpgradePlanName: text('pre_upgrade_plan_name'),
+    preUpgradeCycle: text('pre_upgrade_cycle'),
+    preUpgradePeriodStart: timestamp('pre_upgrade_period_start', { withTimezone: true }),
+    preUpgradePeriodEnd: timestamp('pre_upgrade_period_end', { withTimezone: true }),
     /** Assinaturas do gateway que esta linha já teve. A cobrança em aberto de uma assinatura
      *  substituída continua pagável, e o webhook precisa achar a firma por ela. */
     previousGatewaySubscriptionIds: text('previous_gateway_subscription_ids')

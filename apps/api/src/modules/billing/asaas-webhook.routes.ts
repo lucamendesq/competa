@@ -116,6 +116,9 @@ const webhook = route(
 
       if (result.outcome === 'duplicate')
         logger.log(`Evento ${id} já processado; ignorando reenvio.`);
+      if (result.outcome === 'reverted') {
+        logger.warn(`Evento ${id} (${event}) desfez a troca de plano: plano anterior restaurado.`);
+      }
       if (result.outcome === 'ignored' && result.reason !== 'event') {
         logger.warn(`Evento ${id} (${event}) ignorado: ${result.reason}.`);
       }
