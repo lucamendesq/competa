@@ -587,7 +587,8 @@ sempre.
 
 - `GET /billing/subscription` só entrega `invoiceUrl` ao dono (é a página do pagador); o
   link gravado no checkout evita consultar o gateway a cada tela.
-- Checkout serializado por firma (409 `CHECKOUT_IN_FLIGHT`); o id da assinatura substituída
+- Checkout serializado por firma (409 `CHECKOUT_IN_FLIGHT`) pela lease `checkout:<firm_id>` em
+  `cron_lease`, que vale entre máquinas; o id da assinatura substituída
   fica em `previous_gateway_subscription_ids`, então a cobrança dela ainda ativa a firma.
 - Backfill: firmas que fizeram checkout antes desta decisão e nunca pagaram tinham
   `plan_name` pago; a migração `backfill_pending_plan` devolve a escolha para `pending_*`.

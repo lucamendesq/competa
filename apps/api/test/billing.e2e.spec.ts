@@ -1,8 +1,9 @@
 import { eq } from 'drizzle-orm';
-import { afterAll, beforeAll, describe, expect, it } from 'vitest';
+import { afterAll, afterEach, beforeAll, describe, expect, it, vi } from 'vitest';
 import { bootApp, type RunningApp } from './support/boot.js';
 import { db, truncateAll } from './support/db.js';
 import { company, subscription } from '../src/infra/database/schema/index.js';
+import { billing } from '../src/modules/billing/gateway.js';
 import { apiClient, registerFirm, uniqueCnpj, uniqueIp, type Api } from './support/fixtures.js';
 
 /* Ambiente de teste SEM segredos Asaas: NODE_ENV=test escolhe o LogBilling (checkout vira
@@ -21,6 +22,10 @@ beforeAll(async () => {
 
 afterAll(async () => {
   await app.close();
+});
+
+afterEach(() => {
+  vi.restoreAllMocks();
 });
 
 async function firmIdOf(api: Api): Promise<string> {
@@ -216,6 +221,36 @@ describe('CNPJ obrigatório no checkout', () => {
 
     const again = await api.post('/billing/checkout', { planName: 'profissional' });
     expect(again.status).toBe(201);
+  });
+});
+
+describe('checkout concorrente da mesma firma', () => {
+  it('o segundo leva 409 CHECKOUT_IN_FLIGHT enquanto o primeiro está no gateway', async () => {
+    const { api } = await registerFirm(app.url);
+
+    let release!: () => void;
+    const held = new Promise<void>((resolve) => (release = resolve));
+    let entered!: () => void;
+    const inGateway = new Promise<void>((resolve) => (entered = resolve));
+    const original = billing.getOrCreateCustomer.bind(billing);
+    vi.spyOn(billing, 'getOrCreateCustomer').mockImplementationOnce(async (input) => {
+      entered();
+      await held;
+      return original(input);
+    });
+
+    const first = api.post('/billing/checkout', { planName: 'profissional' });
+    await inGateway;
+
+    const second = await api.post('/billing/checkout', { planName: 'profissional' });
+    expect(second.status, JSON.stringify(second.body)).toBe(409);
+    expect(second.body.error.code).toBe('CHECKOUT_IN_FLIGHT');
+
+    release();
+    expect((await first).status).toBe(201);
+
+    const third = await api.post('/billing/checkout', { planName: 'essencial' });
+    expect(third.status, JSON.stringify(third.body)).toBe(201);
   });
 });
 

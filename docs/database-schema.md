@@ -329,8 +329,8 @@ create index message_reminder_idx on message (request_id, purpose);
 ### ops (Operação)
 
 ```sql
-create table cron_lease (                 -- voo único das varreduras agendadas (sem advisory lock)
-  name        text primary key,           -- deadline-sweep | billing-sweep | reminders-sweep
+create table cron_lease (                 -- voo único das varreduras e do checkout (sem advisory lock)
+  name        text primary key,           -- deadline-sweep | billing-sweep | reminders-sweep | checkout:<firm_id>
   holder      text not null,              -- uuid da instância que a tomou
   expires_at  timestamptz not null        -- vazamento morre sozinho; tomar/soltar são UPDATEs
 );
