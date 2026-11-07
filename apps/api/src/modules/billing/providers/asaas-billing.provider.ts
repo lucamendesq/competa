@@ -21,6 +21,7 @@ interface AsaasPayment {
   id: string;
   status?: string;
   invoiceUrl?: string;
+  subscription?: string | null;
 }
 
 const OPEN_PAYMENT_STATUSES = new Set(['PENDING', 'OVERDUE']);
@@ -215,6 +216,14 @@ export class AsaasBilling implements BillingProvider {
     }
 
     return { paymentId: payment.id, invoiceUrl: payment.invoiceUrl };
+  }
+
+  async payment(paymentId: string) {
+    const payment = await this.call<AsaasPayment>(`/payments/${paymentId}`);
+    return {
+      subscriptionId: payment.subscription ?? null,
+      open: OPEN_PAYMENT_STATUSES.has(payment.status ?? ''),
+    };
   }
 
   async deletePayment(paymentId: string) {

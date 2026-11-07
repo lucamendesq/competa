@@ -45,6 +45,8 @@ export abstract class BillingProvider {
     externalReference: string;
   }): Promise<{ paymentId: string; invoiceUrl: string }>;
 
+  abstract payment(paymentId: string): Promise<{ subscriptionId: string | null; open: boolean }>;
+
   abstract deletePayment(paymentId: string): Promise<void>;
 
   /** Para de gerar cobranças NOVAS, preservando as já emitidas. Sobra para o caso em que a

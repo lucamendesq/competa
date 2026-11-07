@@ -38,6 +38,23 @@ const currentPrice = (current: {
       )
     : 0;
 
+const discardOpenCharge = (paymentId: string, firmId: string) =>
+  Effect.gen(function* () {
+    const payment = yield* gateway(() => billing.payment(paymentId));
+    if (payment.subscriptionId === null && payment.open) {
+      yield* gateway(() => billing.deletePayment(paymentId));
+    }
+  }).pipe(
+    Effect.catchCause((cause) =>
+      Effect.sync(() =>
+        logger.error(
+          `Cobrança avulsa anterior ${paymentId} da firma ${firmId} pode seguir aberta no gateway`,
+          squashError(cause),
+        ),
+      ),
+    ),
+  );
+
 const checkout = route(
   'POST',
   '/billing/checkout',
@@ -179,6 +196,9 @@ const checkout = route(
             /* Só a cobrança: a assinatura é reajustada pelo webhook quando ela for paga.
              * Reajustar aqui cobrava o plano novo de quem não pagou a diferença, e a intenção
              * gravada logo depois da cobrança garante que pagá-la promove o plano. */
+            if (current.pendingPaymentId) {
+              yield* discardOpenCharge(current.pendingPaymentId, firm.id);
+            }
             const charge = yield* gateway(() =>
               billing.createCharge({
                 customerId,

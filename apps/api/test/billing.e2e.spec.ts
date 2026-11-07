@@ -429,6 +429,54 @@ describe('cancelamento apaga a cobrança avulsa do upgrade', () => {
   });
 });
 
+/* Cada upgrade cria uma avulsa nova e o `persist` sobrescreve `pendingPaymentId`: a anterior
+ * seguia pagável sem efeito claro para o cliente. Só a avulsa em aberto é apagada; uma
+ * cobrança da assinatura nunca sai por este caminho. */
+describe('novo upgrade apaga a cobrança avulsa anterior', () => {
+  it('dois upgrades seguidos: a primeira avulsa é apagada no provider', async () => {
+    const { api, firmId, chargeId } = await activeFirmWithUpgradeCharge();
+    vi.spyOn(billing, 'payment').mockResolvedValue({ subscriptionId: null, open: true });
+    const deletePayment = vi.spyOn(billing, 'deletePayment');
+
+    const res = await api.post('/billing/checkout', { planName: 'escritorio', cycle: 'yearly' });
+    expect(res.status, JSON.stringify(res.body)).toBe(201);
+    expect(deletePayment).toHaveBeenCalledWith(chargeId);
+
+    const [row] = await subscriptionRows(firmId);
+    expect(row.pendingPaymentId).toMatch(/^mock_pay_/);
+    expect(row.pendingPaymentId).not.toBe(chargeId);
+  });
+
+  it('cobrança da assinatura nunca é apagada por este caminho', async () => {
+    const { api } = await activeFirmWithUpgradeCharge();
+    vi.spyOn(billing, 'payment').mockResolvedValue({ subscriptionId: 'sub_da_firma', open: true });
+    const deletePayment = vi.spyOn(billing, 'deletePayment');
+
+    const res = await api.post('/billing/checkout', { planName: 'escritorio', cycle: 'yearly' });
+    expect(res.status, JSON.stringify(res.body)).toBe(201);
+    expect(deletePayment).not.toHaveBeenCalled();
+  });
+
+  it('avulsa já paga fica como está', async () => {
+    const { api } = await activeFirmWithUpgradeCharge();
+    vi.spyOn(billing, 'payment').mockResolvedValue({ subscriptionId: null, open: false });
+    const deletePayment = vi.spyOn(billing, 'deletePayment');
+
+    const res = await api.post('/billing/checkout', { planName: 'escritorio', cycle: 'yearly' });
+    expect(res.status, JSON.stringify(res.body)).toBe(201);
+    expect(deletePayment).not.toHaveBeenCalled();
+  });
+
+  it('falha ao consultar ou apagar a anterior não impede o novo upgrade', async () => {
+    const { api, firmId, chargeId } = await activeFirmWithUpgradeCharge();
+    vi.spyOn(billing, 'payment').mockRejectedValue(new Error('Asaas fora'));
+
+    const res = await api.post('/billing/checkout', { planName: 'escritorio', cycle: 'yearly' });
+    expect(res.status, JSON.stringify(res.body)).toBe(201);
+    expect((await subscriptionRows(firmId))[0].pendingPaymentId).not.toBe(chargeId);
+  });
+});
+
 describe('GET /billing/subscription — link da fatura só para o dono', () => {
   it('o dono vê o invoiceUrl gravado no checkout; o membro recebe null', async () => {
     const { api } = await registerFirm(app.url);

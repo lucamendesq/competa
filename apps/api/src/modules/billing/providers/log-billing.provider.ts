@@ -55,6 +55,11 @@ export class LogBilling implements BillingProvider {
     return { paymentId: `mock_pay_${randomUUID()}`, invoiceUrl: '' };
   }
 
+  async payment(paymentId: string) {
+    this.logger.log(`Mock: Consultando cobrança ${paymentId}`);
+    return { subscriptionId: null, open: false };
+  }
+
   async deletePayment(paymentId: string) {
     this.logger.log(`Mock: Apagando cobrança ${paymentId}`);
   }
