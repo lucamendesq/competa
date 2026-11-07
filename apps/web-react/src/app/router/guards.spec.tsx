@@ -22,7 +22,9 @@ describe('guards', () => {
     mockSessionAs('guest');
     const router = mount('/competencias');
 
-    expect(await screen.findByRole('heading', { name: 'Login' })).toBeInTheDocument();
+    expect(
+      await screen.findByRole('heading', { name: 'Acessar painel do Contador' }),
+    ).toBeInTheDocument();
     expect(router.state.location.pathname).toBe('/entrar');
     expect(router.state.location.state).toMatchObject({ from: { pathname: '/competencias' } });
   });

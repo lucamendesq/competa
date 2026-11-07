@@ -21,3 +21,4 @@ export {
   useSignOut,
   useSignUpWithInvite,
 } from '@/features/auth/queries/use-auth-mutations';
+export { LoginPage } from '@/features/auth/components/login-page';

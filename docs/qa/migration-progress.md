@@ -189,7 +189,7 @@ Um bloco por ticket, na ordem em que foram executados. Plano: [`docs/react-migra
 ## M1.1 · COM-327 · Sessão, SessionProvider, mutations de auth e guards
 
 - **Data:** 2026-11-07
-- **Branch:** `feat/COM-327-session-guards` (a partir de `feat/COM-323-ci-web-react`; o M0.10 não bloqueia nada, mas a cadeia é linear)
+- **Branch:** `feat/COM-327-session-guards` (a partir de `feat/COM-323-ci-web-react`; o M0.10 não bloqueia nada, mas a cadeia é linear) · **PR:** [#30](https://github.com/lucamendesq/competa/pull/30)
 - **O que foi feito:**
   - `shared/session/`: schemas zod `AccountantSession`/`ContactSession` (validam o `/auth/me` e o `/my/profile` com `parsed`), `deriveSession` (puro: `can`, `isOwner`, `isOverdue`, `status`) e `SessionContext` + `useSession()`. Nenhum estado próprio.
   - `features/auth/`: `api/auth.ts` (as chamadas do store Pinia), `authKeys` (`me`, `contactProfile`), `meOptions`/`contactProfileOptions` (`staleTime`/`gcTime: Infinity`, `retry: false`), as 12 mutations do ticket e os hooks de Suspense dos guards.
@@ -208,3 +208,16 @@ Um bloco por ticket, na ordem em que foram executados. Plano: [`docs/react-migra
 - **Bundle (ponto de partida para o M10.4):** o chunk principal do React tem 559 kB (o do Vue, 332 kB); o `vite build` avisa do limite de 500 kB. Não otimizado aqui.
 - **Ficou de fora:** nada do escopo. As telas de login, cadastro, senha e convite são M1.2–M1.5.
 - **Tempo:** ~1h30.
+
+---
+
+## M1.2 · COM-329 · Tela de entrada do Contador (`/entrar`)
+
+- **Data:** 2026-11-07
+- **Branch:** `feat/COM-329-login` (a partir de `feat/COM-327-session-guards`)
+- **O que foi feito:** `features/auth/components/login-page.tsx` (rota `app/routes/login.tsx`): React Hook Form + `zodResolver` com o mesmo schema local do Vue (`email()` do contrato + senha obrigatória), `mode: 'onTouched'` (o erro do campo aparece depois de tocá-lo, como o `meta.touched` do vee-validate), botão desabilitado enquanto inválido ou enviando, erro de credencial no topo com `role="alert"` lido de `signIn.error` (sem `useState`), e `navigate(from ?? '/competencias', { replace: true })` depois do sucesso. Textos, links e o painel escuro de benefícios iguais ao Vue.
+- **Testes:** `login-page.spec.tsx` (rotas reais + MSW): senha errada → "E-mail ou senha inválidos." e continua em `/entrar`; senha certa → `/competencias`; botão desabilitado com o formulário vazio; `autocomplete`/`inputmode`; erro de campo depois do blur ("E-mail inválido.", a primeira issue do schema, a mesma que o Vue mostrava). O teste de guard passou a procurar o título real da página. 81 testes no pacote.
+- **Visual:** `entrar__{desktop,mobile}__inicial.png` em `baseline-react-2026-11/`, iguais aos do Vue lado a lado.
+- **Ambiente local de comparação:** API do worktree na 3100 com `TRUSTED_ORIGINS=http://localhost:5174` no `.env` local (ignorado pelo git), React na 5174.
+- **Ficou de fora:** nada.
+- **Tempo:** ~25 min.

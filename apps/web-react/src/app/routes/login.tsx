@@ -1,5 +1,5 @@
-import { Placeholder } from '@/app/routes/placeholder';
+import { LoginPage } from '@/features/auth';
 
 export function Component() {
-  return <Placeholder name="Login" />;
+  return <LoginPage />;
 }
