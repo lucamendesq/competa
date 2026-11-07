@@ -10,7 +10,8 @@
     "check:api-error": "tsx scripts/check-api-error.ts",
     "check:no-diamond": "tsx scripts/check-no-diamond.ts",
     "check:wcag": "tsx scripts/check-wcag-contrast.ts",
-    "check:upload": "tsx scripts/check-upload.ts"
+    "check:upload": "tsx scripts/check-upload.ts",
+    "check:payment-url": "tsx scripts/check-payment-url.ts"
   },
   "dependencies": {
     "@competa/contracts": "workspace:*",

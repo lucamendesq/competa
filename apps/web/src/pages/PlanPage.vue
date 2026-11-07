@@ -25,6 +25,7 @@ import {
 } from '@competa/contracts';
 import { useQuery } from '@tanstack/vue-query';
 import { cancelSubscription, checkout, getSubscription } from '@/features/billing/api/billing';
+import { isAsaasPaymentUrl } from '@/features/billing/payment-url';
 import { useAuthStore } from '@/stores/auth';
 import { toast } from 'vue-sonner';
 import { apiErrorMessage } from '@/api/error';
@@ -51,6 +52,11 @@ const subscription = computed(() => auth.accountant?.accountingFirm.subscription
  *  paga, e o botão "Assinar" não serve para quem já tem um boleto esperando. */
 const billingQuery = useQuery({ queryKey: ['billingSubscription'], queryFn: getSubscription });
 const invoiceUrl = computed(() => billingQuery.data.value?.invoiceUrl ?? null);
+const invoiceUrlRefused = computed(
+  () => invoiceUrl.value !== null && !isAsaasPaymentUrl(invoiceUrl.value),
+);
+const PAYMENT_LINK_REFUSED =
+  'O link de pagamento recebido não é do Asaas e não foi aberto. Fale com o suporte.';
 const pendingPlan = computed(() => {
   const name = billingQuery.data.value?.pendingPlanName;
   return name ? (PLANS[name as PlanName]?.label ?? name) : null;
@@ -209,6 +215,11 @@ async function goToCheckout(planName: string) {
       return;
     }
 
+    if (!isAsaasPaymentUrl(checkoutUrl)) {
+      toast.error(PAYMENT_LINK_REFUSED);
+      return;
+    }
+
     window.location.href = checkoutUrl;
   } catch (error) {
     toast.error(
@@ -328,7 +339,12 @@ async function goToCheckout(planName: string) {
             <template v-else>Há uma fatura em aberto na sua assinatura.</template>
             Boleto, Pix ou cartão: a escolha é na página da fatura.
           </p>
-          <Button as="a" :href="invoiceUrl" target="_blank" rel="noopener">Pagar fatura</Button>
+          <p v-if="invoiceUrlRefused" role="alert" class="text-danger text-sm">
+            {{ PAYMENT_LINK_REFUSED }}
+          </p>
+          <Button v-else as="a" :href="invoiceUrl" target="_blank" rel="noopener">
+            Pagar fatura
+          </Button>
         </div>
       </CardContent>
 
