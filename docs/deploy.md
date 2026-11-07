@@ -217,23 +217,14 @@ Uma vez, com as contas:
 Com `min_machines_running = 0` as varreduras das 7h e 9h só rodam com a máquina acordada:
 para testar lembrete, use "Cobrar atrasados" no painel.
 
-### Preview do React (temporário, até o cutover)
+### Staging serve o React durante a migração
 
-Durante a migração do `apps/web` para React (`docs/react-migration-2026-11.md`), o
-`apps/web-react` tem um preview próprio no staging: job `deploy-web-react-staging`, mesmo
-gatilho do `deploy-web-staging`, projeto Pages `competa-web-react-staging`, apontando para a
-mesma API de staging. O preview **some no cutover** (M10.5): o `apps/web-react` vira o
-`apps/web` e volta a usar o `competa-web-staging`.
-
-Uma vez, com as contas:
-
-1. **Cloudflare**: `wrangler pages project create competa-web-react-staging`; Custom domains
-   → `staging-react.competa.com.br`. Precisa ser subdomínio de `competa.com.br` pelo mesmo
-   motivo do web: em `*.pages.dev` o cookie de sessão da API vira cross-site e o login não
-   funciona.
-2. **Fly**: acrescentar `https://staging-react.competa.com.br` ao `TRUSTED_ORIGINS` do
-   `competa-api-staging` (`flyctl secrets set -a competa-api-staging TRUSTED_ORIGINS=...`,
-   mantendo as origens que já estão lá). Sem isso o CORS e o Better Auth recusam o preview.
+Enquanto o `apps/web` migra para React (`docs/react-migration-2026-11.md`), o job
+`deploy-web-staging` publica o **`apps/web-react`** no mesmo projeto `competa-web-staging`
+(`staging-app.competa.com.br`). Mesmo domínio, mesma API de staging e mesma origem já
+liberada: nada muda no painel. As telas ainda não migradas mostram um placeholder com o nome
+da rota. A produção (`deploy-web`) continua publicando o `apps/web` (Vue) até o cutover
+(M10.5).
 
 ## 8. Checklist pré-lançamento nos painéis (COM-277)
 
