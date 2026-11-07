@@ -22,6 +22,8 @@ Contexto completo: [`docs/product.md`](./docs/product.md).
 
 TypeScript · **pnpm workspaces** (monorepo) · **Vue 3 SPA (Vite, CSR, sem SSR)** + **Tailwind CSS + reka-ui** + Pinia + `@tanstack/vue-query` + vee-validate · **Effect v4** (todo o backend, servidor em `effect/http`) · Drizzle ORM · Postgres · **Better Auth** (na API) · Cloudflare R2 · `eventemitter2` · zod (`libs/contracts`). Mobile futuro: {a decidir — React Native vs Flutter}.
 
+**Migração em curso para React 19** (plano em [`docs/react-migration-2026-11.md`](./docs/react-migration-2026-11.md)): o app novo nasce em `apps/web-react` (`pnpm dev:react`, porta 5174) e substitui o `apps/web` no cutover. Todo código em `apps/web-react` segue o padrão normativo de [`docs/react-standards.md`](./docs/react-standards.md).
+
 ## Estrutura alvo do monorepo
 
 ```
