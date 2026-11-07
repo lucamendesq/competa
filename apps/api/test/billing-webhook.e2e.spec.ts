@@ -26,13 +26,14 @@ afterAll(async () => {
 let eventSeq = 0;
 const eventId = () => `evt_${Date.now().toString(36)}_${++eventSeq}`;
 
-const post = (body: unknown, token: string | null = TOKEN) =>
+const post = (body: unknown, token: string | null = TOKEN, headers: Record<string, string> = {}) =>
   fetch(`${app.url}/billing/webhook/asaas`, {
     method: 'POST',
     headers: {
       'x-forwarded-for': uniqueIp(),
       'content-type': 'application/json',
       ...(token === null ? {} : { 'asaas-access-token': token }),
+      ...headers,
     },
     body: JSON.stringify(body),
   }).then(async (res) => ({ status: res.status, body: await res.json().catch(() => undefined) }));
@@ -94,6 +95,32 @@ describe('autenticação do webhook', () => {
 
     expect(res.status).toBe(403);
     expect(res.body.error.code).toBe('FORBIDDEN');
+  });
+
+  it('allowlist de IPs configurada: só o Fly-Client-IP listado passa, mesmo com token certo', async () => {
+    const { gatewaySubscriptionId, firmId } = await firmWithCheckout();
+    const body = () => ({
+      id: eventId(),
+      event: 'PAYMENT_CONFIRMED',
+      payment: { subscription: gatewaySubscriptionId, dueDate: '2026-10-05' },
+    });
+    env.ASAAS_WEBHOOK_ALLOWED_IPS = ['203.0.113.7', '203.0.113.8'];
+
+    try {
+      const noHeader = await post(body());
+      expect(noHeader.status).toBe(403);
+
+      const outsider = await post(body(), TOKEN, { 'fly-client-ip': '198.51.100.1' });
+      expect(outsider.status).toBe(403);
+      expect(outsider.body.error.code).toBe('FORBIDDEN');
+      expect((await rowOf(firmId)).status).toBe('trialing');
+
+      const listed = await post(body(), TOKEN, { 'fly-client-ip': '203.0.113.8' });
+      expect(listed.status).toBe(200);
+      expect((await rowOf(firmId)).status).toBe('ACTIVE');
+    } finally {
+      env.ASAAS_WEBHOOK_ALLOWED_IPS = [];
+    }
   });
 
   it('evento sem id e sem event → 200 inerte (só 200 conta como entregue para o Asaas)', async () => {

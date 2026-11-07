@@ -80,6 +80,16 @@ const envSchema = z
     /* Token que o Asaas devolve no header `asaas-access-token`. Sem ele o webhook aceita
      * qualquer POST da internet e vira chave de assinatura grátis / DoS por tenant. */
     ASAAS_WEBHOOK_TOKEN: blankAsMissing(z.string()),
+    ASAAS_WEBHOOK_ALLOWED_IPS: z
+      .string()
+      .optional()
+      .default('')
+      .transform((value) =>
+        value
+          .split(',')
+          .map((ip) => ip.trim())
+          .filter(Boolean),
+      ),
     WHATSAPP_VERIFY_TOKEN: blankAsMissing(z.string()),
     ASAAS_SANDBOX: z
       .string()

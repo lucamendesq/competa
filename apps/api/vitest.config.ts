@@ -20,6 +20,7 @@ export default defineConfig({
       /* As suites congelam a recusa dos webhooks SEM segredo; um .env de dev com os
        * tokens preenchidos não pode mudar isso (blankAsMissing trata '' como ausente). */
       ASAAS_WEBHOOK_TOKEN: '',
+      ASAAS_WEBHOOK_ALLOWED_IPS: '',
       WHATSAPP_VERIFY_TOKEN: '',
       /* Idem para o segredo da Meta: a suíte congela o 503 do webhook sem ele, e antes disto
        * a garantia era "o .env do dev não tem essa linha" — quem a preenchesse quebrava a

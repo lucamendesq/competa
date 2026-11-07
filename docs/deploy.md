@@ -43,7 +43,9 @@ flyctl secrets set -a competa-api \
 # SENTRY_DSN é secret, não [env] do fly.toml: o DSN aceita eventos de quem o tiver, e o
 # fly.toml está no repositório. ASAAS_WEBHOOK_TOKEN é o mesmo valor cadastrado no painel do
 # Asaas (webhook → token de autenticação). WHATSAPP_ENCRYPTION_KEY: 64 hex, sem ela a API
-# não sobe.
+# não sobe. ASAAS_WEBHOOK_ALLOWED_IPS (opcional, IPs separados por vírgula): com ela o webhook
+# só aceita o Fly-Client-IP listado e recusa o resto com 403; vazia, vale só o token. Os IPs de
+# saída do Asaas mudam: confira a doc deles antes de ligar e ao ver 403 no log do webhook.
 
 # gerar o par VAPID antes do set acima, se ainda não existir:
 npx web-push generate-vapid-keys

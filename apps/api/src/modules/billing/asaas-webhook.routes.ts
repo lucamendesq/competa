@@ -60,6 +60,13 @@ const webhook = route(
     Effect.gen(function* () {
       const request = yield* HttpServerRequest.HttpServerRequest;
       const token = request.headers['asaas-access-token'];
+      const allowedIps = env.ASAAS_WEBHOOK_ALLOWED_IPS;
+      const clientIp = request.headers['fly-client-ip'];
+
+      if (allowedIps.length > 0 && (!clientIp || !allowedIps.includes(clientIp))) {
+        logger.warn(`Webhook Asaas de IP fora da allowlist (${clientIp ?? 'sem Fly-Client-IP'}).`);
+        return yield* Effect.fail(new Forbidden('Webhook não autorizado.'));
+      }
 
       /* Falha fechada: sem segredo configurado a rota não processa nada. O estado da
        * assinatura controla o `firmRoute`, então um POST anônimo daria uso grátis ou
