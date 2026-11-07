@@ -1,12 +1,4 @@
-import { createBrowserRouter, type RouteObject } from 'react-router';
+import { createBrowserRouter } from 'react-router';
+import { routes } from '@/app/router/routes';
 
-const devRoutes: RouteObject[] = import.meta.env.DEV
-  ? [
-      {
-        path: '/__ui',
-        lazy: async () => ({ Component: (await import('@/app/routes/ui-gallery')).UiGallery }),
-      },
-    ]
-  : [];
-
-export const router = createBrowserRouter([...devRoutes, { path: '*', element: null }]);
+export const router = createBrowserRouter(routes);

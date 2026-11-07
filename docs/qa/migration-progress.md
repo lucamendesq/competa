@@ -138,7 +138,7 @@ Um bloco por ticket, na ordem em que foram executados. Plano: [`docs/react-migra
 ## M0.8 · COM-322 · Componentes compartilhados de domínio neutro
 
 - **Data:** 2026-11-07
-- **Branch:** `feat/COM-322-shared-components` (a partir de `feat/COM-319-design-tokens-ui`)
+- **Branch:** `feat/COM-322-shared-components` (a partir de `feat/COM-319-design-tokens-ui`) · **PR:** [#27](https://github.com/lucamendesq/competa/pull/27)
 - **O que foi feito:** `shared/components/{callout,error-state,not-found-state,loading-rows,page-header,status-pill,modal,logo,due-date,spinner}.tsx`, com as classes e os textos do Vue. `shared/lib/format.ts` e `shared/lib/item-status.ts` copiados de `utils/`. Seções novas na galeria `/__ui`.
 - **Decisões:**
   - `ErrorState` recebe `error`, `retry` e `fallback` (o Vue recebia `message` pronto): offline vira "Sem conexão com o servidor. Verifique sua internet."; com mensagem do servidor usa `apiErrorMessage`; sem nada, "Erro inesperado. Tente novamente." (o padrão do Vue). Os `title` que as páginas Vue passavam ao `ErrorState` não eram props dele e não aparecem na tela; o React não os aceita.
@@ -149,3 +149,22 @@ Um bloco por ticket, na ordem em que foram executados. Plano: [`docs/react-migra
 - **Visual:** `ui__{desktop,mobile}__{galeria,modal}.png` atualizados. O `Modal` no mobile ocupa a largura toda com a barra de rodapé, como os modais do baseline Vue.
 - **Ficou de fora:** os componentes com domínio (TermsConsent, InstallButton, UploadFeedback, PlanCapBanner, PlanGateNotice, ResendNotice, CatalogPicker, CloseRequestModal) vão para as features nos tickets delas, como o ticket manda.
 - **Tempo:** ~40 min.
+
+---
+
+## M0.9 · COM-320 · Router, Termos, Privacidade e 404
+
+- **Data:** 2026-11-07
+- **Branch:** `feat/COM-320-router` (a partir de `feat/COM-322-shared-components`)
+- **O que foi feito:** `app/router/routes.tsx` com todas as rotas do `router/index.ts` do Vue (30 páginas lazy, 4 redirects, catch-all), `handle.title`/`handle.area` em todas, `errorElement` por segmento, guards `RequireAccountant`/`RequireContact`/`GuestOnly` declarados como layout routes (deixam passar até o M1.1). `RootLayout` aplica o título com o `<title>` do React 19 (sem efeito). `RouteErrorState`: 404 do router → `NotFoundPage`; `ApiError`/erro de rede → `ErrorState`; resto → a tela genérica. `/termos` e `/privacidade` com o texto do Vue sobre `shared/components/layout/public-layout.tsx`; `NotFoundPage` igual à do Vue. As 27 rotas sem ticket ainda renderizam um `Placeholder` com o nome da rota, cada uma no seu arquivo (e chunk).
+- **Decisões:**
+  - O `errorElement` fica numa rota **sem path** dentro de cada layout (raiz, `/`, `/minha-area`, públicas): o erro de uma página aparece no lugar do `Outlet` e o layout em volta continua.
+  - `handle.area` ganhou `'public'`; o handler de sessão expirada só reage a `accountant`/`contact`.
+  - `useDocumentTitle` virou uma função pura (`documentTitle(matches)`) + hook; o `RootLayout` renderiza `<title>`, que o React 19 leva ao `<head>`.
+  - O catch-all manteve o comentário de intenção do Vue (tela branca), como o ticket pede.
+  - **404 por enquanto sempre oferece "Entrar"**: o Vue escolhe entre "Ir para o painel", "Ir para minhas pendências" e "Entrar" lendo a sessão, que nasce no M1.1 (anotado na issue COM-327). O baseline captura o estado de visitante, que já bate.
+  - A `NotFoundPage` entra no bundle principal (o `RouteErrorState` a usa direto); as outras 29 páginas têm chunk próprio.
+- **Testes:** `routes.spec.tsx`: título de `/termos` → "Termos de Uso - Competa" e de `/competencias` → "Competa"; `/privacidade`; 404 com o caminho digitado; os 4 redirects; 30 páginas lazy; `ApiError` 500 numa rota mostra o `ErrorState` e mantém o layout. 61 testes no pacote.
+- **Visual:** `termos`, `privacidade` e `404` (desktop e mobile) em `docs/qa/baseline-react-2026-11/`, iguais aos do Vue.
+- **Ficou de fora:** guards de verdade e o botão do 404 por sessão (M1.1).
+- **Tempo:** ~45 min.

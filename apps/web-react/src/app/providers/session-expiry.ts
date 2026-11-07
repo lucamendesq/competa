@@ -12,7 +12,7 @@ export const SESSION_EXPIRED_MESSAGE = 'Sua sessão foi encerrada. Entre de novo
 export const registerSessionExpiry = (queryClient: QueryClient, router: AppRouter) =>
   onSessionExpired(() => {
     const area = areaOf(router.state.matches);
-    if (!area) return;
+    if (area !== 'accountant' && area !== 'contact') return;
 
     toast.error(SESSION_EXPIRED_MESSAGE, { id: 'session-expired' });
     queryClient.removeQueries({ queryKey: authKeys.all });
