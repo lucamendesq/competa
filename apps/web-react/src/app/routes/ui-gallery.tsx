@@ -41,6 +41,16 @@ import {
 } from '@/shared/components/ui/table';
 import { Textarea } from '@/shared/components/ui/textarea';
 import { Tooltip, TooltipContent, TooltipTrigger } from '@/shared/components/ui/tooltip';
+import { Callout } from '@/shared/components/callout';
+import { DueDate } from '@/shared/components/due-date';
+import { ErrorState } from '@/shared/components/error-state';
+import { LoadingRows } from '@/shared/components/loading-rows';
+import { Logo } from '@/shared/components/logo';
+import { Modal } from '@/shared/components/modal';
+import { NotFoundState } from '@/shared/components/not-found-state';
+import { PageHeader } from '@/shared/components/page-header';
+import { Spinner } from '@/shared/components/spinner';
+import { StatusPill } from '@/shared/components/status-pill';
 
 const VARIANTS: NonNullable<ButtonVariants['variant']>[] = [
   'default',
@@ -51,6 +61,30 @@ const VARIANTS: NonNullable<ButtonVariants['variant']>[] = [
   'link',
 ];
 const SIZES: NonNullable<ButtonVariants['size']>[] = ['xs', 'sm', 'default', 'lg'];
+const STATUSES = [
+  'pending',
+  'submitted',
+  'accepted',
+  'rejected',
+  'open',
+  'complete',
+  'closed',
+  'overdue',
+  'queued',
+  'sent',
+  'delivered',
+  'failed',
+  'inactive',
+  'active',
+  'extra',
+  'resent',
+  'removed',
+  'added',
+  'not_applicable',
+  'own_template',
+  'connected',
+  'disconnected',
+];
 const ICON_SIZES: NonNullable<ButtonVariants['size']>[] = ['icon-xs', 'icon-sm', 'icon', 'icon-lg'];
 
 function Section({ title, children }: { title: string; children: ReactNode }) {
@@ -66,6 +100,7 @@ export function UiGallery() {
   const [page, setPage] = useState(10);
   const [dialogOpen, setDialogOpen] = useState(false);
   const [sheetOpen, setSheetOpen] = useState(false);
+  const [modalOpen, setModalOpen] = useState(false);
 
   return (
     <main className="bg-canvas min-h-svh space-y-10 p-6">
@@ -221,6 +256,84 @@ export function UiGallery() {
           title="Nenhuma empresa"
           description="Cadastre a primeira empresa para solicitar documentos."
           actionLabel="Nova empresa"
+        />
+      </Section>
+
+      <Section title="PageHeader, Logo e Spinner">
+        <PageHeader title="Competências" description="Abertura do mês e disparos de e-mail.">
+          <Button>Abrir competência</Button>
+        </PageHeader>
+        <div className="flex items-center gap-6">
+          <Logo className="h-8" />
+          <Logo variant="icon" className="h-8" />
+          <div className="bg-anchor flex h-12 items-center rounded-md px-3">
+            <Logo surface="dark" className="h-8" />
+          </div>
+          <Spinner />
+        </div>
+      </Section>
+
+      <Section title="StatusPill">
+        <div className="flex flex-wrap gap-2">
+          {STATUSES.map((status) => (
+            <StatusPill key={status} status={status} />
+          ))}
+        </div>
+      </Section>
+
+      <Section title="Callout e DueDate">
+        <div className="grid max-w-xl gap-3">
+          <Callout tone="info" heading="Plano Essencial">
+            Até 40 empresas ativas.
+          </Callout>
+          <Callout tone="warning" heading="Fatura em aberto">
+            Pague para continuar abrindo competências.
+          </Callout>
+          <Callout tone="danger" heading="Falha no envio">
+            O e-mail voltou: caixa de entrada cheia.
+          </Callout>
+          <Callout tone="success" actions={<Button size="sm">Ver</Button>}>
+            Template salvo.
+          </Callout>
+          <Callout tone="neutral" heading="Somente leitura">
+            Só o dono da Contabilidade pode alterar estas configurações.
+          </Callout>
+        </div>
+        <div className="flex gap-4">
+          <DueDate date={null} />
+          <DueDate date="2020-01-10" />
+          <DueDate date="2099-01-10" />
+        </div>
+      </Section>
+
+      <Section title="LoadingRows, ErrorState e NotFoundState">
+        <LoadingRows count={2} />
+        <ErrorState
+          error={new TypeError('Failed to fetch')}
+          retry={() => toast('Tentando de novo')}
+        />
+        <NotFoundState
+          title="Competência não encontrada"
+          to="/competencias"
+          backLabel="Voltar para Competências"
+        />
+      </Section>
+
+      <Section title="Modal">
+        <Button onClick={() => setModalOpen(true)}>Abrir modal</Button>
+        <Modal
+          open={modalOpen}
+          onOpenChange={setModalOpen}
+          title="Remover contador?"
+          description="A sessão e as passkeys dele são revogadas imediatamente."
+          footer={
+            <>
+              <Button variant="ghost" onClick={() => setModalOpen(false)}>
+                Cancelar
+              </Button>
+              <Button variant="destructive">Remover</Button>
+            </>
+          }
         />
       </Section>
     </main>

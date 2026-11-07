@@ -118,7 +118,7 @@ Um bloco por ticket, na ordem em que foram executados. Plano: [`docs/react-migra
 ## M0.7 · COM-319 · Tokens e primitivos de UI
 
 - **Data:** 2026-11-07
-- **Branch:** `feat/COM-319-design-tokens-ui` (a partir de `feat/COM-321-query-client-providers`)
+- **Branch:** `feat/COM-319-design-tokens-ui` (a partir de `feat/COM-321-query-client-providers`) · **PR:** [#26](https://github.com/lucamendesq/competa/pull/26)
 - **O que foi feito:** `src/main.css` copiado byte a byte do Vue (o `diff` não acusa nada); fontes Outfit e Plus Jakarta Sans no `main.tsx`. `components.json` do shadcn (new-york, Tailwind v4) e `shared/lib/cn.ts`. Primitivos em `shared/components/ui/<nome>/` com `index.ts`: button, input, label, textarea, native-select, table, pagination, card, dialog, sheet, tooltip, separator, skeleton, empty, sonner. Galeria interna em `/__ui`, só em DEV (rota lazy; não entra no bundle de produção).
 - **Como foi feito:** `npx shadcn@latest add …` gerou a estrutura React; depois cada string de classe foi trocada pela do `.vue` correspondente (o Vue é shadcn-vue customizado), tirando as variantes `dark:` (sem dark mode desde outubro/2026). `native-select` e `empty` portados à mão do Vue. Ícones `@radix-icons/vue` → `lucide-react` equivalentes.
 - **Decisões:**
@@ -132,3 +132,20 @@ Um bloco por ticket, na ordem em que foram executados. Plano: [`docs/react-migra
 - **Comparação visual:** `docs/qa/baseline-react-2026-11/ui__{desktop,mobile}__{galeria,dialogo,sheet}.png`. Conferido contra o baseline Vue: botão primário âmbar e secundário escuro como em `/competencias` e `/empresas`; `EmptyState` igual ao de `/empresas` vazio; diálogo com título centrado no mobile e "Fechar" no canto. O formato bottom-sheet do modal de abertura no mobile vem do `Modal.vue` (M0.8), não do primitivo.
 - **Ficou de fora:** nada.
 - **Tempo:** ~1h15.
+
+---
+
+## M0.8 · COM-322 · Componentes compartilhados de domínio neutro
+
+- **Data:** 2026-11-07
+- **Branch:** `feat/COM-322-shared-components` (a partir de `feat/COM-319-design-tokens-ui`)
+- **O que foi feito:** `shared/components/{callout,error-state,not-found-state,loading-rows,page-header,status-pill,modal,logo,due-date,spinner}.tsx`, com as classes e os textos do Vue. `shared/lib/format.ts` e `shared/lib/item-status.ts` copiados de `utils/`. Seções novas na galeria `/__ui`.
+- **Decisões:**
+  - `ErrorState` recebe `error`, `retry` e `fallback` (o Vue recebia `message` pronto): offline vira "Sem conexão com o servidor. Verifique sua internet."; com mensagem do servidor usa `apiErrorMessage`; sem nada, "Erro inesperado. Tente novamente." (o padrão do Vue). Os `title` que as páginas Vue passavam ao `ErrorState` não eram props dele e não aparecem na tela; o React não os aceita.
+  - `Modal` ganhou `footer`: a barra `bg-muted/40` com borda que as telas Vue repetiam à mão dentro do slot. Sem `description`, o `Modal` põe a descrição só para leitor de tela (o Radix exige `Description`).
+  - `Callout` aceita um ícone `lucide` no lugar do nome em string do Vue (que era ignorado) e `actions` como prop.
+  - `item-status.ts`: `Rejection.fileName` virou `string | undefined` explícito por causa do `exactOptionalPropertyTypes`. Nenhuma outra mudança nas funções copiadas.
+- **Testes:** `format.spec.ts` (`maskedCnpj`, `cnpjInputMask`, `phoneInputMask`, `maskedPhone`, `monthLabel`/`monthShort`, `brl`, `dateBr`, `fileSize`, `foldAccents`, `slug`) e `error-state.spec.tsx` (offline + retry, mensagem do servidor, padrão). 52 testes no pacote.
+- **Visual:** `ui__{desktop,mobile}__{galeria,modal}.png` atualizados. O `Modal` no mobile ocupa a largura toda com a barra de rodapé, como os modais do baseline Vue.
+- **Ficou de fora:** os componentes com domínio (TermsConsent, InstallButton, UploadFeedback, PlanCapBanner, PlanGateNotice, ResendNotice, CatalogPicker, CloseRequestModal) vão para as features nos tickets delas, como o ticket manda.
+- **Tempo:** ~40 min.
