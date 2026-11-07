@@ -13,6 +13,8 @@
     "format:check": "prettier --check .",
     "predev": "pnpm --filter contracts build",
     "dev": "pnpm -r --parallel run dev",
+    "predev:react": "pnpm --filter contracts build",
+    "dev:react": "pnpm --filter contracts --filter api --filter web-react --parallel run dev",
     "predev:lan": "pnpm --filter contracts build",
     "dev:lan": "pnpm -r --parallel run dev:lan",
     "db:seed": "pnpm --filter api db:seed",
@@ -24,6 +26,7 @@
     "eslint-config-prettier": "^10.0.0",
     "husky": "^9.1.7",
     "lint-staged": "^17.5.1",
+    "playwright": "1.48.2",
     "prettier": "^3.8.1",
     "typescript-eslint": "^8.20.0"
   },
