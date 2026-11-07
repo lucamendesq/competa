@@ -1699,6 +1699,25 @@ describe('zip e leitura de documentos', () => {
     expect(res.headers.get('content-disposition')).toContain('attachment');
   });
 
+  it('documento cujo arquivo sumiu do storage → 404, não 500', async () => {
+    const [orphan] = await db
+      .insert(document)
+      .values({
+        requestId: emptyBox.requestId,
+        storageKey: 'sealed/ausente/sumiu.pdf',
+        fileName: 'sumiu.pdf',
+        contentType: 'application/pdf',
+        sizeBytes: 10,
+        uploadStatus: 'uploaded',
+        uploadedAt: new Date(),
+      })
+      .returning({ id: document.id });
+
+    const res = await zipGet(`/documents/${orphan.id}/content`);
+    expect(res.status).toBe(404);
+    expect((await res.json()).error.code).toBe('NOT_FOUND');
+  });
+
   it('linha de presign sem upload não tem conteúdo → 404', async () => {
     const presigned = await apiClient(app.url).post(`/upload/${emptyBox.uploadToken}/documents`, {
       files: [{ fileName: 'fantasma.csv', contentType: 'text/csv', sizeBytes: 10 }],

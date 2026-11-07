@@ -939,6 +939,25 @@ describe('upload logado (/my/documents) e leitura de conteúdo', () => {
     expect(res.status).toBe(404);
     expect(res.body.error.message).toContain('Nenhum documento');
   });
+
+  it('documento cujo arquivo sumiu do storage → 404, não 500', async () => {
+    const [orphan] = await db
+      .insert(document)
+      .values({
+        requestId: box.requestId,
+        storageKey: 'sealed/ausente/sumiu.pdf',
+        fileName: 'sumiu.pdf',
+        contentType: 'application/pdf',
+        sizeBytes: 10,
+        uploadStatus: 'uploaded',
+        uploadedAt: new Date(),
+      })
+      .returning({ id: document.id });
+
+    const res = await session.api.get(`/my/documents/${orphan.id}/content`);
+    expect(res.status).toBe(404);
+    expect(res.body.error.code).toBe('NOT_FOUND');
+  });
 });
 
 describe('recuperação de acesso (/access/recover)', () => {

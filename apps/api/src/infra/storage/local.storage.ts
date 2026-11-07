@@ -1,11 +1,11 @@
 import { createHmac, timingSafeEqual } from 'node:crypto';
-import { createReadStream, createWriteStream } from 'node:fs';
+import { createWriteStream } from 'node:fs';
 import { copyFile, mkdir, open, rm, stat } from 'node:fs/promises';
 import { dirname, join, resolve, sep } from 'node:path';
 import { Transform, type Readable } from 'node:stream';
 import { pipeline } from 'node:stream/promises';
 import env from '../../config/env.js';
-import { Forbidden, ServiceUnavailable } from '../../lib/app-error.js';
+import { Forbidden, isAppError, NotFound, ServiceUnavailable } from '../../lib/app-error.js';
 import { PayloadTooLarge } from './errors.js';
 import {
   PRESIGN_TTL_SECONDS,
@@ -80,7 +80,18 @@ export class LocalStorage extends StorageProvider {
   }
 
   async openRead(storageKey: string) {
-    return createReadStream(this.safePath(storageKey));
+    try {
+      const handle = await open(this.safePath(storageKey), 'r');
+      return handle.createReadStream();
+    } catch (error: unknown) {
+      if (isAppError(error)) throw error;
+      if ((error as NodeJS.ErrnoException)?.code === 'ENOENT') {
+        throw new NotFound('Arquivo não encontrado no storage.');
+      }
+      throw new ServiceUnavailable(
+        'Armazenamento temporariamente inacessível. Tente novamente em instantes.',
+      );
+    }
   }
 
   async write(input: {

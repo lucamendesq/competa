@@ -6,7 +6,7 @@ import { IdParam } from '@competa/contracts';
 import { ZipArchive } from 'archiver';
 import { Effect, Layer } from 'effect';
 import { HttpServerRequest, HttpServerResponse } from 'effect/http';
-import { storage } from '../../infra/storage/storage.js';
+import { openStored, storage } from '../../infra/storage/storage.js';
 import { FirmContext } from '../../http/context.js';
 import { handler } from '../../http/envelope.js';
 import { firmRoute } from '../../http/middleware/auth.js';
@@ -174,7 +174,7 @@ const documentContent = route(
       if (!found) return yield* Effect.fail(new NotFound('Documento não encontrado.'));
 
       const { contentType, inline } = servedContentType(found.contentType);
-      const readable = yield* Effect.promise(() => storage.openRead(found.storageKey));
+      const readable = yield* openStored(found.storageKey);
 
       return HttpServerResponse.stream(NodeStream.fromReadable({ evaluate: () => readable }), {
         contentType,

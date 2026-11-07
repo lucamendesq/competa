@@ -13,7 +13,7 @@ import { Effect, Layer } from 'effect';
 import { HttpServerRequest, HttpServerResponse } from 'effect/http';
 import * as z from 'zod';
 import { BetterAuthAdapter } from '../../infra/auth/better-auth.adapter.js';
-import { storage } from '../../infra/storage/storage.js';
+import { openStored } from '../../infra/storage/storage.js';
 import { ContactContext, UploadContext } from '../../http/context.js';
 import { handler, paginated } from '../../http/envelope.js';
 import { contactRoute, contactUploadRoute } from '../../http/middleware/auth.js';
@@ -132,7 +132,7 @@ const documentContent = route(
       if (!found) return yield* Effect.fail(new NotFound('Documento não encontrado.'));
 
       const { contentType, inline } = servedContentType(found.contentType);
-      const readable = yield* Effect.promise(() => storage.openRead(found.storageKey));
+      const readable = yield* openStored(found.storageKey);
 
       return HttpServerResponse.stream(NodeStream.fromReadable({ evaluate: () => readable }), {
         contentType,
