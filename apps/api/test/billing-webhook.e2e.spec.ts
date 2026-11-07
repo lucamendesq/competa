@@ -89,6 +89,13 @@ describe('autenticação do webhook', () => {
     expect(claimed).toEqual([]);
   });
 
+  it('sem token e com corpo inválido → 403, antes de validar o corpo', async () => {
+    const res = await post({ id: 42, payment: 'nao-e-objeto' }, null);
+
+    expect(res.status).toBe(403);
+    expect(res.body.error.code).toBe('FORBIDDEN');
+  });
+
   it('evento sem id e sem event → 200 inerte (só 200 conta como entregue para o Asaas)', async () => {
     const { gatewaySubscriptionId, firmId } = await firmWithCheckout();
 

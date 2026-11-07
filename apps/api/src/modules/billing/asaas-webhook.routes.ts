@@ -59,7 +59,6 @@ const webhook = route(
     'POST',
     Effect.gen(function* () {
       const request = yield* HttpServerRequest.HttpServerRequest;
-      const payload = yield* body(AsaasWebhookPayload);
       const token = request.headers['asaas-access-token'];
 
       /* Falha fechada: sem segredo configurado a rota não processa nada. O estado da
@@ -74,6 +73,8 @@ const webhook = route(
         logger.warn('Webhook Asaas com token inválido.');
         return yield* Effect.fail(new Forbidden('Webhook não autorizado.'));
       }
+
+      const payload = yield* body(AsaasWebhookPayload);
 
       /* Todo evento do Asaas tem `id` (`evt_...`); é ele que barra o reenvio. Sem id não há
        * como processar uma vez só: registra e responde 200 inerte, porque qualquer outro
