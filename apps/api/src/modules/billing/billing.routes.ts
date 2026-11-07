@@ -114,7 +114,7 @@ const checkout = route(
           const { customerId } = yield* gateway(() =>
             billing.getOrCreateCustomer({
               name: firm.name,
-              email: firm.contactEmail || 'faturamento@competa.com.br',
+              email: firm.contactEmail || session.user.email,
               cpfCnpj: cnpj,
               externalReference: firm.id,
             }),

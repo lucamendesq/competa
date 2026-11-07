@@ -2,7 +2,7 @@ import { eq } from 'drizzle-orm';
 import { afterAll, afterEach, beforeAll, describe, expect, it, vi } from 'vitest';
 import { bootApp, type RunningApp } from './support/boot.js';
 import { db, truncateAll } from './support/db.js';
-import { company, subscription } from '../src/infra/database/schema/index.js';
+import { accountingFirm, company, subscription } from '../src/infra/database/schema/index.js';
 import { billing } from '../src/modules/billing/gateway.js';
 import { Logger } from '../src/lib/logger.js';
 import * as Sentry from '@sentry/node';
@@ -258,6 +258,41 @@ describe('checkout concorrente da mesma firma', () => {
 
     const third = await api.post('/billing/checkout', { planName: 'essencial' });
     expect(third.status, JSON.stringify(third.body)).toBe(201);
+  });
+});
+
+/* Sem e-mail de contato, a firma virava cliente do Asaas com o nosso endereço, e as faturas e
+ * os lembretes chegavam para nós. Quem faz o checkout é o dono: o e-mail de login dele é o
+ * destino certo. */
+describe('e-mail do cliente no gateway', () => {
+  it('firma sem e-mail de contato usa o e-mail de login do dono', async () => {
+    const { api, email } = await registerFirm(app.url);
+    const firmId = await firmIdOf(api);
+    await db
+      .update(accountingFirm)
+      .set({ contactEmail: null })
+      .where(eq(accountingFirm.id, firmId));
+    const customer = vi.spyOn(billing, 'getOrCreateCustomer');
+
+    const res = await api.post('/billing/checkout', { planName: 'profissional' });
+    expect(res.status, JSON.stringify(res.body)).toBe(201);
+    expect(customer).toHaveBeenCalledWith(expect.objectContaining({ email }));
+  });
+
+  it('firma com e-mail de contato usa o dela', async () => {
+    const { api } = await registerFirm(app.url);
+    const firmId = await firmIdOf(api);
+    await db
+      .update(accountingFirm)
+      .set({ contactEmail: 'financeiro@escritorio.com.br' })
+      .where(eq(accountingFirm.id, firmId));
+    const customer = vi.spyOn(billing, 'getOrCreateCustomer');
+
+    const res = await api.post('/billing/checkout', { planName: 'profissional' });
+    expect(res.status, JSON.stringify(res.body)).toBe(201);
+    expect(customer).toHaveBeenCalledWith(
+      expect.objectContaining({ email: 'financeiro@escritorio.com.br' }),
+    );
   });
 });
 
