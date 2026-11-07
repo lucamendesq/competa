@@ -155,7 +155,7 @@ Um bloco por ticket, na ordem em que foram executados. Plano: [`docs/react-migra
 ## M0.9 · COM-320 · Router, Termos, Privacidade e 404
 
 - **Data:** 2026-11-07
-- **Branch:** `feat/COM-320-router` (a partir de `feat/COM-322-shared-components`)
+- **Branch:** `feat/COM-320-router` (a partir de `feat/COM-322-shared-components`) · **PR:** [#28](https://github.com/lucamendesq/competa/pull/28)
 - **O que foi feito:** `app/router/routes.tsx` com todas as rotas do `router/index.ts` do Vue (30 páginas lazy, 4 redirects, catch-all), `handle.title`/`handle.area` em todas, `errorElement` por segmento, guards `RequireAccountant`/`RequireContact`/`GuestOnly` declarados como layout routes (deixam passar até o M1.1). `RootLayout` aplica o título com o `<title>` do React 19 (sem efeito). `RouteErrorState`: 404 do router → `NotFoundPage`; `ApiError`/erro de rede → `ErrorState`; resto → a tela genérica. `/termos` e `/privacidade` com o texto do Vue sobre `shared/components/layout/public-layout.tsx`; `NotFoundPage` igual à do Vue. As 27 rotas sem ticket ainda renderizam um `Placeholder` com o nome da rota, cada uma no seu arquivo (e chunk).
 - **Decisões:**
   - O `errorElement` fica numa rota **sem path** dentro de cada layout (raiz, `/`, `/minha-area`, públicas): o erro de uma página aparece no lugar do `Outlet` e o layout em volta continua.
@@ -168,3 +168,18 @@ Um bloco por ticket, na ordem em que foram executados. Plano: [`docs/react-migra
 - **Visual:** `termos`, `privacidade` e `404` (desktop e mobile) em `docs/qa/baseline-react-2026-11/`, iguais aos do Vue.
 - **Ficou de fora:** guards de verdade e o botão do 404 por sessão (M1.1).
 - **Tempo:** ~45 min.
+
+---
+
+## M0.10 · COM-323 · CI e preview do web-react (`ready-for-human`)
+
+- **Data:** 2026-11-07
+- **Branch:** `feat/COM-323-ci-web-react` (a partir de `feat/COM-320-router`)
+- **O que foi feito (repositório):** `ci.yml` roda `pnpm --filter web-react typecheck` e `test` no job `test` (o `build-lint` já cobria lint, format e `pnpm -r build`). Job novo `deploy-web-react-staging`, cópia do `deploy-web-staging` mudando só o pacote, o `dist` e o projeto do Pages (`competa-web-react-staging`). `docs/deploy.md` › Staging ganhou a seção "Preview do React (temporário, até o cutover)".
+- **Decisões:**
+  - O gatilho é o mesmo do `deploy-web-staging` atual: push na `main` ou "Run workflow". O ticket fala em "push na branch `staging`", mas o `ci.yml` do `main` não deploya staging a partir da branch `staging`; copiar o job sem mudar o gatilho é o que o prompt do ticket pede.
+  - **O preview precisa de domínio custom** (`staging-react.competa.com.br`), ao contrário do que o ticket sugere: o `docs/deploy.md` já registra que em `*.pages.dev` o cookie de sessão da API vira cross-site e o navegador o barra.
+  - O `approve-production` continua dependendo só de `deploy-api-staging` e `deploy-web-staging`: o preview não trava a produção.
+- **Aguardando humano** (checklist na issue): criar o projeto Pages com o domínio, `TRUSTED_ORIGINS` no `competa-api-staging`, e conferir `/termos` + `GET /auth/me` sem erro de CORS no preview. A issue fica em **Todo** com o comentário "aguardando humano" (o time não tem estado Blocked).
+- **CI:** os PRs #20–#27 da cadeia passaram em `build-lint` e `test`.
+- **Tempo:** ~20 min.

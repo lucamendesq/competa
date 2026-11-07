@@ -217,6 +217,24 @@ Uma vez, com as contas:
 Com `min_machines_running = 0` as varreduras das 7h e 9h só rodam com a máquina acordada:
 para testar lembrete, use "Cobrar atrasados" no painel.
 
+### Preview do React (temporário, até o cutover)
+
+Durante a migração do `apps/web` para React (`docs/react-migration-2026-11.md`), o
+`apps/web-react` tem um preview próprio no staging: job `deploy-web-react-staging`, mesmo
+gatilho do `deploy-web-staging`, projeto Pages `competa-web-react-staging`, apontando para a
+mesma API de staging. O preview **some no cutover** (M10.5): o `apps/web-react` vira o
+`apps/web` e volta a usar o `competa-web-staging`.
+
+Uma vez, com as contas:
+
+1. **Cloudflare**: `wrangler pages project create competa-web-react-staging`; Custom domains
+   → `staging-react.competa.com.br`. Precisa ser subdomínio de `competa.com.br` pelo mesmo
+   motivo do web: em `*.pages.dev` o cookie de sessão da API vira cross-site e o login não
+   funciona.
+2. **Fly**: acrescentar `https://staging-react.competa.com.br` ao `TRUSTED_ORIGINS` do
+   `competa-api-staging` (`flyctl secrets set -a competa-api-staging TRUSTED_ORIGINS=...`,
+   mantendo as origens que já estão lá). Sem isso o CORS e o Better Auth recusam o preview.
+
 ## 8. Checklist pré-lançamento nos painéis (COM-277)
 
 O que o código não consegue provar. Conferir na mão, com acesso aos painéis, antes do

@@ -68,6 +68,8 @@ jobs:
 
       - run: pnpm --filter api db:migrate
       - run: pnpm --filter api test
+      - run: pnpm --filter web-react typecheck
+      - run: pnpm --filter web-react test
 
   # ── Staging: todo merge na main, ou "Run workflow" em qualquer branch ──────────────────
   deploy-api-staging:
@@ -110,6 +112,36 @@ jobs:
 
       - name: Deploy no Cloudflare Pages
         run: pnpm --filter landing exec wrangler pages deploy ${{ github.workspace }}/apps/web/dist --project-name=competa-web-staging --branch=main --commit-dirty=true
+        env:
+          CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+          CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
+
+  deploy-web-react-staging:
+    needs: [build-lint]
+    if: (github.event_name == 'push' && github.ref == 'refs/heads/main') || github.event_name == 'workflow_dispatch'
+    runs-on: ubuntu-latest
+    environment: staging
+    concurrency: deploy-web-react-staging
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: pnpm/action-setup@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version-file: .nvmrc
+          cache: pnpm
+
+      - run: pnpm install --frozen-lockfile
+      - run: pnpm --filter @competa/contracts build
+      # O Vite grava estas URLs no bundle na hora do build.
+      - run: pnpm --filter web-react build
+        env:
+          VITE_API_URL: https://staging-api.competa.com.br
+          VITE_AUTH_URL: https://staging-api.competa.com.br/api/auth
+
+      - name: Deploy no Cloudflare Pages
+        run: pnpm --filter landing exec wrangler pages deploy ${{ github.workspace }}/apps/web-react/dist --project-name=competa-web-react-staging --branch=main --commit-dirty=true
         env:
           CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
           CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
