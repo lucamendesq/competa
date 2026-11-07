@@ -1,5 +1,5 @@
-import { Placeholder } from '@/app/routes/placeholder';
+import { RegisterPage } from '@/features/auth';
 
 export function Component() {
-  return <Placeholder name="Register" />;
+  return <RegisterPage />;
 }

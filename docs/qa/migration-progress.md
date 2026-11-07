@@ -213,10 +213,27 @@ Um bloco por ticket, na ordem em que foram executados. Plano: [`docs/react-migra
 ## M1.2 · COM-329 · Tela de entrada do Contador (`/entrar`)
 
 - **Data:** 2026-11-07
-- **Branch:** `feat/COM-329-login` (a partir de `feat/COM-327-session-guards`)
+- **Branch:** `feat/COM-329-login` (a partir de `feat/COM-327-session-guards`) · **PR:** [#31](https://github.com/lucamendesq/competa/pull/31)
 - **O que foi feito:** `features/auth/components/login-page.tsx` (rota `app/routes/login.tsx`): React Hook Form + `zodResolver` com o mesmo schema local do Vue (`email()` do contrato + senha obrigatória), `mode: 'onTouched'` (o erro do campo aparece depois de tocá-lo, como o `meta.touched` do vee-validate), botão desabilitado enquanto inválido ou enviando, erro de credencial no topo com `role="alert"` lido de `signIn.error` (sem `useState`), e `navigate(from ?? '/competencias', { replace: true })` depois do sucesso. Textos, links e o painel escuro de benefícios iguais ao Vue.
 - **Testes:** `login-page.spec.tsx` (rotas reais + MSW): senha errada → "E-mail ou senha inválidos." e continua em `/entrar`; senha certa → `/competencias`; botão desabilitado com o formulário vazio; `autocomplete`/`inputmode`; erro de campo depois do blur ("E-mail inválido.", a primeira issue do schema, a mesma que o Vue mostrava). O teste de guard passou a procurar o título real da página. 81 testes no pacote.
 - **Visual:** `entrar__{desktop,mobile}__inicial.png` em `baseline-react-2026-11/`, iguais aos do Vue lado a lado.
 - **Ambiente local de comparação:** API do worktree na 3100 com `TRUSTED_ORIGINS=http://localhost:5174` no `.env` local (ignorado pelo git), React na 5174.
 - **Ficou de fora:** nada.
 - **Tempo:** ~25 min.
+
+---
+
+## M1.3 · COM-330 · Cadastro público da Contabilidade (`/cadastro`)
+
+- **Data:** 2026-11-07
+- **Branch:** `feat/COM-330-register` (a partir de `feat/COM-329-login`)
+- **O que foi feito:** `features/auth/components/register-page.tsx` (rota `app/routes/register.tsx`). Um `useForm` com o schema completo do Vue (`PublicSignUpBody` + `email()` + `newPassword()` + CNPJ opcional), passo em `useState<'user' | 'firm'>`, `stepOneValid` e `firmNameValid` derivados no render a partir de `useWatch` (sem efeito). Enter no passo 1 avança em vez de enviar; "Continuar" valida e marca os três campos (`trigger`). CNPJ com `cnpjInputMask` num `Controller`. `useRegisterFirm` (com o fallback de sign-in do store) → `/competencias`. 422 do servidor vai para o campo com `applyFieldErrors` e a mensagem geral aparece no topo com `apiErrorMessage`, como no Vue.
+- **Refatoração dentro da feature:** o painel escuro de benefícios, o asterisco de obrigatório e o alerta de erro viraram `auth-shell.tsx` (`AuthShell`, `RequiredMark`, `FormAlert`), porque login e cadastro são dois consumidores reais. O login passou a usar e os testes dele continuam verdes.
+- **Decisões:**
+  - **Sem checkbox de termos.** O ticket pede um checkbox que bloqueie o envio, mas o `RegisterPage.vue` (a especificação) não tem: só os links "Termos de Uso · Privacidade" no rodapé, que foram mantidos. Nem o contrato (`PublicSignUpBody`) nem a API registram aceite. Criar esse portão é decisão de produto (ver COM-230, achado de QA sobre o aceite dos termos). O `TermsConsent.vue` só é usado no convite (M1.5) e no envio (M8.3) e nasce no M1.5, com o primeiro consumidor.
+  - Os dois passos ficam montados, e o inativo recebe `hidden` (o `v-show` do Vue). Desmontar o passo 1 apagava o valor dos inputs ao voltar.
+  - A máscara do CNPJ é nova (o Vue só tinha o placeholder); o ticket pede `cnpjInputMask` e o schema aceita o valor mascarado.
+- **Testes:** `register-page.spec.tsx` (rotas reais + MSW): "Continuar" desabilitado até o passo 1 ser válido; Enter no passo 1 avança sem chamar a API; voltar preserva os valores dos dois passos; máscara do CNPJ; 422 em `cnpj` aparece no campo (`aria-invalid` + descrição); sucesso envia o corpo sem `cnpj` vazio e vai para `/competencias`; links de Termos e Privacidade. 87 testes no pacote.
+- **Visual:** `cadastro__{desktop,mobile}__{passo-1,passo-2}.png`, iguais aos do Vue.
+- **Ficou de fora:** o portão de aceite dos termos (decisão de produto, acima).
+- **Tempo:** ~50 min.

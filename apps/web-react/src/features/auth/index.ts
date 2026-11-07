@@ -22,3 +22,4 @@ export {
   useSignUpWithInvite,
 } from '@/features/auth/queries/use-auth-mutations';
 export { LoginPage } from '@/features/auth/components/login-page';
+export { RegisterPage } from '@/features/auth/components/register-page';
