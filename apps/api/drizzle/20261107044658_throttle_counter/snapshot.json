@@ -1,9 +1,9 @@
 {
   "version": "8",
   "dialect": "postgres",
-  "id": "a0a60250-57e7-4dc7-a1a4-f8afb1d4eff6",
+  "id": "dd7d5587-3d3e-4b9a-b0fc-2d2e8eb7a9a8",
   "prevIds": [
-    "2eae2373-3de6-4bf7-8fec-0e83f2fe1c94"
+    "5a485228-2d99-4020-ae13-c381493a2cbd"
   ],
   "ddl": [
     {
@@ -1926,6 +1926,71 @@
       "generated": null,
       "identity": null,
       "name": "pending_invoice_url",
+      "entityType": "columns",
+      "schema": "public",
+      "table": "subscription"
+    },
+    {
+      "type": "text",
+      "typeSchema": null,
+      "notNull": false,
+      "dimensions": 0,
+      "default": null,
+      "generated": null,
+      "identity": null,
+      "name": "upgrade_payment_id",
+      "entityType": "columns",
+      "schema": "public",
+      "table": "subscription"
+    },
+    {
+      "type": "text",
+      "typeSchema": null,
+      "notNull": false,
+      "dimensions": 0,
+      "default": null,
+      "generated": null,
+      "identity": null,
+      "name": "pre_upgrade_plan_name",
+      "entityType": "columns",
+      "schema": "public",
+      "table": "subscription"
+    },
+    {
+      "type": "text",
+      "typeSchema": null,
+      "notNull": false,
+      "dimensions": 0,
+      "default": null,
+      "generated": null,
+      "identity": null,
+      "name": "pre_upgrade_cycle",
+      "entityType": "columns",
+      "schema": "public",
+      "table": "subscription"
+    },
+    {
+      "type": "timestamp with time zone",
+      "typeSchema": null,
+      "notNull": false,
+      "dimensions": 0,
+      "default": null,
+      "generated": null,
+      "identity": null,
+      "name": "pre_upgrade_period_start",
+      "entityType": "columns",
+      "schema": "public",
+      "table": "subscription"
+    },
+    {
+      "type": "timestamp with time zone",
+      "typeSchema": null,
+      "notNull": false,
+      "dimensions": 0,
+      "default": null,
+      "generated": null,
+      "identity": null,
+      "name": "pre_upgrade_period_end",
       "entityType": "columns",
       "schema": "public",
       "table": "subscription"

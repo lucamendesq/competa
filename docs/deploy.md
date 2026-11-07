@@ -226,7 +226,9 @@ lançamento.
 
 - [ ] Acesso público **desligado**: sem `r2.dev` e sem domínio customizado conectado.
 - [ ] CORS do bucket: `AllowedOrigins: ["https://app.competa.com.br"]`,
-      `AllowedMethods: ["PUT"]`, `AllowedHeaders: ["content-type"]`. Sem `*`.
+      `AllowedMethods: ["PUT"]`, `AllowedHeaders: ["content-type", "x-amz-checksum-sha256"]`. Sem `*`.
+      Sem o `x-amz-checksum-sha256` o preflight do navegador falha e todo envio quebra (COM-291).
+      Vale para o bucket de staging também, antes do deploy.
 - [ ] Token de API com escopo **só** neste bucket, permissão Object Read & Write. Não usar
       token de conta.
 - [ ] Lifecycle rule `firm/` → apagar objetos com mais de **2 dias** (ver abaixo).
