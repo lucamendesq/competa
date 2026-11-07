@@ -70,7 +70,7 @@ Um bloco por ticket, na ordem em que foram executados. Plano: [`docs/react-migra
 ## M0.4 · COM-317 · Infra de testes
 
 - **Data:** 2026-11-07
-- **Branch:** `feat/COM-317-test-infra` (a partir de `feat/COM-316-lint-boundaries`)
+- **Branch:** `feat/COM-317-test-infra` (a partir de `feat/COM-316-lint-boundaries`) · **PR:** [#23](https://github.com/lucamendesq/competa/pull/23)
 - **O que foi feito:** Vitest 5 (jsdom) + Testing Library + `jest-dom` + MSW. `src/testing/`: `setup.ts`, `mocks/server.ts`, `mocks/handlers/auth.ts` (`/auth/me` com sessão de Contador, `/my/profile` 401), `mocks/api.ts` (`apiUrl`, `envelope`), fábricas `company`, `period`, `panelRow`, `request`, `template` (+ `accountantSession` para o handler) e `test-utils.tsx` com `renderWithProviders` e `renderHookWithProviders`. `test-utils.spec.tsx` mostra o MSW respondendo `GET /auth/me` (e um override 401 por teste). `check:no-diamond` (agora com `.tsx`, sem `.vue`) e `check:wcag` copiados. Seção "Testes" no `docs/react-standards.md`.
 - **Decisões:**
   - **MSW 3** (o ticket diz v2; a 3 é a atual). A opção de request sem handler virou `onUnhandledFrame: 'error'`; conferido com um spec temporário que um `fetch` sem handler falha.
@@ -80,3 +80,18 @@ Um bloco por ticket, na ordem em que foram executados. Plano: [`docs/react-migra
   - `vitest.config.ts` separado do `vite.config.ts` (sem PWA nos testes), com `VITE_API_URL=http://api.test` no `test.env`.
 - **Ficou de fora:** `api-error.spec.ts` entra no M0.5 junto com o `api-error.ts` (o ticket permite o teste de fumaça antes). **TODO para o M8.2:** portar `apps/web/scripts/check-upload.ts` para `features/upload/hooks/use-upload.spec.ts`.
 - **Tempo:** ~40 min.
+
+---
+
+## M0.5 · COM-318 · api-client, api-error e auth-client
+
+- **Data:** 2026-11-07
+- **Branch:** `feat/COM-318-api-client` (a partir de `feat/COM-317-test-infra`)
+- **O que foi feito:** `shared/lib/api-client.ts` em funções (`api.get/page/post/patch/put/delete/blobUrl/download`), com o mesmo comportamento do Vue e `signal` opcional em todas; `parsed(schema)` para validar a resposta com o contrato. `shared/lib/api-error.ts` copiado, mais `applyFieldErrors(error, setError)` para o React Hook Form. `shared/lib/auth-client.ts` com `better-auth/react` + `magicLinkClient`. `busy.ts` não foi portado (o indicador vem do `useIsMutating()` no M2.1).
+- **Decisões:**
+  - Assinatura nova `api.get(url, { params, signal })` em vez de `api.get(url, params)`: o `signal` do `queryFn` entra em todas as chamadas sem um terceiro argumento posicional.
+  - O único estado de módulo é o handler de sessão expirada.
+  - Lint: specs (`*.spec.{ts,tsx}`) viraram a categoria `test` do boundaries e podem importar `src/testing` de qualquer camada; código de produção continua proibido (conferido com um arquivo temporário em `features/`).
+- **Testes:** `api-error.spec.ts` (todos os casos do `check-api-error.ts`, mais `applyFieldErrors`, `apiErrorCode`, `isNotFound` e `failureKind`) e `api-client.spec.ts` (401 em `/auth/me` e `/my/profile` → `null` sem expirar a sessão; 401 em `/periods` → expira e lança; envelope e limpeza de parâmetros; paginação; corpo de erro na `ApiError`; `EMPTY_DOWNLOAD`; `AbortSignal`; `parsed`). 24 testes no pacote.
+- **Ficou de fora:** nada.
+- **Tempo:** ~30 min.

@@ -47,6 +47,7 @@ export default tseslint.config(
     settings: {
       'import/resolver': { typescript: { project: `${webReact}/tsconfig.app.json` } },
       'boundaries/root-path': fileURLToPath(new URL(`./${webReact}`, import.meta.url)),
+      'boundaries/files': [{ pattern: '**/*.spec.{ts,tsx}', category: 'test' }],
       'boundaries/elements': [
         { type: 'shared', pattern: 'src/shared' },
         { type: 'feature', pattern: 'src/features/*', capture: ['featureName'] },
@@ -93,6 +94,10 @@ export default tseslint.config(
                   ],
                 },
               },
+            },
+            {
+              from: { file: { categories: 'test' } },
+              allow: { to: { element: { types: ['shared', 'feature', 'app', 'testing'] } } },
             },
             {
               from: { element: { type: 'testing' } },
