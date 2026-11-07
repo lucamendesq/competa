@@ -171,18 +171,17 @@ Um bloco por ticket, na ordem em que foram executados. Plano: [`docs/react-migra
 
 ---
 
-## M0.10 · COM-323 · CI e preview do web-react (`ready-for-human`)
+## M0.10 · COM-323 · CI do web-react e staging servindo o React
 
 - **Data:** 2026-11-07
 - **Branch:** `feat/COM-323-ci-web-react` (a partir de `feat/COM-320-router`) · **PR:** [#29](https://github.com/lucamendesq/competa/pull/29)
-- **O que foi feito (repositório):** `ci.yml` roda `pnpm --filter web-react typecheck` e `test` no job `test` (o `build-lint` já cobria lint, format e `pnpm -r build`). Job novo `deploy-web-react-staging`, cópia do `deploy-web-staging` mudando só o pacote, o `dist` e o projeto do Pages (`competa-web-react-staging`). `docs/deploy.md` › Staging ganhou a seção "Preview do React (temporário, até o cutover)".
+- **O que foi feito:** `ci.yml` roda `pnpm --filter web-react typecheck` e `test` no job `test` (o `build-lint` já cobria lint, format e `pnpm -r build`). O job `deploy-web-staging` passou a publicar o `apps/web-react` no projeto que já existe, `competa-web-staging` (`staging-app.competa.com.br`). A produção (`deploy-web`) continua com o Vue até o cutover. `docs/deploy.md` › Staging registra isso.
 - **Decisões:**
-  - O gatilho é o mesmo do `deploy-web-staging` atual: push na `main` ou "Run workflow". O ticket fala em "push na branch `staging`", mas o `ci.yml` do `main` não deploya staging a partir da branch `staging`; copiar o job sem mudar o gatilho é o que o prompt do ticket pede.
-  - **O preview precisa de domínio custom** (`staging-react.competa.com.br`), ao contrário do que o ticket sugere: o `docs/deploy.md` já registra que em `*.pages.dev` o cookie de sessão da API vira cross-site e o navegador o barra.
-  - O `approve-production` continua dependendo só de `deploy-api-staging` e `deploy-web-staging`: o preview não trava a produção.
-- **Aguardando humano** (checklist na issue): criar o projeto Pages com o domínio, `TRUSTED_ORIGINS` no `competa-api-staging`, e conferir `/termos` + `GET /auth/me` sem erro de CORS no preview. A issue fica em **Todo** com o comentário "aguardando humano" (o time não tem estado Blocked).
-- **CI:** os PRs #20–#27 da cadeia passaram em `build-lint` e `test`.
-- **Tempo:** ~20 min.
+  - **Sem projeto de preview à parte** (decisão do Luca): o plano criava o `competa-web-react-staging`; o staging que já existe passa a servir o React. Mesmo domínio, mesma API e a origem já liberada, então não sobra passo de painel. Consequência aceita: as telas ainda não migradas aparecem como placeholder no staging até os tickets delas.
+  - A primeira versão do ticket (job `deploy-web-react-staging` + projeto novo) ficou no histórico do PR; o commit seguinte troca pelo staging existente. As branches M1.1 e M1.2 receberam a mudança por merge (sem reescrever histórico já publicado).
+- **Falta conferir depois do merge na `main`:** abrir `https://staging-app.competa.com.br/termos` e ver `GET /auth/me` sem erro de CORS no console.
+- **CI:** os PRs da cadeia passam em `build-lint` e `test`.
+- **Tempo:** ~30 min.
 
 ---
 
