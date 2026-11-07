@@ -4,12 +4,19 @@ import { bootApp, type RunningApp } from './support/boot.js';
 import { db, truncateAll } from './support/db.js';
 import { company, subscription } from '../src/infra/database/schema/index.js';
 import { billing } from '../src/modules/billing/gateway.js';
+import { Logger } from '../src/lib/logger.js';
+import * as Sentry from '@sentry/node';
 import { apiClient, registerFirm, uniqueCnpj, uniqueIp, type Api } from './support/fixtures.js';
 
 /* Ambiente de teste SEM segredos Asaas: NODE_ENV=test escolhe o LogBilling (checkout vira
  * stub de console com `checkoutUrl: ''` e `simulated: true`); ASAAS_WEBHOOK_TOKEN ausente
  * faz o webhook falhar fechado (503) antes de olhar token ou payload. O lado observável do
  * módulo é a linha de `subscription` — e é ela que o TenantGuard lê para o 402 em escrita. */
+
+vi.mock('@sentry/node', async (importOriginal) => ({
+  ...(await importOriginal<typeof import('@sentry/node')>()),
+  captureException: vi.fn(),
+}));
 
 const MEMBER_PASSWORD = 'senha-de-membro-123';
 
@@ -474,6 +481,52 @@ describe('novo upgrade apaga a cobrança avulsa anterior', () => {
     const res = await api.post('/billing/checkout', { planName: 'escritorio', cycle: 'yearly' });
     expect(res.status, JSON.stringify(res.body)).toBe(201);
     expect((await subscriptionRows(firmId))[0].pendingPaymentId).not.toBe(chargeId);
+  });
+});
+
+/* Postgres recusa NUL em `text`: o id criado no gateway não grava e o `persist` falha DEPOIS
+ * de o Asaas já ter a assinatura (ou a cobrança). Sem saga, o que resta é registrar o id
+ * órfão para limpar à mão no painel. */
+const UNPERSISTABLE = '\u0000';
+
+describe('checkout que cria no gateway e não grava registra o id órfão', () => {
+  it('assinatura nova: log antes do persist, e log + Sentry com o subscriptionId na falha', async () => {
+    const { api } = await registerFirm(app.url);
+    const firmId = await firmIdOf(api);
+    const subscriptionId = `sub_orfa${UNPERSISTABLE}`;
+    vi.spyOn(billing, 'createSubscription').mockResolvedValue({
+      subscriptionId,
+      paymentId: 'pay_orfa',
+      checkoutUrl: '',
+    });
+    const info = vi.spyOn(Logger.prototype, 'log');
+    const error = vi.spyOn(Logger.prototype, 'error');
+    vi.mocked(Sentry.captureException).mockClear();
+
+    const res = await api.post('/billing/checkout', { planName: 'profissional' });
+    expect(res.status).toBe(500);
+
+    const ids = { firmId, subscriptionId };
+    expect(info).toHaveBeenCalledWith(expect.stringContaining(firmId), ids);
+    expect(error).toHaveBeenCalledWith(expect.stringContaining(firmId), ids, expect.anything());
+    expect(Sentry.captureException).toHaveBeenCalledWith(expect.anything(), { extra: ids });
+  });
+
+  it('cobrança de upgrade: o mesmo com o paymentId', async () => {
+    const { api, firmId } = await activeFirmWithUpgradeCharge();
+    const paymentId = `pay_orfa${UNPERSISTABLE}`;
+    vi.spyOn(billing, 'createCharge').mockResolvedValue({ paymentId, invoiceUrl: '' });
+    const info = vi.spyOn(Logger.prototype, 'log');
+    const error = vi.spyOn(Logger.prototype, 'error');
+    vi.mocked(Sentry.captureException).mockClear();
+
+    const res = await api.post('/billing/checkout', { planName: 'escritorio', cycle: 'yearly' });
+    expect(res.status).toBe(500);
+
+    const ids = { firmId, paymentId };
+    expect(info).toHaveBeenCalledWith(expect.stringContaining(firmId), ids);
+    expect(error).toHaveBeenCalledWith(expect.stringContaining(firmId), ids, expect.anything());
+    expect(Sentry.captureException).toHaveBeenCalledWith(expect.anything(), { extra: ids });
   });
 });
 

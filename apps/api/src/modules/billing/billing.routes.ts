@@ -6,6 +6,7 @@ import {
   type BillingCycle,
   type PlanName,
 } from '@competa/contracts';
+import * as Sentry from '@sentry/node';
 import { Logger } from '../../lib/logger.js';
 import { Effect, Layer } from 'effect';
 import { FirmContext } from '../../http/context.js';
@@ -37,6 +38,19 @@ const currentPrice = (current: {
         current.priceOverride?.[current.planName],
       )
     : 0;
+
+const reportOrphanOnFailure =
+  (message: string, ids: Record<string, string>) =>
+  <A, E, R>(effect: Effect.Effect<A, E, R>) =>
+    effect.pipe(
+      Effect.tapCause((cause) =>
+        Effect.sync(() => {
+          const error = squashError(cause);
+          logger.error(message, ids, error);
+          Sentry.captureException(error, { extra: ids });
+        }),
+      ),
+    );
 
 const discardOpenCharge = (paymentId: string, firmId: string) =>
   Effect.gen(function* () {
@@ -207,11 +221,21 @@ const checkout = route(
                 externalReference: firm.id,
               }),
             );
+            const chargeIds = { firmId: firm.id, paymentId: charge.paymentId };
+            logger.log(
+              `Cobrança de upgrade ${charge.paymentId} criada no gateway para a firma ${firm.id}`,
+              chargeIds,
+            );
             yield* persist({
               gatewaySubscriptionId: previous,
               paymentId: charge.paymentId,
               invoiceUrl: charge.invoiceUrl || null,
-            });
+            }).pipe(
+              reportOrphanOnFailure(
+                `Cobrança de upgrade ${charge.paymentId} da firma ${firm.id} ficou sem registro no banco`,
+                chargeIds,
+              ),
+            );
             return { checkoutUrl: charge.invoiceUrl, simulated: billing.simulated, applied: false };
           }
 
@@ -275,11 +299,21 @@ const checkout = route(
           /* Grava a nova ANTES de inativar a anterior: o `SUBSCRIPTION_INACTIVATED` que a
            * inativação dispara só é ignorado quando a anterior já saiu de
            * `gatewaySubscriptionId`. */
+          const createdIds = { firmId: firm.id, subscriptionId: created.subscriptionId };
+          logger.log(
+            `Assinatura ${created.subscriptionId} criada no gateway para a firma ${firm.id}`,
+            createdIds,
+          );
           yield* persist({
             gatewaySubscriptionId: created.subscriptionId,
             paymentId: created.paymentId,
             invoiceUrl: created.checkoutUrl || null,
-          });
+          }).pipe(
+            reportOrphanOnFailure(
+              `Assinatura ${created.subscriptionId} da firma ${firm.id} ficou sem registro no banco`,
+              createdIds,
+            ),
+          );
 
           if (previous && !canceled && previous !== created.subscriptionId) {
             yield* gateway(() => billing.deactivateSubscription(previous)).pipe(
