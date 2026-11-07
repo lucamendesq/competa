@@ -3,7 +3,7 @@ import { ApiError } from '../src/api/error.js';
 import { isBusy, trackBusy } from '../src/api/busy.js';
 import { useUpload } from '../src/composables/useUpload.js';
 
-const file = (name: string) => ({ name, size: 10, type: 'image/png' }) as File;
+const file = (name: string) => new File(['0123456789'], name, { type: 'image/png' });
 
 const failingPresign = useUpload({
   presign: () => {
@@ -32,16 +32,23 @@ assert.equal(failed[0].retriable, true);
 assert.ok(failed[0].file, 'arquivo preservado para a nova tentativa');
 
 const confirmed: string[][] = [];
+const presigned: { checksumSha256: string }[] = [];
+const sentChecksums: string[] = [];
 const happy = useUpload({
-  presign: async (files) => ({
-    files: files.map((f, index) => ({
-      fileName: f.fileName,
-      accepted: true as const,
-      documentId: `doc-${index}`,
-      uploadUrl: `https://storage.local/doc-${index}`,
-    })),
-  }),
-  send: async () => undefined,
+  presign: async (files) => {
+    presigned.push(...files);
+    return {
+      files: files.map((f, index) => ({
+        fileName: f.fileName,
+        accepted: true as const,
+        documentId: `doc-${index}`,
+        uploadUrl: `https://storage.local/doc-${index}`,
+      })),
+    };
+  },
+  send: async (_url, _file, checksumSha256) => {
+    sentChecksums.push(checksumSha256);
+  },
   confirm: async (ids) => {
     confirmed.push(ids);
     return { refused: [] };
@@ -51,6 +58,9 @@ const happy = useUpload({
 const sent = await happy.uploadFiles([file('balancete.pdf')]);
 assert.deepEqual(confirmed, [['doc-0']]);
 assert.equal(sent[0].ok, true);
+const sha256Of0123456789 = 'hNiYd/DUBB77a/kaFvAkjy/Vc+avBcGflr7bn4gveII=';
+assert.equal(presigned[0].checksumSha256, sha256Of0123456789, 'presign leva o SHA-256 em base64');
+assert.deepEqual(sentChecksums, [sha256Of0123456789], 'o PUT manda o mesmo SHA-256 assinado');
 
 assert.equal(isBusy.value, false);
 let peek = false;

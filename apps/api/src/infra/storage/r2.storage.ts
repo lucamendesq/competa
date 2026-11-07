@@ -65,15 +65,11 @@ export class R2Storage extends StorageProvider {
         Key: storageKey,
         ContentType: contentType,
         ContentLength: sizeBytes,
-        ...(checksumSha256 ? { ChecksumSHA256: checksumSha256 } : {}),
+        ChecksumSHA256: checksumSha256,
       }),
       {
         expiresIn: PRESIGN_TTL_SECONDS,
-        signableHeaders: new Set([
-          'content-length',
-          'content-type',
-          ...(checksumSha256 ? ['x-amz-checksum-sha256'] : []),
-        ]),
+        signableHeaders: new Set(['content-length', 'content-type', 'x-amz-checksum-sha256']),
       },
     );
   }
@@ -128,8 +124,16 @@ export class R2Storage extends StorageProvider {
         chunks.push(Buffer.isBuffer(chunk) ? chunk : Buffer.from(chunk));
       }
       return Buffer.concat(chunks);
-    } catch {
-      return Buffer.alloc(0);
+    } catch (error) {
+      if (error instanceof S3ServiceException && error.$metadata.httpStatusCode === 416) {
+        return Buffer.alloc(0);
+      }
+      if (error instanceof S3ServiceException && error.$metadata.httpStatusCode === 404) {
+        throw new NotFound('Arquivo não encontrado no storage.');
+      }
+      throw new ServiceUnavailable(
+        'Armazenamento temporariamente inacessível. Tente novamente em instantes.',
+      );
     }
   }
 

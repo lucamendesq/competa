@@ -32,6 +32,8 @@ import {
   registerFirm,
   uniqueIp,
   type Api,
+  ANY_SHA256,
+  sha256Base64,
 } from './support/fixtures.js';
 
 const REFERENCE_MONTH = '2026-09';
@@ -223,7 +225,11 @@ async function putFile(presignUrl: string, content: Buffer | string) {
 
   const res = await fetch(signed, {
     method: 'PUT',
-    headers: { 'content-type': 'application/octet-stream', 'x-forwarded-for': uniqueIp() },
+    headers: {
+      'content-type': 'application/octet-stream',
+      'x-amz-checksum-sha256': signed.searchParams.get('checksumSha256') ?? '',
+      'x-forwarded-for': uniqueIp(),
+    },
     body: typeof content === 'string' ? content : new Uint8Array(content),
   });
   expect(res.status, await res.clone().text()).toBe(200);
@@ -239,7 +245,14 @@ async function uploadDocument(
   const presigned = await api.post('/my/documents', {
     requestId,
     ...(requestItemId ? { requestItemId } : {}),
-    files: [{ fileName: file.fileName, contentType: file.contentType, sizeBytes }],
+    files: [
+      {
+        fileName: file.fileName,
+        contentType: file.contentType,
+        sizeBytes,
+        checksumSha256: sha256Base64(file.content),
+      },
+    ],
   });
   expect(presigned.status, JSON.stringify(presigned.body)).toBe(201);
   const [slot] = presigned.body.data.files;
@@ -815,7 +828,14 @@ describe('upload logado (/my/documents) e leitura de conteúdo', () => {
   it('presign de Documento Extra reserva a linha como awaiting_upload', async () => {
     const presigned = await session.api.post('/my/documents', {
       requestId: box.requestId,
-      files: [{ fileName: 'extrato.csv', contentType: 'text/csv', sizeBytes: 10 }],
+      files: [
+        {
+          fileName: 'extrato.csv',
+          contentType: 'text/csv',
+          sizeBytes: 10,
+          checksumSha256: ANY_SHA256,
+        },
+      ],
     });
     expect(presigned.status, JSON.stringify(presigned.body)).toBe(201);
     const [slot] = presigned.body.data.files;
@@ -895,13 +915,27 @@ describe('upload logado (/my/documents) e leitura de conteúdo', () => {
   it('Solicitação de outra Empresa → 404; sem requestId → 422 do guard', async () => {
     const foreign = await session.api.post('/my/documents', {
       requestId: strangerRequestId,
-      files: [{ fileName: 'extrato.csv', contentType: 'text/csv', sizeBytes: 10 }],
+      files: [
+        {
+          fileName: 'extrato.csv',
+          contentType: 'text/csv',
+          sizeBytes: 10,
+          checksumSha256: ANY_SHA256,
+        },
+      ],
     });
     expect(foreign.status).toBe(404);
     expect(foreign.body.error.message).toContain('Solicitação não encontrada');
 
     const missing = await session.api.post('/my/documents', {
-      files: [{ fileName: 'extrato.csv', contentType: 'text/csv', sizeBytes: 10 }],
+      files: [
+        {
+          fileName: 'extrato.csv',
+          contentType: 'text/csv',
+          sizeBytes: 10,
+          checksumSha256: ANY_SHA256,
+        },
+      ],
     });
     expect(missing.status).toBe(422);
     expect(missing.body.error.message).toContain('Informe a Solicitação');
@@ -913,7 +947,14 @@ describe('upload logado (/my/documents) e leitura de conteúdo', () => {
      * erro do servidor. */
     const res = await session.api.post('/my/documents', {
       requestId: 'nao-e-uuid',
-      files: [{ fileName: 'extrato.csv', contentType: 'text/csv', sizeBytes: 10 }],
+      files: [
+        {
+          fileName: 'extrato.csv',
+          contentType: 'text/csv',
+          sizeBytes: 10,
+          checksumSha256: ANY_SHA256,
+        },
+      ],
     });
     expect(res.status, JSON.stringify(res.body)).toBe(422);
     expect(res.body.error.code).toBe('VALIDATION_ERROR');
@@ -922,7 +963,14 @@ describe('upload logado (/my/documents) e leitura de conteúdo', () => {
   it('arquivo de formato recusado volta accepted:false com motivo, sem reserva', async () => {
     const res = await session.api.post('/my/documents', {
       requestId: box.requestId,
-      files: [{ fileName: 'virus.exe', contentType: 'application/pdf', sizeBytes: 10 }],
+      files: [
+        {
+          fileName: 'virus.exe',
+          contentType: 'application/pdf',
+          sizeBytes: 10,
+          checksumSha256: ANY_SHA256,
+        },
+      ],
     });
     expect(res.status).toBe(201);
     const [slot] = res.body.data.files;

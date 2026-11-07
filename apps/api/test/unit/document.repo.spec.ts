@@ -1,10 +1,12 @@
 import { layer } from '@effect/vitest';
 import { Cause, Effect, Exit } from 'effect';
+import { createHash } from 'node:crypto';
 import { mkdir, writeFile } from 'node:fs/promises';
 import { dirname, join, resolve } from 'node:path';
 import { eq, inArray } from 'drizzle-orm';
-import { beforeAll, expect } from 'vitest';
+import { beforeAll, expect, vi } from 'vitest';
 import { db, truncateAll } from '../support/db.js';
+import { ANY_SHA256, sha256Base64 } from '../support/fixtures.js';
 import env from '../../src/config/env.js';
 import {
   accountingFirm,
@@ -18,6 +20,7 @@ import {
 import { toUploadScope } from '../../src/modules/auth/scope.js';
 import { NotFound, ValidationError } from '../../src/lib/app-error.js';
 import { DocumentsRepo } from '../../src/modules/requests/document.repo.js';
+import { storage } from '../../src/infra/storage/storage.js';
 
 let seq = 0;
 const next = () => ++seq;
@@ -160,9 +163,24 @@ layer(DocumentsRepo.layer)('DocumentsRepo', (it) => {
       const result = yield* repo.presign(box.scope, {
         requestItemId: box.itemId,
         files: [
-          { fileName: 'nota.pdf', contentType: 'application/pdf', sizeBytes: 120 },
-          { fileName: 'planilha.ods', contentType: 'application/pdf', sizeBytes: 120 },
-          { fileName: 'vazio.pdf', contentType: 'application/pdf', sizeBytes: 0 },
+          {
+            fileName: 'nota.pdf',
+            contentType: 'application/pdf',
+            sizeBytes: 120,
+            checksumSha256: ANY_SHA256,
+          },
+          {
+            fileName: 'planilha.ods',
+            contentType: 'application/pdf',
+            sizeBytes: 120,
+            checksumSha256: ANY_SHA256,
+          },
+          {
+            fileName: 'vazio.pdf',
+            contentType: 'application/pdf',
+            sizeBytes: 0,
+            checksumSha256: ANY_SHA256,
+          },
         ],
       });
 
@@ -196,6 +214,7 @@ layer(DocumentsRepo.layer)('DocumentsRepo', (it) => {
             fileName: `lote-${index}.pdf`,
             contentType: 'application/pdf',
             sizeBytes: 10,
+            checksumSha256: ANY_SHA256,
           })),
         })
         .pipe(Effect.flip);
@@ -203,7 +222,14 @@ layer(DocumentsRepo.layer)('DocumentsRepo', (it) => {
 
       const unknownRequest = yield* repo
         .presign(toUploadScope('00000000-0000-7000-8000-000000000000', box.contactId), {
-          files: [{ fileName: 'x.pdf', contentType: 'application/pdf', sizeBytes: 10 }],
+          files: [
+            {
+              fileName: 'x.pdf',
+              contentType: 'application/pdf',
+              sizeBytes: 10,
+              checksumSha256: ANY_SHA256,
+            },
+          ],
         })
         .pipe(Effect.flip);
       expect(unknownRequest).toBeInstanceOf(NotFound);
@@ -211,7 +237,14 @@ layer(DocumentsRepo.layer)('DocumentsRepo', (it) => {
       const unknownItem = yield* repo
         .presign(box.scope, {
           requestItemId: '00000000-0000-7000-8000-000000000000',
-          files: [{ fileName: 'x.pdf', contentType: 'application/pdf', sizeBytes: 10 }],
+          files: [
+            {
+              fileName: 'x.pdf',
+              contentType: 'application/pdf',
+              sizeBytes: 10,
+              checksumSha256: ANY_SHA256,
+            },
+          ],
         })
         .pipe(Effect.flip);
       expect(unknownItem).toBeInstanceOf(NotFound);
@@ -226,20 +259,34 @@ layer(DocumentsRepo.layer)('DocumentsRepo', (it) => {
       const refused = yield* repo
         .presign(box.scope, {
           requestItemId: box.itemId,
-          files: [{ fileName: 'tarde.pdf', contentType: 'application/pdf', sizeBytes: 10 }],
+          files: [
+            {
+              fileName: 'tarde.pdf',
+              contentType: 'application/pdf',
+              sizeBytes: 10,
+              checksumSha256: ANY_SHA256,
+            },
+          ],
         })
         .pipe(Effect.flip);
       expect(refused).toBeInstanceOf(ValidationError);
 
       // como Extra continua passando: a Solicitação encerrada só fecha os Itens
       const asExtra = yield* repo.presign(box.scope, {
-        files: [{ fileName: 'extra.pdf', contentType: 'application/pdf', sizeBytes: 10 }],
+        files: [
+          {
+            fileName: 'extra.pdf',
+            contentType: 'application/pdf',
+            sizeBytes: 10,
+            checksumSha256: ANY_SHA256,
+          },
+        ],
       });
       expect(asExtra.files[0].accepted).toBe(true);
     }),
   );
 
-  it.effect('confirm: marca uploaded, grava checksum/tamanho real e submete o Item', () =>
+  it.effect('confirm: grava o SHA-256 assinado no presign sem baixar o arquivo inteiro', () =>
     Effect.gen(function* () {
       const repo = yield* DocumentsRepo;
       const box = yield* openBox('confirm');
@@ -248,13 +295,22 @@ layer(DocumentsRepo.layer)('DocumentsRepo', (it) => {
       const presigned = yield* repo.presign(box.scope, {
         requestItemId: box.itemId,
         files: [
-          { fileName: 'nota.pdf', contentType: 'application/pdf', sizeBytes: content.length },
+          {
+            fileName: 'nota.pdf',
+            contentType: 'application/pdf',
+            sizeBytes: content.length,
+            checksumSha256: sha256Base64(content),
+          },
         ],
       });
       const documentId = presigned.files[0].documentId!;
       yield* putFile(yield* storageKeyOf(documentId), content);
 
-      const confirmed = yield* repo.confirm(box.scope, [documentId]);
+      const fullRead = vi.spyOn(storage, 'openRead');
+      const confirmed = yield* repo
+        .confirm(box.scope, [documentId])
+        .pipe(Effect.ensuring(Effect.sync(() => fullRead.mockRestore())));
+      expect(fullRead).not.toHaveBeenCalled();
       expect(confirmed).toMatchObject({
         confirmed: 1,
         submittedItemIds: [box.itemId],
@@ -262,8 +318,11 @@ layer(DocumentsRepo.layer)('DocumentsRepo', (it) => {
       });
 
       const rows = yield* documentRows(box.requestId);
-      expect(rows[0]).toMatchObject({ uploadStatus: 'uploaded', sizeBytes: content.length });
-      expect(rows[0].checksum).toBeTruthy();
+      expect(rows[0]).toMatchObject({
+        uploadStatus: 'uploaded',
+        sizeBytes: content.length,
+        checksum: createHash('sha256').update(content).digest('hex'),
+      });
       expect(yield* itemStatus(box.itemId)).toBe('submitted');
     }),
   );
@@ -277,7 +336,12 @@ layer(DocumentsRepo.layer)('DocumentsRepo', (it) => {
       const presigned = yield* repo.presign(box.scope, {
         requestItemId: box.itemId,
         files: [
-          { fileName: 'nota.pdf', contentType: 'application/pdf', sizeBytes: content.length },
+          {
+            fileName: 'nota.pdf',
+            contentType: 'application/pdf',
+            sizeBytes: content.length,
+            checksumSha256: ANY_SHA256,
+          },
         ],
       });
       const documentId = presigned.files[0].documentId!;
@@ -305,13 +369,39 @@ layer(DocumentsRepo.layer)('DocumentsRepo', (it) => {
     }),
   );
 
+  it.effect('confirm: reserva sem SHA-256 (presign anterior ao checksum) é recusada', () =>
+    Effect.gen(function* () {
+      const repo = yield* DocumentsRepo;
+      const box = yield* openBox('semhash');
+      const legacy = yield* seedAwaiting(box.requestId, 'antigo.pdf', 10);
+      yield* putFile(legacy.storageKey, pdf('antigo'));
+
+      const confirmed = yield* repo.confirm(box.scope, [legacy.id]);
+      expect(confirmed.confirmed).toBe(0);
+      expect(confirmed.refused).toEqual([
+        {
+          documentId: legacy.id,
+          fileName: 'antigo.pdf',
+          reason: 'Envio sem SHA-256 do arquivo. Envie de novo.',
+        },
+      ]);
+    }),
+  );
+
   it.effect('confirm: arquivo que não chegou ao storage é recusado e a reserva fica', () =>
     Effect.gen(function* () {
       const repo = yield* DocumentsRepo;
       const box = yield* openBox('confirmfalta');
 
       const presigned = yield* repo.presign(box.scope, {
-        files: [{ fileName: 'sumiu.pdf', contentType: 'application/pdf', sizeBytes: 42 }],
+        files: [
+          {
+            fileName: 'sumiu.pdf',
+            contentType: 'application/pdf',
+            sizeBytes: 42,
+            checksumSha256: ANY_SHA256,
+          },
+        ],
       });
       const documentId = presigned.files[0].documentId!;
 
@@ -418,6 +508,7 @@ layer(DocumentsRepo.layer)('DocumentsRepo', (it) => {
           contentType: 'application/pdf',
           requestItemId: null,
           declaredBytes: 50,
+          checksum: null,
         },
       ]);
     }),

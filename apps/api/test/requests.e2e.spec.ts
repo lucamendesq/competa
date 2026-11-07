@@ -20,6 +20,8 @@ import {
   registerFirm,
   uniqueIp,
   type Api,
+  ANY_SHA256,
+  sha256Base64,
 } from './support/fixtures.js';
 
 /* Competência fixa: 2026-09, offset default 1 → vencimento 2026-10-05 (seg). */
@@ -69,7 +71,7 @@ async function freshUploadToken(api: Api, requestId: string) {
 
 /** O LocalStorage assina a URL com env.PORT (3000); em teste o app sobe em porta efêmera —
  *  trocar só a origem preserva a assinatura, que cobre caminho e query. */
-async function putFile(presignUrl: string, content: Buffer | string) {
+async function putFile(presignUrl: string, content: Buffer | string, expectedStatus = 200) {
   const signed = new URL(presignUrl);
   const origin = new URL(app.url);
   signed.protocol = origin.protocol;
@@ -77,10 +79,15 @@ async function putFile(presignUrl: string, content: Buffer | string) {
 
   const res = await fetch(signed, {
     method: 'PUT',
-    headers: { 'content-type': 'application/octet-stream', 'x-forwarded-for': uniqueIp() },
+    headers: {
+      'content-type': 'application/octet-stream',
+      'x-amz-checksum-sha256': signed.searchParams.get('checksumSha256') ?? '',
+      'x-forwarded-for': uniqueIp(),
+    },
     body: typeof content === 'string' ? content : new Uint8Array(content),
   });
-  expect(res.status, await res.clone().text()).toBe(200);
+  expect(res.status, await res.clone().text()).toBe(expectedStatus);
+  return res;
 }
 
 /** Catálogo global (seed): carregado uma vez para escolher tipos com formatos conhecidos. */
@@ -159,7 +166,14 @@ async function uploadVia(
   const sizeBytes = Buffer.byteLength(file.content);
   const presigned = await anon.post(`/upload/${uploadToken}/documents`, {
     ...(requestItemId ? { requestItemId } : {}),
-    files: [{ fileName: file.fileName, contentType: file.contentType, sizeBytes }],
+    files: [
+      {
+        fileName: file.fileName,
+        contentType: file.contentType,
+        sizeBytes,
+        checksumSha256: sha256Base64(file.content),
+      },
+    ],
   });
   expect(presigned.status, JSON.stringify(presigned.body)).toBe(201);
   const [slot] = presigned.body.data.files;
@@ -333,7 +347,14 @@ describe('GET /requests/:id — detalhe para revisão', () => {
     });
     /* presign sem PUT: linha awaiting_upload não pode aparecer na revisão */
     const ghost = await apiClient(app.url).post(`/upload/${box.uploadToken}/documents`, {
-      files: [{ fileName: 'fantasma.csv', contentType: 'text/csv', sizeBytes: 10 }],
+      files: [
+        {
+          fileName: 'fantasma.csv',
+          contentType: 'text/csv',
+          sizeBytes: 10,
+          checksumSha256: ANY_SHA256,
+        },
+      ],
     });
     expect(ghost.status).toBe(201);
     expect(ghost.body.data.files[0].accepted).toBe(true);
@@ -860,7 +881,14 @@ describe('documentos extra — POST /documents/:id/review-extra', () => {
 
   it('linha de presign sem arquivo no storage não é revisável → 409', async () => {
     const presigned = await apiClient(app.url).post(`/upload/${box.uploadToken}/documents`, {
-      files: [{ fileName: 'nunca-subiu.csv', contentType: 'text/csv', sizeBytes: 10 }],
+      files: [
+        {
+          fileName: 'nunca-subiu.csv',
+          contentType: 'text/csv',
+          sizeBytes: 10,
+          checksumSha256: ANY_SHA256,
+        },
+      ],
     });
     expect(presigned.status).toBe(201);
     const ghostId = presigned.body.data.files[0].documentId;
@@ -1172,7 +1200,9 @@ describe('upload público — GET /upload/:token e invariante só-escrita', () =
     for (const res of await Promise.all([
       anon.get('/upload/token-que-nao-existe'),
       anon.post('/upload/token-que-nao-existe/documents', {
-        files: [{ fileName: 'x.csv', contentType: 'text/csv', sizeBytes: 10 }],
+        files: [
+          { fileName: 'x.csv', contentType: 'text/csv', sizeBytes: 10, checksumSha256: ANY_SHA256 },
+        ],
       }),
       anon.post('/upload/token-que-nao-existe/documents/confirm', { documentIds: [GHOST_ID] }),
     ])) {
@@ -1196,7 +1226,11 @@ describe('upload público — GET /upload/:token e invariante só-escrita', () =
       .where(eq(uploadLink.requestId, fixture.boxes.Vencida.requestId));
     const expired = await apiClient(app.url).post(
       `/upload/${fixture.boxes.Vencida.uploadToken}/documents`,
-      { files: [{ fileName: 'x.csv', contentType: 'text/csv', sizeBytes: 10 }] },
+      {
+        files: [
+          { fileName: 'x.csv', contentType: 'text/csv', sizeBytes: 10, checksumSha256: ANY_SHA256 },
+        ],
+      },
     );
     expect(expired.status).toBe(404);
     expect(expired.body.error.code).toBe('UPLOAD_LINK_INVALID');
@@ -1219,12 +1253,37 @@ describe('upload público — regras de arquivo no presign e na confirmação', 
     const res = await apiClient(app.url).post(`/upload/${box.uploadToken}/documents`, {
       requestItemId: itemId,
       files: [
-        { fileName: 'virus.exe', contentType: 'application/pdf', sizeBytes: 10 },
-        { fileName: '', contentType: 'text/csv', sizeBytes: 10 },
-        { fileName: 'vazio.csv', contentType: 'text/csv', sizeBytes: 0 },
-        { fileName: 'gigante.pdf', contentType: 'application/pdf', sizeBytes: 101 * 1024 * 1024 },
-        { fileName: `${'a'.repeat(252)}.pdf`, contentType: 'application/pdf', sizeBytes: 10 },
-        { fileName: 'planilha.csv', contentType: 'text/csv', sizeBytes: 10 },
+        {
+          fileName: 'virus.exe',
+          contentType: 'application/pdf',
+          sizeBytes: 10,
+          checksumSha256: ANY_SHA256,
+        },
+        { fileName: '', contentType: 'text/csv', sizeBytes: 10, checksumSha256: ANY_SHA256 },
+        {
+          fileName: 'vazio.csv',
+          contentType: 'text/csv',
+          sizeBytes: 0,
+          checksumSha256: ANY_SHA256,
+        },
+        {
+          fileName: 'gigante.pdf',
+          contentType: 'application/pdf',
+          sizeBytes: 101 * 1024 * 1024,
+          checksumSha256: ANY_SHA256,
+        },
+        {
+          fileName: `${'a'.repeat(252)}.pdf`,
+          contentType: 'application/pdf',
+          sizeBytes: 10,
+          checksumSha256: ANY_SHA256,
+        },
+        {
+          fileName: 'planilha.csv',
+          contentType: 'text/csv',
+          sizeBytes: 10,
+          checksumSha256: ANY_SHA256,
+        },
       ],
     });
 
@@ -1272,7 +1331,14 @@ describe('upload público — regras de arquivo no presign e na confirmação', 
     );
     const foreign = await anon.post(`/upload/${box.uploadToken}/documents`, {
       requestItemId: foreignDetail.items[0].id,
-      files: [{ fileName: 'nota.png', contentType: 'image/png', sizeBytes: 10 }],
+      files: [
+        {
+          fileName: 'nota.png',
+          contentType: 'image/png',
+          sizeBytes: 10,
+          checksumSha256: ANY_SHA256,
+        },
+      ],
     });
     expect(foreign.status).toBe(404);
     expect(foreign.body.error.message).toBe('Item não encontrado nesta solicitação.');
@@ -1287,7 +1353,14 @@ describe('upload público — regras de arquivo no presign e na confirmação', 
     const anon = apiClient(app.url);
     const toItem = await anon.post(`/upload/${other.uploadToken}/documents`, {
       requestItemId: detail.items[0].id,
-      files: [{ fileName: 'nota.png', contentType: 'image/png', sizeBytes: 10 }],
+      files: [
+        {
+          fileName: 'nota.png',
+          contentType: 'image/png',
+          sizeBytes: 10,
+          checksumSha256: ANY_SHA256,
+        },
+      ],
     });
     expect(toItem.status).toBe(422);
     expect(toItem.body.error.message).toBe(
@@ -1295,7 +1368,14 @@ describe('upload público — regras de arquivo no presign e na confirmação', 
     );
 
     const asExtra = await anon.post(`/upload/${other.uploadToken}/documents`, {
-      files: [{ fileName: 'atrasado.csv', contentType: 'text/csv', sizeBytes: 10 }],
+      files: [
+        {
+          fileName: 'atrasado.csv',
+          contentType: 'text/csv',
+          sizeBytes: 10,
+          checksumSha256: ANY_SHA256,
+        },
+      ],
     });
     expect(asExtra.status).toBe(201);
     expect(asExtra.body.data.files[0].accepted).toBe(true);
@@ -1304,7 +1384,14 @@ describe('upload público — regras de arquivo no presign e na confirmação', 
   it('confirmar sem PUT → recusado, a reserva fica e confirmar depois do PUT vale', async () => {
     const anon = apiClient(app.url);
     const presigned = await anon.post(`/upload/${box.uploadToken}/documents`, {
-      files: [{ fileName: 'sem-put.csv', contentType: 'text/csv', sizeBytes: 10 }],
+      files: [
+        {
+          fileName: 'sem-put.csv',
+          contentType: 'text/csv',
+          sizeBytes: 10,
+          checksumSha256: sha256Base64('0123456789'),
+        },
+      ],
     });
     const [slot] = presigned.body.data.files;
 
@@ -1337,10 +1424,40 @@ describe('upload público — regras de arquivo no presign e na confirmação', 
     expect(late.body.data.confirmed).toBe(1);
   });
 
+  it('presign sem SHA-256 → 422; PUT sem o header assinado → 403', async () => {
+    const anon = apiClient(app.url);
+    const missing = await anon.post(`/upload/${box.uploadToken}/documents`, {
+      files: [{ fileName: 'sem-hash.csv', contentType: 'text/csv', sizeBytes: 10 }],
+    });
+    expect(missing.status).toBe(422);
+
+    const presigned = await anon.post(`/upload/${box.uploadToken}/documents`, {
+      files: [
+        {
+          fileName: 'sem-header.csv',
+          contentType: 'text/csv',
+          sizeBytes: 10,
+          checksumSha256: sha256Base64('0123456789'),
+        },
+      ],
+    });
+    const signed = new URL(presigned.body.data.files[0].uploadUrl);
+    signed.host = new URL(app.url).host;
+    const res = await fetch(signed, { method: 'PUT', body: '0123456789' });
+    expect(res.status).toBe(403);
+  });
+
   it('tamanho real diferente do declarado → recusado na confirmação', async () => {
     const anon = apiClient(app.url);
     const presigned = await anon.post(`/upload/${box.uploadToken}/documents`, {
-      files: [{ fileName: 'mentira.csv', contentType: 'text/csv', sizeBytes: 10 }],
+      files: [
+        {
+          fileName: 'mentira.csv',
+          contentType: 'text/csv',
+          sizeBytes: 10,
+          checksumSha256: sha256Base64('ab;cd'),
+        },
+      ],
     });
     const [slot] = presigned.body.data.files;
     await putFile(slot.uploadUrl, 'ab;cd');
@@ -1361,7 +1478,12 @@ describe('upload público — regras de arquivo no presign e na confirmação', 
     const anon = apiClient(app.url);
     const presigned = await anon.post(`/upload/${box.uploadToken}/documents`, {
       files: [
-        { fileName: 'nota.pdf', contentType: 'application/pdf', sizeBytes: CSV_CONTENT.length },
+        {
+          fileName: 'nota.pdf',
+          contentType: 'application/pdf',
+          sizeBytes: CSV_CONTENT.length,
+          checksumSha256: sha256Base64(CSV_CONTENT),
+        },
       ],
     });
     const [slot] = presigned.body.data.files;
@@ -1392,7 +1514,16 @@ describe('upload público — regras de arquivo no presign e na confirmação', 
     /* reserva viva em OUTRA solicitação da mesma firma: o token não a alcança */
     const foreignPresign = await anon.post(
       `/upload/${fixture.boxes.FechadaUp.uploadToken}/documents`,
-      { files: [{ fileName: 'alheio.csv', contentType: 'text/csv', sizeBytes: 10 }] },
+      {
+        files: [
+          {
+            fileName: 'alheio.csv',
+            contentType: 'text/csv',
+            sizeBytes: 10,
+            checksumSha256: ANY_SHA256,
+          },
+        ],
+      },
     );
     const foreignId = foreignPresign.body.data.files[0].documentId;
 
@@ -1409,7 +1540,14 @@ describe('throttle próprio do upload — 60/60s por ip:token', () => {
     const fixture = await openFirm(['Trava', 'Livre']);
     const anon = apiClient(app.url);
     const presignBody = {
-      files: [{ fileName: 'virus.exe', contentType: 'application/pdf', sizeBytes: 10 }],
+      files: [
+        {
+          fileName: 'virus.exe',
+          contentType: 'application/pdf',
+          sizeBytes: 10,
+          checksumSha256: ANY_SHA256,
+        },
+      ],
     };
 
     for (let attempt = 0; attempt < 60; attempt++) {
@@ -1584,6 +1722,7 @@ describe('zip e leitura de documentos', () => {
           fileName: 'extrato.csv',
           contentType: 'text/csv',
           sizeBytes: Buffer.byteLength(original),
+          checksumSha256: sha256Base64(original),
         },
       ],
     });
@@ -1594,7 +1733,8 @@ describe('zip e leitura de documentos', () => {
     });
     expect(confirmed.status, JSON.stringify(confirmed.body)).toBe(201);
 
-    await putFile(slot.uploadUrl, 'linha;999,99\n');
+    const replayed = await putFile(slot.uploadUrl, 'linha;999,99\n', 400);
+    expect((await replayed.json()).error.code).toBe('CHECKSUM_MISMATCH');
 
     const content = await rawRequest('GET', `/documents/${slot.documentId}/content`, {
       cookie: replay.firm.cookie,
@@ -1617,7 +1757,14 @@ describe('zip e leitura de documentos', () => {
 
     const late = await apiClient(app.url).post(`/upload/${box.uploadToken}/documents`, {
       requestItemId: itemId,
-      files: [{ fileName: 'outra.png', contentType: 'image/png', sizeBytes: PNG_1X1.length }],
+      files: [
+        {
+          fileName: 'outra.png',
+          contentType: 'image/png',
+          sizeBytes: PNG_1X1.length,
+          checksumSha256: ANY_SHA256,
+        },
+      ],
     });
     expect(late.status, JSON.stringify(late.body)).toBe(422);
     expect(late.body.error.message).toContain('já foi aceito');
@@ -1743,7 +1890,14 @@ describe('zip e leitura de documentos', () => {
 
   it('linha de presign sem upload não tem conteúdo → 404', async () => {
     const presigned = await apiClient(app.url).post(`/upload/${emptyBox.uploadToken}/documents`, {
-      files: [{ fileName: 'fantasma.csv', contentType: 'text/csv', sizeBytes: 10 }],
+      files: [
+        {
+          fileName: 'fantasma.csv',
+          contentType: 'text/csv',
+          sizeBytes: 10,
+          checksumSha256: ANY_SHA256,
+        },
+      ],
     });
     const ghostId = presigned.body.data.files[0].documentId;
 
@@ -1796,7 +1950,16 @@ describe('prazos estourados — POST /deadlines/scan e o cron diário', () => {
     /* reserva órfã de mais de 24h: a faxina do cron precisa descartá-la */
     const presigned = await apiClient(app.url).post(
       `/upload/${swept.boxes.Cron.uploadToken}/documents`,
-      { files: [{ fileName: 'orfao.csv', contentType: 'text/csv', sizeBytes: 10 }] },
+      {
+        files: [
+          {
+            fileName: 'orfao.csv',
+            contentType: 'text/csv',
+            sizeBytes: 10,
+            checksumSha256: ANY_SHA256,
+          },
+        ],
+      },
     );
     staleDocumentId = presigned.body.data.files[0].documentId;
     await db

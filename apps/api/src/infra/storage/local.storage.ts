@@ -1,4 +1,4 @@
-import { createHmac, timingSafeEqual } from 'node:crypto';
+import { createHash, createHmac, timingSafeEqual } from 'node:crypto';
 import { createWriteStream } from 'node:fs';
 import { copyFile, mkdir, open, rm, stat } from 'node:fs/promises';
 import { dirname, join, resolve, sep } from 'node:path';
@@ -6,7 +6,7 @@ import { Transform, type Readable } from 'node:stream';
 import { pipeline } from 'node:stream/promises';
 import env from '../../config/env.js';
 import { Forbidden, isAppError, NotFound, ServiceUnavailable } from '../../lib/app-error.js';
-import { PayloadTooLarge } from './errors.js';
+import { ChecksumMismatch, PayloadTooLarge } from './errors.js';
 import {
   PRESIGN_TTL_SECONDS,
   sealedKeyOf,
@@ -16,20 +16,21 @@ import {
 
 const root = resolve(env.STORAGE_LOCAL_DIR);
 
-const sign = (storageKey: string, expiresAt: number, sizeBytes: number) =>
+const sign = (storageKey: string, expiresAt: number, sizeBytes: number, checksumSha256: string) =>
   createHmac('sha256', env.BETTER_AUTH_SECRET)
-    .update(`${storageKey}:${expiresAt}:${sizeBytes}`)
+    .update(`${storageKey}:${expiresAt}:${sizeBytes}:${checksumSha256}`)
     .digest('hex');
 
 export class LocalStorage extends StorageProvider {
-  async presignPut({ storageKey, sizeBytes }: PresignPutInput) {
+  async presignPut({ storageKey, sizeBytes, checksumSha256 }: PresignPutInput) {
     const expiresAt = Math.floor(Date.now() / 1000) + PRESIGN_TTL_SECONDS;
     const url = new URL(
       `http://localhost:${env.PORT}/storage/local/${encodeURIComponent(storageKey)}`,
     );
     url.searchParams.set('expiresAt', String(expiresAt));
     url.searchParams.set('sizeBytes', String(sizeBytes));
-    url.searchParams.set('signature', sign(storageKey, expiresAt, sizeBytes));
+    url.searchParams.set('checksumSha256', checksumSha256);
+    url.searchParams.set('signature', sign(storageKey, expiresAt, sizeBytes, checksumSha256));
 
     return url.toString();
   }
@@ -98,16 +99,24 @@ export class LocalStorage extends StorageProvider {
     storageKey: string;
     expiresAt: number;
     sizeBytes: number;
+    checksumSha256: string;
+    sentChecksumSha256: string;
     signature: string;
     body: Readable;
   }) {
     // A assinatura é a única barreira desta rota (não há sessão nem token de link aqui):
     // sem a checagem, qualquer um escreve arquivo no disco da API.
-    const expected = Buffer.from(sign(input.storageKey, input.expiresAt, input.sizeBytes));
+    const expected = Buffer.from(
+      sign(input.storageKey, input.expiresAt, input.sizeBytes, input.checksumSha256),
+    );
     const given = Buffer.from(input.signature);
     const signatureMatches = expected.length === given.length && timingSafeEqual(expected, given);
 
-    if (!signatureMatches || input.expiresAt * 1000 < Date.now()) {
+    if (
+      !signatureMatches ||
+      input.sentChecksumSha256 !== input.checksumSha256 ||
+      input.expiresAt * 1000 < Date.now()
+    ) {
       throw new Forbidden('URL de upload inválida ou expirada.');
     }
 
@@ -116,13 +125,20 @@ export class LocalStorage extends StorageProvider {
     await mkdir(dirname(path), { recursive: true });
 
     // Corta no tamanho assinado: o equivalente local ao ContentLength assinado do R2 —
-    // o cliente não sobe mais do que declarou, e o arquivo parcial é removido.
+    // o cliente não sobe mais do que declarou, e o arquivo parcial é removido. O hash é o
+    // equivalente ao x-amz-checksum-sha256: corpo com outro conteúdo não fica gravado.
     let written = 0;
+    const hasher = createHash('sha256');
     const limit = new Transform({
       transform(chunk, _encoding, next) {
         written += chunk.length;
         if (written > input.sizeBytes) return next(new PayloadTooLarge(input.sizeBytes));
+        hasher.update(chunk);
         next(null, chunk);
+      },
+      flush(done) {
+        if (hasher.digest('base64') !== input.checksumSha256) return done(new ChecksumMismatch());
+        done();
       },
     });
 

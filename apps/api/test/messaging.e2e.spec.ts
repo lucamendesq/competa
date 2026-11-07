@@ -19,6 +19,7 @@ import {
   documentTypeIds,
   registerFirm,
   uniqueIp,
+  sha256Base64,
 } from './support/fixtures.js';
 
 const REFERENCE_MONTH = '2026-09';
@@ -198,7 +199,11 @@ async function putFile(presignUrl: string, content: Buffer) {
 
   const res = await fetch(signed, {
     method: 'PUT',
-    headers: { 'content-type': 'application/octet-stream', 'x-forwarded-for': uniqueIp() },
+    headers: {
+      'content-type': 'application/octet-stream',
+      'x-amz-checksum-sha256': signed.searchParams.get('checksumSha256') ?? '',
+      'x-forwarded-for': uniqueIp(),
+    },
     body: new Uint8Array(content),
   });
   expect(res.status, await res.clone().text()).toBe(200);
@@ -208,7 +213,14 @@ async function uploadViaToken(uploadToken: string, requestItemId?: string) {
   const anon = apiClient(app.url);
   const presigned = await anon.post(`/upload/${uploadToken}/documents`, {
     ...(requestItemId ? { requestItemId } : {}),
-    files: [{ fileName: 'comprovante.png', contentType: 'image/png', sizeBytes: PNG_1X1.length }],
+    files: [
+      {
+        fileName: 'comprovante.png',
+        contentType: 'image/png',
+        sizeBytes: PNG_1X1.length,
+        checksumSha256: sha256Base64(PNG_1X1),
+      },
+    ],
   });
   expect(presigned.status, JSON.stringify(presigned.body)).toBe(201);
   const [slot] = presigned.body.data.files;

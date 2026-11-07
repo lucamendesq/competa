@@ -3,12 +3,14 @@ import type { Readable } from 'node:stream';
 export const PRESIGN_TTL_SECONDS = 900;
 
 /** `sizeBytes` entra na assinatura: sem isso o cliente declara 10 MB e sobe 2 GB — o
- *  limite de 100 MB viraria pedido, não regra. */
+ *  limite de 100 MB viraria pedido, não regra. `checksumSha256` (base64) também: o storage
+ *  recusa o PUT cujo corpo tem outro hash, e é isso que deixa a confirmação gravar o hash
+ *  declarado sem reler o arquivo. */
 export type PresignPutInput = {
   storageKey: string;
   contentType: string;
   sizeBytes: number;
-  checksumSha256?: string;
+  checksumSha256: string;
 };
 
 /** Chave definitiva de um documento confirmado. Nenhuma URL pré-assinada aponta para ela. */

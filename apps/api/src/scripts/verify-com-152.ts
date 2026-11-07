@@ -3,6 +3,7 @@
  * recusa, rotação do link, reenvio e aceite passam pelos repositórios e pelo storage de
  * verdade (LocalStorage em dev). A fixture é criada e apagada aqui. */
 import assert from 'node:assert/strict';
+import { createHash } from 'node:crypto';
 import { Readable } from 'node:stream';
 import { eq } from 'drizzle-orm';
 import { v7 as uuidv7 } from 'uuid';
@@ -36,6 +37,8 @@ const PDF = Buffer.from(
   'latin1',
 );
 
+const PDF_SHA256 = createHash('sha256').update(PDF).digest('base64');
+
 const storage = new LocalStorage();
 
 async function uploadOne(
@@ -47,7 +50,14 @@ async function uploadOne(
     DocumentsRepo.use((repo) =>
       repo.presign(scope, {
         requestItemId,
-        files: [{ fileName, contentType: 'application/pdf', sizeBytes: PDF.byteLength }],
+        files: [
+          {
+            fileName,
+            contentType: 'application/pdf',
+            sizeBytes: PDF.byteLength,
+            checksumSha256: PDF_SHA256,
+          },
+        ],
       }),
     ),
   );
@@ -60,6 +70,8 @@ async function uploadOne(
     storageKey: decodeURIComponent(url.pathname.replace('/storage/local/', '')),
     expiresAt: Number(url.searchParams.get('expiresAt')),
     sizeBytes: Number(url.searchParams.get('sizeBytes')),
+    checksumSha256: url.searchParams.get('checksumSha256')!,
+    sentChecksumSha256: PDF_SHA256,
     signature: url.searchParams.get('signature')!,
     body: Readable.from(PDF),
   });

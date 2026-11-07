@@ -53,7 +53,7 @@ export const presignFiles = (
   token: string,
   body: {
     requestItemId?: string | null;
-    files: { fileName: string; contentType: string; sizeBytes: number }[];
+    files: { fileName: string; contentType: string; sizeBytes: number; checksumSha256: string }[];
   },
 ) => api.post<Presign>(`/upload/${token}/documents`, body);
 
@@ -62,6 +62,7 @@ export const presignFiles = (
 export const putFileToStorage = (
   uploadUrl: string,
   file: File,
+  checksumSha256: string,
   onProgress?: (loadedBytes: number) => void,
 ) =>
   trackBusy(
@@ -70,6 +71,7 @@ export const putFileToStorage = (
         const xhr = new XMLHttpRequest();
         xhr.open('PUT', uploadUrl);
         xhr.setRequestHeader('Content-Type', file.type || 'application/octet-stream');
+        xhr.setRequestHeader('x-amz-checksum-sha256', checksumSha256);
         xhr.upload.onprogress = (event) => onProgress?.(event.loaded);
         xhr.onload = () =>
           xhr.status >= 200 && xhr.status < 300

@@ -15,16 +15,22 @@ type AuthorizedFile =
 
 type Dependencies = {
   presign: (
-    files: { fileName: string; contentType: string; sizeBytes: number }[],
+    files: { fileName: string; contentType: string; sizeBytes: number; checksumSha256: string }[],
   ) => Promise<{ files: AuthorizedFile[] }>;
   send: (
     uploadUrl: string,
     file: File,
+    checksumSha256: string,
     onProgress: (loadedBytes: number) => void,
   ) => Promise<unknown>;
   confirm: (documentIds: string[]) => Promise<{
     refused: { documentId?: string; fileName: string; reason: string }[];
   }>;
+};
+
+const sha256Base64 = async (file: File) => {
+  const digest = new Uint8Array(await crypto.subtle.digest('SHA-256', await file.arrayBuffer()));
+  return btoa(String.fromCharCode(...digest));
 };
 
 export function useUpload(deps: Dependencies) {
@@ -44,11 +50,15 @@ export function useUpload(deps: Dependencies) {
     results.value = [];
 
     try {
+      const checksums: string[] = [];
+      for (const file of fileArray) checksums.push(await sha256Base64(file));
+
       const authorization = await deps.presign(
-        fileArray.map((file) => ({
+        fileArray.map((file, index) => ({
           fileName: file.name,
           contentType: file.type || 'application/octet-stream',
           sizeBytes: file.size,
+          checksumSha256: checksums[index],
         })),
       );
 
@@ -71,7 +81,7 @@ export function useUpload(deps: Dependencies) {
 
         const before = sentBytes.value;
         try {
-          await deps.send(authorized.uploadUrl, file, (loaded) => {
+          await deps.send(authorized.uploadUrl, file, checksums[i], (loaded) => {
             sentBytes.value = before + loaded;
           });
           sent.push(authorized.documentId);

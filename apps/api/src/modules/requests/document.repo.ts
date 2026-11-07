@@ -1,7 +1,5 @@
 import { Context, Effect, Layer } from 'effect';
 import { and, eq, gt, inArray, lt, sql } from 'drizzle-orm';
-import { createHash } from 'node:crypto';
-import type { Readable } from 'node:stream';
 import { fileTypeFromBuffer } from 'file-type';
 import { v7 as uuidv7 } from 'uuid';
 import type { PresignUploadBody } from '@competa/contracts';
@@ -28,30 +26,10 @@ export type ConfirmedDocument = {
   contentType: string;
   requestItemId: string | null;
   declaredBytes: number;
+  checksum: string | null;
 };
 
-const inspectAndHashStream = (stream: Readable): Promise<{ hash: string; firstChunk: Buffer }> => {
-  return new Promise((resolve, reject) => {
-    const hasher = createHash('sha256');
-    const chunks: Buffer[] = [];
-    let bytesRead = 0;
-
-    stream.on('data', (chunk: Buffer) => {
-      hasher.update(chunk);
-      if (bytesRead < 512) {
-        chunks.push(chunk);
-        bytesRead += chunk.length;
-      }
-    });
-
-    stream.on('end', () => {
-      const firstChunk = Buffer.concat(chunks).subarray(0, 512);
-      resolve({ hash: hasher.digest('hex'), firstChunk });
-    });
-
-    stream.on('error', reject);
-  });
-};
+const MAGIC_BYTES_HEAD = 512;
 
 const make = Effect.gen(function* () {
   const db = yield* Db;
@@ -128,6 +106,7 @@ const make = Effect.gen(function* () {
         contentType: document.contentType,
         requestItemId: document.requestItemId,
         declaredBytes: document.sizeBytes,
+        checksum: document.checksum,
       })
       .from(document)
       .where(
@@ -210,6 +189,7 @@ const make = Effect.gen(function* () {
             fileName: string;
             contentType: string;
             sizeBytes: number;
+            checksum: string;
           }[] = [];
           const files: {
             fileName: string;
@@ -247,6 +227,7 @@ const make = Effect.gen(function* () {
               fileName: file.fileName,
               contentType: file.contentType,
               sizeBytes: file.sizeBytes,
+              checksum: Buffer.from(file.checksumSha256, 'base64').toString('hex'),
             });
 
             files.push({
@@ -257,6 +238,7 @@ const make = Effect.gen(function* () {
                 storageKey,
                 contentType: file.contentType,
                 sizeBytes: file.sizeBytes,
+                checksumSha256: file.checksumSha256,
               }),
             });
           }
@@ -301,6 +283,16 @@ const make = Effect.gen(function* () {
       }[] = [];
 
       for (const row of pending) {
+        if (!row.checksum) {
+          refused.push({
+            documentId: row.id,
+            fileName: row.fileName,
+            reason: 'Envio sem SHA-256 do arquivo. Envie de novo.',
+            storageKey: row.storageKey,
+          });
+          continue;
+        }
+
         /* Tudo daqui em diante olha a cópia selada: a URL de PUT ainda vale e o original
          * pode ser reescrito depois desta conferência. */
         const sealedKey = await storage.seal(row.storageKey);
@@ -326,13 +318,9 @@ const make = Effect.gen(function* () {
           continue;
         }
 
-        let hash: string;
         let firstChunk: Buffer;
         try {
-          const stream = await storage.openRead(storageKey);
-          const inspected = await inspectAndHashStream(stream);
-          hash = inspected.hash;
-          firstChunk = inspected.firstChunk;
+          firstChunk = await storage.readHead(storageKey, MAGIC_BYTES_HEAD);
         } catch (error) {
           if (error instanceof ServiceUnavailable) throw error;
           refused.push({
@@ -359,7 +347,7 @@ const make = Effect.gen(function* () {
           id: row.id,
           fileName: row.fileName,
           realBytes: realBytes!,
-          checksum: hash,
+          checksum: row.checksum!,
           storageKey,
         });
       }

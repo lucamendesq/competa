@@ -1,5 +1,15 @@
 import { AppError } from '../../lib/app-error.js';
 
+export class ChecksumMismatch extends AppError {
+  readonly _tag = 'ChecksumMismatch';
+  readonly code = 'CHECKSUM_MISMATCH';
+  readonly status = 400;
+
+  constructor() {
+    super('O conteúdo enviado não confere com o SHA-256 declarado.');
+  }
+}
+
 export class PayloadTooLarge extends AppError {
   readonly _tag = 'PayloadTooLarge';
   readonly code = 'PAYLOAD_TOO_LARGE';

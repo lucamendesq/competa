@@ -1,7 +1,10 @@
 import * as z from 'zod';
 import { optionalText } from './common.js';
 
-/** `strict()`: `requestItemId` é do corpo, não de cada arquivo. Sem isso, cliente que
+/** `checksumSha256` é assinado na URL de PUT: o storage recusa corpo com outro hash, e a
+ *  confirmação não precisa baixar o arquivo para conferi-lo.
+ *
+ *  `strict()`: `requestItemId` é do corpo, não de cada arquivo. Sem isso, cliente que
  *  manda o id dentro do arquivo tem a chave descartada pelo pipe e recebe silenciosamente
  *  um Documento Extra, com o Item continuando pendente. */
 export const UploadFile = z
@@ -9,6 +12,9 @@ export const UploadFile = z
     fileName: z.string(),
     contentType: z.string().min(1).max(200),
     sizeBytes: z.number().int().nonnegative(),
+    checksumSha256: z
+      .string()
+      .regex(/^[A-Za-z0-9+/]{43}=$/, 'Informe o SHA-256 do arquivo em base64.'),
   })
   .strict();
 export type UploadFile = z.infer<typeof UploadFile>;

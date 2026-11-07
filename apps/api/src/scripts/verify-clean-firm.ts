@@ -293,8 +293,18 @@ async function run() {
     const uploadBatch = PresignUploadBody.safeParse({
       requestItemId: null,
       files: [
-        { fileName: 'valido.pdf', contentType: 'application/pdf', sizeBytes: 500 },
-        { fileName: 'invalido.pdf', contentType: 'application/pdf', sizeBytes: 0 },
+        {
+          fileName: 'valido.pdf',
+          contentType: 'application/pdf',
+          sizeBytes: 500,
+          checksumSha256: 'A'.repeat(43) + '=',
+        },
+        {
+          fileName: 'invalido.pdf',
+          contentType: 'application/pdf',
+          sizeBytes: 0,
+          checksumSha256: 'A'.repeat(43) + '=',
+        },
       ],
     });
     assert.ok(uploadBatch.success, 'PresignUploadBody não deve quebrar o lote inteiro com 422');

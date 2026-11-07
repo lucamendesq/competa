@@ -36,6 +36,8 @@ const put = route(
             storageKey,
             expiresAt: Number(query.expiresAt),
             sizeBytes: Number(query.sizeBytes),
+            checksumSha256: typeof query.checksumSha256 === 'string' ? query.checksumSha256 : '',
+            sentChecksumSha256: nodeRequest.headers['x-amz-checksum-sha256']?.toString() ?? '',
             signature: typeof query.signature === 'string' ? query.signature : '',
             body: nodeRequest,
           }),

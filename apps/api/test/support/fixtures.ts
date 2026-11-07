@@ -1,3 +1,4 @@
+import { createHash } from 'node:crypto';
 import { desc, like } from 'drizzle-orm';
 import { expect } from 'vitest';
 import { verification } from '../../src/infra/database/schema/index.js';
@@ -6,6 +7,12 @@ import { db } from './db.js';
 export type ApiResponse = { status: number; body: any; headers: Headers };
 
 export type Api = ReturnType<typeof apiClient>;
+
+export const sha256Base64 = (content: Buffer | string) =>
+  createHash('sha256').update(content).digest('base64');
+
+/** Para presign que nunca chega ao PUT: o formato vale, o conteúdo não importa. */
+export const ANY_SHA256 = sha256Base64('qualquer');
 
 let ipSeq = 0;
 /** Um balde de throttle por fixture: o app em teste roda com trust proxy, como em produção. */
