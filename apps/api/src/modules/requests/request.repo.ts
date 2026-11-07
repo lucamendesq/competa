@@ -28,6 +28,7 @@ import {
   type ReminderSettings,
 } from '../messaging/reminder-rules.js';
 import { NotFound } from '../../lib/app-error.js';
+import { firmBlocked } from '../billing/defaulting-rule.js';
 import { InvalidTransition } from './errors.js';
 import {
   acceptItemRefusal,
@@ -44,6 +45,12 @@ import {
 /** Teto de quanto uma varredura pode segurar a lease. Generoso de propósito: só existe para
  *  que uma instância morta no meio do caminho não bloqueie as próximas para sempre. */
 const LEASE_TTL_SECONDS = 30 * 60;
+
+const accessFactsColumns = {
+  subscriptionStatus: subscription.status,
+  trialEndsAt: subscription.trialEndsAt,
+  currentPeriodEnd: subscription.currentPeriodEnd,
+};
 
 const make = Effect.gen(function* () {
   const db = yield* Db;
@@ -704,7 +711,8 @@ const make = Effect.gen(function* () {
 
   /** Itens vencidos de Competência/Solicitação abertas. `scope` nulo = varredura do cron,
    *  que é multi-tenant por natureza (cada evento carrega só os dados da sua
-   *  Contabilidade); a rota HTTP passa o escopo da sessão. */
+   *  Contabilidade); a rota HTTP passa o escopo da sessão. Firma bloqueada fica de fora
+   *  (D21): a cobrança automática para, o Link de Upload não. */
   const overdueItems = Effect.fn('RequestsRepo.overdueItems')(function* (
     scope: FirmScope | null,
     today: string,
@@ -724,11 +732,13 @@ const make = Effect.gen(function* () {
           contactEmail: contact.email,
           uploadLinkId: uploadLink.id,
           deadlineNotifiedAt: requestItem.deadlineNotifiedAt,
+          ...accessFactsColumns,
         })
         .from(requestItem)
         .innerJoin(request, eq(request.id, requestItem.requestId))
         .innerJoin(period, eq(period.id, request.periodId))
         .innerJoin(company, eq(company.id, request.companyId))
+        .leftJoin(subscription, eq(subscription.accountingFirmId, period.accountingFirmId))
         .innerJoin(uploadLink, eq(uploadLink.requestId, request.id))
         .innerJoin(contact, eq(contact.id, uploadLink.contactId))
         .where(
@@ -745,15 +755,17 @@ const make = Effect.gen(function* () {
         .orderBy(asc(company.name), asc(requestItem.name)),
     );
 
-    return rows.filter((row) =>
-      missedDeadline(
-        {
-          status: row.status as ItemStatus,
-          dueDate: row.dueDate,
-          periodDueDate: row.periodDueDate,
-        },
-        today,
-      ),
+    return rows.filter(
+      (row) =>
+        !firmBlocked(row) &&
+        missedDeadline(
+          {
+            status: row.status as ItemStatus,
+            dueDate: row.dueDate,
+            periodDueDate: row.periodDueDate,
+          },
+          today,
+        ),
     );
   });
 
@@ -1263,11 +1275,13 @@ const make = Effect.gen(function* () {
           periodDueDate: period.dueDate,
           itemName: requestItem.name,
           itemDueDate: requestItem.dueDate,
+          ...accessFactsColumns,
         })
         .from(requestItem)
         .innerJoin(request, eq(request.id, requestItem.requestId))
         .innerJoin(period, eq(period.id, request.periodId))
         .innerJoin(company, eq(company.id, request.companyId))
+        .leftJoin(subscription, eq(subscription.accountingFirmId, period.accountingFirmId))
         .where(
           and(
             inArray(requestItem.status, ['pending', 'rejected']),
@@ -1279,7 +1293,8 @@ const make = Effect.gen(function* () {
           ),
         );
 
-      const requestIds = [...new Set(items.map((row) => row.requestId))];
+      const firmActiveItems = items.filter((row) => !firmBlocked(row));
+      const requestIds = [...new Set(firmActiveItems.map((row) => row.requestId))];
       if (!requestIds.length) return [];
 
       const recipients = await d
@@ -1322,7 +1337,7 @@ const make = Effect.gen(function* () {
         }
       >();
 
-      for (const row of items) {
+      for (const row of firmActiveItems) {
         const recipient = recipientOf.get(row.requestId);
         if (!recipient) continue;
 

@@ -1887,3 +1887,43 @@ describe('POST /deadlines/scan em paralelo', () => {
     expect(again.body.data).toMatchObject({ alreadyNotified: 1, notified: [] });
   });
 });
+
+describe('firma bloqueada fica fora do aviso de prazo (COM-283, D21)', () => {
+  const lateFirm = async (name: string, block?: Partial<typeof subscription.$inferInsert>) => {
+    const opened = await openFirm([name]);
+    const box = opened.boxes[name];
+    const detail = await requestDetail(opened.firm.api, box.requestId);
+    await db
+      .update(requestItem)
+      .set({ dueDate: '2000-01-01' })
+      .where(eq(requestItem.id, detail.items[0].id));
+
+    if (block) {
+      const me = await opened.firm.api.get('/auth/me');
+      await db
+        .update(subscription)
+        .set(block)
+        .where(eq(subscription.accountingFirmId, me.body.data.accountingFirm.id));
+    }
+
+    return box;
+  };
+
+  it('trial vencido e OVERDUE não recebem aviso; o Link de Upload segue abrindo', async () => {
+    const paying = await lateFirm('PagaEmDia');
+    const trialExpired = await lateFirm('TrialVencido', {
+      status: 'trialing',
+      trialEndsAt: new Date('2020-01-01T00:00:00Z'),
+    });
+    const overdue = await lateFirm('Inadimplente', { status: 'OVERDUE' });
+
+    await app.runDeadlineSweep();
+
+    expect(await messagesFor(paying.requestId, 'deadline_missed')).toHaveLength(2);
+    for (const blocked of [trialExpired, overdue]) {
+      expect(await messagesFor(blocked.requestId, 'deadline_missed')).toEqual([]);
+      const link = await apiClient(app.url).get(`/upload/${blocked.uploadToken}`);
+      expect(link.status).toBe(200);
+    }
+  });
+});

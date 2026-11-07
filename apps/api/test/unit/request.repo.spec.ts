@@ -463,6 +463,58 @@ layer(RequestsRepo.layer)('RequestsRepo', (it) => {
     }),
   );
 
+  it.effect('firma bloqueada fica fora do aviso de prazo e do lembrete (D21)', () =>
+    Effect.gen(function* () {
+      const repo = yield* RequestsRepo;
+      const yesterday = new Date(Date.now() - 86_400_000);
+      const tomorrow = new Date(Date.now() + 86_400_000);
+      const cases = [
+        { label: 'trial-vencido', status: 'trialing', trialEndsAt: yesterday, blocked: true },
+        { label: 'overdue', status: 'OVERDUE', blocked: true },
+        {
+          label: 'cancelada-vencida',
+          status: 'CANCELED',
+          currentPeriodEnd: yesterday,
+          blocked: true,
+        },
+        { label: 'cancelada-sem-periodo', status: 'CANCELED', blocked: true },
+        {
+          label: 'cancelada-no-periodo',
+          status: 'CANCELED',
+          currentPeriodEnd: tomorrow,
+          blocked: false,
+        },
+        { label: 'trial-valendo', status: 'trialing', trialEndsAt: tomorrow, blocked: false },
+        { label: 'ativa', status: 'ACTIVE', blocked: false },
+      ];
+
+      for (const { label, blocked, ...facts } of cases) {
+        const box = yield* openBox(label, { periodDueDate: '2024-01-10' });
+        yield* seedItem(box.requestId, `Vencido ${label}`, { dueDate: '2024-01-05' });
+        yield* Effect.promise(() =>
+          db
+            .insert(subscription)
+            .values({ accountingFirmId: box.firmId, planName: 'trial', ...facts }),
+        );
+
+        const expected = blocked ? 0 : 1;
+        expect(yield* repo.overdueItems(box.firmId, '2024-06-01'), label).toHaveLength(expected);
+        expect(yield* repo.reminderCandidates(box.firmId), label).toHaveLength(expected);
+
+        const sweep = yield* repo.overdueItems(null, '2024-06-01');
+        expect(
+          sweep.some((row) => row.requestId === box.requestId),
+          label,
+        ).toBe(!blocked);
+        const reminderSweep = yield* repo.reminderCandidates();
+        expect(
+          reminderSweep.some((row) => row.requestId === box.requestId),
+          label,
+        ).toBe(!blocked);
+      }
+    }),
+  );
+
   it.effect('accountantEmails: agrupa por firma e devolve mapa vazio sem ids', () =>
     Effect.gen(function* () {
       const repo = yield* RequestsRepo;

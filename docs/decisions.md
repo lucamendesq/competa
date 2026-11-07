@@ -27,6 +27,7 @@
 | [D18](#d18--recalibragem-de-planos-pela-carteira-real-e-segundo-eixo-de-upgrade)             | Recalibragem de planos pela carteira real + segundo eixo de upgrade  | Vigente                                         |
 | [D19](#d19--cobrança-o-plano-só-vale-depois-do-pagamento-da-fatura-acesso-pago-não-se-perde) | Cobrança: o plano só vale depois do pagamento da fatura              | Vigente                                         |
 | [D20](#d20--solicitação-sem-item-obrigatório-conclui-com-todos-os-itens-aceitos)             | Solicitação sem Item obrigatório conclui com todos os Itens aceitos  | Vigente                                         |
+| [D21](#d21--firma-bloqueada-não-recebe-cobrança-automática-o-link-de-upload-segue-valendo)   | Firma bloqueada não recebe cobrança automática; o Link segue valendo | Vigente                                         |
 
 ---
 
@@ -619,3 +620,33 @@ um aceite volta a Solicitação para `open`, como com os obrigatórios.
 **Alternativa rejeitada:** manter o `open` eterno. Uma Solicitação em que tudo foi entregue e
 aceito continuava aparecendo como pendente no painel do Contador, e o Responsável não sabia
 que tinha terminado.
+
+## D21 — Firma bloqueada não recebe cobrança automática; o Link de Upload segue valendo
+
+**Contexto:** A régua de inadimplência (COM-8, D19) só barrava a escrita no painel. As
+varreduras de lembrete e de aviso de prazo não olhavam a assinatura, então a firma com trial
+vencido, `OVERDUE` ou cancelada fora do período seguia cobrando os clientes dela por e-mail e
+WhatsApp — o produto em si, e o WhatsApp custa por mensagem (COM-283).
+
+**Decisão:**
+
+1. **Firma bloqueada fica fora das duas varreduras automáticas** (lembrete e aviso de prazo
+   estourado): nenhuma mensagem sai, nenhum token é rotacionado. "Bloqueada" é a mesma regra
+   do guard da escrita — `OVERDUE`, trial vencido, ou `CANCELED` com o período pago já
+   vencido (ou sem período) — e as duas leem a mesma função (`firmBlocked`, em
+   `modules/billing/defaulting-rule.ts`). Firma sem assinatura não bloqueia, como no guard.
+2. **O resto continua:** o Link de Upload segue aceitando documentos (D19, item 7), e leitura
+   e download (zip incluso) seguem liberados.
+
+**Consequências:**
+
+- Regularizou, voltou: a varredura seguinte já inclui a firma, e o aviso de prazo que não saiu
+  sai nessa hora (o `deadline_notified_at` só é marcado quando o aviso é entregue).
+- Os disparos manuais (`POST /messages/reminders/run`, `POST /deadlines/scan`) já eram escrita
+  e levam 402 da régua; nada muda neles.
+
+**Alternativas rejeitadas:**
+
+- **Bloquear também o Link de Upload:** pune o Responsável, que não tem nada com o boleto do
+  escritório, e quebra a promessa de que o Link é a porta do produto (D14).
+- **Deixar a cobrança seguir:** o cliente que não paga continua usando a parte que mais custa.

@@ -3,7 +3,6 @@ import { Logger } from '../../lib/logger.js';
 import { NodeHttpServerRequest } from '@effect/platform-node';
 import * as Sentry from '@sentry/node';
 import { planAllows, type PlanCapability } from '@competa/contracts';
-import { isPast } from 'date-fns';
 import * as z from 'zod';
 import { Context, Effect } from 'effect';
 import { HttpRouter, HttpServerRequest, type HttpServerError } from 'effect/http';
@@ -21,6 +20,7 @@ import {
 import { hashToken } from '../../lib/token.js';
 import { AccountantsRepo } from '../../modules/auth/accountant.repo.js';
 import { InvalidUploadLink, PlanCapabilityRequired } from '../../modules/auth/errors.js';
+import { firmBlocked } from '../../modules/billing/defaulting-rule.js';
 import { toContactScope, toFirmScope, toUploadScope } from '../../modules/auth/scope.js';
 import { ContactsRepo } from '../../modules/contacts/contact.repo.js';
 import { UploadLinksRepo } from '../../modules/requests/upload-link.repo.js';
@@ -117,20 +117,8 @@ const resolveFirm = (
     /* Defaulting Rule (COM-8): leitura passa, escrita não. A rota de cobrança é a exceção:
      * é por ela que a firma bloqueada regulariza — bloqueá-la trancava o cliente do lado de
      * fora com o boleto na mão. */
-    if (request.method !== 'GET' && request.method !== 'HEAD' && !billing) {
-      /* Cancelada segue valendo até o fim do período já pago: ninguém perde o que pagou por
-       * ter cancelado cedo. Sem período (trial cancelado) bloqueia na hora. */
-      const canceledAndLapsed =
-        row.subscriptionStatus === 'CANCELED' &&
-        (row.currentPeriodEnd === null || isPast(row.currentPeriodEnd));
-      const overdue = row.subscriptionStatus === 'OVERDUE' || canceledAndLapsed;
-      const trialExpired =
-        row.subscriptionStatus === 'trialing' &&
-        row.trialEndsAt !== null &&
-        isPast(row.trialEndsAt);
-
-      if (overdue || trialExpired) return yield* Effect.fail(new PaymentRequired());
-    }
+    if (request.method !== 'GET' && request.method !== 'HEAD' && !billing && firmBlocked(row))
+      return yield* Effect.fail(new PaymentRequired());
 
     const context = {
       scope: toFirmScope(row.accountingFirmId),
