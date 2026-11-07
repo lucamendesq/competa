@@ -385,6 +385,50 @@ describe('DELETE /billing/subscription — cancelamento', () => {
   });
 });
 
+async function activeFirmWithUpgradeCharge() {
+  const { api } = await registerFirm(app.url);
+  const firmId = await firmIdOf(api);
+  const first = await api.post('/billing/checkout', { planName: 'essencial' });
+  expect(first.status, JSON.stringify(first.body)).toBe(201);
+  await setSubscription(firmId, {
+    status: 'ACTIVE',
+    planName: 'essencial',
+    cycle: 'monthly',
+    pendingPlanName: null,
+    pendingCycle: null,
+    pendingPaymentId: null,
+    currentPeriodStart: new Date(Date.now() - 10 * 86_400_000),
+    currentPeriodEnd: new Date(Date.now() + 20 * 86_400_000),
+  });
+  const upgrade = await api.post('/billing/checkout', { planName: 'escritorio' });
+  expect(upgrade.status, JSON.stringify(upgrade.body)).toBe(201);
+  const [row] = await subscriptionRows(firmId);
+  expect(row.pendingPaymentId).toMatch(/^mock_pay_/);
+  return { api, firmId, chargeId: row.pendingPaymentId! };
+}
+
+/* A cobrança avulsa do upgrade não pertence à assinatura: apagar a assinatura não a leva, e
+ * o Asaas seguia lembrando (e aceitando pagamento de) quem já tinha cancelado. */
+describe('cancelamento apaga a cobrança avulsa do upgrade', () => {
+  it('o provider recebe deletePayment com o pendingPaymentId', async () => {
+    const { api, chargeId } = await activeFirmWithUpgradeCharge();
+    const deletePayment = vi.spyOn(billing, 'deletePayment');
+
+    const res = await api.delete('/billing/subscription');
+    expect(res.status, JSON.stringify(res.body)).toBe(200);
+    expect(deletePayment).toHaveBeenCalledWith(chargeId);
+  });
+
+  it('uma falha ao apagar a cobrança não impede o cancelamento', async () => {
+    const { api, firmId } = await activeFirmWithUpgradeCharge();
+    vi.spyOn(billing, 'deletePayment').mockRejectedValue(new Error('Asaas fora'));
+
+    const res = await api.delete('/billing/subscription');
+    expect(res.status, JSON.stringify(res.body)).toBe(200);
+    expect((await subscriptionRows(firmId))[0].status).toBe('CANCELED');
+  });
+});
+
 describe('GET /billing/subscription — link da fatura só para o dono', () => {
   it('o dono vê o invoiceUrl gravado no checkout; o membro recebe null', async () => {
     const { api } = await registerFirm(app.url);

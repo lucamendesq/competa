@@ -217,6 +217,10 @@ export class AsaasBilling implements BillingProvider {
     return { paymentId: payment.id, invoiceUrl: payment.invoiceUrl };
   }
 
+  async deletePayment(paymentId: string) {
+    await this.call<unknown>(`/payments/${paymentId}`, { method: 'DELETE' });
+  }
+
   /* `status: INACTIVE` e não `DELETE`: remover a assinatura apaga junto as cobranças
    * pendentes e vencidas dela (FAQ de assinaturas do Asaas), e um boleto em aberto viraria
    * receita perdida na troca de plano. Inativa para de gerar cobrança nova e mantém as que

@@ -378,6 +378,11 @@ const cancel = route(
         if (current.gatewaySubscriptionId) {
           yield* gateway(() => billing.cancelSubscription(current.gatewaySubscriptionId!));
         }
+        if (current.pendingPaymentId) {
+          yield* gateway(() => billing.deletePayment(current.pendingPaymentId!)).pipe(
+            Effect.ignore,
+          );
+        }
         yield* SubscriptionsRepo.use((repo) => repo.cancel(scope));
       }
 
