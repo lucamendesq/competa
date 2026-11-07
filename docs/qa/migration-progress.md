@@ -4,12 +4,12 @@ Um bloco por ticket, na ordem em que foram executados. Plano: [`docs/react-migra
 
 ## Decisões de execução que valem para a fila inteira
 
-- **Base da cadeia é `origin/main`, não `staging`.** Em 2026-11-07 o `origin/staging` (`4380d12`) está 19 commits atrás do `main` e não tem nada próprio. O PR #19 (os achados de QA do Vue, inclusive `/mensagens`, que o plano usou como especificação) foi mergeado no `main`. Partir do `staging` daria um Vue desatualizado como especificação. Os PRs apontam para `staging`, como o Prompt B pede; até o `staging` ser atualizado com o `main`, o primeiro PR da cadeia mostra também esses 19 commits.
+- **Tudo aponta para `main`** (decisão do Luca, 2026-11-07): a cadeia nasce do `origin/main` e todo PR tem base `main`, não `staging` (o Prompt B dizia `staging`). Os PRs #20–#31 foram reapontados para `main`.
 - **Sem permissão de merge.** O prompt não a concedeu, então os PRs são encadeados: cada branch nasce da anterior. A cadeia está registrada abaixo, ticket a ticket.
 - **Linear não tem o estado "Blocked"** no time COM. Ticket parado por humano fica em **Todo** com o comentário "aguardando humano: …" e o checklist.
 - **Worktree próprio** (`../competa-react`), para não mexer nos arquivos staged da branch `fix/qa-staging-findings` do checkout principal. O hook de pre-commit roda a suíte da API; o worktree usa o banco `competa_react_test` (`DB_NAME=competa_react_test git commit …`), porque o `competa_test` compartilhado não tem as migrations do `main`.
 - **Bloqueador "satisfeito" = Done ou In Review com PR na cadeia.** Sem merge, nada chega a Done; exigir Done travaria a fila no M0.2. O passo 14 do Prompt B (encadear sem esperar revisão) só faz sentido com essa leitura.
-- **Todo PR aponta para `staging`**, como o Prompt B pede. Como a cadeia é linear, o PR do ticket N contém os commits dos tickets anteriores; o corpo do PR diz qual é o commit do ticket.
+- **Como a cadeia é linear, o PR do ticket N contém os commits dos tickets anteriores**; o corpo do PR diz qual é o commit do ticket. Merge em ordem, do #20 para frente.
 
 ## Cadeia de PRs
 
