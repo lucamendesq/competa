@@ -28,6 +28,10 @@ export class Logger {
   }
 
   private write(level: Level, message: string, rest: unknown[]) {
-    requestLogger().logger[level]({ context: this.context }, message, ...rest);
+    const details = rest.length ? { details: rest.map(serializeDetail) } : {};
+    requestLogger().logger[level]({ context: this.context, ...details }, message);
   }
 }
+
+const serializeDetail = (value: unknown) =>
+  value instanceof Error ? { name: value.name, message: value.message, stack: value.stack } : value;
