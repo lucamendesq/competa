@@ -276,9 +276,10 @@ const importCompanies = route(
   handler(
     'POST',
     Effect.gen(function* () {
+      const { scope } = yield* FirmContext;
       const input = yield* body(ImportCompaniesBody);
 
-      return yield* CompaniesRepo.use((repo) => repo.validateCsv(input.csv));
+      return yield* CompaniesRepo.use((repo) => repo.validateCsv(scope, input.csv));
     }),
   ),
   { auth: firmRoute() },
@@ -305,8 +306,6 @@ const confirmImport = route(
         yield* requireTemplate(scope, templateId);
       }
 
-      /* Bug congelado #4: o id é validado aqui e o `insertBatch` nunca grava a coluna —
-       * a Empresa importada nasce com `responsibleAccountantId: null`. */
       const accountantIds = [
         ...new Set(
           input.pending

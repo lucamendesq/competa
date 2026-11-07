@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { ref, onMounted } from 'vue';
+import { computed, ref, onMounted } from 'vue';
 import { useTitle } from '@vueuse/core';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -12,10 +12,15 @@ import {
   CardTitle,
 } from '@/components/ui/card';
 import { api } from '@/api/client';
+import { useAuthStore } from '@/stores/auth';
+import Callout from '@/components/Callout.vue';
 import { toast } from 'vue-sonner';
 import { Loader2, MessageSquare, AlertCircle, CheckCircle2 } from 'lucide-vue-next';
 
 useTitle('Configurações do WhatsApp | Competa');
+
+const auth = useAuthStore();
+const isOwner = computed(() => auth.accountant?.accountant.owner === true);
 
 type WhatsAppStatus =
   | 'not_connected'
@@ -142,6 +147,10 @@ onMounted(fetchStatus);
     </Card>
 
     <div v-else class="space-y-6">
+      <Callout v-if="!isOwner" tone="info" heading="Somente leitura">
+        Apenas o dono da Contabilidade pode conectar ou desconectar o WhatsApp.
+      </Callout>
+
       <Card v-if="status === 'not_connected'" class="border border-border shadow-sm rounded-xl">
         <CardHeader>
           <CardTitle class="flex items-center gap-2 font-display">
@@ -172,7 +181,7 @@ onMounted(fetchStatus);
           </div>
         </CardContent>
         <CardFooter class="border-t border-border px-6 py-4">
-          <Button @click="connectWhatsApp" :disabled="processing">
+          <Button @click="connectWhatsApp" :disabled="!isOwner || processing">
             <Loader2 v-if="processing" class="mr-2 h-4 w-4 animate-spin" />
             Conectar com o Facebook
           </Button>
@@ -220,7 +229,11 @@ onMounted(fetchStatus);
           <p class="text-xs text-muted-foreground">
             Lembre-se: os custos de disparo são faturados pela Meta.
           </p>
-          <Button variant="destructive" @click="disconnectWhatsApp" :disabled="processing">
+          <Button
+            variant="destructive"
+            @click="disconnectWhatsApp"
+            :disabled="!isOwner || processing"
+          >
             Desconectar
           </Button>
         </CardFooter>

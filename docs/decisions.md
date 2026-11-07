@@ -5,26 +5,28 @@
 
 ## Índice
 
-| #                                                                                 | Decisão                                                              | Status                                          |
-| --------------------------------------------------------------------------------- | -------------------------------------------------------------------- | ----------------------------------------------- |
-| [D01](#d01--backend-monólito-modular)                                             | Backend monólito modular com bounded contexts como pastas            | Parcialmente superada por D07/D10               |
-| [D02](#d02--better-auth-para-autenticação)                                        | Better Auth para autenticação (substitui Supabase Auth)              | Vigente                                         |
-| [D03](#d03--banco-e-código-em-inglês-ubíqua-pt-br)                                | Banco e código em inglês; linguagem ubíqua PT-BR                     | Vigente                                         |
-| [D04](#d04--checklist-por-template--overrides)                                    | Checklist por referência a template + overrides (não cópia)          | Vigente                                         |
-| [D05](#d05--competência-como-ciclo-prazo-por-item)                                | Competência como ciclo; prazo opcional por item                      | Vigente                                         |
-| [D06](#d06--multi-arquivo--zip-sem-extração)                                      | Multi-arquivo nativo + zip aceito sem extração                       | Vigente                                         |
-| [D07](#d07--monorepo-frontend--api-nestjs)                                        | Monorepo: frontend + API NestJS separada                             | Parcialmente superada por D10                   |
-| [D08](#d08--better-auth-na-api-nestjs)                                            | Better Auth na API NestJS; guards como fronteira de acesso           | Vigente                                         |
-| [D09](#d09--feature-modules-camadas-sob-demanda)                                  | Feature modules; camadas sob demanda; DDD tático descartado          | Vigente (item 3 refinado por D10)               |
-| [D10](#d10--angular-spa-csr--nx)                                                  | Angular SPA (CSR) como frontend; monorepo Nx; mobile em aberto       | Parcialmente superada por D-06 da spec (sem Nx) |
-| [D11](#d11--tailwind--spartan-ui)                                                 | Styling do web: Tailwind CSS + Spartan UI                            | Vigente                                         |
-| [D12](#d12--storageprovider-r2-em-produção-disco-em-dev)                          | StorageProvider: R2 em produção, disco em dev                        | Vigente                                         |
-| [D13](#d13--responsável-com-senha-e-competência-só-para-quem-configurou-o-acesso) | Responsável com senha; Competência só cobra quem configurou o acesso | Superada por D14 (itens 1, 4 e 6)               |
-| [D14](#d14--conta-do-responsável-é-opcional-push-não-depende-de-conta)            | Conta do Responsável é opcional; push não depende de conta           | Vigente                                         |
-| [D15](#d15--provedor-externo-é-escolhido-pelo-node_env-não-pela-credencial)       | Provedor externo é escolhido pelo `NODE_ENV`, não pela credencial    | Vigente (supera o mecanismo da D12)             |
-| [D16](#d16--gateway-de-pagamento-asaas--modelo-de-planotrial)                     | Gateway de pagamento Asaas + Modelo de plano flat-rate               | Vigente (preço e trava superados pela D17)      |
-| [D17](#d17--preço-público-e-métrica-de-cobrança-empresa-ativa-cadastrada)         | Preço público e métrica de cobrança: empresa ativa cadastrada        | Vigente (números superados pela D18)            |
-| [D18](#d18--recalibragem-de-planos-pela-carteira-real-e-segundo-eixo-de-upgrade)  | Recalibragem de planos pela carteira real + segundo eixo de upgrade  | Vigente                                         |
+| #                                                                                            | Decisão                                                              | Status                                          |
+| -------------------------------------------------------------------------------------------- | -------------------------------------------------------------------- | ----------------------------------------------- |
+| [D01](#d01--backend-monólito-modular)                                                        | Backend monólito modular com bounded contexts como pastas            | Parcialmente superada por D07/D10               |
+| [D02](#d02--better-auth-para-autenticação)                                                   | Better Auth para autenticação (substitui Supabase Auth)              | Vigente                                         |
+| [D03](#d03--banco-e-código-em-inglês-ubíqua-pt-br)                                           | Banco e código em inglês; linguagem ubíqua PT-BR                     | Vigente                                         |
+| [D04](#d04--checklist-por-template--overrides)                                               | Checklist por referência a template + overrides (não cópia)          | Vigente                                         |
+| [D05](#d05--competência-como-ciclo-prazo-por-item)                                           | Competência como ciclo; prazo opcional por item                      | Vigente                                         |
+| [D06](#d06--multi-arquivo--zip-sem-extração)                                                 | Multi-arquivo nativo + zip aceito sem extração                       | Vigente                                         |
+| [D07](#d07--monorepo-frontend--api-nestjs)                                                   | Monorepo: frontend + API NestJS separada                             | Parcialmente superada por D10                   |
+| [D08](#d08--better-auth-na-api-nestjs)                                                       | Better Auth na API NestJS; guards como fronteira de acesso           | Vigente                                         |
+| [D09](#d09--feature-modules-camadas-sob-demanda)                                             | Feature modules; camadas sob demanda; DDD tático descartado          | Vigente (item 3 refinado por D10)               |
+| [D10](#d10--angular-spa-csr--nx)                                                             | Angular SPA (CSR) como frontend; monorepo Nx; mobile em aberto       | Parcialmente superada por D-06 da spec (sem Nx) |
+| [D11](#d11--tailwind--spartan-ui)                                                            | Styling do web: Tailwind CSS + Spartan UI                            | Vigente                                         |
+| [D12](#d12--storageprovider-r2-em-produção-disco-em-dev)                                     | StorageProvider: R2 em produção, disco em dev                        | Vigente                                         |
+| [D13](#d13--responsável-com-senha-e-competência-só-para-quem-configurou-o-acesso)            | Responsável com senha; Competência só cobra quem configurou o acesso | Superada por D14 (itens 1, 4 e 6)               |
+| [D14](#d14--conta-do-responsável-é-opcional-push-não-depende-de-conta)                       | Conta do Responsável é opcional; push não depende de conta           | Vigente                                         |
+| [D15](#d15--provedor-externo-é-escolhido-pelo-node_env-não-pela-credencial)                  | Provedor externo é escolhido pelo `NODE_ENV`, não pela credencial    | Vigente (supera o mecanismo da D12)             |
+| [D16](#d16--gateway-de-pagamento-asaas--modelo-de-planotrial)                                | Gateway de pagamento Asaas + Modelo de plano flat-rate               | Vigente (preço e trava superados pela D17)      |
+| [D17](#d17--preço-público-e-métrica-de-cobrança-empresa-ativa-cadastrada)                    | Preço público e métrica de cobrança: empresa ativa cadastrada        | Vigente (números superados pela D18)            |
+| [D18](#d18--recalibragem-de-planos-pela-carteira-real-e-segundo-eixo-de-upgrade)             | Recalibragem de planos pela carteira real + segundo eixo de upgrade  | Vigente                                         |
+| [D19](#d19--cobrança-o-plano-só-vale-depois-do-pagamento-da-fatura-acesso-pago-não-se-perde) | Cobrança: o plano só vale depois do pagamento da fatura              | Vigente                                         |
+| [D20](#d20--solicitação-sem-item-obrigatório-conclui-com-todos-os-itens-aceitos)             | Solicitação sem Item obrigatório conclui com todos os Itens aceitos  | Vigente                                         |
 
 ---
 
@@ -503,8 +505,13 @@ demais na própria página de preços.
 - O teto passa a contar **Empresa ativa**, não linha na tabela (a D17 dizia isso e o código não
   fazia). Com isso, importar a carteira inteira como inativa não custa vaga — é a mitigação do
   risco de adoção por recorte.
-- O segundo eixo exige um guard de capability por plano (`@RequiresPlan`) devolvendo **402** com
+- O segundo eixo exige um gate de capability por plano (`firmRoute({ requires })`, ou
+  `requirePlanCapability` quando só o handler sabe decidir) devolvendo **402** com
   `{ capability, requiredPlan }`, para a web virar CTA em vez de erro genérico.
+- **Marca do escritório numa página pública:** o `logoUrl` vem do tenant, então o contrato só
+  aceita `https://` e a página de envio carrega a imagem com `referrerpolicy="no-referrer"`
+  (o host do logo não fica sabendo o token do link). O `apps/web` não define CSP hoje; se
+  passar a definir, `img-src` precisa liberar `https:` de propósito, e não por acidente.
 - A negação de gate é instrumentada: é o único dado que vai dizer se o segundo eixo merece
   existir. Gatilho de revisão em [`metricas-plano.md`](./metricas-plano.md) — com **20 pagantes
   e 3 meses de uso**, se nenhum gate tiver sido batido por ao menos 3 firms distintas, a
@@ -591,3 +598,21 @@ sempre.
 - **Cancelar = bloquear na hora:** pune quem pagou o ano; o Asaas mesmo mantém o período.
 - **Exigir CNPJ no cadastro:** fricção no trial de 14 dias sem cartão; o gateway só precisa
   dele quando há cobrança.
+
+## D20 — Solicitação sem Item obrigatório conclui com todos os Itens aceitos
+
+**Contexto:** O teste E2E do staging (2026-10-28/29, COM-217) achou que uma Solicitação só com
+Itens opcionais nunca saía de `open`: `requestStatusAfterReview` exigia ao menos um Item
+obrigatório, então o Responsável entregava tudo, o Contador aceitava tudo e o email de
+conclusão nunca saía. O comportamento estava congelado nos testes (bug congelado #18), mas
+nunca tinha sido decidido como regra de produto.
+
+**Decisão:** Com Item obrigatório, só os obrigatórios seguram o `complete` (como antes).
+Sem nenhum, a Solicitação conclui quando tem ao menos um Item e todos estão `accepted`.
+
+**Consequências:** O email de conclusão passa a sair para checklists só de opcionais. Desfazer
+um aceite volta a Solicitação para `open`, como com os obrigatórios.
+
+**Alternativa rejeitada:** manter o `open` eterno. Uma Solicitação em que tudo foi entregue e
+aceito continuava aparecendo como pendente no painel do Contador, e o Responsável não sabia
+que tinha terminado.

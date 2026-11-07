@@ -127,8 +127,10 @@ const make = Effect.gen(function* () {
     const row = yield* findByToken(token);
 
     if (!row) return yield* Effect.fail(new InviteNotFound());
-    if (row.acceptedAt) return yield* Effect.fail(new InviteAlreadyAccepted());
-    if (row.expiresAt < new Date()) return yield* Effect.fail(new InviteExpired());
+
+    const target = row.accountingFirmId ? 'accounting_firm' : 'company';
+    if (row.acceptedAt) return yield* Effect.fail(new InviteAlreadyAccepted(target));
+    if (row.expiresAt < new Date()) return yield* Effect.fail(new InviteExpired(target));
 
     return row;
   });

@@ -10,7 +10,6 @@ import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import Logo from '@/components/Logo.vue';
 import { useAuthStore } from '@/stores/auth';
-import { apiErrorMessage } from '@/api/error';
 
 const route = useRoute();
 const router = useRouter();
@@ -20,6 +19,7 @@ const token = route.query.token as string | undefined;
 
 const submitError = ref<string | null>(null);
 const success = ref(false);
+const linkInvalid = ref(!token || Boolean(route.query.error));
 
 const schema = z.object({
   password: z.string().min(8, 'A senha precisa de pelo menos 8 caracteres.'),
@@ -41,32 +41,35 @@ const onSubmit = handleSubmit(async (values) => {
   if (!token) return;
   submitError.value = null;
   try {
-    await authStore.resetPassword(values.password, token);
-    success.value = true;
-  } catch (err: any) {
-    submitError.value = apiErrorMessage(err, 'Não foi possível redefinir a senha.');
+    const result = await authStore.resetPassword(values.password, token);
+    success.value = result === 'done';
+    linkInvalid.value = result === 'invalid-link';
+  } catch (err) {
+    submitError.value = (err as Error).message;
   }
 });
 </script>
 
 <template>
-  <div class="bg-background min-h-dvh flex items-center justify-center p-4 sm:p-8">
+  <main class="bg-background min-h-dvh flex items-center justify-center p-4 sm:p-8">
     <div class="bg-card border-border w-full max-w-md rounded-xl border p-6 shadow-sm sm:p-8">
       <div class="flex justify-center mb-6">
         <Logo surface="auto" class="h-8" />
       </div>
 
-      <div v-if="!token" class="text-center">
+      <div v-if="linkInvalid" class="text-center">
         <div
           class="mx-auto mb-4 flex size-12 items-center justify-center rounded-full bg-danger-surface text-danger-foreground"
         >
           <CircleAlert class="h-6 w-6" />
         </div>
-        <h1 class="font-display text-xl font-semibold tracking-tight">Link inválido</h1>
+        <h1 class="font-display text-xl font-semibold tracking-tight">Link inválido ou expirado</h1>
         <p class="text-muted-foreground mt-2 text-sm">
-          O link acessado não possui o token necessário.
+          Este link de redefinição já foi usado, expirou ou está incompleto. Peça um novo e use o
+          último e-mail que chegar.
         </p>
-        <Button class="mt-6 w-full" variant="outline" @click="router.push('/entrar')">
+        <Button class="mt-6 w-full" @click="router.push('/esqueci-senha')">Pedir novo link</Button>
+        <Button class="mt-2 w-full" variant="outline" @click="router.push('/entrar')">
           Voltar para o login
         </Button>
       </div>
@@ -133,5 +136,5 @@ const onSubmit = handleSubmit(async (values) => {
         </form>
       </div>
     </div>
-  </div>
+  </main>
 </template>

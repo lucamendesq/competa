@@ -4,6 +4,7 @@ import { useRoute, useRouter } from 'vue-router';
 import { useForm, useField } from 'vee-validate';
 import * as z from 'zod';
 import { toTypedSchema } from '@vee-validate/zod';
+import { newPassword, plainName } from '@competa/contracts';
 import { ArrowRight, CircleAlert, Building, Building2 } from 'lucide-vue-next';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -11,7 +12,8 @@ import { Label } from '@/components/ui/label';
 import Logo from '@/components/Logo.vue';
 import { useAuthStore } from '@/stores/auth';
 import { api } from '@/api/client';
-import { apiErrorMessage } from '@/api/error';
+import { ApiError, apiErrorMessage } from '@/api/error';
+import TermsConsent from '@/components/TermsConsent.vue';
 
 const route = useRoute();
 const router = useRouter();
@@ -26,24 +28,29 @@ const invite = ref<{
 } | null>(null);
 const loading = ref(true);
 const inviteError = ref<string | null>(null);
+const signInPath = ref('/entrar');
 
 onMounted(async () => {
   try {
     invite.value = await api.get(`/invites/${token}`);
   } catch (err: any) {
     inviteError.value = apiErrorMessage(err, 'Convite não encontrado ou expirado.');
+    if (err instanceof ApiError && (err.body as any)?.error?.details?.target === 'company') {
+      signInPath.value = '/minha-area/acesso';
+    }
   } finally {
     loading.value = false;
   }
 });
 
 const schema = z.object({
-  name: z.string().trim().min(1, 'Informe seu nome.'),
-  password: z.string().min(8, 'A senha precisa de pelo menos 8 caracteres.'),
+  name: plainName(255, 'Informe seu nome.', 'O nome deve ter no máximo 255 caracteres.'),
+  password: newPassword('A senha precisa de pelo menos 8 caracteres.'),
 });
 
 const { handleSubmit, isSubmitting } = useForm({
   validationSchema: toTypedSchema(schema),
+  initialValues: { name: '', password: '' },
 });
 
 const { value: name, errorMessage: nameError, meta: nameMeta } = useField<string>('name');
@@ -86,7 +93,7 @@ const onSubmit = handleSubmit(async (values) => {
 </script>
 
 <template>
-  <div class="bg-background min-h-dvh flex items-center justify-center p-4 sm:p-8">
+  <main class="bg-background min-h-dvh flex items-center justify-center p-4 sm:p-8">
     <div class="bg-card border-border w-full max-w-md rounded-xl border p-6 shadow-sm sm:p-8">
       <div class="flex justify-center mb-6">
         <Logo surface="auto" class="h-8" />
@@ -104,7 +111,7 @@ const onSubmit = handleSubmit(async (values) => {
         </div>
         <h1 class="font-display text-xl font-semibold tracking-tight">Convite inválido</h1>
         <p class="text-muted-foreground mt-2 text-sm">{{ inviteError }}</p>
-        <Button class="mt-6 w-full" variant="outline" @click="router.push('/entrar')">
+        <Button class="mt-6 w-full" variant="outline" @click="router.push(signInPath)">
           Ir para o login
         </Button>
       </div>
@@ -143,8 +150,9 @@ const onSubmit = handleSubmit(async (values) => {
 
         <form novalidate class="flex flex-col gap-4" @submit="onSubmit">
           <div class="flex flex-col gap-1.5">
-            <Label>E-mail</Label>
+            <Label for="invite-email">E-mail</Label>
             <Input
+              id="invite-email"
               type="email"
               :model-value="invite.email"
               disabled
@@ -196,8 +204,9 @@ const onSubmit = handleSubmit(async (values) => {
             {{ isSubmitting ? 'Criando conta…' : 'Criar conta' }}
             <ArrowRight class="ml-2 h-4 w-4" aria-hidden="true" />
           </Button>
+          <TermsConsent action="Ao criar sua conta" class="text-center" />
         </form>
       </div>
     </div>
-  </div>
+  </main>
 </template>

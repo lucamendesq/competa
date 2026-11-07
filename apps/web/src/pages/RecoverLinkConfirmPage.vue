@@ -33,7 +33,7 @@ async function confirm() {
 </script>
 
 <template>
-  <div class="bg-background min-h-dvh flex items-center justify-center p-4 sm:p-8">
+  <main class="bg-background min-h-dvh flex items-center justify-center p-4 sm:p-8">
     <div class="bg-card border-border w-full max-w-md rounded-xl border p-6 shadow-sm sm:p-8">
       <div class="flex justify-center mb-6">
         <Logo surface="auto" class="h-8" />
@@ -88,5 +88,5 @@ async function confirm() {
         </Button>
       </div>
     </div>
-  </div>
+  </main>
 </template>

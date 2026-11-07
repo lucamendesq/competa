@@ -1,5 +1,7 @@
 import { desc, eq, like } from 'drizzle-orm';
-import { afterAll, beforeAll, describe, expect, it } from 'vitest';
+import { afterAll, beforeAll, describe, expect, it, vi } from 'vitest';
+import env from '../src/config/env.js';
+import { Logger } from '../src/lib/logger.js';
 import { bootApp, type RunningApp } from './support/boot.js';
 import { db, truncateAll } from './support/db.js';
 import {
@@ -10,6 +12,7 @@ import {
   message,
   pushSubscription,
   request,
+  requestItem,
   uploadLink,
   user as authUser,
   verification,
@@ -507,6 +510,10 @@ describe('aceite de convite de Responsável (POST /invites/:token/contact-accoun
     const res = await acceptInvite(acceptedToken, { password: PASSWORD });
     expect(res.status).toBe(409);
     expect(res.body.error.code).toBe('INVITE_ALREADY_ACCEPTED');
+
+    const preview = await apiClient(app.url).get(`/invites/${acceptedToken}`);
+    expect(preview.status).toBe(409);
+    expect(preview.body.error.details).toEqual({ target: 'company' });
   });
 
   it('contato que já tem acesso → 409 CONTACT_ACCESS_ALREADY_EXISTS sem queimar o convite', async () => {
@@ -550,7 +557,10 @@ describe('aceite de convite de Responsável (POST /invites/:token/contact-accoun
     const token = await mintInvite({ accountingFirmId }, contactBody().email);
     const res = await acceptInvite(token, { password: PASSWORD });
     expect(res.status).toBe(422);
-    expect(res.body.error.code).toBe('INVITE_TARGET_UNSUPPORTED');
+    expect(res.body.error).toEqual({
+      code: 'INVITE_TARGET_UNSUPPORTED',
+      message: 'Este convite é de Contador: aceite em POST /auth/sign-up.',
+    });
   });
 
   it('email do convite sem Responsável na Empresa → 404 sem queimar o convite', async () => {
@@ -747,7 +757,11 @@ describe('área logada do Responsável (/my) com vínculo multi-empresa', () => 
 
     const second = await session.api.post('/my/password', { password: 'mais-uma-senha-valida-9' });
     expect(second.status).toBe(400);
-    expect(second.body.error.code).toBe('PASSWORD_ALREADY_SET');
+    expect(second.body.error).toEqual({
+      code: 'PASSWORD_ALREADY_SET',
+      message:
+        'Você já tem uma senha cadastrada. Entre com ela ou pelo link enviado ao seu e-mail.',
+    });
   });
 
   it('senha curta em POST /my/password → 422 antes da better-auth', async () => {
@@ -856,7 +870,7 @@ describe('upload logado (/my/documents) e leitura de conteúdo', () => {
     });
   });
 
-  it('upload mirado num Item marca o Item como submitted', async () => {
+  it('upload mirado num Item marca o Item como submitted e o tira do que falta', async () => {
     const pending = await session.api.get('/my/pending');
     const itemId = pending.body.data[0].item.id as string;
 
@@ -868,8 +882,14 @@ describe('upload logado (/my/documents) e leitura de conteúdo', () => {
     );
     expect(confirmed).toMatchObject({ confirmed: 1, submittedItemIds: [itemId] });
 
+    const [row] = await db
+      .select({ status: requestItem.status })
+      .from(requestItem)
+      .where(eq(requestItem.id, itemId));
+    expect(row.status).toBe('submitted');
+
     const after = await session.api.get('/my/pending');
-    expect(after.body.data[0].item.status).toBe('submitted');
+    expect(after.body.data.map((pendingRow: any) => pendingRow.item.id)).not.toContain(itemId);
   });
 
   it('Solicitação de outra Empresa → 404; sem requestId → 422 do guard', async () => {
@@ -979,6 +999,7 @@ describe('recuperação de acesso (/access/recover)', () => {
 
   it('contato com acesso recebe magic link direto (sem rotação)', async () => {
     const hashBefore = await currentTokenHash(withAccess.requestId);
+    const logged = vi.spyOn(Logger.prototype, 'log');
     const res = await apiClient(app.url).post('/access/recover', {
       email: withAccess.contactEmail,
     });
@@ -987,6 +1008,15 @@ describe('recuperação de acesso (/access/recover)', () => {
     expect(res.body.data).toEqual({ message: SAME_MESSAGE });
     expect(await magicLinkTokenFor(withAccess.contactEmail)).toBeDefined();
     expect(await currentTokenHash(withAccess.requestId)).toBe(hashBefore);
+
+    const sentUrl = logged.mock.calls
+      .map(([message]) => String(message))
+      .find((message) => message.startsWith(`magic link para ${withAccess.contactEmail}`))
+      ?.split(': ')[1];
+    logged.mockRestore();
+    expect(new URL(sentUrl!).searchParams.get('callbackURL')).toBe(
+      `${env.WEB_URL}/minha-area/pendencias`,
+    );
   });
 
   it('confirmação com token válido rotaciona o Link, registra o reenvio e mata o antigo', async () => {

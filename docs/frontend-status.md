@@ -15,14 +15,14 @@ configuração para funcionar. Complementa o [`roadmap.md`](./roadmap.md).
 | `/perdi-meu-link/confirmar`              | Passo 2: botão que confirma posse e rotaciona o Link                                                                 | completa (2026-09-11)                                       |
 | `/termos`, `/privacidade`                | Páginas legais (conteúdo provisório até revisão jurídica)                                                            | completa (2026-09-11); aceite em `user.terms_accepted_at`   |
 | `/competencias`                          | Lista + KPIs + modal "Abrir competência"                                                                             | completa, com prévia do fan-out e resumo dos links          |
-| `/competencias/:id`                      | **Painel de Pendências** ("quem faltou")                                                                             | completa, com falha de canal visível                        |
-| `/solicitacoes/:id`                      | Revisão da Solicitação (aceite em lote, rejeição, extras, preview/baixar avulso)                                     | completa                                                    |
+| `/competencias/:id`                      | **Painel de Pendências** ("quem faltou"; encerrar por Empresa ou a Competência inteira)                              | completa, com falha de canal visível                        |
+| `/solicitacoes/:id`                      | Revisão da Solicitação (aceite em lote, rejeição, extras, preview/baixar avulso, encerrar a Solicitação)             | completa                                                    |
 | `/empresas`                              | Lista de Empresas                                                                                                    | completa                                                    |
-| `/empresas/nova`, `/empresas/:id/editar` | Cadastro/edição + prévia do checklist efetivo                                                                        | completa                                                    |
+| `/empresas/nova`, `/empresas/:id/editar` | Cadastro/edição + prévia do checklist efetivo; na edição, revogar o acesso ao app do Responsável (F10-7)             | completa                                                    |
 | `/empresas/importar`                     | Importar planilha + relatório por linha                                                                              | completa (.xlsx e .csv, cabeçalhos PT aceitos)              |
 | `/empresas/:id/checklist`                | Overrides por Empresa                                                                                                | completa                                                    |
 | `/checklists`, `/checklists/:id`         | Templates do produto e derivados editáveis                                                                           | completa                                                    |
-| `/mensagens`                             | Log de entrega + detalhe do erro                                                                                     | completa (2026-09-15)                                       |
+| `/mensagens`                             | Log de entrega + detalhe do erro + reenvio por mensagem                                                              | completa (portada para o Vue em 2026-11-01, COM-253)        |
 | `/configuracoes/*`                       | Contabilidade (nome editável) · Contadores (lista/remover/convites) · Lembretes (preferências) · Canais              | completa desde 2026-09-11, menos Canais (WhatsApp = Fase 8) |
 | `/envio/:token`                          | **Página pública de envio** (mobile-first, sem senha)                                                                | completa                                                    |
 | `/minha-area/*`                          | Área do Responsável (acesso, pendências, histórico, envio logado, preview/baixar documento, multi-empresa com badge) | completa                                                    |
@@ -43,7 +43,7 @@ endpoint. **Revisão 2026-09-11: a maioria das lacunas fechou** — ficou assim:
 5. ~~Baixar/visualizar um Documento avulso~~ — ✅ preview/baixar na revisão
    (`GET /documents/:id/content`) e na área do Responsável (`GET /my/documents/:id/content`).
 6. ~~Reenviar mensagem individual~~ — ✅ `POST /messages/:id/resend` e botão "Reenviar mensagem"
-   no detalhe do envio em `/mensagens`.
+   na linha da mensagem em `/mensagens`.
 7. ~~Colunas ausentes~~ — ✅ "Aberta em" da Competência, nome/e-mail do Responsável na lista de
    Empresas, "empresas usando" no template.
 8. ~~Filtros de Mensagens~~ — ✅ filtros por Empresa (`companyId`), Canal (`channel`) e Tipo
@@ -89,6 +89,10 @@ responde `403 ONLY_OWNER_CAN_INVITE`. Dono é o **primeiro Contador do tenant** 
 aceita o convite inicial do `create-firm`, ou seja, quem entra pelo e-mail do escritório.
 `accountant.owner` marca isso, `accountant_owner_uidx` garante um por Contabilidade, e
 `GET /auth/me` devolve o campo para a tela decidir o que oferecer.
+
+Para o membro (não-dono), Contabilidade, Plano e WhatsApp abrem em **somente leitura**: o
+aviso no topo e as ações do dono desabilitadas (salvar, CNPJ e "Assinar…", conectar e
+desconectar o WhatsApp). O envio de teste do WhatsApp segue aberto a qualquer membro.
 
 Escolhi ancorar em "primeiro Contador" e não em "o e-mail bate com o da Contabilidade"
 porque hoje não existe coluna de e-mail no `accounting_firm` — e amarrar uma regra de
@@ -188,6 +192,11 @@ Instalável pela área do Responsável: `manifest.webmanifest` com `start_url`
 service worker do Angular (`ngsw-config.json`) com **prefetch só de casca e assets**.
 Não há `dataGroups`: resposta de API nunca é cacheada — documento contábil velho em tela é
 pior do que tela vazia. Verificado com build de produção: SW ativo, casca abre offline.
+
+O SW gerado pelo `vite-plugin-pwa` importa `public/push-handler.js`, que exibe o push (o
+payload da API ainda vem no formato `{ notification }` do service worker do Angular) e abre a
+URL dele no clique. Sem SW registrado (o dev não registra), "Me avise neste aparelho" desiste
+em 10 s com erro em vez de ficar em "Ativando…".
 
 ## Novo Design System (Outubro/2026)
 

@@ -1,16 +1,10 @@
-import {
-  CreateInviteBody,
-  IdParam,
-  InviteTokenParam,
-  UpdateFirmBody,
-  planAllows,
-} from '@competa/contracts';
+import { CreateInviteBody, IdParam, InviteTokenParam, UpdateFirmBody } from '@competa/contracts';
 import { addDays } from 'date-fns';
 import { Effect, Layer } from 'effect';
 import env from '../../config/env.js';
 import { FirmContext } from '../../http/context.js';
 import { handler } from '../../http/envelope.js';
-import { firmRoute } from '../../http/middleware/auth.js';
+import { firmRoute, requirePlanCapability } from '../../http/middleware/auth.js';
 import { body, params, publicRoute, route } from '../../http/platform.js';
 import { NotFound } from '../../lib/app-error.js';
 import { EVENTS, type InviteCreatedEvent } from '../../lib/events.js';
@@ -23,7 +17,6 @@ import {
   InviteAlreadyPending,
   OnlyOwnerCanInvite,
   OnlyOwnerCanManageTeam,
-  PlanCapabilityRequired,
 } from './errors.js';
 import { InvitesRepo } from './invite.repo.js';
 import type { FirmScope } from './scope.js';
@@ -191,7 +184,7 @@ const updateFirm = route(
   handler(
     'PATCH',
     Effect.gen(function* () {
-      const { scope, planName, session } = yield* FirmContext;
+      const { scope, session } = yield* FirmContext;
       const input = yield* body(UpdateFirmBody);
 
       if (!(yield* isOwner(scope, session.user.id))) {
@@ -199,9 +192,7 @@ const updateFirm = route(
       }
 
       const tuningReminders = REMINDER_FIELDS.some((field) => input[field] !== undefined);
-      if (tuningReminders && !planAllows(planName, 'reminderTuning')) {
-        return yield* Effect.fail(new PlanCapabilityRequired('reminderTuning'));
-      }
+      if (tuningReminders) yield* requirePlanCapability('reminderTuning');
 
       yield* AccountantsRepo.use((repo) => repo.updateFirm(scope, input));
 

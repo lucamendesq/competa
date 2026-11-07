@@ -4,6 +4,41 @@ if (z.locales?.pt) {
   z.config(z.locales.pt());
 }
 
+/** O locale `pt` do zod traduz, mas fala como compilador ("esperado int, recebido número").
+ *  Os casos que chegam à tela sem mensagem própria no schema ganham a voz do produto; o
+ *  resto cai no locale. */
+const productVoice: z.core.$ZodErrorMap = (issue) => {
+  if (issue.code === 'invalid_type') {
+    if (issue.input === undefined || issue.input === null || issue.input === '') {
+      return 'Preencha este campo.';
+    }
+    if (issue.expected === 'int') return 'Informe um número inteiro.';
+    if (issue.expected === 'number') return 'Informe um número.';
+  }
+  if (issue.code === 'too_small' && issue.origin === 'number') {
+    return `Informe um número a partir de ${issue.minimum}.`;
+  }
+  if (issue.code === 'too_big' && issue.origin === 'number') {
+    return `Informe um número até ${issue.maximum}.`;
+  }
+  if (issue.code === 'too_small' && issue.origin === 'string') {
+    return issue.minimum === 1
+      ? 'Preencha este campo.'
+      : `Use pelo menos ${issue.minimum} caracteres.`;
+  }
+  if (issue.code === 'too_big' && issue.origin === 'string') {
+    return `Use no máximo ${issue.maximum} caracteres.`;
+  }
+  return undefined;
+};
+
+z.config({ customError: productVoice });
+
+export const intBetween = (min: number, max: number) => {
+  const message = `Informe um número inteiro de ${min} a ${max}.`;
+  return z.int({ error: message }).min(min, message).max(max, message);
+};
+
 /** Um input de texto não produz `undefined`: vazio chega como `''`. Sem tratar isso, um
  *  campo opcional em branco reprova o schema e o `submit()` do formulário não faz nada —
  *  botão morto, sem erro visível. Mesmo tratamento do `blankAsMissing` do `config/env.ts`. */

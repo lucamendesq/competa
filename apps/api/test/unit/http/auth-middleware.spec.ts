@@ -289,6 +289,9 @@ describe('firmRoute — Defaulting Rule (COM-8)', () => {
     const read = await call('GET', '/probe/firm', { cookie });
     expect(read.status).toBe(200);
 
+    const head = await call('HEAD', '/probe/firm', { cookie });
+    expect(head.status, 'HEAD é leitura').toBe(200);
+
     const write = await call('POST', '/probe/firm', { cookie });
     expect(write.status).toBe(402);
     expect(write.body.error.code).toBe('PAYMENT_REQUIRED');

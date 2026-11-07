@@ -86,7 +86,7 @@ async function createBlank() {
     </Button>
   </PageHeader>
 
-  <main class="mt-8">
+  <div class="mt-8">
     <template v-if="templatesQuery.isLoading.value">
       <LoadingRows />
     </template>
@@ -155,7 +155,9 @@ async function createBlank() {
                       as-child
                       class="h-8 px-2.5 text-xs text-muted-foreground hover:text-foreground"
                     >
-                      <RouterLink :to="`/templates/${template.id}`"> Editar </RouterLink>
+                      <RouterLink :to="`/templates/${template.id}`">
+                        {{ template.isProduct ? 'Ver' : 'Editar' }}
+                      </RouterLink>
                     </Button>
                     <Button
                       variant="ghost"
@@ -173,7 +175,7 @@ async function createBlank() {
         </div>
       </div>
     </template>
-  </main>
+  </div>
 
   <Modal
     :open="deriveOpen !== null"

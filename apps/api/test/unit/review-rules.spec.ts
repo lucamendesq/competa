@@ -178,10 +178,12 @@ describe('requestStatusAfterReview — `complete` é derivado', () => {
     expect(requestStatusAfterReview('closed', [required('pending')])).toBe('closed');
   });
 
-  /* Checklist SÓ de opcionais nunca completa: `required.length > 0` é exigido. É decisão
-   * registrada (bug congelado #18), não acidente — se mudar, muda aqui primeiro. */
-  it('checklist só de opcionais não completa', () => {
+  /* D20: sem Item obrigatório, a Solicitação completa quando todos os opcionais estão aceitos. */
+  it('checklist só de opcionais completa com todos aceitos, e só então', () => {
     expect(requestStatusAfterReview('open', [optional('accepted'), optional('accepted')])).toBe(
+      'complete',
+    );
+    expect(requestStatusAfterReview('open', [optional('accepted'), optional('pending')])).toBe(
       'open',
     );
   });

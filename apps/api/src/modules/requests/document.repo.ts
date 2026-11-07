@@ -141,7 +141,9 @@ const make = Effect.gen(function* () {
   const discardOn = async (executor: Executor, documentIds: string[]) => {
     if (!documentIds.length) return;
 
-    await executor.delete(document).where(inArray(document.id, documentIds));
+    await executor
+      .delete(document)
+      .where(and(inArray(document.id, documentIds), eq(document.uploadStatus, 'awaiting_upload')));
   };
 
   const presign = Effect.fn('DocumentsRepo.presign')(function* (
@@ -282,7 +284,7 @@ const make = Effect.gen(function* () {
     const pending = yield* db.use((d) => pendingUploadOn(d, scope, documentIds));
     if (!pending.length) return yield* new NotFound('Nenhum documento deste envio foi encontrado.');
 
-    return yield* db.use(async (d) => {
+    const outcome = yield* db.use(async (d) => {
       const accepted: {
         id: string;
         fileName: string;
@@ -374,7 +376,7 @@ const make = Effect.gen(function* () {
       }
 
       try {
-        const { confirmed, submittedItemIds, overflow } = await d.transaction(async (tx) => {
+        const { confirmed, submittedItemIds, overflow, lost } = await d.transaction(async (tx) => {
           /* Mesmo lock do presign: dois lotes confirmando em paralelo leriam o mesmo `usage`
            * e cada um caberia no teto — juntos, não. */
           await tx
@@ -384,11 +386,31 @@ const make = Effect.gen(function* () {
             .for('update')
             .limit(1);
 
+          /* A leitura de fora da transação não vale como posse: dois confirms do mesmo
+           * documento em paralelo passariam por ela e somariam os bytes duas vezes no teto.
+           * Quem chega depois do lock acha o documento já confirmado e não conta nada. */
+          const stillPending = new Set(
+            (
+              await pendingUploadOn(
+                tx,
+                scope,
+                pending.map((row) => row.id),
+              )
+            ).map((row) => row.id),
+          );
+          const discardedIds = new Set(discarded.map((row) => row.documentId));
+          const lost = new Set(
+            pending
+              .map((row) => row.id)
+              .filter((id) => !stillPending.has(id) && !discardedIds.has(id)),
+          );
+          const owned = accepted.filter((row) => stillPending.has(row.id));
+
           const usage = await usageForRequestOn(tx, scope.requestId);
           const within: typeof accepted = [];
           const overflow: typeof refused = [];
 
-          for (const row of accepted) {
+          for (const row of owned) {
             const reason = requestCapRefusal(usage, { sizeBytes: row.realBytes });
             if (reason) {
               overflow.push({
@@ -405,7 +427,7 @@ const make = Effect.gen(function* () {
             within.push(row);
           }
 
-          if (!within.length) return { confirmed: [], submittedItemIds: [], overflow };
+          if (!within.length) return { confirmed: [], submittedItemIds: [], overflow, lost };
 
           const rows = await tx
             .select({ id: document.id, requestItemId: document.requestItemId })
@@ -450,7 +472,12 @@ const make = Effect.gen(function* () {
               );
           }
 
-          return { confirmed: rows.map((row) => row.id), submittedItemIds: itemIds, overflow };
+          return {
+            confirmed: rows.map((row) => row.id),
+            submittedItemIds: itemIds,
+            overflow,
+            lost,
+          };
         });
 
         if (overflow.length) {
@@ -463,14 +490,18 @@ const make = Effect.gen(function* () {
           );
         }
 
+        if (lost.size === pending.length) return null;
+
         return {
           confirmed: confirmed.length,
           submittedItemIds,
-          refused: [...refused, ...overflow].map(({ documentId, fileName, reason }) => ({
-            documentId,
-            fileName,
-            reason,
-          })),
+          refused: [...refused.filter((row) => !lost.has(row.documentId)), ...overflow].map(
+            ({ documentId, fileName, reason }) => ({
+              documentId,
+              fileName,
+              reason,
+            }),
+          ),
         };
       } catch (error) {
         await Promise.all(
@@ -479,6 +510,10 @@ const make = Effect.gen(function* () {
         throw error;
       }
     });
+
+    if (!outcome) return yield* new NotFound('Nenhum documento deste envio foi encontrado.');
+
+    return outcome;
   });
 
   const uploadContext = Effect.fn('DocumentsRepo.uploadContext')(function* (

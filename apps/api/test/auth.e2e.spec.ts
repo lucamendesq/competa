@@ -609,7 +609,10 @@ describe('convite de Contador (POST /invites, GET /invites/:token, POST /auth/si
 
     const preview = await apiClient(app.url).get(`/invites/${guestToken}`);
     expect(preview.status).toBe(409);
-    expect(preview.body.error.code).toBe('INVITE_ALREADY_ACCEPTED');
+    expect(preview.body.error).toMatchObject({
+      code: 'INVITE_ALREADY_ACCEPTED',
+      details: { target: 'accounting_firm' },
+    });
   });
 
   it('membro não convida → 403 ONLY_OWNER_CAN_INVITE', async () => {
@@ -675,7 +678,10 @@ describe('convite de Contador (POST /invites, GET /invites/:token, POST /auth/si
       password: PASSWORD,
     });
     expect(res.status).toBe(422);
-    expect(res.body.error.code).toBe('INVITE_TARGET_UNSUPPORTED');
+    expect(res.body.error).toEqual({
+      code: 'INVITE_TARGET_UNSUPPORTED',
+      message: 'Este convite é de Responsável: aceite em POST /invites/:token/contact-account.',
+    });
   });
 
   it('token desconhecido → 404 e expirado → 410, no sign-up e no preview', async () => {
@@ -1019,6 +1025,14 @@ describe('Contabilidade (GET/PATCH /accounting-firm, device-stats)', () => {
       const res = await firm.api.patch('/accounting-firm', body);
       expect(res.status, JSON.stringify(body)).toBe(422);
       expect(res.body.error.code).toBe('VALIDATION_ERROR');
+    }
+  });
+
+  it('validação: lembrete fora da faixa ou fracionado responde na voz do produto', async () => {
+    for (const reminderMax of [99, 2.5, -1]) {
+      const res = await firm.api.patch('/accounting-firm', { reminderMax });
+      expect(res.status).toBe(422);
+      expect(res.body.error.details[0].message).toBe('Informe um número inteiro de 0 a 10.');
     }
   });
 

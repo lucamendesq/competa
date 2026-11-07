@@ -1,5 +1,5 @@
 import * as z from 'zod';
-import { email, newPassword, plainName } from './common.js';
+import { email, intBetween, newPassword, plainName } from './common.js';
 import { Cnpj } from './company.js';
 
 /** Campo de texto opcional: vazio chega como `''` e vale como ausente. */
@@ -7,6 +7,20 @@ const optionalCnpj = z.preprocess(
   (value) => (typeof value === 'string' && value.trim() === '' ? undefined : value),
   Cnpj.optional(),
 );
+
+/** Cadência (docs/domain.md, risco 2) que vale sem a capability `reminderTuning`: o cron
+ *  usa estes valores e a tela de Configurações os mostra no lugar dos gravados. */
+export type ReminderSettings = {
+  reminderMax: number;
+  reminderDueSoonDays: number;
+  reminderGapDays: number;
+};
+
+export const DEFAULT_REMINDER_SETTINGS: ReminderSettings = {
+  reminderMax: 2,
+  reminderDueSoonDays: 3,
+  reminderGapDays: 3,
+};
 
 /** PATCH /accounting-firm — nome e preferências de lembrete (só o dono). Parcial: manda o
  *  que mudou. As faixas espelham o CHECK `accounting_firm_reminder_chk`. */
@@ -17,9 +31,9 @@ export const UpdateFirmBody = z
       'Informe o nome da Contabilidade.',
       'O nome da Contabilidade deve ter no máximo 120 caracteres.',
     ),
-    reminderMax: z.int().min(0).max(10),
-    reminderDueSoonDays: z.int().min(0).max(31),
-    reminderGapDays: z.int().min(1).max(31),
+    reminderMax: intBetween(0, 10),
+    reminderDueSoonDays: intBetween(0, 31),
+    reminderGapDays: intBetween(1, 31),
     /* A URL é escolhida pelo tenant e vai parar numa página pública e no corpo de e-mails:
      * só `https`. `http` vira aviso de conteúdo misto, e qualquer outro esquema
      * (`javascript:`, `data:`) é vetor de XSS no `src` da imagem. */

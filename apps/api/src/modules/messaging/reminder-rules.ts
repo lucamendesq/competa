@@ -1,20 +1,11 @@
 import { differenceInCalendarDays, parseISO } from 'date-fns';
 import { brazilDay } from '../../lib/brazil-time.js';
 
-/** Cadência (docs/domain.md, risco 2). Os três knobs são por Contabilidade
- *  (`accounting_firm.reminder_*`); os defaults reproduzem o comportamento histórico:
- *  máx. 2 lembretes por Solicitação, com prazo a partir de D-3, gap mínimo de 3 dias. */
-export type ReminderSettings = {
-  reminderMax: number;
-  reminderDueSoonDays: number;
-  reminderGapDays: number;
-};
+/** Os três knobs são por Contabilidade (`accounting_firm.reminder_*`); os defaults
+ *  reproduzem o comportamento histórico e vêm do contrato, que a tela também lê. */
+import { DEFAULT_REMINDER_SETTINGS, type ReminderSettings } from '@competa/contracts';
 
-export const DEFAULT_REMINDER_SETTINGS: ReminderSettings = {
-  reminderMax: 2,
-  reminderDueSoonDays: 3,
-  reminderGapDays: 3,
-};
+export { DEFAULT_REMINDER_SETTINGS, type ReminderSettings };
 
 /** Sem prazo o gap é semanal e fixo: caso raro, não paga um 4º knob. */
 export const GAP_DAYS_WITHOUT_DUE_DATE = 7;

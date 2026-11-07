@@ -8,7 +8,7 @@ As seguintes variáveis devem ser configuradas no arquivo `.env` para o funciona
 - `META_APP_SECRET`: Segredo do aplicativo Meta (necessário para o OAuth e validação do webhook).
 - `WHATSAPP_VERIFY_TOKEN`: Token de verificação (string arbitrária) configurado no painel da Meta para assinatura e validação do webhook.
 - `META_GRAPH_VERSION`: (Opcional) Versão da API Graph da Meta. Exemplo: `v19.0`. Se não for informada, será assumido `v19.0`.
-- `WHATSAPP_CRYPTO_KEY`: Chave de 32 bytes em hexadecimal ou base64 usada pelo `WhatsappCryptoService` para criptografar os tokens de acesso de cada tenant no banco de dados.
+- `WHATSAPP_ENCRYPTION_KEY`: 32 bytes em hexadecimal (64 caracteres, gerada com `openssl rand -hex 32`) usada pelo `WhatsappCryptoService` para cifrar (AES-256-GCM) os tokens de acesso de cada tenant no banco. Obrigatória em produção (`REQUIRED_IN_PRODUCTION`) e sem fallback: sem ela a API não sobe.
 
 ## Nota de Arquitetura
 
@@ -21,7 +21,8 @@ Toda comunicação e configuração referente ao WhatsApp no banco de dados (`wh
 O token de acesso de longa duração (long-lived / system-user token) recebido via Embedded Signup é sensível, visto que ele permite enviar mensagens tarifadas em nome do cliente. Para protegê-lo:
 
 1. O fluxo OAuth ocorre no backend (troca de código) e o token final nunca é exposto ao frontend (`WhatsappSettingsController.getStatus` não o devolve).
-2. O token é salvo criptografado na tabela `whatsapp_integration` usando o `WhatsappCryptoService` e uma chave mantida apenas no `.env` (`WHATSAPP_CRYPTO_KEY`).
+2. O token é salvo criptografado na tabela `whatsapp_integration` usando o `WhatsappCryptoService` e uma chave mantida apenas no `.env` (`WHATSAPP_ENCRYPTION_KEY`).
+3. **Tokens cifrados com a antiga chave zerada (COM-188): nada a re-cifrar.** Até a correção, a falta da variável fazia o serviço cifrar com `'0'.repeat(64)`. Nenhum token real da Meta chegou a ser gravado com ela: em produção o `POST /whatsapp/onboard` responde 503 antes de gravar qualquer integração, e fora de produção ele grava só o token de mentira (`MOCK_INTEGRATION`). Linha antiga de dev/staging cifrada com outra chave deixa de decifrar; o envio por WhatsApp falha, degrada para email (regra 11 do `AGENTS.md`), e reconectar a integração regrava o token com a chave atual. Quando o Embedded Signup real entrar, a chave já é obrigatória.
 
 ### Roteamento de Webhooks
 

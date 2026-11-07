@@ -18,6 +18,16 @@ const bytesFromBase64 = (base64: string) => {
 const toBase64 = (buffer: ArrayBuffer | null) =>
   buffer ? btoa(String.fromCharCode(...new Uint8Array(buffer))) : '';
 
+/* Sem service worker registrado (dev, ou registro que falhou) o `ready` nunca resolve: sem
+ * prazo o botão ficava em "Ativando…" para sempre. */
+const serviceWorkerReady = () =>
+  Promise.race([
+    navigator.serviceWorker.ready,
+    new Promise<never>((_, reject) =>
+      setTimeout(() => reject(new Error('service worker indisponível')), 10_000),
+    ),
+  ]);
+
 const supported =
   typeof Notification !== 'undefined' &&
   typeof navigator !== 'undefined' &&
@@ -62,7 +72,7 @@ export function usePush() {
         return;
       }
 
-      const registration = await navigator.serviceWorker.ready;
+      const registration = await serviceWorkerReady();
       const subscription = await registration.pushManager.subscribe({
         userVisibleOnly: true,
         applicationServerKey: bytesFromBase64(key),

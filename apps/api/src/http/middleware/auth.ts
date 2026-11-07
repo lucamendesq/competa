@@ -85,6 +85,23 @@ const logPlanDenial = (
     Sentry.captureMessage(denied, 'warning');
   });
 
+/** O gate que só o handler sabe decidir (depende do corpo, como os knobs de lembrete do
+ *  PATCH da firma) nega pelo mesmo caminho do `firmRoute({ requires })`: logado e com o 402
+ *  de capability, para a revisão do segundo eixo não perder metade das negações. */
+export const requirePlanCapability = (capability: PlanCapability) =>
+  Effect.gen(function* () {
+    const context = yield* FirmContext;
+    if (planAllows(context.planName, capability)) return;
+
+    yield* logPlanDenial(
+      yield* HttpServerRequest.HttpServerRequest,
+      yield* HttpRouter.RouteContext,
+      context,
+      capability,
+    );
+    return yield* Effect.fail(new PlanCapabilityRequired(capability));
+  });
+
 const resolveFirm = (
   requires: PlanCapability | undefined,
   billing: boolean,
@@ -100,7 +117,7 @@ const resolveFirm = (
     /* Defaulting Rule (COM-8): leitura passa, escrita não. A rota de cobrança é a exceção:
      * é por ela que a firma bloqueada regulariza — bloqueá-la trancava o cliente do lado de
      * fora com o boleto na mão. */
-    if (request.method !== 'GET' && !billing) {
+    if (request.method !== 'GET' && request.method !== 'HEAD' && !billing) {
       /* Cancelada segue valendo até o fim do período já pago: ninguém perde o que pagou por
        * ter cancelado cedo. Sem período (trial cancelado) bloqueia na hora. */
       const canceledAndLapsed =

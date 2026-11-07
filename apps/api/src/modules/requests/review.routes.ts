@@ -14,6 +14,7 @@ import {
 } from '../../lib/events.js';
 import { Events } from '../../lib/events.service.js';
 import { DeadlineScan } from './deadline.cron.js';
+import { DeadlineScanInFlight } from './errors.js';
 import { RequestsRepo } from './request.repo.js';
 
 const acceptItem = route(
@@ -203,7 +204,10 @@ const scanDeadlines = route(
     Effect.gen(function* () {
       const { scope } = yield* FirmContext;
 
-      return yield* DeadlineScan.use((deadlines) => deadlines.scan(scope));
+      const scanned = yield* DeadlineScan.use((deadlines) => deadlines.scan(scope));
+      if (!scanned) return yield* new DeadlineScanInFlight();
+
+      return scanned;
     }),
   ),
   { auth: firmRoute() },

@@ -87,10 +87,11 @@ const activate = ref(true);
 const split = computed(() => {
   const usage = usageData.value;
   const ready = pendingRows.value.length;
-  const slots = usage ? Math.max(0, usage.softCap - usage.companiesActive) : ready;
-  const active = activate.value ? Math.min(ready, slots) : 0;
+  const fresh = pendingRows.value.filter((row) => row.existingName === undefined).length;
+  const slots = usage ? Math.max(0, usage.softCap - usage.companiesActive) : fresh;
+  const active = activate.value ? Math.min(fresh, slots) : 0;
 
-  return { ready, active, inactive: ready - active, usage };
+  return { ready, fresh, updating: ready - fresh, active, inactive: fresh - active, usage };
 });
 
 watch(
@@ -98,7 +99,7 @@ watch(
   () => {
     const usage = usageData.value;
     if (!usage || !preview.value) return;
-    activate.value = pendingRows.value.length <= usage.softCap - usage.companiesActive;
+    activate.value = split.value.fresh <= usage.softCap - usage.companiesActive;
   },
 );
 
@@ -122,7 +123,10 @@ async function read(f: File) {
       const XLSX = await import('xlsx');
       const workbook = XLSX.read(await f.arrayBuffer(), { type: 'array' });
       const firstSheet = workbook.Sheets[workbook.SheetNames[0]];
-      file.value = { name: f.name, content: XLSX.utils.sheet_to_csv(firstSheet) };
+      file.value = {
+        name: f.name,
+        content: XLSX.utils.sheet_to_csv(firstSheet, { rawNumbers: true }),
+      };
     } catch {
       error.value = 'Não foi possível ler esta planilha. Exporte como CSV e tente de novo.';
     }
@@ -168,7 +172,10 @@ async function importCsv() {
 
 const confirmRestart = ref(false);
 const inviting = ref(false);
-const invitesSent = ref<number | null>(null);
+const invitesSent = shallowRef<{
+  invited: number;
+  skipped: { reason: string; count: number }[];
+} | null>(null);
 
 /* Os dois botões ("Enviar convites" e "Importar") confirmam a importação. Cada um só se
  * desabilitava no próprio estado, e clicar nos dois disparava dois confirms: linha sem
@@ -214,12 +221,21 @@ async function doSendInvites() {
   try {
     const companyIds = await ensureConfirmed();
     const result = await sendAccessInvites(companyIds);
-    invitesSent.value = result.invited;
-    toast.success(
+    const skipped = new Map<string, number>();
+    for (const row of result.results) {
+      if (row.status === 'invited' || !row.reason) continue;
+      skipped.set(row.reason, (skipped.get(row.reason) ?? 0) + 1);
+    }
+    invitesSent.value = {
+      invited: result.invited,
+      skipped: [...skipped].map(([reason, count]) => ({ reason, count })),
+    };
+    const sent =
       result.invited === 1
         ? '1 convite de acesso enviado.'
-        : `${result.invited} convites de acesso enviados.`,
-    );
+        : `${result.invited} convites de acesso enviados.`;
+    if (result.invited) toast.success(sent);
+    else toast.info(sent);
   } catch (err) {
     toast.error(apiErrorMessage(err, 'Não foi possível enviar os convites.'));
   } finally {
@@ -254,7 +270,7 @@ function discard() {
 }
 
 function downloadTemplate() {
-  const header = COLUMNS.map((column) => column.header).join(',');
+  const header = COLUMNS.map((column) => column.header).join(';');
   const example = [
     'Padaria Pão Quente Ltda',
     '11.222.333/0001-81',
@@ -264,9 +280,10 @@ function downloadTemplate() {
     'Sim',
     'Não',
     'Não',
-  ].join(',');
+  ].join(';');
 
-  const blob = new Blob([`${header}\n${example}\n`], { type: 'text/csv;charset=utf-8' });
+  /* Excel em pt-BR só separa as colunas com ";" e só lê os acentos como UTF-8 com o BOM. */
+  const blob = new Blob([`\uFEFF${header}\n${example}\n`], { type: 'text/csv;charset=utf-8' });
   const url = URL.createObjectURL(blob);
   const anchor = document.createElement('a');
 
@@ -287,7 +304,7 @@ function downloadTemplate() {
     </Button>
   </PageHeader>
 
-  <main class="mt-8">
+  <div class="mt-8">
     <section v-if="preview" class="flex flex-col gap-6">
       <div class="flex flex-col gap-4 sm:flex-row sm:items-start sm:justify-between">
         <div>
@@ -320,7 +337,16 @@ function downloadTemplate() {
         <p class="text-foreground text-sm">
           <strong>{{ split.ready }}</strong>
           {{ split.ready === 1 ? 'empresa será importada' : 'empresas serão importadas' }}.
-          <template v-if="split.usage">
+          <template v-if="split.updating">
+            <strong>{{ split.updating }}</strong>
+            {{
+              split.updating === 1
+                ? 'já está cadastrada e terá os dados substituídos pelos da planilha'
+                : 'já estão cadastradas e terão os dados substituídos pelos da planilha'
+            }}, sem ocupar vaga nova.
+          </template>
+          <template v-if="split.usage && split.fresh">
+            <template v-if="split.updating">Das novas,</template>
             <strong>{{ split.active }}</strong>
             {{ split.active === 1 ? 'ficará ativa' : 'ficarão ativas' }} (seu plano cobre
             {{ split.usage.companyCap }} e você já tem {{ split.usage.companiesActive }}) e
@@ -367,14 +393,18 @@ function downloadTemplate() {
           </Button>
         </template>
         <template v-else>
-          <p
-            class="flex min-w-0 flex-1 items-center gap-2 text-xs sm:text-sm text-success font-medium"
-          >
-            <CircleCheck class="shrink-0 h-4 w-4" aria-hidden="true" />
-            {{ invitesSent }}
-            {{ invitesSent === 1 ? 'convite enviado' : 'convites enviados' }}. Quem já tinha convite
-            em aberto não recebeu outro.
-          </p>
+          <div class="flex min-w-0 flex-1 flex-col gap-1 text-xs sm:text-sm">
+            <p class="flex items-center gap-2 font-medium text-success">
+              <CircleCheck class="shrink-0 h-4 w-4" aria-hidden="true" />
+              {{ invitesSent.invited }}
+              {{ invitesSent.invited === 1 ? 'convite enviado.' : 'convites enviados.' }}
+            </p>
+            <ul v-if="invitesSent.skipped.length" class="text-muted-foreground pl-6">
+              <li v-for="skip in invitesSent.skipped" :key="skip.reason">
+                {{ skip.count }} sem convite — {{ skip.reason }}
+              </li>
+            </ul>
+          </div>
         </template>
       </div>
 
@@ -422,7 +452,13 @@ function downloadTemplate() {
                 <TableCell class="text-muted-foreground text-xs sm:text-sm">
                   <template v-if="line.status === 'error'">{{ line.error }}</template>
                   <template v-else-if="line.status === 'created'">
-                    {{ line.active ? 'Empresa criada e ativa.' : 'Empresa criada, inativa.' }}
+                    <template v-if="!line.inserted">Empresa já cadastrada, atualizada.</template>
+                    <template v-else>{{
+                      line.active ? 'Empresa criada e ativa.' : 'Empresa criada, inativa.'
+                    }}</template>
+                  </template>
+                  <template v-else-if="line.existingName">
+                    Vai atualizar a empresa já cadastrada {{ line.existingName }}.
                   </template>
                   <template v-else>Aguardando confirmação.</template>
                 </TableCell>
@@ -523,7 +559,7 @@ function downloadTemplate() {
         </ul>
       </aside>
     </div>
-  </main>
+  </div>
 
   <Modal
     :open="confirmRestart"

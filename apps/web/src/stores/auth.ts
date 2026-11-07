@@ -36,13 +36,13 @@ export type Contact = {
   hasPassword?: boolean;
 };
 
-const SESSION_HINT_KEY = 'competa_auth';
+type Role = 'accountant' | 'contact';
 
 export const useAuthStore = defineStore('auth', () => {
   const accountant = ref<Accountant | null>(null);
   const contact = ref<Contact | null>(null);
 
-  let pending: Promise<void> | undefined;
+  let loads: Partial<Record<Role, Promise<boolean>>> = {};
 
   const isOverdue = computed(() => {
     const sub = accountant.value?.accountingFirm.subscription;
@@ -58,23 +58,6 @@ export const useAuthStore = defineStore('auth', () => {
     return false;
   });
 
-  function setSessionHint(role: 'accountant' | 'contact' | null) {
-    try {
-      if (role) localStorage.setItem(SESSION_HINT_KEY, role);
-      else localStorage.removeItem(SESSION_HINT_KEY);
-    } catch {
-      return;
-    }
-  }
-
-  function getSessionHint(): 'accountant' | 'contact' | null {
-    try {
-      return (localStorage.getItem(SESSION_HINT_KEY) as 'accountant' | 'contact') ?? null;
-    } catch {
-      return null;
-    }
-  }
-
   async function loadAccountant() {
     try {
       const data = await api.get<Accountant | null>('/auth/me');
@@ -83,11 +66,10 @@ export const useAuthStore = defineStore('auth', () => {
         return false;
       }
       accountant.value = data;
-      setSessionHint('accountant');
       return true;
     } catch {
       accountant.value = null;
-      pending = undefined;
+      delete loads.accountant;
       return false;
     }
   }
@@ -100,43 +82,32 @@ export const useAuthStore = defineStore('auth', () => {
         return false;
       }
       contact.value = data;
-      setSessionHint('contact');
       return true;
     } catch {
       contact.value = null;
-      pending = undefined;
+      delete loads.contact;
       return false;
     }
   }
 
-  async function load(target: 'accountant' | 'contact') {
-    if (target === 'accountant') {
-      const ok = await loadAccountant();
-      if (!ok) setSessionHint(null);
-      return;
-    }
-
-    const ok = await loadContact();
-    if (!ok) setSessionHint(null);
+  function ensureRole(role: Role) {
+    loads[role] ??= role === 'accountant' ? loadAccountant() : loadContact();
+    return loads[role];
   }
 
-  async function ensureLoaded(prefer: 'accountant' | 'contact' = 'accountant') {
-    const hint = getSessionHint();
-    if (!hint && prefer === 'accountant') {
-      return Promise.resolve();
+  async function ensureLoaded(prefer: Role = 'accountant') {
+    if (prefer === 'contact') {
+      await ensureRole('contact');
+      return;
     }
-
-    const target = hint && (hint === prefer || prefer === 'accountant') ? hint : prefer;
-    if (!pending) pending = load(target);
-    return pending;
+    if (!(await ensureRole('accountant'))) await ensureRole('contact');
   }
 
   async function signInAccountant(email: string, password: string) {
     const { error } = await authClient.signIn.email({ email, password });
     if (error) throw new Error('E-mail ou senha inválidos.');
 
-    setSessionHint('accountant');
-    accountant.value = await api.get<Accountant>('/auth/me');
+    await reloadAccountant();
   }
 
   async function signUpWithInvite(
@@ -154,8 +125,8 @@ export const useAuthStore = defineStore('auth', () => {
     cnpj?: string;
   }) {
     await api.post('/auth/register', body);
-    setSessionHint('accountant');
     const ok = await loadAccountant();
+    loads.accountant = Promise.resolve(ok);
     if (!ok) {
       await signInAccountant(body.email, body.password);
     }
@@ -183,11 +154,12 @@ export const useAuthStore = defineStore('auth', () => {
 
   async function resetPassword(newPassword: string, token: string) {
     const { error } = await authClient.resetPassword({ newPassword, token });
-    if (error) throw new Error('Link inválido ou expirado. Peça um novo.');
+    if (!error) return 'done';
+    if (error.code === 'INVALID_TOKEN') return 'invalid-link';
+    throw new Error('Não foi possível redefinir a senha. Tente de novo.');
   }
 
   async function signOut() {
-    setSessionHint(null);
     try {
       await authClient.signOut();
     } catch {
@@ -197,26 +169,19 @@ export const useAuthStore = defineStore('auth', () => {
     }
     accountant.value = null;
     contact.value = null;
-    pending = undefined;
+    loads = {};
   }
 
   async function reloadContact() {
-    setSessionHint('contact');
     const data = await api.get<Contact | null>('/my/profile');
-    if (!data || !data.contactId) {
-      contact.value = null;
-      setSessionHint(null);
-      return;
-    }
-    contact.value = data;
-    pending = Promise.resolve();
+    contact.value = data?.contactId ? data : null;
+    loads.contact = Promise.resolve(Boolean(contact.value));
   }
 
   async function signInContact(email: string, password: string) {
     const { error } = await authClient.signIn.email({ email, password });
     if (error) throw new Error('E-mail ou senha inválidos.');
 
-    setSessionHint('contact');
     await reloadContact();
   }
 
@@ -225,15 +190,9 @@ export const useAuthStore = defineStore('auth', () => {
   }
 
   async function reloadAccountant() {
-    setSessionHint('accountant');
     const data = await api.get<Accountant | null>('/auth/me');
-    if (!data || !data.accountant) {
-      accountant.value = null;
-      setSessionHint(null);
-      return;
-    }
-    accountant.value = data;
-    pending = Promise.resolve();
+    accountant.value = data?.accountant ? data : null;
+    loads.accountant = Promise.resolve(Boolean(accountant.value));
   }
 
   async function sendMagicLink(email: string, callbackURL: string) {

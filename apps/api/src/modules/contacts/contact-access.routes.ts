@@ -124,7 +124,7 @@ const acceptInvite = route(
 
       const found = yield* InvitesRepo.use((repo) => repo.findUsable(token.token));
       const { companyId } = found;
-      if (!companyId) return yield* Effect.fail(new InviteTargetUnsupported());
+      if (!companyId) return yield* Effect.fail(new InviteTargetUnsupported('accountant'));
 
       const owner = yield* ContactsRepo.use((repo) =>
         repo.findByEmailInCompany(companyId, found.email),

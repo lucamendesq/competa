@@ -21,18 +21,21 @@ import UploadFeedback from '@/components/UploadFeedback.vue';
 import Logo from '@/components/Logo.vue';
 import InstallButton from '@/components/InstallButton.vue';
 import { useUploadFeature } from '@/features/upload/composables/useUploadFeature';
+import type { ChecklistItem } from '@/features/upload/api/upload';
 import { usePush } from '@/composables/usePush';
 import { dateBr, monthLabel } from '@/utils/format';
 import { displayItemStatus, needsResend } from '@/utils/item-status';
 import { isOverdue } from '@/utils/format';
 import { toast } from 'vue-sonner';
 import { ApiError, apiErrorCode, apiErrorMessage, failureKind } from '@/api/error';
+import TermsConsent from '@/components/TermsConsent.vue';
 
 const route = useRoute();
 const token = computed(() => route.params.linkToken as string);
 
 const feature = useUploadFeature(token.value);
-const { checklistQuery, subscribePushMutation, activateAccessMutation, sendFiles } = feature;
+const { checklistQuery, subscribePushMutation, activateAccessMutation, sendFiles, uploadPercent } =
+  feature;
 
 const push = usePush();
 
@@ -97,17 +100,33 @@ const progress = computed(() => {
   return {
     total: items.length,
     delivered: delivered.length,
+    pending: items.length - delivered.length,
     percent: items.length ? Math.round((delivered.length / items.length) * 100) : 0,
   };
 });
 
-const allSent = computed(() => {
-  const items = checklistQuery.data.value?.items ?? [];
-  return (
-    items.length > 0 &&
-    items.every((item) => item.status !== 'pending' && item.status !== 'rejected')
-  );
-});
+const allSent = computed(() => progress.value.total > 0 && progress.value.pending === 0);
+
+const allAccepted = computed(() =>
+  (checklistQuery.data.value?.items ?? []).every((item) => item.status === 'accepted'),
+);
+
+const hasSentSomething = computed(
+  () => progress.value.delivered > 0 || (checklistQuery.data.value?.extraDocuments.length ?? 0) > 0,
+);
+
+const offerAccess = computed(
+  () =>
+    hasSentSomething.value &&
+    !checklistQuery.data.value?.hasAccess &&
+    !accessEmailSent.value &&
+    !accountExists.value,
+);
+
+const itemPillStatus = (item: ChecklistItem) =>
+  item.status === 'pending' && !needsResend(item) && isOverdue(item.dueDate)
+    ? 'overdue'
+    : displayItemStatus(item);
 
 /* Só `needsResend` muda de posição (precisa chamar atenção lá em cima). Fora isso, a
  * ordem é sempre alfabética e não se mexe quando o status do item muda — um envio bem
@@ -168,14 +187,18 @@ async function send(files: File[], requestItemId: string | null) {
     <header
       class="bg-white border-b border-border w-full px-4 py-3 flex items-center justify-between sm:px-6"
     >
-      <img
-        v-if="firmLogoUrl && !logoBroken"
-        :src="firmLogoUrl"
-        :alt="checklistQuery.data.value?.accountingFirm"
-        class="h-6 w-auto max-w-[160px] object-contain"
-        referrerpolicy="no-referrer"
-        @error="logoBroken = true"
-      />
+      <div v-if="firmLogoUrl && !logoBroken" class="flex min-w-0 items-center gap-2">
+        <img
+          :src="firmLogoUrl"
+          alt=""
+          class="h-6 w-auto max-w-[120px] shrink-0 object-contain"
+          referrerpolicy="no-referrer"
+          @error="logoBroken = true"
+        />
+        <span class="truncate text-sm font-semibold text-foreground">
+          {{ checklistQuery.data.value?.accountingFirm }}
+        </span>
+      </div>
       <Logo v-else variant="icon" surface="auto" class="h-6" />
       <InstallButton variant="card" />
     </header>
@@ -212,9 +235,18 @@ async function send(files: File[], requestItemId: string | null) {
         Link indisponível ou expirado
       </h1>
       <p class="text-muted-foreground mt-2 text-sm">
-        O link de envio expirou ou a competência foi encerrada. Peça um novo link para a
-        contabilidade.
+        Este link de envio expirou ou foi substituído por um mais novo. Informe seu e-mail e
+        enviamos o link atual para você.
       </p>
+      <Button class="mt-6" as-child>
+        <RouterLink to="/perdi-meu-link">Receber o link atual</RouterLink>
+      </Button>
+      <RouterLink
+        to="/minha-area/acesso"
+        class="text-muted-foreground hover:text-foreground mt-4 text-sm font-medium hover:underline"
+      >
+        Já tem acesso? Entrar na Minha Área
+      </RouterLink>
     </main>
 
     <main
@@ -285,63 +317,60 @@ async function send(files: File[], requestItemId: string | null) {
       </div>
 
       <div
-        v-else-if="!allSent && !closed && !checklistQuery.data.value.hasAccess"
-        class="bg-card border-border mb-6 rounded-xl border p-4 shadow-sm"
+        v-if="closed && !allSent"
+        class="bg-muted border-border mb-6 rounded-xl border p-5"
+        role="status"
       >
-        <div class="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
-          <div class="flex items-start gap-3">
-            <span
-              class="bg-primary/10 text-primary flex size-9 shrink-0 items-center justify-center rounded-lg mt-0.5"
-            >
-              <Lock class="h-4 w-4" />
-            </span>
-            <div>
-              <p class="text-sm font-semibold text-foreground">
-                Acesse quando quiser sem depender do link
-              </p>
-              <p class="text-muted-foreground text-xs mt-0.5">
-                Mandamos um link de acesso para o seu email e você acompanha pendências e histórico
-                na sua área exclusiva.
-              </p>
-            </div>
+        <div class="flex items-start gap-4">
+          <Lock class="text-muted-foreground mt-1 h-5 w-5 shrink-0" aria-hidden="true" />
+          <div class="min-w-0 flex-1">
+            <h2 class="text-base font-semibold tracking-tight text-foreground">
+              Competência encerrada com pendências
+            </h2>
+            <p class="mt-1 text-sm text-foreground/80">
+              A contabilidade encerrou esta competência com
+              {{
+                progress.pending === 1 ? '1 item sem envio' : `${progress.pending} itens sem envio`
+              }}. Se ainda tiver algum desses documentos, mande pelo bloco de documento extra no fim
+              da página.
+            </p>
           </div>
-          <Button
-            variant="outline"
-            size="sm"
-            class="shrink-0"
-            :disabled="activatingAccess"
-            @click="handleActivateAccess"
-          >
-            {{ activatingAccess ? 'Enviando…' : 'Criar meu acesso' }}
-          </Button>
         </div>
       </div>
 
       <div
-        v-else-if="(allSent || closed) && !checklistQuery.data.value.hasAccess"
+        v-else-if="allSent"
         class="bg-primary/10 border-primary/20 mb-6 rounded-xl border p-5"
+        role="status"
       >
         <div class="flex items-start gap-4">
           <PartyPopper class="text-primary mt-1 shrink-0 text-2xl" aria-hidden="true" />
           <div class="min-w-0 flex-1">
             <h2 class="text-base font-semibold tracking-tight text-foreground">
-              Tudo entregue, mês fechado!
+              {{ allAccepted ? 'Tudo entregue e aprovado!' : 'Tudo enviado!' }}
             </h2>
-            <p class="mt-1 text-sm text-foreground/80">A contabilidade já foi notificada.</p>
-            <template v-if="!push.subscribed.value">
+            <p class="mt-1 text-sm text-foreground/80">
+              {{
+                allAccepted
+                  ? 'A contabilidade conferiu e aprovou todos os documentos deste mês.'
+                  : 'Agora a contabilidade confere os documentos. Se algum for recusado, o motivo aparece aqui e você reenvia pelo mesmo link.'
+              }}
+            </p>
+            <template
+              v-if="
+                !checklistQuery.data.value.hasAccess && !accessEmailSent && !push.subscribed.value
+              "
+            >
               <p class="mt-3 text-sm text-foreground/80">
                 Quer ser lembrado mês que vem e não depender do WhatsApp?
               </p>
               <div class="mt-4 flex flex-wrap gap-2">
-                <p v-if="accessEmailSent" class="mt-3 text-sm font-medium text-foreground">
-                  Enviamos um link de acesso para {{ accessEmailSent }}. Abra seu email para entrar.
-                </p>
-                <Button v-else-if="accountExists" variant="default" as-child>
+                <Button v-if="accountExists" variant="default" as-child>
                   <RouterLink to="/minha-area/acesso">
                     <LogIn class="mr-2 h-4 w-4" /> Entre na sua conta
                   </RouterLink>
                 </Button>
-                <template v-else-if="!accessEmailSent">
+                <template v-else>
                   <Button
                     v-if="push.available.value"
                     variant="default"
@@ -361,6 +390,7 @@ async function send(files: File[], requestItemId: string | null) {
                   </Button>
                 </template>
               </div>
+              <TermsConsent v-if="!accountExists" action="Ao criar seu acesso" class="mt-3" />
             </template>
           </div>
         </div>
@@ -381,7 +411,7 @@ async function send(files: File[], requestItemId: string | null) {
         >
           <button
             type="button"
-            class="hover:bg-muted/40 focus-visible:bg-muted/40 focus-visible:ring-ring flex items-start justify-between gap-4 p-4 text-left focus-visible:outline-none transition-colors"
+            class="hover:bg-muted/40 focus-visible:bg-muted/40 focus-visible:ring-ring focus-visible:ring-2 focus-visible:ring-inset flex items-start justify-between gap-4 p-4 text-left focus-visible:outline-none transition-colors"
             :aria-expanded="expanded === item.id"
             :aria-controls="'upload-' + item.id"
             @click="toggle(item.id)"
@@ -389,7 +419,7 @@ async function send(files: File[], requestItemId: string | null) {
             <span class="min-w-0 flex-1">
               <span class="flex items-center gap-2 flex-wrap">
                 <span class="truncate text-sm font-semibold text-foreground">{{ item.name }}</span>
-                <StatusPill :status="displayItemStatus(item)" />
+                <StatusPill :status="itemPillStatus(item)" />
               </span>
               <span class="text-muted-foreground mt-1 flex flex-wrap gap-x-2 gap-y-1 text-xs">
                 <span
@@ -461,7 +491,22 @@ async function send(files: File[], requestItemId: string | null) {
             >
               <Upload class="text-primary animate-bounce text-xl" aria-hidden="true" />
               <span class="text-sm font-medium">Enviando arquivos…</span>
-              <span class="text-muted-foreground text-xs">Aguarde a confirmação</span>
+              <div
+                class="bg-muted h-2 w-full max-w-xs overflow-hidden rounded-full"
+                role="progressbar"
+                aria-label="Progresso do envio"
+                aria-valuemin="0"
+                aria-valuemax="100"
+                :aria-valuenow="uploadPercent"
+              >
+                <div
+                  class="bg-primary h-full transition-all"
+                  :style="{ width: `${uploadPercent}%` }"
+                />
+              </div>
+              <span class="text-muted-foreground text-xs" aria-hidden="true">
+                {{ uploadPercent < 100 ? `${uploadPercent}%` : 'Aguarde a confirmação' }}
+              </span>
             </div>
             <div v-else>
               <label
@@ -505,6 +550,40 @@ async function send(files: File[], requestItemId: string | null) {
         </li>
       </ul>
 
+      <div
+        v-if="offerAccess && !allSent && !closed"
+        class="bg-card border-border mt-6 rounded-xl border p-4 shadow-sm"
+      >
+        <div class="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
+          <div class="flex items-start gap-3">
+            <span
+              class="bg-primary/10 text-primary flex size-9 shrink-0 items-center justify-center rounded-lg mt-0.5"
+            >
+              <Lock class="h-4 w-4" />
+            </span>
+            <div>
+              <p class="text-sm font-semibold text-foreground">
+                Acesse quando quiser sem depender do link
+              </p>
+              <p class="text-muted-foreground text-xs mt-0.5">
+                Mandamos um link de acesso para o seu email e você acompanha pendências e histórico
+                na sua área exclusiva.
+              </p>
+              <TermsConsent action="Ao criar seu acesso" class="mt-1.5" />
+            </div>
+          </div>
+          <Button
+            variant="outline"
+            size="sm"
+            class="shrink-0"
+            :disabled="activatingAccess"
+            @click="handleActivateAccess"
+          >
+            {{ activatingAccess ? 'Enviando…' : 'Criar meu acesso' }}
+          </Button>
+        </div>
+      </div>
+
       <section class="bg-card border-border mt-6 rounded-xl border p-4 shadow-sm">
         <h2 class="font-display text-base font-semibold text-foreground">Enviar documento extra</h2>
         <p class="text-muted-foreground mt-1 text-sm">Se não estiver na lista acima, envie aqui.</p>
@@ -517,7 +596,19 @@ async function send(files: File[], requestItemId: string | null) {
         >
           <Upload class="text-primary animate-bounce text-xl" aria-hidden="true" />
           <span class="text-sm font-medium">Enviando arquivos…</span>
-          <span class="text-muted-foreground text-xs">Aguarde a confirmação</span>
+          <div
+            class="bg-muted h-2 w-full max-w-xs overflow-hidden rounded-full"
+            role="progressbar"
+            aria-label="Progresso do envio"
+            aria-valuemin="0"
+            aria-valuemax="100"
+            :aria-valuenow="uploadPercent"
+          >
+            <div class="bg-primary h-full transition-all" :style="{ width: `${uploadPercent}%` }" />
+          </div>
+          <span class="text-muted-foreground text-xs" aria-hidden="true">
+            {{ uploadPercent < 100 ? `${uploadPercent}%` : 'Aguarde a confirmação' }}
+          </span>
         </div>
         <label
           v-else
@@ -561,7 +652,7 @@ async function send(files: File[], requestItemId: string | null) {
       <footer
         class="mt-8 flex flex-col items-center justify-center gap-2 text-center text-xs text-muted-foreground sm:flex-row sm:gap-4"
       >
-        <template v-if="!checklistQuery.data.value.hasAccess && !accessEmailSent">
+        <template v-if="offerAccess">
           <div>
             <span>Ainda não tem acesso? </span>
             <button

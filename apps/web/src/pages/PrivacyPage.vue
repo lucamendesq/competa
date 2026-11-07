@@ -4,7 +4,7 @@ import { ArrowLeft } from 'lucide-vue-next';
 </script>
 
 <template>
-  <div class="bg-background min-h-dvh">
+  <main class="bg-background min-h-dvh">
     <div class="mx-auto max-w-2xl px-4 py-12 sm:px-6 lg:px-8">
       <RouterLink
         to="/"
@@ -58,5 +58,5 @@ import { ArrowLeft } from 'lucide-vue-next';
         </p>
       </div>
     </div>
-  </div>
+  </main>
 </template>

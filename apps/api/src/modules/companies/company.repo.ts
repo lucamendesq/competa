@@ -2,6 +2,7 @@ import { Cause, Context, Effect, Layer } from 'effect';
 import { and, asc, count, eq, ilike, inArray, isNotNull, isNull, ne, or, sql } from 'drizzle-orm';
 import {
   COMPANY_FLAGS,
+  type CompanyFlag,
   type CompanyFlags,
   CreateCompanyBody,
   type ContactBody,
@@ -46,7 +47,9 @@ export type ImportLineResult =
 export type PendingImportRow = { line: number; body: CreateCompanyBody };
 
 export type ImportPreviewLine =
-  | ({ line: number; status: 'pending'; name: string } & PendingImportRow)
+  /* `existingName`: o CNPJ já está cadastrado e a linha atualiza essa Empresa, sem ocupar
+   * vaga nova. */
+  | ({ line: number; status: 'pending'; name: string; existingName?: string } & PendingImportRow)
   | { line: number; status: 'error'; name: string; error: string };
 
 const cnpjTakenOrDie = (violation: UniqueViolation) =>
@@ -205,7 +208,7 @@ const make = Effect.gen(function* () {
     const cleanDigits = searchTrimmed ? searchTrimmed.replace(/\D/g, '') : '';
     const searchFilter = searchTrimmed
       ? or(
-          ilike(company.name, `%${searchTrimmed}%`),
+          sql`unaccent(${company.name}) ilike unaccent(${`%${searchTrimmed.replace(/[\\%_]/g, '\\$&')}%`})`,
           cleanDigits ? ilike(company.cnpj, `%${cleanDigits}%`) : undefined,
         )
       : undefined;
@@ -572,7 +575,10 @@ const make = Effect.gen(function* () {
    *  empresa antes do Contador confirmar: reenviar a planilha depois de corrigir outras
    *  linhas duplicava quem já tinha dado certo. Agora só entra no banco em `confirmImport`,
    *  quando o Contador confirma de fato (ao enviar convite ou ao concluir). */
-  const validateCsv = Effect.fn('CompaniesRepo.validateCsv')(function* (csv: string) {
+  const validateCsv = Effect.fn('CompaniesRepo.validateCsv')(function* (
+    scope: FirmScope,
+    csv: string,
+  ) {
     const records = parseCsvRecords(csv);
 
     if (records.length > MAX_IMPORT_ROWS) {
@@ -598,10 +604,27 @@ const make = Effect.gen(function* () {
         values.contact_email || values.contact_name || values.contact_phone,
       );
 
+      if (/e\+\d+$/i.test(values.cnpj ?? '')) {
+        lines.push({
+          line,
+          status: 'error',
+          name,
+          error:
+            'cnpj: a planilha guardou o CNPJ em notação científica. Formate a coluna CNPJ como texto e exporte de novo.',
+        });
+        continue;
+      }
+
+      const flags = parseFlags(values);
+      if ('error' in flags) {
+        lines.push({ line, status: 'error', name, error: flags.error });
+        continue;
+      }
+
       const parsed = CreateCompanyBody.safeParse({
         name,
-        cnpj: values.cnpj || undefined,
-        flags: parseFlags(values),
+        cnpj: cnpjCell(values.cnpj),
+        flags: flags.flags,
         contact: hasContact
           ? {
               name: values.contact_name || name,
@@ -632,6 +655,23 @@ const make = Effect.gen(function* () {
       }
 
       lines.push({ line, status: 'pending', name, body: parsed.data });
+    }
+
+    const cnpjs = [...seenCnpj.keys()];
+    const existing = cnpjs.length
+      ? yield* db.use((d) =>
+          d
+            .select({ cnpj: company.cnpj, name: company.name })
+            .from(company)
+            .where(and(eq(company.accountingFirmId, scope), inArray(company.cnpj, cnpjs))),
+        )
+      : [];
+    const existingByCnpj = new Map(existing.map((row) => [row.cnpj, row.name]));
+
+    for (const row of lines) {
+      if (row.status !== 'pending' || !row.body.cnpj) continue;
+      const existingName = existingByCnpj.get(row.body.cnpj);
+      if (existingName !== undefined) row.existingName = existingName;
     }
 
     return {
@@ -894,20 +934,51 @@ export class CompaniesRepo extends Context.Service<CompaniesRepo, Effect.Success
   static readonly layer = this.layerNoDeps.pipe(Layer.provide(Db.layer));
 }
 
-const TRUTHY_FLAG_VALUES = new Set(['sim', 's', 'true', 'verdadeiro', '1']);
+/** Célula numérica do Excel perde os zeros à esquerda do CNPJ (01.234.… vira 1234…). Só a
+ *  célula só de dígitos é completada: CNPJ digitado com pontuação chega inteiro. */
+const cnpjCell = (value: string | undefined) =>
+  value && /^\d{12,13}$/.test(value) ? value.padStart(14, '0') : value || undefined;
 
-/** Só as colunas presentes viram flag (`false` quando a célula não diz sim): o reenvio
- *  mescla nas flags da Empresa, então coluna ausente não pode valer "não". */
-const parseFlags = (values: Record<string, string | undefined>): CompanyFlags =>
-  Object.fromEntries(
-    COMPANY_FLAGS.filter((flag) => values[`flag_${flag}`] !== undefined).map((flag) => [
-      flag,
-      TRUTHY_FLAG_VALUES.has(values[`flag_${flag}`]!.trim().toLowerCase()),
-    ]),
+const FLAG_CELL_VALUES = new Map([
+  ...['sim', 's', 'true', 'verdadeiro', '1'].map((cell) => [cell, true] as const),
+  ...['nao', 'n', 'false', 'falso', '0', ''].map((cell) => [cell, false] as const),
+]);
+
+const FLAG_HEADER: Record<CompanyFlag, string> = {
+  has_employees: 'Tem funcionários',
+  accepts_card_payments: 'Aceita pagamento por cartão',
+  has_inventory: 'Controla estoque',
+};
+
+const flagCell = (value: string) =>
+  FLAG_CELL_VALUES.get(
+    value
+      .trim()
+      .toLowerCase()
+      .normalize('NFD')
+      .replace(/\p{Diacritic}/gu, ''),
   );
 
-const firstIssue = (error: z.ZodError) => {
-  const issue = error.issues[0];
+/** Só as colunas presentes viram flag: o reenvio mescla nas flags da Empresa, então coluna
+ *  ausente não pode valer "não". Célula que não é sim nem não vira erro da linha, em vez de
+ *  "não" calado que tira Itens condicionais do checklist. */
+const parseFlags = (
+  values: Record<string, string | undefined>,
+): { flags: CompanyFlags } | { error: string } => {
+  const flags: CompanyFlags = {};
 
-  return `${issue.path.join('.') || 'linha'}: ${issue.message}`;
+  for (const flag of COMPANY_FLAGS) {
+    const cell = values[`flag_${flag}`];
+    if (cell === undefined) continue;
+
+    const parsed = flagCell(cell);
+    if (parsed === undefined) {
+      return { error: `${FLAG_HEADER[flag]}: use Sim ou Não (veio "${cell.trim()}").` };
+    }
+    flags[flag] = parsed;
+  }
+
+  return { flags };
 };
+
+const firstIssue = (error: z.ZodError) => error.issues[0].message;

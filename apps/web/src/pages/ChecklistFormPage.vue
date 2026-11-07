@@ -6,6 +6,7 @@ import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import PageHeader from '@/components/PageHeader.vue';
 import ErrorState from '@/components/ErrorState.vue';
+import NotFoundState from '@/components/NotFoundState.vue';
 import LoadingRows from '@/components/LoadingRows.vue';
 import Modal from '@/components/Modal.vue';
 import CatalogPicker, { type CatalogDocument } from '@/components/CatalogPicker.vue';
@@ -15,7 +16,7 @@ import {
   useChecklistsFeature,
 } from '@/features/checklists/composables/useChecklistsFeature';
 import { toast } from 'vue-sonner';
-import { apiErrorMessage } from '@/api/error';
+import { apiErrorMessage, isNotFound } from '@/api/error';
 import { COMPANY_FLAGS } from '@competa/contracts';
 import { CATEGORY_LABEL, FLAG_LABEL } from '@/utils/format';
 
@@ -178,21 +179,37 @@ function discard() {
   }
 }
 
+const nameError = ref<string | null>(null);
+watch(draftName, () => {
+  nameError.value = null;
+});
+
 async function save() {
   if (!hasChanges.value) return;
+  const name = draftName.value.trim();
+  if (!name) {
+    nameError.value = 'Informe o nome do template.';
+    toast.error(nameError.value);
+    return;
+  }
   acting.value = true;
 
   try {
-    const name = draftName.value.trim();
-    if (name && name !== detailQuery.data.value?.name) {
+    const renamed = name !== detailQuery.data.value?.name;
+    const removals = [...removedIds.value];
+    /* Cada mutação invalida `['templates']`, e o refetch reseta o rascunho pelo `watch`:
+     * lido dentro do laço, o rascunho já voltou ao salvo e as edições somem em silêncio. */
+    const changedItems = visibleItems.value.filter((item) => item.added || isDirty(item));
+
+    if (renamed) {
       await renameTemplateMutation.mutateAsync({ id: props.id, name });
     }
 
-    for (const itemId of removedIds.value) {
+    for (const itemId of removals) {
       await removeItemMutation.mutateAsync(itemId);
     }
 
-    for (const item of visibleItems.value) {
+    for (const item of changedItems) {
       const scheduling = {
         periodicity: item.periodicity as any,
         annualMonth: item.annualMonth,
@@ -207,7 +224,7 @@ async function save() {
           documentTypeId: item.documentTypeId,
           ...scheduling,
         });
-      } else if (isDirty(item)) {
+      } else {
         await updateItemMutation.mutateAsync({
           itemId: item.id,
           body: scheduling,
@@ -244,11 +261,11 @@ async function doDeleteTemplate() {
   acting.value = true;
   try {
     await deleteTemplateMutation.mutateAsync(props.id);
-    toast.success('Modelo excluído com sucesso.');
+    toast.success('Template excluído.');
     confirmDelete.value = false;
     router.push('/templates');
   } catch (error) {
-    toast.error(apiErrorMessage(error, 'Não foi possível excluir o modelo.'));
+    toast.error(apiErrorMessage(error, 'Não foi possível excluir o template.'));
   } finally {
     acting.value = false;
   }
@@ -280,27 +297,34 @@ function resolveLeave(leave: boolean) {
     title="Editar Checklist"
     :description="
       detailQuery.data.value?.accountingFirmId === null
-        ? 'Este é um template padrão e não pode ser apagado, mas pode ser ajustado para o seu uso.'
+        ? 'Este é um template padrão, somente leitura. Duplique para ajustar ao seu uso.'
         : 'Ajuste os documentos exigidos para empresas com este template.'
     "
   >
     <Button variant="outline" class="mr-2 shadow-xs" @click="router.back()">Voltar</Button>
     <Button
-      v-if="isProductTemplate"
+      v-if="detailQuery.data.value && isProductTemplate"
       :disabled="acting"
       class="shadow-xs font-medium"
       @click="deriveAndEdit"
     >
       <Copy class="mr-2 h-4 w-4" aria-hidden="true" /> Duplicar para editar
     </Button>
-    <Button v-else class="shadow-xs font-medium" @click="catalogOpen = true">
+    <Button
+      v-else-if="detailQuery.data.value"
+      class="shadow-xs font-medium"
+      @click="catalogOpen = true"
+    >
       <Plus class="mr-2 h-4 w-4" aria-hidden="true" /> Adicionar documento
     </Button>
   </PageHeader>
 
-  <main class="mt-8">
+  <div class="mt-8">
     <template v-if="detailQuery.isLoading.value">
       <LoadingRows />
+    </template>
+    <template v-else-if="isNotFound(detailQuery.error.value)">
+      <NotFoundState title="Template não encontrado" to="/templates" back-label="Ver templates" />
     </template>
     <template v-else-if="detailQuery.isError.value">
       <ErrorState title="Não foi possível carregar." @retry="detailQuery.refetch()" />
@@ -317,7 +341,10 @@ function resolveLeave(leave: boolean) {
           v-model="draftName"
           class="focus-visible:ring-ring focus-visible:border-primary shadow-xs"
           :disabled="isProductTemplate"
+          :aria-invalid="nameError ? true : undefined"
+          :aria-describedby="nameError ? 'templateNameError' : undefined"
         />
+        <p v-if="nameError" id="templateNameError" class="text-danger text-sm">{{ nameError }}</p>
         <p v-if="isProductTemplate" class="text-muted-foreground text-xs">
           Templates padrão são somente leitura. Duplique para ajustar ao seu uso.
         </p>
@@ -350,7 +377,7 @@ function resolveLeave(leave: boolean) {
                   Modificado
                 </span>
               </div>
-              <h3 class="font-display text-base font-semibold text-foreground">{{ item.name }}</h3>
+              <h2 class="font-display text-base font-semibold text-foreground">{{ item.name }}</h2>
               <p v-if="item.description" class="text-muted-foreground mt-1.5 text-sm">
                 {{ item.description }}
               </p>
@@ -369,16 +396,20 @@ function resolveLeave(leave: boolean) {
               variant="ghost"
               size="icon"
               class="text-muted-foreground hover:text-danger hover:bg-danger/10 h-8 w-8 rounded-lg transition-colors"
+              :aria-label="`Remover ${item.name}`"
               @click="confirmRemoval = item"
             >
-              <Trash2 class="h-4 w-4" />
+              <Trash2 class="h-4 w-4" aria-hidden="true" />
             </Button>
           </div>
 
           <div class="border-border mt-4 flex flex-wrap gap-4 border-t pt-4">
             <div class="flex flex-col gap-1.5 min-w-[140px]">
-              <label class="text-xs font-medium text-foreground">Frequência</label>
+              <label :for="`periodicity-${item.id}`" class="text-xs font-medium text-foreground"
+                >Frequência</label
+              >
               <select
+                :id="`periodicity-${item.id}`"
                 class="flex h-9 w-full rounded-md border border-input bg-background px-3 py-1 text-sm shadow-xs transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:border-primary disabled:cursor-not-allowed disabled:opacity-50"
                 :disabled="isProductTemplate"
                 :value="item.periodicity"
@@ -392,24 +423,30 @@ function resolveLeave(leave: boolean) {
 
             <template v-if="item.periodicity === 'monthly'">
               <div class="flex flex-col gap-1.5 min-w-[140px]">
-                <label class="text-xs font-medium text-foreground">Prazo (Dia)</label>
+                <label :for="`due-day-${item.id}`" class="text-xs font-medium text-foreground"
+                  >Prazo (Dia)</label
+                >
                 <Input
+                  :id="`due-day-${item.id}`"
                   type="number"
                   min="1"
                   max="31"
                   class="h-9 w-24 focus-visible:ring-ring focus-visible:border-primary"
                   placeholder="Livre"
                   :disabled="isProductTemplate"
-                  :value="item.dueDay ?? ''"
-                  @input="changeDay(item, ($event.target as HTMLInputElement).value)"
+                  :model-value="item.dueDay ?? ''"
+                  @update:model-value="changeDay(item, String($event))"
                 />
               </div>
             </template>
 
             <template v-if="item.periodicity === 'annual'">
               <div class="flex flex-col gap-1.5 min-w-[140px]">
-                <label class="text-xs font-medium text-foreground">Mês do envio</label>
+                <label :for="`annual-month-${item.id}`" class="text-xs font-medium text-foreground"
+                  >Mês do envio</label
+                >
                 <select
+                  :id="`annual-month-${item.id}`"
                   class="flex h-9 w-32 rounded-md border border-input bg-background px-3 py-1 text-sm shadow-xs transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:border-primary disabled:cursor-not-allowed disabled:opacity-50"
                   :disabled="isProductTemplate"
                   :value="item.annualMonth"
@@ -432,8 +469,11 @@ function resolveLeave(leave: boolean) {
             </template>
 
             <div class="flex flex-col gap-1.5 min-w-[180px]">
-              <label class="text-xs font-medium text-foreground">Condição (Opcional)</label>
+              <label :for="`condition-${item.id}`" class="text-xs font-medium text-foreground"
+                >Condição (Opcional)</label
+              >
               <select
+                :id="`condition-${item.id}`"
                 class="flex h-9 w-full rounded-md border border-input bg-background px-3 py-1 text-sm shadow-xs transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:border-primary disabled:cursor-not-allowed disabled:opacity-50"
                 :disabled="isProductTemplate"
                 :value="item.conditionFlag ?? ''"
@@ -482,12 +522,12 @@ function resolveLeave(leave: boolean) {
         </div>
       </div>
     </template>
-  </main>
+  </div>
 
   <!-- Sticky Footer Bar -->
   <div
     v-if="hasChanges"
-    class="border-border bg-card fixed inset-x-0 bottom-0 z-40 border-t p-3.5 shadow-[0_-4px_16px_rgba(15,23,42,0.08)]"
+    class="border-border bg-card fixed inset-x-0 bottom-0 z-40 border-t p-3.5 shadow-[0_-4px_16px_rgba(15,23,42,0.08)] lg:left-[260px]"
   >
     <div class="mx-auto flex max-w-5xl items-center justify-between">
       <span
@@ -536,7 +576,7 @@ function resolveLeave(leave: boolean) {
   <Modal
     v-model:open="confirmDelete"
     title="Excluir template?"
-    description="Isto deixará as empresas deste template sem checklist nas próximas competências."
+    description="Só dá para excluir um template que nenhuma empresa usa. As solicitações já abertas não mudam."
   >
     <div
       class="border-border bg-muted/40 -mx-6 -mb-6 mt-5 flex flex-wrap justify-end gap-2 border-t p-4"

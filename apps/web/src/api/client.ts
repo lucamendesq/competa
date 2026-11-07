@@ -20,6 +20,12 @@ const cleanParams = (params?: Params): Record<string, string> => {
 
 const apiUrl = import.meta.env.VITE_API_URL || 'http://localhost:3000';
 
+let sessionExpiredHandler: (() => void) | undefined;
+
+export const onSessionExpired = (handler: () => void) => {
+  sessionExpiredHandler = handler;
+};
+
 class ApiClient {
   private async request<T>(
     method: string,
@@ -74,6 +80,7 @@ class ApiClient {
       if (response.status === 401 && (url === '/auth/me' || url === '/my/profile')) {
         return { data: null } as unknown as T;
       }
+      if (response.status === 401) sessionExpiredHandler?.();
 
       const text = await response.text().catch(() => '');
       let body: unknown = text;

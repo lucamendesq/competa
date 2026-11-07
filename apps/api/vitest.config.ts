@@ -8,7 +8,14 @@ export default defineConfig({
     hookTimeout: 60000,
     env: {
       NODE_ENV: 'test',
+      /* A conexão inteira vem do shell (CI) ou do Postgres do docker-compose, nunca do .env:
+       * ele é gerado do .env.template e aponta para o banco do staging. */
+      DB_HOST: process.env.DB_HOST ?? 'localhost',
+      DB_PORT: process.env.DB_PORT ?? '5432',
+      DB_USER: process.env.DB_USER ?? 'postgres',
+      DB_PASS: process.env.DB_PASS ?? '',
       DB_NAME: process.env.DB_NAME ?? 'competa_test',
+      DB_SSL_CA: process.env.DB_SSL_CA ?? '',
       LOG_LEVEL: 'error',
       /* As suites congelam a recusa dos webhooks SEM segredo; um .env de dev com os
        * tokens preenchidos não pode mudar isso (blankAsMissing trata '' como ausente). */

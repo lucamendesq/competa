@@ -38,6 +38,7 @@ const onSubmit = handleSubmit(async (values) => {
   submitError.value = null;
   try {
     await authStore.setContactPassword(values.password);
+    await authStore.reloadContact();
     success.value = true;
   } catch (err: any) {
     submitError.value = apiErrorMessage(err, 'Não foi possível definir a senha.');

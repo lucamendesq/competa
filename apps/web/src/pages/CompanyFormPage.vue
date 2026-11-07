@@ -10,12 +10,14 @@ import {
   email as emailSchema,
   type CompanyFlag,
 } from '@competa/contracts';
-import {} from 'lucide-vue-next';
+import { CircleCheck } from 'lucide-vue-next';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import PageHeader from '@/components/PageHeader.vue';
 import Callout from '@/components/Callout.vue';
+import Modal from '@/components/Modal.vue';
+import NotFoundState from '@/components/NotFoundState.vue';
 import {
   useCompanyChecklistFeature,
   useCompanyDetailFeature,
@@ -24,9 +26,9 @@ import {
   useChecklistsFeature,
   useTemplateDetailFeature,
 } from '@/features/checklists/composables/useChecklistsFeature';
-import { useSettingsStore } from '@/stores/settings';
+import { useAccountants } from '@/features/team/composables/useAccountants';
 import { toast } from 'vue-sonner';
-import { apiErrorMessage, apiFieldErrors } from '@/api/error';
+import { apiErrorMessage, apiFieldErrors, isNotFound } from '@/api/error';
 import { CATEGORY_LABEL, FLAG_LABEL, PERIODICITY_LABEL } from '@/utils/format';
 
 const props = defineProps<{ id?: string }>();
@@ -34,6 +36,8 @@ const router = useRouter();
 
 const {
   detailQuery,
+  accessesQuery,
+  revokeAccessMutation,
   createCompanyMutation,
   updateCompanyMutation,
   addContactMutation,
@@ -41,8 +45,8 @@ const {
   removeContactMutation,
 } = useCompanyDetailFeature(computed(() => props.id));
 const { templatesQuery } = useChecklistsFeature();
-const settingsStore = useSettingsStore();
-const teamAccountants = computed(() => settingsStore.accountants);
+const accountantsQuery = useAccountants();
+const teamAccountants = computed(() => accountantsQuery.data.value ?? []);
 
 /* Flags e categorias vêm do contrato: a lista local editava flags que a API descartava em
  * silêncio e nunca deixava ligar cartão/estoque, então esses itens não entravam no fan-out. */
@@ -81,6 +85,8 @@ const optionalEmail = () =>
     message: 'E-mail inválido.',
   });
 
+const CONTACT_EMAIL_REQUIRED = 'Sem e-mail o Responsável não recebe o link de cobrança.';
+
 const CompanyForm = z
   .object({
     name: CreateCompanyBody.shape.name,
@@ -92,7 +98,7 @@ const CompanyForm = z
     contactPhone: z.string().trim(),
   })
   .refine((value) => !value?.contactName || value.contactEmail !== '', {
-    message: 'Sem e-mail o Responsável não recebe o link de cobrança.',
+    message: CONTACT_EMAIL_REQUIRED,
     path: ['contactEmail'],
   });
 
@@ -116,6 +122,12 @@ const { value: cnpj } = useField<string>('cnpj');
 const { value: contactName } = useField<string>('contactName');
 const { value: contactEmail } = useField<string>('contactEmail');
 const { value: contactPhone } = useField<string>('contactPhone');
+
+const contactEmailError = computed(
+  () =>
+    errors.value.contactEmail ??
+    (contactName.value.trim() && !contactEmail.value.trim() ? CONTACT_EMAIL_REQUIRED : undefined),
+);
 
 function cnpjInputMask(value: string | null) {
   if (!value) return '';
@@ -280,6 +292,21 @@ async function syncContact(contact?: { name: string; email: string; phone?: stri
   }
 }
 
+type ContactWithAccess = { id: string; name: string; email: string };
+
+const confirmRevoke = ref<ContactWithAccess | null>(null);
+
+async function revoke(contact: ContactWithAccess) {
+  try {
+    await revokeAccessMutation.mutateAsync(contact.id);
+    toast.success(`Acesso de ${contact.name} revogado.`);
+  } catch (err) {
+    toast.error(apiErrorMessage(err, 'Não foi possível revogar o acesso.'));
+  } finally {
+    confirmRevoke.value = null;
+  }
+}
+
 const formValid = computed(
   () =>
     CompanyForm.safeParse({
@@ -345,14 +372,19 @@ const onSubmit = handleSubmit(async (values) => {
 <template>
   <PageHeader :title="editing ? 'Editar empresa' : 'Nova empresa'" />
 
+  <NotFoundState
+    v-if="isNotFound(detailQuery.error.value)"
+    title="Empresa não encontrada"
+    to="/empresas"
+    back-label="Ver empresas"
+  />
   <form
+    v-else
     novalidate
     class="mx-auto mt-8 flex max-w-5xl flex-col items-start gap-8 lg:flex-row"
     @submit="onSubmit"
   >
     <div class="flex flex-1 flex-col gap-6 w-full">
-      <Callout v-if="error" tone="danger" :heading="error" />
-
       <section class="bg-card border-border shadow-sm rounded-xl p-6 border flex flex-col gap-6">
         <div class="border-b border-border/80 pb-4">
           <h2 class="font-display text-base font-semibold leading-7 text-foreground">
@@ -419,7 +451,7 @@ const onSubmit = handleSubmit(async (values) => {
               v-model="contactEmail"
               class="focus-visible:ring-ring focus-visible:border-primary shadow-xs"
             />
-            <p v-if="errors.contactEmail" class="text-danger text-sm">{{ errors.contactEmail }}</p>
+            <p v-if="contactEmailError" class="text-danger text-sm">{{ contactEmailError }}</p>
           </div>
 
           <div class="flex flex-col gap-1.5">
@@ -435,6 +467,38 @@ const onSubmit = handleSubmit(async (values) => {
             />
             <p v-if="errors.contactPhone" class="text-danger text-sm">{{ errors.contactPhone }}</p>
           </div>
+        </div>
+
+        <div v-if="accessesQuery.data.value?.length" class="border-border border-t pt-5">
+          <h3 class="text-sm font-semibold text-foreground">Acesso ao app</h3>
+          <p class="text-muted-foreground mt-1 text-xs leading-5">
+            Quem tem conta vê as pendências desta empresa e envia documentos pela Minha Área.
+            Revogar corta a conta e o link de envio atual; o próximo link enviado volta a valer.
+          </p>
+          <ul class="mt-3 flex flex-col gap-2">
+            <li
+              v-for="contact in accessesQuery.data.value"
+              :key="contact.id"
+              class="border-border/60 bg-sunken/40 flex flex-wrap items-center justify-between gap-3 rounded-lg border px-3.5 py-2.5"
+            >
+              <div class="min-w-0">
+                <p class="flex items-center gap-1.5 text-sm font-medium text-foreground">
+                  <CircleCheck class="h-3.5 w-3.5 text-success" aria-hidden="true" />
+                  {{ contact.name }}
+                </p>
+                <p class="text-muted-foreground text-xs">{{ contact.email }}</p>
+              </div>
+              <Button
+                type="button"
+                variant="ghost"
+                size="sm"
+                class="text-danger hover:text-danger hover:bg-danger/10"
+                @click="confirmRevoke = contact"
+              >
+                Revogar acesso
+              </Button>
+            </li>
+          </ul>
         </div>
       </section>
 
@@ -487,6 +551,8 @@ const onSubmit = handleSubmit(async (values) => {
           </div>
         </div>
       </section>
+
+      <Callout v-if="error" tone="danger" :heading="error" />
 
       <div class="border-border flex items-center gap-3 border-t pt-4">
         <Button variant="ghost" type="button" @click="router.back()">Cancelar</Button>
@@ -574,4 +640,28 @@ const onSubmit = handleSubmit(async (values) => {
       </div>
     </div>
   </form>
+
+  <Modal
+    :open="confirmRevoke !== null"
+    @update:open="$event ? null : (confirmRevoke = null)"
+    title="Revogar acesso?"
+    description="O Responsável deixa de entrar na Minha Área desta empresa."
+  >
+    <p class="text-sm text-foreground">
+      {{ confirmRevoke?.name }} perde a conta e o link de envio atual deixa de funcionar. Se a
+      empresa ainda precisar enviar documentos, reenvie o link pela Solicitação.
+    </p>
+    <div
+      class="border-border bg-muted/40 -mx-6 -mb-6 mt-5 flex flex-wrap justify-end gap-2 border-t p-4"
+    >
+      <Button variant="ghost" @click="confirmRevoke = null">Cancelar</Button>
+      <Button
+        variant="destructive"
+        :disabled="revokeAccessMutation.isPending.value"
+        @click="revoke(confirmRevoke!)"
+      >
+        Revogar acesso
+      </Button>
+    </div>
+  </Modal>
 </template>

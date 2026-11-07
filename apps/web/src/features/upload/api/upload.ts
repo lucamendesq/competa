@@ -57,18 +57,28 @@ export const presignFiles = (
   },
 ) => api.post<Presign>(`/upload/${token}/documents`, body);
 
-export const putFileToStorage = (uploadUrl: string, file: File) =>
-  trackBusy(async () => {
-    const res = await fetch(uploadUrl, {
-      method: 'PUT',
-      body: file,
-      headers: {
-        'Content-Type': file.type || 'application/octet-stream',
-      },
-    });
-    if (!res.ok) throw new Error(`PUT falhou com ${res.status}`);
-    return res.text();
-  });
+/* XHR em vez de fetch: só ele reporta o progresso do corpo enviado. A falha de rede vira o
+ * mesmo `TypeError('Failed to fetch')` do fetch, que é o que `failureKind` lê como offline. */
+export const putFileToStorage = (
+  uploadUrl: string,
+  file: File,
+  onProgress?: (loadedBytes: number) => void,
+) =>
+  trackBusy(
+    () =>
+      new Promise<string>((resolve, reject) => {
+        const xhr = new XMLHttpRequest();
+        xhr.open('PUT', uploadUrl);
+        xhr.setRequestHeader('Content-Type', file.type || 'application/octet-stream');
+        xhr.upload.onprogress = (event) => onProgress?.(event.loaded);
+        xhr.onload = () =>
+          xhr.status >= 200 && xhr.status < 300
+            ? resolve(xhr.responseText)
+            : reject(new Error(`PUT falhou com ${xhr.status}`));
+        xhr.onerror = () => reject(new TypeError('Failed to fetch'));
+        xhr.send(file);
+      }),
+  );
 
 export const confirmFiles = (token: string, documentIds: string[]) =>
   api.post<Confirmation>(`/upload/${token}/documents/confirm`, { documentIds });

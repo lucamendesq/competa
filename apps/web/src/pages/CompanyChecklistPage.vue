@@ -208,7 +208,7 @@ async function restoreDefault() {
     </Button>
   </section>
 
-  <main class="mt-8">
+  <div class="mt-8">
     <template v-if="effectiveChecklistQuery.isLoading.value">
       <LoadingRows :count="8" />
     </template>
@@ -313,7 +313,7 @@ async function restoreDefault() {
         </section>
       </div>
     </template>
-  </main>
+  </div>
 
   <Modal
     v-model:open="catalogOpen"

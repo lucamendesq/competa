@@ -24,6 +24,8 @@ import LoadingRows from '@/components/LoadingRows.vue';
 import Modal from '@/components/Modal.vue';
 import StatusPill from '@/components/StatusPill.vue';
 import DueDate from '@/components/DueDate.vue';
+import CloseRequestModal from '@/components/CloseRequestModal.vue';
+import NotFoundState from '@/components/NotFoundState.vue';
 import {
   usePeriodDetailFeature,
   usePeriodsFeature,
@@ -37,12 +39,12 @@ import {
 } from '@/features/requests/api/requests';
 import { useQuery } from '@tanstack/vue-query';
 import { toast } from 'vue-sonner';
-import { apiErrorMessage } from '@/api/error';
+import { apiErrorMessage, isNotFound } from '@/api/error';
 import { useCopy } from '@/composables/useCopy';
 import { useAuthStore } from '@/stores/auth';
 import PlanGateNotice from '@/components/PlanGateNotice.vue';
 import { planGateMessage } from '@competa/contracts';
-import { monthLabel, isOverdue } from '@/utils/format';
+import { monthLabel, isOverdue, slug, foldAccents } from '@/utils/format';
 
 const props = defineProps<{ id: string }>();
 
@@ -59,6 +61,10 @@ const panelQuery = useQuery({
 });
 
 const { companiesQuery } = useCompaniesFeature(ref(1), ref(100));
+
+const notFound = computed(
+  () => isNotFound(detailQuery.error.value) || isNotFound(panelQuery.error.value),
+);
 
 const cnpjByCompany = computed(() => {
   const map = new Map<string, string>();
@@ -78,9 +84,13 @@ const lines = computed(() => {
   const data = panelQuery.data.value ?? [];
   return data.map((line) => {
     const total = Object.values(line.counts).reduce((sum, val) => sum + val, 0);
-    const overdueCount = line.missing.filter((item) => isOverdue(item.dueDate)).length;
+    const awaiting = line.missing.filter((item) => item.status !== 'submitted');
+    const toReview = line.missing.filter((item) => item.status === 'submitted');
+    const overdueCount = awaiting.filter((item) => isOverdue(item.dueDate)).length;
     return {
       ...line,
+      awaiting,
+      toReview,
       cnpj: cnpjByCompany.value.get(line.companyId) ?? null,
       total,
       percent: total ? Math.round((line.counts.accepted / total) * 100) : 0,
@@ -123,12 +133,12 @@ const accountantChips = computed(() => {
 });
 
 const visible = computed(() => {
-  const term = search.value.trim().toLowerCase();
+  const term = foldAccents(search.value.trim());
   const f = filter.value;
   const acc = selectedAccountant.value;
 
   return lines.value.filter((line) => {
-    if (term && !line.companyName.toLowerCase().includes(term)) return false;
+    if (term && !foldAccents(line.companyName).includes(term)) return false;
     if (f === 'pending' && !(line.requestStatus === 'open' && line.missing.length > 0))
       return false;
     if (f === 'overdue' && !(line.overdue > 0)) return false;
@@ -166,6 +176,16 @@ const chips = [
 ] as const;
 
 const confirmClose = ref(false);
+const closingLine = ref<(typeof lines.value)[number] | null>(null);
+
+const closeImpact = computed(() => {
+  const open = lines.value.filter((line) => line.requestStatus !== 'closed');
+  return {
+    unaccepted: open.reduce((sum, line) => sum + line.missing.length, 0),
+    companies: open.filter((line) => line.missing.length > 0).length,
+    toReview: open.reduce((sum, line) => sum + line.toReview.length, 0),
+  };
+});
 
 function toggle(companyId: string) {
   const newSet = new Set(expanded.value);
@@ -176,10 +196,6 @@ function toggle(companyId: string) {
 
 function isExpanded(companyId: string) {
   return expanded.value.has(companyId);
-}
-
-function slug(text: string) {
-  return text.toLowerCase().replace(/[^a-z0-9]+/g, '-');
 }
 
 const auth = useAuthStore();
@@ -198,7 +214,8 @@ async function doDownloadPeriodZip() {
 
 async function doDownloadCompanyZip(requestId: string, companyName: string) {
   try {
-    await downloadRequestZip(requestId, `${slug(companyName)}.zip`);
+    const month = detailQuery.data.value?.referenceMonth.slice(0, 7);
+    await downloadRequestZip(requestId, `${slug(companyName)}${month ? `-${month}` : ''}.zip`);
     toast.success(`Download de ${companyName} concluído.`);
   } catch (error) {
     toast.error(apiErrorMessage(error, 'Não foi possível baixar o zip.'));
@@ -215,7 +232,7 @@ async function handleCopyUploadLink(line: any) {
     const link = await getUploadLink(line.requestId);
     await copy(
       link.uploadUrl,
-      `Novo link de ${line.companyName} copiado — o link anterior deixou de funcionar.`,
+      `Novo link de ${line.companyName} copiado. O link anterior continua valendo por até 48 h.`,
       line.requestId,
     );
   } catch (error) {
@@ -242,7 +259,17 @@ async function resendReminders() {
   try {
     const result = await runRemindersMutation.mutateAsync();
     if (result.busy) toast.info('Já há uma cobrança em andamento. Confira em instantes.');
-    else toast.success('Varredura de lembretes disparada.');
+    else if (result.scanned === 0) toast.info('Nenhuma Solicitação com pendência para cobrar.');
+    else if (result.sent === 0)
+      toast.info(
+        `Nenhum lembrete enviado: as ${result.scanned} Solicitação(ões) com pendência já foram cobradas há poucos dias, atingiram o limite de lembretes ou ainda estão longe do prazo.`,
+      );
+    else
+      toast.success(
+        result.sent === result.scanned
+          ? `${result.sent} lembrete(s) enviado(s).`
+          : `${result.sent} lembrete(s) enviado(s). As outras ${result.scanned - result.sent} Solicitação(ões) já foram cobradas há poucos dias, atingiram o limite de lembretes ou ainda estão longe do prazo.`,
+      );
     panelQuery.refetch();
   } catch (error) {
     toast.error(apiErrorMessage(error, 'Não foi possível disparar os lembretes.'));
@@ -308,7 +335,7 @@ function maskedCnpj(cnpj: string | null) {
 </script>
 
 <template>
-  <PlanGateNotice v-if="!canPeriodZip" capability="periodZip" class="mb-4">
+  <PlanGateNotice v-if="!canPeriodZip && !notFound" capability="periodZip" class="mb-4">
     Baixar o zip da competência inteira (o zip por empresa continua liberado)
   </PlanGateNotice>
 
@@ -321,7 +348,11 @@ function maskedCnpj(cnpj: string | null) {
     "
     description="Acompanhe o painel de pendências desta competência."
   >
-    <span class="mr-2 inline-block" :title="canPeriodZip ? undefined : periodZipHint">
+    <span
+      v-if="!notFound"
+      class="mr-2 inline-block"
+      :title="canPeriodZip ? undefined : periodZipHint"
+    >
       <Button
         variant="outline"
         class="shadow-xs"
@@ -351,8 +382,15 @@ function maskedCnpj(cnpj: string | null) {
     </template>
   </PageHeader>
 
-  <main class="mt-8">
-    <template v-if="panelQuery.isError.value">
+  <div class="mt-8">
+    <template v-if="notFound">
+      <NotFoundState
+        title="Competência não encontrada"
+        to="/competencias"
+        back-label="Ver competências"
+      />
+    </template>
+    <template v-else-if="panelQuery.isError.value">
       <ErrorState title="Não foi possível carregar." @retry="panelQuery.refetch()" />
     </template>
     <template v-else-if="panelQuery.isLoading.value">
@@ -490,7 +528,19 @@ function maskedCnpj(cnpj: string | null) {
         </button>
       </div>
 
-      <div class="space-y-3" role="list">
+      <section
+        v-if="visible.length === 0"
+        class="border-border bg-card rounded-xl border-2 border-dashed p-12 text-center shadow-xs"
+      >
+        <p class="text-muted-foreground text-sm">
+          {{
+            lines.length
+              ? 'Nenhuma empresa encontrada com essa busca ou filtro.'
+              : 'Nenhuma empresa nesta competência.'
+          }}
+        </p>
+      </section>
+      <div v-else class="space-y-3" role="list">
         <div
           v-for="line in visible"
           :key="line.requestId"
@@ -577,6 +627,15 @@ function maskedCnpj(cnpj: string | null) {
                 >
                   <FileArchive class="mr-2 h-4 w-4" /> .zip
                 </Button>
+                <Button
+                  v-if="line.requestStatus !== 'closed'"
+                  variant="outline"
+                  size="sm"
+                  class="text-danger hover:text-danger hover:bg-danger-surface border-border shadow-xs"
+                  @click="closingLine = line"
+                >
+                  <Lock class="mr-2 h-4 w-4" /> Encerrar
+                </Button>
               </div>
             </div>
           </div>
@@ -625,46 +684,96 @@ function maskedCnpj(cnpj: string | null) {
               </div>
             </template>
             <template v-else>
-              <h4
-                class="text-xs font-semibold uppercase tracking-wider text-muted-foreground mb-2.5 px-1"
-              >
-                Aguardando Envio ({{ line.missing.length }})
-              </h4>
-              <ul
-                class="border-border bg-card divide-border divide-y rounded-xl border shadow-xs overflow-hidden"
-              >
-                <li
-                  v-for="item in line.missing"
-                  :key="item.id"
-                  class="flex flex-col sm:flex-row sm:items-center sm:justify-between p-3.5 gap-2 hover:bg-slate-50/75 transition-colors"
+              <template v-if="line.awaiting.length">
+                <h4
+                  class="text-xs font-semibold uppercase tracking-wider text-muted-foreground mb-2.5 px-1"
                 >
-                  <div class="min-w-0">
+                  Aguardando Envio ({{ line.awaiting.length }})
+                </h4>
+                <ul
+                  class="border-border bg-card divide-border divide-y rounded-xl border shadow-xs overflow-hidden"
+                >
+                  <li
+                    v-for="item in line.awaiting"
+                    :key="item.id"
+                    class="flex flex-col sm:flex-row sm:items-center sm:justify-between p-3.5 gap-2 hover:bg-slate-50/75 transition-colors"
+                  >
+                    <div class="min-w-0">
+                      <p class="text-sm font-medium text-foreground">{{ item.name }}</p>
+                      <p
+                        v-if="item.status === 'rejected'"
+                        class="text-danger mt-0.5 text-xs font-medium"
+                      >
+                        Recusado: aguardando reenvio
+                      </p>
+                    </div>
+                    <DueDate :date="item.dueDate" class="text-xs shrink-0" />
+                  </li>
+                </ul>
+              </template>
+              <template v-if="line.toReview.length">
+                <h4
+                  class="text-xs font-semibold uppercase tracking-wider text-muted-foreground mb-2.5 px-1"
+                  :class="{ 'mt-4': line.awaiting.length }"
+                >
+                  Enviado, a conferir ({{ line.toReview.length }})
+                </h4>
+                <ul
+                  class="border-border bg-card divide-border divide-y rounded-xl border shadow-xs overflow-hidden"
+                >
+                  <li
+                    v-for="item in line.toReview"
+                    :key="item.id"
+                    class="flex flex-col sm:flex-row sm:items-center sm:justify-between p-3.5 gap-2 hover:bg-slate-50/75 transition-colors"
+                  >
                     <p class="text-sm font-medium text-foreground">{{ item.name }}</p>
-                    <p
-                      v-if="item.status === 'rejected'"
-                      class="text-danger mt-0.5 text-xs font-medium"
-                    >
-                      Recusado: aguardando reenvio
-                    </p>
-                  </div>
-                  <DueDate :date="item.dueDate" class="text-xs shrink-0" />
-                </li>
-              </ul>
+                    <span class="text-muted-foreground text-xs shrink-0">
+                      {{ item.resent ? 'Reenviado após recusa' : 'Enviado' }}
+                    </span>
+                  </li>
+                </ul>
+              </template>
             </template>
           </div>
         </div>
       </div>
     </template>
-  </main>
+  </div>
+
+  <CloseRequestModal
+    v-if="closingLine"
+    :open="true"
+    :request-id="closingLine.requestId"
+    :company-name="closingLine.companyName"
+    :unaccepted="closingLine.missing.length"
+    :to-review="closingLine.toReview.length"
+    @update:open="closingLine = null"
+    @closed="panelQuery.refetch()"
+  />
 
   <Modal
     v-model:open="confirmClose"
     title="Encerrar competência?"
     description="Encerrar é a palavra final: as solicitações desta competência também são encerradas, mesmo com pendências."
   >
-    <p class="text-sm text-foreground">
-      Os Responsáveis não poderão mais enviar documentos nos itens — apenas documentos extras.
-    </p>
+    <div class="flex flex-col gap-3 text-sm text-foreground">
+      <p v-if="closeImpact.unaccepted">
+        <strong class="tabular-nums">{{ closeImpact.unaccepted }}</strong> item(ns) ainda sem aceite
+        em <strong class="tabular-nums">{{ closeImpact.companies }}</strong> empresa(s).
+      </p>
+      <p v-else>Todos os itens desta competência já foram aceitos.</p>
+      <p
+        v-if="closeImpact.toReview"
+        class="rounded-lg border border-danger-border bg-danger-surface p-3 text-danger-foreground"
+      >
+        <strong class="tabular-nums">{{ closeImpact.toReview }}</strong> item(ns) já enviado(s) e
+        ainda não conferido(s). Depois de encerrar, esses documentos não poderão mais ser aceitos e
+        ficam fora do zip final. Confira-os antes de encerrar.
+      </p>
+      <p>
+        Os Responsáveis não poderão mais enviar documentos nos itens — apenas documentos extras.
+      </p>
+    </div>
     <div
       class="border-border bg-sunken/40 -mx-6 -mb-6 mt-6 flex flex-wrap justify-end gap-2.5 border-t p-4"
     >

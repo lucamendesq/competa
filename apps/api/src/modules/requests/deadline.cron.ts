@@ -80,7 +80,7 @@ const make = Effect.gen(function* () {
       return stale.length;
     });
 
-  const scan = (scope: FirmScope | null) =>
+  const scanUnlocked = (scope: FirmScope | null) =>
     Effect.gen(function* () {
       const today = brazilDay();
       const overdue = yield* requests.overdueItems(scope, today);
@@ -164,24 +164,29 @@ const make = Effect.gen(function* () {
       };
     });
 
+  /** Voo único por escopo, compartilhado pela rota e pelo cron: duas varreduras em paralelo
+   *  liam o mesmo `deadline_notified_at IS NULL`, avisavam em dobro e a segunda rotação de
+   *  token matava o link do primeiro email. `null` = outra varredura do escopo em andamento. */
+  const scan = (scope: FirmScope | null) =>
+    requests.withLease(
+      scope === null ? DEADLINE_CRON_LEASE : `${DEADLINE_CRON_LEASE}:${scope}`,
+      scanUnlocked(scope),
+    );
+
   /** Agendada em `crons.ts` (`0 7 * * *`, America/Sao_Paulo) e chamada à mão pelo
    *  `runDeadlineSweep()` do handle de `createApp`. */
   const daily = () =>
     Effect.gen(function* () {
-      const ran = yield* requests.withLease(
-        DEADLINE_CRON_LEASE,
-        Effect.gen(function* () {
-          const { overdue, notified } = yield* scan(null);
-          const discarded = yield* discardStaleUploads();
+      const scanned = yield* scan(null);
+      if (!scanned) {
+        logger.warn('prazos: varredura pulada — lock tomado por outra instância');
+        return;
+      }
 
-          logger.log(
-            `prazos: ${notified.length} de ${overdue} item(ns) vencido(s) avisado(s); faxina: ${discarded} envio(s) não confirmado(s) removido(s)`,
-          );
-          return true;
-        }),
+      const discarded = yield* discardStaleUploads();
+      logger.log(
+        `prazos: ${scanned.notified.length} de ${scanned.overdue} item(ns) vencido(s) avisado(s); faxina: ${discarded} envio(s) não confirmado(s) removido(s)`,
       );
-
-      if (!ran) logger.warn('prazos: varredura pulada — lock tomado por outra instância');
     });
 
   return { daily, scan, discardStaleUploads, purgeExpiredFiscalDocuments };

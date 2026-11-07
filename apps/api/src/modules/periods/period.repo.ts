@@ -204,8 +204,16 @@ const make = Effect.gen(function* () {
   ) {
     const { plans, warnings } = yield* planFor(scope, referenceMonth);
     const planned = new Set(plans.map((plan) => plan.companyId));
+    const [existing] = yield* db.use((d) =>
+      d
+        .select({ id: period.id })
+        .from(period)
+        .where(and(eq(period.accountingFirmId, scope), eq(period.referenceMonth, referenceMonth)))
+        .limit(1),
+    );
 
     return {
+      existingPeriodId: existing?.id ?? null,
       requests: plans.map((plan) => ({
         companyId: plan.companyId,
         companyName: plan.companyName,

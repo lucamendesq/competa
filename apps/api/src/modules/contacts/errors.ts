@@ -9,3 +9,13 @@ export class AccessAlreadyExists extends AppError {
     super('Este Responsável já tem acesso: entre pelo aplicativo ou peça um link de entrada.');
   }
 }
+
+export class PasswordAlreadySet extends AppError {
+  readonly _tag = 'PasswordAlreadySet';
+  readonly code = 'PASSWORD_ALREADY_SET';
+  readonly status = 400;
+
+  constructor() {
+    super('Você já tem uma senha cadastrada. Entre com ela ou pelo link enviado ao seu e-mail.');
+  }
+}

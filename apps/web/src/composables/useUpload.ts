@@ -1,4 +1,4 @@
-import { ref } from 'vue';
+import { computed, ref } from 'vue';
 import { apiErrorMessage, failureKind } from '@/api/error';
 
 export type FileResult = {
@@ -17,7 +17,11 @@ type Dependencies = {
   presign: (
     files: { fileName: string; contentType: string; sizeBytes: number }[],
   ) => Promise<{ files: AuthorizedFile[] }>;
-  send: (uploadUrl: string, file: File) => Promise<unknown>;
+  send: (
+    uploadUrl: string,
+    file: File,
+    onProgress: (loadedBytes: number) => void,
+  ) => Promise<unknown>;
   confirm: (documentIds: string[]) => Promise<{
     refused: { documentId?: string; fileName: string; reason: string }[];
   }>;
@@ -25,15 +29,18 @@ type Dependencies = {
 
 export function useUpload(deps: Dependencies) {
   const isUploading = ref(false);
-  const progressDone = ref(0);
-  const progressTotal = ref(0);
+  const sentBytes = ref(0);
+  const totalBytes = ref(0);
+  const percent = computed(() =>
+    totalBytes.value ? Math.min(100, Math.round((sentBytes.value / totalBytes.value) * 100)) : 0,
+  );
   const results = ref<FileResult[]>([]);
 
   const uploadFiles = async (files: File[] | FileList) => {
     isUploading.value = true;
     const fileArray = Array.from(files);
-    progressTotal.value = fileArray.length;
-    progressDone.value = 0;
+    sentBytes.value = 0;
+    totalBytes.value = fileArray.reduce((sum, file) => sum + file.size, 0);
     results.value = [];
 
     try {
@@ -55,15 +62,18 @@ export function useUpload(deps: Dependencies) {
             ok: false,
             reason: authorized.reason,
           });
-          progressDone.value += 1;
+          sentBytes.value += fileArray[i]?.size ?? 0;
           continue;
         }
 
         const file = fileArray[i];
         if (!file) continue;
 
+        const before = sentBytes.value;
         try {
-          await deps.send(authorized.uploadUrl, file);
+          await deps.send(authorized.uploadUrl, file, (loaded) => {
+            sentBytes.value = before + loaded;
+          });
           sent.push(authorized.documentId);
         } catch (error) {
           results.value.push({
@@ -75,7 +85,7 @@ export function useUpload(deps: Dependencies) {
           });
         }
 
-        progressDone.value += 1;
+        sentBytes.value = before + file.size;
       }
 
       if (sent.length) {
@@ -123,8 +133,7 @@ export function useUpload(deps: Dependencies) {
 
   return {
     isUploading,
-    progressDone,
-    progressTotal,
+    percent,
     results,
     uploadFiles,
   };

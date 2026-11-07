@@ -1,7 +1,7 @@
 <script setup lang="ts">
 import { computed } from 'vue';
 import { useRouter } from 'vue-router';
-import { ClipboardList, History, LogOut } from 'lucide-vue-next';
+import { ClipboardList, History, KeyRound, LogOut } from 'lucide-vue-next';
 import { useAuthStore } from '../stores/auth';
 import Logo from '../components/Logo.vue';
 import InstallButton from '../components/InstallButton.vue';
@@ -47,6 +47,14 @@ async function sair() {
           </template>
         </div>
         <InstallButton variant="card" />
+        <RouterLink
+          v-if="perfil.hasPassword === false"
+          to="/minha-area/definir-senha"
+          class="text-muted-foreground hover:bg-muted hover:text-foreground focus-visible:ring-ring inline-flex h-9 items-center gap-2 rounded-lg px-3 text-xs font-medium transition-colors focus-visible:ring-2 focus-visible:outline-none"
+        >
+          <KeyRound class="size-3.5" aria-hidden="true" />
+          Criar senha
+        </RouterLink>
         <button
           type="button"
           class="text-muted-foreground hover:bg-muted hover:text-foreground focus-visible:ring-ring inline-flex h-9 items-center gap-2 rounded-lg px-3 text-xs font-medium transition-colors focus-visible:ring-2 focus-visible:outline-none"

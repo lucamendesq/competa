@@ -214,6 +214,16 @@ describe('GET /companies — listagem, busca e filtros', () => {
     expect(res.body.data[0].name).toBe('Beta Mercado');
   });
 
+  it('busca ignora acentos nos dois lados', async () => {
+    for (const search of ['paes', 'PÃES', 'Alfa Pàes']) {
+      const res = await api.get(`/companies?search=${encodeURIComponent(search)}`);
+      expect(
+        res.body.data.map((row: any) => row.name),
+        search,
+      ).toEqual(['Alfa Pães']);
+    }
+  });
+
   it('busca por CNPJ ignora pontuação', async () => {
     const dotted = `${alphaCnpj.slice(0, 2)}.${alphaCnpj.slice(2, 5)}.${alphaCnpj.slice(5, 8)}`;
     const res = await api.get(`/companies?search=${encodeURIComponent(dotted)}`);
@@ -228,6 +238,22 @@ describe('GET /companies — listagem, busca e filtros', () => {
 
     const active = await api.get('/companies?active=true');
     expect(active.body.meta.total).toBe(2);
+  });
+
+  it('% e _ na busca são literais, não curingas', async () => {
+    await createCompany(api, { name: 'Cem % Natural' });
+
+    for (const [search, names] of [
+      ['%', ['Cem % Natural']],
+      ['zzz%', []],
+      ['_', []],
+    ] as const) {
+      const res = await api.get(`/companies?search=${encodeURIComponent(search)}`);
+      expect(
+        res.body.data.map((row: any) => row.name),
+        search,
+      ).toEqual(names);
+    }
   });
 
   it('query inválida → 422', async () => {
@@ -295,6 +321,13 @@ describe('usage e teto do plano (trial: 15 ativas, folga até 18)', () => {
     expect(res.status).toBe(422);
     expect(res.body.error.message).toContain('Seu plano permite 15 empresas ativas');
     expect(res.body.error.message).toContain('você já tem 18');
+  });
+
+  /* D17 §5: o teto barra cadastro e ativação, nunca a Competência. Bloquear aqui travaria o
+   * mês do cliente justamente quando ele está na folga. */
+  it('abrir a Competência com a firma acima do teto passa', async () => {
+    const res = await api.post('/periods', { referenceMonth: '2026-09' });
+    expect(res.status, JSON.stringify(res.body)).toBe(201);
   });
 
   it('ativação em lote sem vaga: nada ativa e o motivo explica o teto', async () => {
@@ -396,13 +429,47 @@ describe('POST /companies/import — prévia do CSV (nada é gravado)', () => {
     });
 
     expect(badCnpj).toMatchObject({ line: 3, status: 'error' });
-    expect(badCnpj.error).toContain('cnpj');
+    expect(badCnpj.error).toMatch(/^CNPJ/);
     expect(missingName).toMatchObject({ line: 4, status: 'error' });
     expect(missingName.error).toContain('Informe o nome da Empresa.');
     expect(duplicated).toMatchObject({
       line: 5,
       status: 'error',
       error: 'CNPJ repetido na planilha (já aparece na linha 2).',
+    });
+  });
+
+  it('CNPJ salvo como número: completa os zeros à esquerda e recusa a notação científica', async () => {
+    const leadingZero = validCnpj();
+    expect(leadingZero).toMatch(/^0/);
+    const csv = ['Empresa,CNPJ', `Sem Zero,${leadingZero.slice(1)}`, 'Científica,6.28411E+13'].join(
+      '\n',
+    );
+
+    const res = await api.post('/companies/import', { csv });
+    expect(res.status, JSON.stringify(res.body)).toBe(201);
+    const [padded, scientific] = res.body.data.lines;
+    expect(padded).toMatchObject({ status: 'pending', body: { cnpj: leadingZero } });
+    expect(scientific.status).toBe('error');
+    expect(scientific.error).toContain('notação científica');
+  });
+
+  it('flag aceita sim/não com ou sem acento e recusa qualquer outro valor', async () => {
+    const csv = [
+      'Empresa;Tem funcionários;Controla estoque',
+      'Com Acento;Sim;Não',
+      'Sem Acento;nao;S',
+      'Na Dúvida;Talvez;Sim',
+    ].join('\n');
+
+    const res = await api.post('/companies/import', { csv });
+    expect(res.status, JSON.stringify(res.body)).toBe(201);
+    const [accented, plain, unsure] = res.body.data.lines;
+    expect(accented.body.flags).toEqual({ has_employees: true, has_inventory: false });
+    expect(plain.body.flags).toEqual({ has_employees: false, has_inventory: true });
+    expect(unsure).toMatchObject({
+      status: 'error',
+      error: 'Tem funcionários: use Sim ou Não (veio "Talvez").',
     });
   });
 

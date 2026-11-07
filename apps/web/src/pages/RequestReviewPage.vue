@@ -2,7 +2,7 @@
 import { computed, ref } from 'vue';
 import { useRouter } from 'vue-router';
 import { useQuery } from '@tanstack/vue-query';
-import { Check, ExternalLink, Undo2, X } from 'lucide-vue-next';
+import { Check, ExternalLink, Lock, Undo2, X } from 'lucide-vue-next';
 import { Button } from '@/components/ui/button';
 import { Textarea } from '@/components/ui/textarea';
 import PageHeader from '@/components/PageHeader.vue';
@@ -11,6 +11,8 @@ import LoadingRows from '@/components/LoadingRows.vue';
 import StatusPill from '@/components/StatusPill.vue';
 import ResendNotice from '@/components/ResendNotice.vue';
 import DueDate from '@/components/DueDate.vue';
+import CloseRequestModal from '@/components/CloseRequestModal.vue';
+import NotFoundState from '@/components/NotFoundState.vue';
 import {
   getRequestDetail,
   openDocumentContent,
@@ -20,7 +22,7 @@ import {
   type RequestItem,
 } from '@/features/requests/api/requests';
 import { toast } from 'vue-sonner';
-import { apiErrorMessage } from '@/api/error';
+import { apiErrorMessage, isNotFound } from '@/api/error';
 import { dateTimeBr, fileSize, monthLabel } from '@/utils/format';
 import { displayItemStatus, needsResend, wasResent } from '@/utils/item-status';
 
@@ -39,8 +41,10 @@ const extras = ref<Map<string, { decision: 'accepted' | 'rejected'; rejectionRea
   new Map(),
 );
 const acting = ref(false);
+const REASON_MAX_LENGTH = 500;
 
 const closed = computed(() => detailQuery.data.value?.status === 'closed');
+const confirmClose = ref(false);
 
 const reviewableItems = computed(() =>
   (detailQuery.data.value?.items ?? []).filter((item) => item.status === 'submitted'),
@@ -185,11 +189,26 @@ async function publish() {
     "
   >
     <Button variant="outline" class="shadow-xs" @click="router.back()">Voltar</Button>
+    <Button
+      v-if="detailQuery.data.value && !closed"
+      variant="outline"
+      class="text-danger hover:text-danger hover:bg-danger-surface border-border ml-2 shadow-xs"
+      @click="confirmClose = true"
+    >
+      <Lock class="mr-2 h-4 w-4" /> Encerrar
+    </Button>
   </PageHeader>
 
-  <main class="mt-8 pb-24">
+  <div class="mt-8 pb-24">
     <template v-if="detailQuery.isLoading.value">
       <LoadingRows :count="6" />
+    </template>
+    <template v-else-if="isNotFound(detailQuery.error.value)">
+      <NotFoundState
+        title="Solicitação não encontrada"
+        to="/competencias"
+        back-label="Ver competências"
+      />
     </template>
     <template v-else-if="detailQuery.isError.value">
       <ErrorState title="Não foi possível carregar." @retry="detailQuery.refetch()" />
@@ -276,9 +295,13 @@ async function publish() {
                   :model-value="rejections.get(doc.id)"
                   placeholder="Motivo da recusa (o Responsável recebe este texto)"
                   rows="2"
+                  :maxlength="REASON_MAX_LENGTH"
                   class="border-danger-border focus-visible:ring-ring focus-visible:border-primary text-sm shadow-xs"
                   @update:model-value="setRejectionReason(doc.id, String($event))"
                 />
+                <p class="text-muted-foreground mt-1 text-right text-xs tabular-nums">
+                  {{ rejections.get(doc.id)?.length ?? 0 }}/{{ REASON_MAX_LENGTH }}
+                </p>
               </div>
             </li>
           </ul>
@@ -351,9 +374,13 @@ async function publish() {
                 :model-value="extras.get(doc.id)?.rejectionReason"
                 placeholder="Motivo da recusa"
                 rows="2"
+                :maxlength="REASON_MAX_LENGTH"
                 class="border-danger-border focus-visible:ring-ring focus-visible:border-primary text-sm shadow-xs"
                 @update:model-value="setExtraReason(doc.id, String($event))"
               />
+              <p class="text-muted-foreground mt-1 text-right text-xs tabular-nums">
+                {{ extras.get(doc.id)?.rejectionReason.length ?? 0 }}/{{ REASON_MAX_LENGTH }}
+              </p>
             </div>
           </li>
         </ul>
@@ -389,11 +416,49 @@ async function publish() {
               </div>
             </div>
             <ResendNotice v-if="needsResend(item)" :item="item" />
+            <ul v-if="item.documents.length" class="flex flex-col gap-1">
+              <li
+                v-for="doc in item.documents"
+                :key="doc.id"
+                class="flex flex-wrap items-center justify-between gap-2 pl-3"
+              >
+                <div class="min-w-0">
+                  <p class="truncate text-xs font-medium text-foreground">{{ doc.fileName }}</p>
+                  <p class="text-muted-foreground text-xs">
+                    {{ fileSize(doc.sizeBytes) }} · {{ dateTimeBr(doc.uploadedAt) }}
+                  </p>
+                </div>
+                <div class="flex items-center gap-2">
+                  <StatusPill
+                    v-if="doc.reviewStatus !== 'pending' && doc.reviewStatus !== item.status"
+                    :status="doc.reviewStatus"
+                  />
+                  <Button
+                    variant="ghost"
+                    size="sm"
+                    class="hover:bg-sunken text-muted-foreground hover:text-foreground text-xs"
+                    @click="openDocument(doc)"
+                  >
+                    <ExternalLink class="mr-1.5 h-3.5 w-3.5" /> Abrir
+                  </Button>
+                </div>
+              </li>
+            </ul>
           </li>
         </ul>
       </section>
     </template>
-  </main>
+  </div>
+
+  <CloseRequestModal
+    v-if="detailQuery.data.value"
+    v-model:open="confirmClose"
+    :request-id="props.id"
+    :company-name="detailQuery.data.value.companyName"
+    :unaccepted="detailQuery.data.value.items.filter((item) => item.status !== 'accepted').length"
+    :to-review="reviewableItems.length"
+    @closed="detailQuery.refetch()"
+  />
 
   <div
     v-if="decisionCount > 0"

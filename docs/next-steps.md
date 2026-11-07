@@ -96,7 +96,7 @@ operador**, por conta da Contabilidade (controladora). Estado:
    quais dados são coletados, por quê, e para onde vão.
 6. **Plano de resposta a incidente** (art. 48) (→ **TASK-054**): quem é avisado, em quanto
    tempo, com que texto.
-7. **Encarregado (DPO)** nomeado e um canal público de contato (→ **TASK-055**).
+7. **Encarregado (DPO)** nomeado e um canal público de contato (→ **TASK-056**).
 
 > Ordem sugerida: 1 e 3 primeiro (política + retenção) — são os que aparecem na primeira
 > venda para uma contabilidade que tenha jurídico.

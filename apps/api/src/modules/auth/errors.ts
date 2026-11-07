@@ -13,6 +13,10 @@ export class InvalidUploadLink extends AppError {
   }
 }
 
+/** Vai nos detalhes do convite já usado ou vencido: quem tem o token precisa saber para
+ *  qual login voltar, o do Contador ou o da Minha Área. */
+export type InviteTarget = 'accounting_firm' | 'company';
+
 export class InviteNotFound extends AppError {
   readonly _tag = 'InviteNotFound';
   readonly code = 'INVITE_NOT_FOUND';
@@ -28,8 +32,8 @@ export class InviteExpired extends AppError {
   readonly code = 'INVITE_EXPIRED';
   readonly status = 410;
 
-  constructor() {
-    super('Este convite expirou. Peça um novo ao seu contador.');
+  constructor(target: InviteTarget) {
+    super('Este convite expirou. Peça um novo ao seu contador.', { target });
   }
 }
 
@@ -38,8 +42,8 @@ export class InviteAlreadyAccepted extends AppError {
   readonly code = 'INVITE_ALREADY_ACCEPTED';
   readonly status = 409;
 
-  constructor() {
-    super('Este convite já foi utilizado.');
+  constructor(target: InviteTarget) {
+    super('Este convite já foi utilizado.', { target });
   }
 }
 
@@ -91,8 +95,12 @@ export class InviteTargetUnsupported extends AppError {
   readonly code = 'INVITE_TARGET_UNSUPPORTED';
   readonly status = 422;
 
-  constructor() {
-    super('Este convite é de Responsável: aceite em POST /invites/:token/contact-account.');
+  constructor(inviteFor: 'contact' | 'accountant') {
+    super(
+      inviteFor === 'contact'
+        ? 'Este convite é de Responsável: aceite em POST /invites/:token/contact-account.'
+        : 'Este convite é de Contador: aceite em POST /auth/sign-up.',
+    );
   }
 }
 

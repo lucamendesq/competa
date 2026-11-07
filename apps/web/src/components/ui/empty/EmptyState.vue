@@ -32,9 +32,9 @@ const emit = defineEmits<{ action: [] }>();
       </slot>
     </div>
     <div class="space-y-1">
-      <h3 v-if="title || $slots.title" class="text-lg font-medium tracking-tight">
+      <h2 v-if="title || $slots.title" class="text-lg font-medium tracking-tight">
         <slot name="title">{{ title }}</slot>
-      </h3>
+      </h2>
       <p v-if="description || $slots.description" class="text-sm text-muted-foreground">
         <slot name="description">{{ description }}</slot>
       </p>

@@ -25,7 +25,14 @@ import PageHeader from '@/components/PageHeader.vue';
 import ErrorState from '@/components/ErrorState.vue';
 import LoadingRows from '@/components/LoadingRows.vue';
 import Modal from '@/components/Modal.vue';
-import Pagination from '@/components/ui/pagination/Pagination.vue';
+import {
+  Pagination,
+  PaginationContent,
+  PaginationEllipsis,
+  PaginationItem,
+  PaginationNext,
+  PaginationPrevious,
+} from '@/components/ui/pagination';
 import StatusPill from '@/components/StatusPill.vue';
 import EmptyState from '@/components/ui/empty/EmptyState.vue';
 import PlanCapBanner from '@/components/PlanCapBanner.vue';
@@ -48,6 +55,9 @@ watch(search, (val) => {
   timer = setTimeout(() => {
     debouncedSearch.value = val;
   }, 300);
+});
+watch([active, debouncedSearch], () => {
+  page.value = 1;
 });
 
 const queryClient = useQueryClient();
@@ -352,7 +362,9 @@ async function applyTemplateToSelected() {
                     @change="toggleSelected(company.id)"
                   />
                 </TableCell>
-                <TableCell class="font-medium font-display text-foreground">
+                <TableCell
+                  class="font-medium font-display text-foreground min-w-40 whitespace-normal break-words"
+                >
                   <RouterLink
                     :to="`/empresas/${company.id}/editar`"
                     class="hover:text-primary transition-colors hover:underline"
@@ -363,7 +375,7 @@ async function applyTemplateToSelected() {
                 <TableCell class="tabular-nums text-muted-foreground text-xs sm:text-sm">
                   {{ maskedCnpj(company.cnpj) }}
                 </TableCell>
-                <TableCell>
+                <TableCell class="min-w-40 whitespace-normal">
                   <template v-if="!company.contactCount || !company.contacts.length">
                     <span
                       class="inline-flex items-center gap-1 rounded-full border border-danger-border bg-danger-surface px-2.5 py-0.5 text-[11px] font-semibold text-danger"
@@ -393,7 +405,7 @@ async function applyTemplateToSelected() {
                           </span>
                         </template>
                       </div>
-                      <span class="text-muted-foreground text-xs">{{
+                      <span class="text-muted-foreground text-xs break-all">{{
                         company.contacts[0].email
                       }}</span>
                       <span
@@ -405,7 +417,7 @@ async function applyTemplateToSelected() {
                     </div>
                   </template>
                 </TableCell>
-                <TableCell>
+                <TableCell class="whitespace-normal">
                   <template v-if="company.templateName">
                     <RouterLink
                       :to="`/empresas/${company.id}/checklist`"
@@ -492,7 +504,31 @@ async function applyTemplateToSelected() {
           </Table>
         </div>
 
-        <Pagination v-model:page="page" :total="meta.total" :items-per-page="perPage" />
+        <Pagination
+          v-if="meta.total > perPage"
+          v-slot="{ page: current }"
+          v-model:page="page"
+          :total="meta.total"
+          :items-per-page="perPage"
+          :sibling-count="1"
+          show-edges
+          class="mt-4"
+        >
+          <PaginationContent v-slot="{ items }">
+            <PaginationPrevious />
+            <template v-for="(item, index) in items" :key="index">
+              <PaginationItem
+                v-if="item.type === 'page'"
+                :value="item.value"
+                :is-active="item.value === current"
+              >
+                {{ item.value }}
+              </PaginationItem>
+              <PaginationEllipsis v-else :index="index" />
+            </template>
+            <PaginationNext />
+          </PaginationContent>
+        </Pagination>
       </div>
     </template>
   </section>
@@ -501,11 +537,11 @@ async function applyTemplateToSelected() {
     :open="confirmDeactivate !== null"
     @update:open="$event ? null : (confirmDeactivate = null)"
     title="Desativar empresa?"
-    description="Empresa desativada não entra no fan-out das próximas competências."
+    description="Empresa desativada não recebe solicitação nas próximas competências."
   >
     <p class="text-sm text-foreground">
-      {{ confirmDeactivate?.name }} deixa de ser cobrada. As solicitações já abertas continuam como
-      estão, e você pode reativá-la depois.
+      {{ confirmDeactivate?.name }} deixa de ser cobrada. Nas solicitações já abertas, o Link de
+      Upload para de abrir e os lembretes param. Ao reativar a empresa, o link volta a funcionar.
     </p>
 
     <div
@@ -521,7 +557,7 @@ async function applyTemplateToSelected() {
   <div v-if="selectedIds.size" class="h-20" aria-hidden="true"></div>
   <div
     v-if="selectedIds.size"
-    class="border-border bg-card fixed inset-x-0 bottom-0 z-40 border-t p-3.5 shadow-[0_-4px_16px_rgba(15,23,42,0.08)]"
+    class="border-border bg-card fixed inset-x-0 bottom-0 z-40 border-t p-3.5 shadow-[0_-4px_16px_rgba(15,23,42,0.08)] lg:left-[260px]"
     role="region"
     aria-label="Ações em lote nas empresas selecionadas"
   >
