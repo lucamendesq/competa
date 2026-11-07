@@ -53,7 +53,7 @@ Um bloco por ticket, na ordem em que foram executados. Plano: [`docs/react-migra
 ## M0.3 · COM-316 · Lint e regras de arquitetura
 
 - **Data:** 2026-11-07
-- **Branch:** `feat/COM-316-lint-boundaries` (a partir de `feat/COM-315-bootstrap-web-react`)
+- **Branch:** `feat/COM-316-lint-boundaries` (a partir de `feat/COM-315-bootstrap-web-react`) · **PR:** [#22](https://github.com/lucamendesq/competa/pull/22)
 - **O que foi feito:** bloco `apps/web-react/**/*.{ts,tsx}` no `eslint.config.mjs` da raiz: `typescript-eslint` recommended, `react-hooks` `recommended-latest` (regras do compiler), `jsx-a11y` recommended, `eslint-config-prettier`, `eslint-plugin-boundaries` 7.4 e as restrições de import/global. `lint-staged` cobre `*.tsx`. Script `lint` no pacote.
 - **Decisões:**
   - `boundaries/root-path` aponta para `apps/web-react`: o plugin descreve o arquivo com caminho relativo ao cwd, então padrões `apps/web-react/src/...` não casavam quando o lint roda de dentro do pacote. Com a raiz fixa, o resultado é igual rodando da raiz ou do pacote.
@@ -64,3 +64,19 @@ Um bloco por ticket, na ordem em que foram executados. Plano: [`docs/react-migra
 - **Prova de cada regra** (arquivos temporários, apagados depois): periods → companies, shared → feature, `app/routes` → arquivo interno de feature e periods → arquivo interno de `catalog` falham com a mensagem da regra; periods → `catalog` pelo `index.ts`, `app/routes` → `features/companies` pelo `index.ts` e periods → arquivo interno de periods passam. `useQuery` em `features/x/components/` falha; em `features/x/queries/` passa. `<img>` sem `alt` falha (`jsx-a11y/alt-text`). `@radix-ui/react-slot` e `fetch` num componente falham. Bônus: `setState` dentro de `useEffect` para derivar estado falha em `react-hooks/set-state-in-effect`.
 - **Ficou de fora:** nada.
 - **Tempo:** ~35 min.
+
+---
+
+## M0.4 · COM-317 · Infra de testes
+
+- **Data:** 2026-11-07
+- **Branch:** `feat/COM-317-test-infra` (a partir de `feat/COM-316-lint-boundaries`)
+- **O que foi feito:** Vitest 5 (jsdom) + Testing Library + `jest-dom` + MSW. `src/testing/`: `setup.ts`, `mocks/server.ts`, `mocks/handlers/auth.ts` (`/auth/me` com sessão de Contador, `/my/profile` 401), `mocks/api.ts` (`apiUrl`, `envelope`), fábricas `company`, `period`, `panelRow`, `request`, `template` (+ `accountantSession` para o handler) e `test-utils.tsx` com `renderWithProviders` e `renderHookWithProviders`. `test-utils.spec.tsx` mostra o MSW respondendo `GET /auth/me` (e um override 401 por teste). `check:no-diamond` (agora com `.tsx`, sem `.vue`) e `check:wcag` copiados. Seção "Testes" no `docs/react-standards.md`.
+- **Decisões:**
+  - **MSW 3** (o ticket diz v2; a 3 é a atual). A opção de request sem handler virou `onUnhandledFrame: 'error'`; conferido com um spec temporário que um `fetch` sem handler falha.
+  - **jsdom 27**: o 31 derruba o worker do Vitest (`parser.tokenizer.flushCharacters is not a function`).
+  - **`SessionProvider` ainda não entra no `renderWithProviders`**: ele nasce no M1.1. O teste de exemplo resolve a sessão com uma query local. O M1.1 acrescenta a opção `session` (anotado lá).
+  - Specs e `src/testing/` podem usar `fetch` (exceção no lint), para afirmar o comportamento do MSW sem depender do api-client do M0.5.
+  - `vitest.config.ts` separado do `vite.config.ts` (sem PWA nos testes), com `VITE_API_URL=http://api.test` no `test.env`.
+- **Ficou de fora:** `api-error.spec.ts` entra no M0.5 junto com o `api-error.ts` (o ticket permite o teste de fumaça antes). **TODO para o M8.2:** portar `apps/web/scripts/check-upload.ts` para `features/upload/hooks/use-upload.spec.ts`.
+- **Tempo:** ~40 min.

@@ -129,7 +129,12 @@ export default tseslint.config(
     rules: { 'no-restricted-imports': ['error', { patterns: [restrictQueryClient] }] },
   },
   {
-    files: [`${webReact}/src/shared/lib/api-client.ts`, `${webReact}/src/features/upload/api/**`],
+    files: [
+      `${webReact}/src/shared/lib/api-client.ts`,
+      `${webReact}/src/features/upload/api/**`,
+      `${webReact}/src/testing/**`,
+      `${webReact}/src/**/*.spec.{ts,tsx}`,
+    ],
     rules: { 'no-restricted-globals': 'off' },
   },
 

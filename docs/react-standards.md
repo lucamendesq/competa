@@ -238,3 +238,12 @@ COMPETA-SPECIFIC ADDENDA (decided in the migration plan, 2026-11)
 - UI primitives come from shadcn/ui, generated into `shared/components/ui/` and customized there. `@radix-ui/*` (what shadcn installs underneath) is never imported outside that folder; enforced by `no-restricted-imports`.
 - AGENTS.md still governs naming (EN identifiers / PT-BR UI), no comments, upload-flow invariants (never file names, storage keys or download routes under the upload token), Tailwind-only styling, and contracts from `@competa/contracts` as the single validation source.
 ```
+
+## Testes
+
+Vitest + Testing Library + MSW, em `apps/web-react` (`pnpm --filter web-react test`).
+
+- **O que testar:** hooks de feature (query keys, invalidação depois de mutation), fluxos críticos (entrar → abrir competência → painel → revisão; envio público; cadastro) e lógica de negócio pura (`format.ts`, `item-status.ts`, `readSpreadsheet`, `useUpload`).
+- **O que não testar:** componentes puramente apresentacionais (um `StatusPill` que só mapeia props para classes). Comparação visual com o baseline cobre esses.
+- **Como:** `renderWithProviders` e `renderHookWithProviders` de `src/testing/test-utils.tsx` (QueryClient novo por teste, sem retry; router em memória). A rede é sempre o MSW (`src/testing/mocks/handlers/`, um arquivo por recurso); request sem handler falha o teste. Dados de teste vêm das fábricas de `src/testing/factories/`.
+- Afirme o que o usuário vê e o que a API recebeu, não detalhes de implementação.
