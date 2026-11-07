@@ -220,6 +220,15 @@ const make = Effect.gen(function* () {
           return { outcome: 'ignored', reason: 'stale' } as const;
         }
 
+        if (
+          input.event === 'PAYMENT_OVERDUE' &&
+          row.status === 'ACTIVE' &&
+          row.currentPeriodStart !== null &&
+          input.payment.dueDate?.getTime() === row.currentPeriodStart.getTime()
+        ) {
+          return { outcome: 'ignored', reason: 'stale' } as const;
+        }
+
         /* Cancelada já perdeu a cobrança recorrente; o acesso vai até `currentPeriodEnd`
          * (D19 #3). Apagar a assinatura no gateway apaga as cobranças em aberto, e o
          * `PAYMENT_DELETED` delas não pode virar bloqueio imediato. */
@@ -299,6 +308,15 @@ const make = Effect.gen(function* () {
           period && (!row.currentPeriodEnd || period.currentPeriodEnd > row.currentPeriodEnd)
             ? period
             : {};
+
+        if (
+          status === 'ACTIVE' &&
+          row.status === 'OVERDUE' &&
+          !coversPending &&
+          !('currentPeriodEnd' in periodPatch)
+        ) {
+          return { outcome: 'ignored', reason: 'stale' } as const;
+        }
 
         const canceled =
           status === 'CANCELED'

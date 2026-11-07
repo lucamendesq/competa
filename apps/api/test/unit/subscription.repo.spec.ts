@@ -340,6 +340,58 @@ layer(SubscriptionsRepo.layer)('SubscriptionsRepo', (it) => {
       }),
   );
 
+  it.effect('applyEvent: OVERDUE da fatura já paga chegando depois do CONFIRMED não bloqueia', () =>
+    Effect.gen(function* () {
+      const repo = yield* SubscriptionsRepo;
+      const firm = yield* seedFirm('overdueatrasado');
+      yield* seedSubscription(firm, { gatewaySubscriptionId: 'sub_oa', status: 'ACTIVE' });
+
+      yield* repo.applyEvent(
+        event('sub_oa', 'PAYMENT_CONFIRMED', { id: 'pay_oa', dueDate: day('2026-11-10') }),
+      );
+      const late = yield* repo.applyEvent(
+        event('sub_oa', 'PAYMENT_OVERDUE', { id: 'pay_oa', dueDate: day('2026-11-10') }),
+      );
+
+      expect(late).toEqual({ outcome: 'ignored', reason: 'stale' });
+      expect((yield* subscriptionRow(firm)).status).toBe('ACTIVE');
+    }),
+  );
+
+  it.effect(
+    'applyEvent: OVERDUE pela fatura N+1, o RECEIVED tardio da N não reativa; pagar a N+1 reativa',
+    () =>
+      Effect.gen(function* () {
+        const repo = yield* SubscriptionsRepo;
+        const firm = yield* seedFirm('receivedtardio');
+        yield* seedSubscription(firm, { gatewaySubscriptionId: 'sub_rt', status: 'ACTIVE' });
+
+        yield* repo.applyEvent(
+          event('sub_rt', 'PAYMENT_CONFIRMED', { id: 'pay_n', dueDate: day('2026-10-10') }),
+        );
+        yield* repo.applyEvent(
+          event('sub_rt', 'PAYMENT_OVERDUE', { id: 'pay_n1', dueDate: day('2026-11-10') }),
+        );
+        expect((yield* subscriptionRow(firm)).status).toBe('OVERDUE');
+
+        const late = yield* repo.applyEvent(
+          event('sub_rt', 'PAYMENT_RECEIVED', { id: 'pay_n', dueDate: day('2026-10-10') }),
+        );
+        expect(late).toEqual({ outcome: 'ignored', reason: 'stale' });
+        expect((yield* subscriptionRow(firm)).status).toBe('OVERDUE');
+
+        const paid = yield* repo.applyEvent(
+          event('sub_rt', 'PAYMENT_RECEIVED', { id: 'pay_n1', dueDate: day('2026-11-10') }),
+        );
+        expect(paid).toMatchObject({ outcome: 'applied', status: 'ACTIVE' });
+        expect(yield* subscriptionRow(firm)).toMatchObject({
+          status: 'ACTIVE',
+          currentPeriodStart: day('2026-11-10'),
+          currentPeriodEnd: day('2026-12-10'),
+        });
+      }),
+  );
+
   it.effect(
     'applyEvent: SUBSCRIPTION_INACTIVATED/DELETED cancelam e limpam a intenção; cancelada não reativa',
     () =>
