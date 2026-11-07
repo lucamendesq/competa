@@ -31,7 +31,10 @@ const mount = (initialEntry: string) => {
 };
 
 const expireTwice = async () => {
-  server.use(http.get(apiUrl('/periods'), () => new HttpResponse(null, { status: 401 })));
+  server.use(
+    http.get(apiUrl('/periods'), () => new HttpResponse(null, { status: 401 })),
+    http.get(apiUrl('/auth/me'), () => new HttpResponse(null, { status: 401 })),
+  );
   await act(async () => {
     await Promise.allSettled([api.get('/periods'), api.get('/periods')]);
   });
@@ -47,7 +50,7 @@ describe('sessão expirada', () => {
     expect(await screen.findByText('tela de entrada')).toBeInTheDocument();
     expect(router.state.location.pathname).toBe('/entrar');
     expect(await screen.findAllByText(SESSION_EXPIRED_MESSAGE)).toHaveLength(1);
-    expect(queryClient.getQueryData(authKeys.me())).toBeUndefined();
+    expect(queryClient.getQueryData(authKeys.me()) ?? null).toBeNull();
   });
 
   it('numa rota do Responsável leva a /minha-area/acesso', async () => {

@@ -3,6 +3,7 @@ import { GuestOnly, RequireAccountant, RequireContact } from '@/app/router/guard
 import { RootLayout } from '@/app/router/root-layout';
 import { RouteErrorState } from '@/app/router/route-error-state';
 import type { RouteHandle } from '@/app/router/route-handle';
+import { NotFoundPage } from '@/app/routes/not-found';
 
 const page = (
   path: string,
@@ -118,10 +119,11 @@ export const routes: RouteObject[] = [
       },
       /* Catch-all explícito: sem ele uma URL com typo casava com nada e a página ficava
        * vazia — tela branca sem erro, sem 404 e sem cair no guard de login. */
-      page('*', () => import('@/app/routes/not-found'), {
-        title: 'Página não encontrada',
-        area: 'public',
-      }),
+      {
+        path: '*',
+        element: <NotFoundPage />,
+        handle: { title: 'Página não encontrada', area: 'public' } satisfies RouteHandle,
+      },
     ],
   },
 ];

@@ -19,3 +19,15 @@ export const accountantSession = () => ({
     },
   },
 });
+
+export const contactSession = () => ({
+  contactId: uuid(),
+  name: 'Carla Souza',
+  email: 'carla@mercado.com.br',
+  phone: null,
+  companyId: uuid(),
+  companyName: 'Mercado Bom Preço',
+  accountingFirmName: 'Contabilidade Exemplo',
+  companies: [],
+  hasPassword: true,
+});

@@ -137,6 +137,7 @@ export default tseslint.config(
   {
     files: [
       `${webReact}/src/shared/lib/api-client.ts`,
+      `${webReact}/src/shared/lib/auth-client.ts`,
       `${webReact}/src/features/upload/api/**`,
       `${webReact}/src/testing/**`,
       `${webReact}/src/**/*.spec.{ts,tsx}`,

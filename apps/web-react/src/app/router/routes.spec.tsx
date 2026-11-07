@@ -1,13 +1,20 @@
+import { QueryClientProvider } from '@tanstack/react-query';
 import { act, render, screen } from '@testing-library/react';
 import { createMemoryRouter, Outlet, RouterProvider, type RouteObject } from 'react-router';
 import { describe, expect, it } from 'vitest';
 import { RouteErrorState } from '@/app/router/route-error-state';
 import { routes } from '@/app/router/routes';
 import { ApiError } from '@/shared/lib/api-error';
+import { mockSessionAs } from '@/testing/mocks/sessions';
+import { createTestQueryClient } from '@/testing/test-utils';
 
 const mount = (path: string) => {
   const router = createMemoryRouter(routes, { initialEntries: [path] });
-  render(<RouterProvider router={router} />);
+  render(
+    <QueryClientProvider client={createTestQueryClient()}>
+      <RouterProvider router={router} />
+    </QueryClientProvider>,
+  );
   return router;
 };
 
@@ -44,11 +51,12 @@ describe('rotas', () => {
   });
 
   it.each([
-    ['/', '/competencias'],
-    ['/criar-conta', '/cadastro'],
-    ['/configuracoes', '/configuracoes/contabilidade'],
-    ['/minha-area', '/minha-area/pendencias'],
-  ])('redireciona %s para %s', async (from, to) => {
+    ['/', '/competencias', 'accountant'],
+    ['/criar-conta', '/cadastro', 'guest'],
+    ['/configuracoes', '/configuracoes/contabilidade', 'accountant'],
+    ['/minha-area', '/minha-area/pendencias', 'contact'],
+  ] as const)('redireciona %s para %s', async (from, to, who) => {
+    mockSessionAs(who);
     const router = mount(from);
 
     await screen.findByRole('heading');
@@ -65,7 +73,7 @@ describe('rotas', () => {
     };
     walk(routes);
 
-    expect(lazyPages).toHaveLength(30);
+    expect(lazyPages).toHaveLength(29);
   });
 });
 

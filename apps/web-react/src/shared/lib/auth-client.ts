@@ -4,6 +4,9 @@ import { env } from '@/shared/config/env';
 
 export const authClient = createAuthClient({
   baseURL: env.authUrl,
-  fetchOptions: { credentials: 'include' },
+  fetchOptions: {
+    credentials: 'include',
+    customFetchImpl: (input, init) => fetch(input, init),
+  },
   plugins: [magicLinkClient()],
 });

@@ -174,7 +174,7 @@ Um bloco por ticket, na ordem em que foram executados. Plano: [`docs/react-migra
 ## M0.10 · COM-323 · CI e preview do web-react (`ready-for-human`)
 
 - **Data:** 2026-11-07
-- **Branch:** `feat/COM-323-ci-web-react` (a partir de `feat/COM-320-router`)
+- **Branch:** `feat/COM-323-ci-web-react` (a partir de `feat/COM-320-router`) · **PR:** [#29](https://github.com/lucamendesq/competa/pull/29)
 - **O que foi feito (repositório):** `ci.yml` roda `pnpm --filter web-react typecheck` e `test` no job `test` (o `build-lint` já cobria lint, format e `pnpm -r build`). Job novo `deploy-web-react-staging`, cópia do `deploy-web-staging` mudando só o pacote, o `dist` e o projeto do Pages (`competa-web-react-staging`). `docs/deploy.md` › Staging ganhou a seção "Preview do React (temporário, até o cutover)".
 - **Decisões:**
   - O gatilho é o mesmo do `deploy-web-staging` atual: push na `main` ou "Run workflow". O ticket fala em "push na branch `staging`", mas o `ci.yml` do `main` não deploya staging a partir da branch `staging`; copiar o job sem mudar o gatilho é o que o prompt do ticket pede.
@@ -183,3 +183,28 @@ Um bloco por ticket, na ordem em que foram executados. Plano: [`docs/react-migra
 - **Aguardando humano** (checklist na issue): criar o projeto Pages com o domínio, `TRUSTED_ORIGINS` no `competa-api-staging`, e conferir `/termos` + `GET /auth/me` sem erro de CORS no preview. A issue fica em **Todo** com o comentário "aguardando humano" (o time não tem estado Blocked).
 - **CI:** os PRs #20–#27 da cadeia passaram em `build-lint` e `test`.
 - **Tempo:** ~20 min.
+
+---
+
+## M1.1 · COM-327 · Sessão, SessionProvider, mutations de auth e guards
+
+- **Data:** 2026-11-07
+- **Branch:** `feat/COM-327-session-guards` (a partir de `feat/COM-323-ci-web-react`; o M0.10 não bloqueia nada, mas a cadeia é linear)
+- **O que foi feito:**
+  - `shared/session/`: schemas zod `AccountantSession`/`ContactSession` (validam o `/auth/me` e o `/my/profile` com `parsed`), `deriveSession` (puro: `can`, `isOwner`, `isOverdue`, `status`) e `SessionContext` + `useSession()`. Nenhum estado próprio.
+  - `features/auth/`: `api/auth.ts` (as chamadas do store Pinia), `authKeys` (`me`, `contactProfile`), `meOptions`/`contactProfileOptions` (`staleTime`/`gcTime: Infinity`, `retry: false`), as 12 mutations do ticket e os hooks de Suspense dos guards.
+  - `app/providers/session-provider.tsx`: deriva o Context das duas queries; a do Responsável só roda quando o `/me` deu `null` (o `ensureLoaded` do Vue).
+  - `app/router/guards.tsx`: `RequireAccountant`, `RequireContact` e `GuestOnly` com `useSuspenseQuery` dentro de `<Suspense>` (o único Suspense do app), guardando `from` no redirect para a entrada.
+  - A `NotFoundPage` agora escolhe "Ir para o painel" / "Ir para minhas pendências" / "Entrar" pela sessão, como no Vue (pendência deixada no M0.9).
+  - `renderWithProviders`/`renderHookWithProviders` ganharam a opção `session` (pendência do M0.4); `src/testing/mocks/sessions.ts` troca a sessão do MSW por teste.
+- **Decisões:**
+  - **As mutations esperam a sessão recarregar.** O `onSuccess` devolve a promessa do `invalidateQueries(authKeys.all)`, então o `mutateAsync` só resolve depois do `/auth/me` novo. Sem isso, a tela navega para `/competencias` com o `null` antigo no cache, e o `useSuspenseQuery` do guard (que não suspende quando já há dado) manda de volta para `/entrar`.
+  - **`/auth/me` com 401/403/404 = sem Contador.** É o que o Responsável logado recebe; o Vue engolia qualquer erro. Erro de rede ou 5xx agora vira o `ErrorState` do segmento em vez de um redirect mudo para o login.
+  - **Sair** remove todas as queries que não são de sessão (nada do tenant fica no cache) e faz `resetQueries(authKeys.all)`. Só `clear()` deixava o `SessionProvider`, que fica acima do router, mostrando o Contador antigo até algo re-renderizá-lo. O teste cobre os dois lados.
+  - O `authClient` passa `customFetchImpl: (input, init) => fetch(input, init)`: o `better-fetch` guarda o `fetch` na importação, e sem isso o MSW não intercepta as chamadas de login nos testes. O `auth-client.ts` entrou na exceção de `fetch` do lint (infra HTTP, como o api-client).
+  - A rota `*` passou a usar a `NotFoundPage` direto (sem `lazy`), o que acabou com o aviso do Vite de import estático + dinâmico do mesmo módulo. São 29 páginas lazy.
+  - O ticket pede "Contador em `/minha-area/pendencias` → `/minha-area/acesso`". O `RequireContact` faz isso (teste isolado), mas com as rotas reais o `/minha-area/acesso` é `GuestOnly` e manda o Contador para `/competencias`, exatamente como o `beforeEach` do Vue. Os dois casos estão testados.
+- **Testes:** `derive-session.spec.ts` (`isOverdue` nos quatro ramos: OVERDUE, CANCELED antes/depois do fim do período, trial vencido/em curso, ativa/ausente; `can()` false antes do `/me`), `session-provider.spec.tsx` (loading → ready, Responsável só sem Contador, sign-in invalida e a sessão passa a ter o Contador, sign-in recusado com "E-mail ou senha inválidos.", sign-out limpa o cache inteiro e zera a sessão), `guards.spec.tsx` (sem sessão → `/entrar` com `from`; Responsável em `/entrar` e em `/competencias` → `/minha-area/pendencias`; Contador e o `RequireContact`). 77 testes no pacote. `grep -r useState shared/session features/auth/queries` vazio.
+- **Bundle (ponto de partida para o M10.4):** o chunk principal do React tem 559 kB (o do Vue, 332 kB); o `vite build` avisa do limite de 500 kB. Não otimizado aqui.
+- **Ficou de fora:** nada do escopo. As telas de login, cadastro, senha e convite são M1.2–M1.5.
+- **Tempo:** ~1h30.
