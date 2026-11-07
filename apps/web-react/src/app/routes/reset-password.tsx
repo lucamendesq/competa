@@ -1,5 +1,5 @@
-import { Placeholder } from '@/app/routes/placeholder';
+import { ResetPasswordPage } from '@/features/auth';
 
 export function Component() {
-  return <Placeholder name="ResetPassword" />;
+  return <ResetPasswordPage />;
 }

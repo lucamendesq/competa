@@ -226,7 +226,7 @@ Um bloco por ticket, na ordem em que foram executados. Plano: [`docs/react-migra
 ## M1.3 · COM-330 · Cadastro público da Contabilidade (`/cadastro`)
 
 - **Data:** 2026-11-07
-- **Branch:** `feat/COM-330-register` (a partir de `feat/COM-329-login`)
+- **Branch:** `feat/COM-330-register` (a partir de `feat/COM-329-login`) · **PR:** [#32](https://github.com/lucamendesq/competa/pull/32)
 - **O que foi feito:** `features/auth/components/register-page.tsx` (rota `app/routes/register.tsx`). Um `useForm` com o schema completo do Vue (`PublicSignUpBody` + `email()` + `newPassword()` + CNPJ opcional), passo em `useState<'user' | 'firm'>`, `stepOneValid` e `firmNameValid` derivados no render a partir de `useWatch` (sem efeito). Enter no passo 1 avança em vez de enviar; "Continuar" valida e marca os três campos (`trigger`). CNPJ com `cnpjInputMask` num `Controller`. `useRegisterFirm` (com o fallback de sign-in do store) → `/competencias`. 422 do servidor vai para o campo com `applyFieldErrors` e a mensagem geral aparece no topo com `apiErrorMessage`, como no Vue.
 - **Refatoração dentro da feature:** o painel escuro de benefícios, o asterisco de obrigatório e o alerta de erro viraram `auth-shell.tsx` (`AuthShell`, `RequiredMark`, `FormAlert`), porque login e cadastro são dois consumidores reais. O login passou a usar e os testes dele continuam verdes.
 - **Decisões:**
@@ -237,3 +237,17 @@ Um bloco por ticket, na ordem em que foram executados. Plano: [`docs/react-migra
 - **Visual:** `cadastro__{desktop,mobile}__{passo-1,passo-2}.png`, iguais aos do Vue.
 - **Ficou de fora:** o portão de aceite dos termos (decisão de produto, acima).
 - **Tempo:** ~50 min.
+
+---
+
+## M1.4 · COM-331 · Esqueci minha senha e redefinir senha
+
+- **Data:** 2026-11-07
+- **Branch:** `feat/COM-331-password` (a partir de `feat/COM-330-register`)
+- **O que foi feito:** `features/auth/components/forgot-password-page.tsx` e `reset-password-page.tsx` (rotas `forgot-password.tsx`, `reset-password.tsx`). O "esqueci" usa `useRequestPasswordReset` (`redirectTo: ${location.origin}/redefinir-senha`) e troca para "Verifique seu e-mail" pelo `isSuccess` da mutation. O "redefinir" lê `?token=` com `useSearchParams`; "link inválido" quando não há token, quando vem `?error=` ou quando a API responde `INVALID_TOKEN`; "Senha alterada" quando o resultado é `done`. Todos os estados saem do resultado da mutation, sem `useState`. Textos e botões iguais ao Vue.
+- **Refatoração dentro da feature:** `AuthCard` (cartão centrado com o logo) e `StatusIcon` entram no `auth-shell.tsx`; as duas páginas usam.
+- **Decisões:** os botões "Voltar para o login", "Pedir novo link" e "Entrar no painel" viraram links (`Button asChild` + `Link`) em vez de botão com `router.push`, o que dá `href` e abre em nova aba. O e-mail do "esqueci" ganhou `autocomplete="email"`/`inputmode="email"` e a nova senha `autocomplete="new-password"`, que o Vue não tinha; o visual não muda.
+- **Testes:** `password-pages.spec.tsx` (rotas reais + MSW): o "esqueci" mostra a mesma resposta para e-mail existente e inexistente e manda o `redirectTo` certo; sem token → link inválido com "Pedir novo link"; `INVALID_TOKEN` → link inválido; sucesso → "Senha alterada" com link para `/entrar`; outro erro → mensagem do store e o formulário continua. 93 testes no pacote.
+- **Visual:** `esqueci-senha__{desktop,mobile}__{inicial,enviado}.png` e `redefinir-senha__{desktop,mobile}__invalido.png`, iguais aos do Vue (o "enviado" passou pela API local de verdade).
+- **Ficou de fora:** nada.
+- **Tempo:** ~30 min.

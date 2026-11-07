@@ -72,3 +72,37 @@ export function FormAlert({ message }: { message: string }) {
     </div>
   );
 }
+
+export function AuthCard({ children }: { children: ReactNode }) {
+  return (
+    <main className="bg-background min-h-dvh flex items-center justify-center p-4 sm:p-8">
+      <div className="bg-card border-border w-full max-w-md rounded-xl border p-6 shadow-sm sm:p-8">
+        <div className="flex justify-center mb-6">
+          <Logo surface="auto" className="h-8" />
+        </div>
+        {children}
+      </div>
+    </main>
+  );
+}
+
+export function StatusIcon({
+  tone,
+  children,
+}: {
+  tone: 'primary' | 'danger';
+  children: ReactNode;
+}) {
+  return (
+    <div
+      className={
+        tone === 'primary'
+          ? 'mx-auto mb-4 flex size-12 items-center justify-center rounded-full bg-primary/10 text-primary'
+          : 'mx-auto mb-4 flex size-12 items-center justify-center rounded-full bg-danger-surface text-danger-foreground'
+      }
+      aria-hidden="true"
+    >
+      {children}
+    </div>
+  );
+}

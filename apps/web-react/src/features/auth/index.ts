@@ -23,3 +23,5 @@ export {
 } from '@/features/auth/queries/use-auth-mutations';
 export { LoginPage } from '@/features/auth/components/login-page';
 export { RegisterPage } from '@/features/auth/components/register-page';
+export { ForgotPasswordPage } from '@/features/auth/components/forgot-password-page';
+export { ResetPasswordPage } from '@/features/auth/components/reset-password-page';
