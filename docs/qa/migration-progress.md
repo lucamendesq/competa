@@ -257,7 +257,7 @@ Um bloco por ticket, na ordem em que foram executados. Plano: [`docs/react-migra
 ## M1.5 · COM-332 · Aceitar convite (`/convite/:linkToken`)
 
 - **Data:** 2026-11-07
-- **Branch:** `feat/COM-332-invite` (a partir de `feat/COM-331-password`)
+- **Branch:** `feat/COM-332-invite` (a partir de `feat/COM-331-password`) · **PR:** [#34](https://github.com/lucamendesq/competa/pull/34)
 - **O que foi feito:** `features/auth/components/invite-page.tsx` (rota `app/routes/invite.tsx`). O token vem de `useParams`; o convite é `useInviteQuery(token)` sobre o `GET /invites/:token` (`authKeys.invite(token)`), com os estados "Carregando convite…", "Convite inválido" e o formulário. `useAcceptInvite` faz o que o Vue fazia em sequência: `POST /auth/sign-up` (Contador) ou `POST /invites/:token/contact-account` (Responsável), sign-in com e-mail e senha e recarga da sessão; depois `/competencias` ou `/minha-area/pendencias`. `TermsConsent` nasce em `features/auth/components/terms-consent.tsx` (primeiro consumidor).
 - **Decisões (o Vue é a especificação onde o ticket diverge):**
   - **Convite usado ou vencido mostra a tela "Convite inválido"** com a mensagem da API e o botão "Ir para o login", que aponta para `/minha-area/acesso` quando o erro traz `details.target = 'company'` e para `/entrar` no resto. O ticket pedia `Navigate` automático + toast; o Vue (commit `f74c48b`, "convite de Responsável já usado manda para a Minha Área") mostra a tela e deixa o usuário clicar.
@@ -267,3 +267,18 @@ Um bloco por ticket, na ordem em que foram executados. Plano: [`docs/react-migra
 - **Visual:** `convite-token__{desktop,mobile}__contador.png`, iguais aos do Vue (convite local gerado com `create-firm` para o mesmo nome e e-mail do baseline). O baseline não tem o convite de Responsável; o teste cobre o texto dele.
 - **Ficou de fora:** nada do escopo.
 - **Tempo:** ~35 min.
+
+---
+
+## M2.1 · COM-333 · PanelLayout
+
+- **Data:** 2026-11-07
+- **Branch:** `feat/COM-333-panel-layout` (a partir de `feat/COM-332-invite`)
+- **O que foi feito:** `shared/components/layout/panel-layout.tsx` com a marcação e as classes do `PanelLayout.vue`: skip link "Pular para o conteúdo", header mobile com botão de menu (`aria-expanded`, `aria-controls`), overlay, nav com os 7 itens (`NavLink` com as classes de ativo do Vue), bloco de perfil com iniciais e menu ("Convidar contador" só para o dono; "Sair"), `Callout` de assinatura pendente com "Regularizar agora", `main#conteudo`. `menuOpen` e `profileOpen` em `useState` local. `app/router/panel-shell.tsx` liga o layout à sessão (`useSession`), ao `useSignOut` (depois → `/entrar`) e ao indicador de escrita em voo; a rota `/` ficou `RequireAccountant` → `PanelShell` → segmento com `errorElement`, então o erro de uma página aparece dentro do layout.
+- **Decisões:**
+  - **O layout é apresentacional em `shared/`** e a composição fica em `app/router/panel-shell.tsx`: o ticket punha `useSignOut` dentro de `shared/`, mas ele mora em `features/auth`, e `shared` não importa feature (lint).
+  - **Escrita em voo:** o Vue não mostrava nada visível com o `isBusy` (só travava os botões). Seguindo o ticket, o layout marca `aria-busy` no `main`. O hook `useWritesInFlight()` (`useIsMutating() > 0`) mora em `shared/lib/query-client.ts`, o único lugar de `shared` liberado para o TanStack.
+- **Testes:** `panel-layout.spec.tsx`: menu mobile abre/fecha pelo botão e pelo overlay (com `aria-expanded`); link ativo com `bg-brand-light text-brand-strong`; iniciais; "Convidar contador" só para o dono; "Sair" chama o handler; aviso de inadimplência só com `isOverdue`; skip link é o primeiro foco e aponta para `#conteudo`; `aria-busy` com escrita em voo. 106 testes no pacote.
+- **Visual:** `competencias__{desktop,mobile}__layout.png` e `competencias__mobile__menu-aberto.png`, logado como o dono do baseline na API local. Sidebar, header mobile e menu aberto iguais ao Vue. O miolo ainda é o placeholder "Periods" (M2.3); por isso as capturas com o miolo levam o nome `layout` em vez de `com-dados`, que o M2.3 vai gerar.
+- **Ficou de fora:** nada.
+- **Tempo:** ~40 min.

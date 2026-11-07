@@ -1,4 +1,4 @@
-import { QueryClient } from '@tanstack/react-query';
+import { QueryClient, useIsMutating } from '@tanstack/react-query';
 import { ApiError } from '@/shared/lib/api-error';
 
 const isClientError = (error: unknown) =>
@@ -16,3 +16,5 @@ export const makeQueryClient = () =>
       mutations: { retry: 0 },
     },
   });
+
+export const useWritesInFlight = () => useIsMutating() > 0;

@@ -1,5 +1,6 @@
 import { Navigate, Outlet, type RouteObject } from 'react-router';
 import { GuestOnly, RequireAccountant, RequireContact } from '@/app/router/guards';
+import { PanelShell } from '@/app/router/panel-shell';
 import { RootLayout } from '@/app/router/root-layout';
 import { RouteErrorState } from '@/app/router/route-error-state';
 import type { RouteHandle } from '@/app/router/route-handle';
@@ -93,28 +94,33 @@ export const routes: RouteObject[] = [
         element: <RequireAccountant />,
         handle: { area: 'accountant' } satisfies RouteHandle,
         children: [
-          segment([
-            { index: true, element: <Navigate to="/competencias" replace /> },
-            page('competencias', () => import('@/app/routes/periods')),
-            page('competencias/:id/pendencias', () => import('@/app/routes/pending-panel')),
-            page('solicitacoes/:id', () => import('@/app/routes/request-review')),
-            page('empresas', () => import('@/app/routes/companies')),
-            page('empresas/nova', () => import('@/app/routes/company-form-new')),
-            page('empresas/importar', () => import('@/app/routes/import-companies')),
-            page('empresas/:id/editar', () => import('@/app/routes/company-form-edit')),
-            page('empresas/:id/checklist', () => import('@/app/routes/company-checklist')),
-            page('templates', () => import('@/app/routes/checklists')),
-            page('templates/:id', () => import('@/app/routes/checklist-form')),
-            page('mensagens', () => import('@/app/routes/messages')),
-            {
-              path: 'configuracoes',
-              element: <Navigate to="/configuracoes/contabilidade" replace />,
-            },
-            page('configuracoes/contabilidade', () => import('@/app/routes/firm-settings')),
-            page('configuracoes/contadores', () => import('@/app/routes/accountants-settings')),
-            page('configuracoes/whatsapp', () => import('@/app/routes/whatsapp-settings')),
-            page('configuracoes/plano', () => import('@/app/routes/plan')),
-          ]),
+          {
+            element: <PanelShell />,
+            children: [
+              segment([
+                { index: true, element: <Navigate to="/competencias" replace /> },
+                page('competencias', () => import('@/app/routes/periods')),
+                page('competencias/:id/pendencias', () => import('@/app/routes/pending-panel')),
+                page('solicitacoes/:id', () => import('@/app/routes/request-review')),
+                page('empresas', () => import('@/app/routes/companies')),
+                page('empresas/nova', () => import('@/app/routes/company-form-new')),
+                page('empresas/importar', () => import('@/app/routes/import-companies')),
+                page('empresas/:id/editar', () => import('@/app/routes/company-form-edit')),
+                page('empresas/:id/checklist', () => import('@/app/routes/company-checklist')),
+                page('templates', () => import('@/app/routes/checklists')),
+                page('templates/:id', () => import('@/app/routes/checklist-form')),
+                page('mensagens', () => import('@/app/routes/messages')),
+                {
+                  path: 'configuracoes',
+                  element: <Navigate to="/configuracoes/contabilidade" replace />,
+                },
+                page('configuracoes/contabilidade', () => import('@/app/routes/firm-settings')),
+                page('configuracoes/contadores', () => import('@/app/routes/accountants-settings')),
+                page('configuracoes/whatsapp', () => import('@/app/routes/whatsapp-settings')),
+                page('configuracoes/plano', () => import('@/app/routes/plan')),
+              ]),
+            ],
+          },
         ],
       },
       /* Catch-all explícito: sem ele uma URL com typo casava com nada e a página ficava
