@@ -98,3 +98,13 @@ export const sendMagicLink = async ({
   const { error } = await authClient.signIn.magicLink({ email, callbackURL });
   if (error) throw new Error('Não foi possível enviar o link. Confira o e-mail e tente de novo.');
 };
+
+export type InvitePreview = {
+  email: string;
+  invitedBy: string;
+  companyName?: string | null;
+  target: 'accounting_firm' | 'company';
+};
+
+export const getInvite = (token: string, signal?: AbortSignal) =>
+  api.get<InvitePreview>(`/invites/${token}`, signal ? { signal } : {});

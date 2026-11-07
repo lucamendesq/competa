@@ -1,5 +1,5 @@
 import { queryOptions, useQuery, useSuspenseQuery } from '@tanstack/react-query';
-import { getMe, getMyProfile } from '@/features/auth/api/auth';
+import { getInvite, getMe, getMyProfile } from '@/features/auth/api/auth';
 import { authKeys } from '@/features/auth/queries/auth-keys';
 
 const sessionCache = { staleTime: Infinity, gcTime: Infinity, retry: false } as const;
@@ -26,3 +26,10 @@ export const useContactProfileQuery = ({ enabled }: { enabled: boolean }) =>
 export const useMeSuspense = () => useSuspenseQuery(meOptions()).data;
 
 export const useContactProfileSuspense = () => useSuspenseQuery(contactProfileOptions()).data;
+
+export const useInviteQuery = (token: string) =>
+  useQuery({
+    queryKey: authKeys.invite(token),
+    queryFn: ({ signal }) => getInvite(token, signal),
+    staleTime: Infinity,
+  });

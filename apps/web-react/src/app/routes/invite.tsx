@@ -1,5 +1,5 @@
-import { Placeholder } from '@/app/routes/placeholder';
+import { InvitePage } from '@/features/auth';
 
 export function Component() {
-  return <Placeholder name="Invite" />;
+  return <InvitePage />;
 }

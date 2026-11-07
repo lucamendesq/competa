@@ -243,7 +243,7 @@ Um bloco por ticket, na ordem em que foram executados. Plano: [`docs/react-migra
 ## M1.4 · COM-331 · Esqueci minha senha e redefinir senha
 
 - **Data:** 2026-11-07
-- **Branch:** `feat/COM-331-password` (a partir de `feat/COM-330-register`)
+- **Branch:** `feat/COM-331-password` (a partir de `feat/COM-330-register`) · **PR:** [#33](https://github.com/lucamendesq/competa/pull/33)
 - **O que foi feito:** `features/auth/components/forgot-password-page.tsx` e `reset-password-page.tsx` (rotas `forgot-password.tsx`, `reset-password.tsx`). O "esqueci" usa `useRequestPasswordReset` (`redirectTo: ${location.origin}/redefinir-senha`) e troca para "Verifique seu e-mail" pelo `isSuccess` da mutation. O "redefinir" lê `?token=` com `useSearchParams`; "link inválido" quando não há token, quando vem `?error=` ou quando a API responde `INVALID_TOKEN`; "Senha alterada" quando o resultado é `done`. Todos os estados saem do resultado da mutation, sem `useState`. Textos e botões iguais ao Vue.
 - **Refatoração dentro da feature:** `AuthCard` (cartão centrado com o logo) e `StatusIcon` entram no `auth-shell.tsx`; as duas páginas usam.
 - **Decisões:** os botões "Voltar para o login", "Pedir novo link" e "Entrar no painel" viraram links (`Button asChild` + `Link`) em vez de botão com `router.push`, o que dá `href` e abre em nova aba. O e-mail do "esqueci" ganhou `autocomplete="email"`/`inputmode="email"` e a nova senha `autocomplete="new-password"`, que o Vue não tinha; o visual não muda.
@@ -251,3 +251,19 @@ Um bloco por ticket, na ordem em que foram executados. Plano: [`docs/react-migra
 - **Visual:** `esqueci-senha__{desktop,mobile}__{inicial,enviado}.png` e `redefinir-senha__{desktop,mobile}__invalido.png`, iguais aos do Vue (o "enviado" passou pela API local de verdade).
 - **Ficou de fora:** nada.
 - **Tempo:** ~30 min.
+
+---
+
+## M1.5 · COM-332 · Aceitar convite (`/convite/:linkToken`)
+
+- **Data:** 2026-11-07
+- **Branch:** `feat/COM-332-invite` (a partir de `feat/COM-331-password`)
+- **O que foi feito:** `features/auth/components/invite-page.tsx` (rota `app/routes/invite.tsx`). O token vem de `useParams`; o convite é `useInviteQuery(token)` sobre o `GET /invites/:token` (`authKeys.invite(token)`), com os estados "Carregando convite…", "Convite inválido" e o formulário. `useAcceptInvite` faz o que o Vue fazia em sequência: `POST /auth/sign-up` (Contador) ou `POST /invites/:token/contact-account` (Responsável), sign-in com e-mail e senha e recarga da sessão; depois `/competencias` ou `/minha-area/pendencias`. `TermsConsent` nasce em `features/auth/components/terms-consent.tsx` (primeiro consumidor).
+- **Decisões (o Vue é a especificação onde o ticket diverge):**
+  - **Convite usado ou vencido mostra a tela "Convite inválido"** com a mensagem da API e o botão "Ir para o login", que aponta para `/minha-area/acesso` quando o erro traz `details.target = 'company'` e para `/entrar` no resto. O ticket pedia `Navigate` automático + toast; o Vue (commit `f74c48b`, "convite de Responsável já usado manda para a Minha Área") mostra a tela e deixa o usuário clicar.
+  - **Senha obrigatória nos dois fluxos**, como no Vue (`newPassword`). O contrato aceitaria Responsável sem senha (D14), mas a tela atual não oferece esse caminho; mudar isso é decisão de produto.
+  - `TermsConsent` vai para `shared/` quando o envio público (M8.3) virar o segundo consumidor.
+- **Testes:** `invite-page.spec.tsx` (rotas reais + MSW): 409 de Responsável → "Convite inválido" com link para `/minha-area/acesso`; 410 de Contador → link para `/entrar`; Contador aceita (corpo do sign-up conferido) e cai em `/competencias`; Responsável aceita (corpo do `contact-account` conferido) e cai em `/minha-area/pendencias`; senha obrigatória e links dos termos. 98 testes no pacote.
+- **Visual:** `convite-token__{desktop,mobile}__contador.png`, iguais aos do Vue (convite local gerado com `create-firm` para o mesmo nome e e-mail do baseline). O baseline não tem o convite de Responsável; o teste cobre o texto dele.
+- **Ficou de fora:** nada do escopo.
+- **Tempo:** ~35 min.

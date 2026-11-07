@@ -13,6 +13,7 @@ import {
   signOut,
   signUpWithInvite,
   type FirmRegistration,
+  type InvitePreview,
 } from '@/features/auth/api/auth';
 import { authKeys } from '@/features/auth/queries/auth-keys';
 
@@ -65,3 +66,19 @@ export const useRecoverLink = () => useSessionMutation(recoverLink);
 export const useConfirmRecoverLink = () => useSessionMutation(confirmRecoverLink);
 
 export const useSetContactPassword = () => useSessionMutation(setContactPassword);
+
+export type InviteAcceptance = {
+  token: string;
+  target: InvitePreview['target'];
+  email: string;
+  name: string;
+  password: string;
+};
+
+export const useAcceptInvite = () =>
+  useSessionMutation(async ({ token, target, email, name, password }: InviteAcceptance) => {
+    if (target === 'accounting_firm') await signUpWithInvite({ name, email, password, token });
+    else await acceptContactInvite(token, { name, password });
+    await signInWithPassword({ email, password });
+    return target;
+  });
