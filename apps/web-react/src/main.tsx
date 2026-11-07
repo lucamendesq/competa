@@ -1,5 +1,8 @@
+import '@fontsource-variable/outfit';
+import '@fontsource-variable/plus-jakarta-sans';
 import '@/shared/config/env';
 import '@competa/contracts';
+import '@/main.css';
 import { StrictMode } from 'react';
 import { createRoot } from 'react-dom/client';
 import { RouterProvider } from 'react-router';

@@ -14,7 +14,7 @@ const restrictQueryClient = {
 };
 
 const restrictRadix = {
-  group: ['@radix-ui/*'],
+  group: ['@radix-ui/*', 'radix-ui'],
   message: 'Primitivos headless só dentro de shared/components/ui (o shadcn gerado).',
 };
 

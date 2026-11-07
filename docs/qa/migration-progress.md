@@ -101,7 +101,7 @@ Um bloco por ticket, na ordem em que foram executados. Plano: [`docs/react-migra
 ## M0.6 · COM-321 · QueryClient, providers e sessão expirada
 
 - **Data:** 2026-11-07
-- **Branch:** `feat/COM-321-query-client-providers` (a partir de `feat/COM-318-api-client`)
+- **Branch:** `feat/COM-321-query-client-providers` (a partir de `feat/COM-318-api-client`) · **PR:** [#25](https://github.com/lucamendesq/competa/pull/25)
 - **O que foi feito:** `shared/lib/query-client.ts` (`makeQueryClient` com os defaults centrais do ticket; 4xx não repete). `app/providers/app-providers.tsx`: `ErrorBoundary` raiz ("Algo deu errado" + "Recarregar"), `QueryClientProvider` e `Toaster` do sonner (`richColors`, `top-right`). `app/providers/session-expiry.ts`: registra o `onSessionExpired` uma vez; em rota com `handle.area` mostra o toast (id `session-expired`), remove `authKeys.all` do cache e navega para `/entrar` ou `/minha-area/acesso`; em rota pública não faz nada (igual ao Vue). `main.tsx` monta `StrictMode > AppProviders > RouterProvider` e importa `@competa/contracts` pela voz PT-BR do zod, como o `main.ts` do Vue.
 - **Decisões:**
   - O registro do handler acontece no `main.tsx`, no nível do módulo, e não num `useEffect` do provider: o QueryClient e o router já são singletons ali, e assim não há efeito nem registro duplo no StrictMode.
@@ -112,3 +112,23 @@ Um bloco por ticket, na ordem em que foram executados. Plano: [`docs/react-migra
 - **Testes:** `query-client.spec.ts` (404 → 1 chamada; 500 → 4 chamadas, isto é, 3 retries; mutations sem retry) e `app-providers.spec.tsx` (Contador → `/entrar` com um toast só mesmo com dois 401 e cache de sessão limpo; Responsável → `/minha-area/acesso`; rota pública não reage; erro num filho mostra o ErrorBoundary). 31 testes no pacote. O app sobe no navegador sem erro no console.
 - **Ficou de fora:** nada além do que é de M0.9/M1.1.
 - **Tempo:** ~35 min.
+
+---
+
+## M0.7 · COM-319 · Tokens e primitivos de UI
+
+- **Data:** 2026-11-07
+- **Branch:** `feat/COM-319-design-tokens-ui` (a partir de `feat/COM-321-query-client-providers`)
+- **O que foi feito:** `src/main.css` copiado byte a byte do Vue (o `diff` não acusa nada); fontes Outfit e Plus Jakarta Sans no `main.tsx`. `components.json` do shadcn (new-york, Tailwind v4) e `shared/lib/cn.ts`. Primitivos em `shared/components/ui/<nome>/` com `index.ts`: button, input, label, textarea, native-select, table, pagination, card, dialog, sheet, tooltip, separator, skeleton, empty, sonner. Galeria interna em `/__ui`, só em DEV (rota lazy; não entra no bundle de produção).
+- **Como foi feito:** `npx shadcn@latest add …` gerou a estrutura React; depois cada string de classe foi trocada pela do `.vue` correspondente (o Vue é shadcn-vue customizado), tirando as variantes `dark:` (sem dark mode desde outubro/2026). `native-select` e `empty` portados à mão do Vue. Ícones `@radix-icons/vue` → `lucide-react` equivalentes.
+- **Decisões:**
+  - **15 primitivos, não 16: `toggle` não foi portado.** O único consumidor dele no Vue é o `toggle-group`, que também não tem consumidor; Decisão 4 do plano ("só se porta o que é usado") vence a contagem do ticket.
+  - O CLI do shadcn escreveu numa pasta literal `@/` (lê o alias do `tsconfig.json` raiz, que não tem `paths`) e instalou `cn` e `next-themes` por engano; os arquivos foram movidos e os dois pacotes removidos. O pacote headless agora é o `radix-ui` unificado: o lint passou a proibir `radix-ui` e `@radix-ui/*` fora de `shared/components/ui`.
+  - **`Button` não trava sozinho durante escritas.** No Vue, todo botão ficava `disabled` enquanto o `busy.ts` contava uma escrita em voo. O `busy.ts` saiu no M0.5, e `shared/components/ui` não pode importar o TanStack. Cada tela passa `disabled={mutation.isPending}` no botão da própria ação; o indicador global (`useIsMutating`) fica no layout (M2.1).
+  - **`DialogContent` devolve o foco a quem abriu.** O Radix só devolve o foco ao `Dialog.Trigger`; no app quase todo diálogo é controlado por um botão da página. O conteúdo guarda o elemento focado ao abrir e o refoca ao fechar (sem mudar nada quando há `Trigger` ou o consumidor trata `onCloseAutoFocus`).
+  - **`Pagination` sem estado:** `page`, `pageCount`, `onPageChange` e `siblingCount`. O cálculo das páginas (`pageItems`) reproduz o do reka-ui com `sibling-count=1` e `show-edges`. `nav` com `aria-label`; botões "Anterior"/"Próxima" com nome acessível.
+  - `EmptyState` aceita `icon`/`media`, `title`, `description` e `actionLabel` + `onAction` (as props e slots do Vue).
+- **Testes:** `dialog.spec.tsx` (título e descrição acessíveis, foco preso com Tab, Esc fecha e devolve o foco ao gatilho, botão "Fechar") e `pagination.spec.ts` (`pageItems` no começo, meio, fim e com tudo visível). 39 testes no pacote.
+- **Comparação visual:** `docs/qa/baseline-react-2026-11/ui__{desktop,mobile}__{galeria,dialogo,sheet}.png`. Conferido contra o baseline Vue: botão primário âmbar e secundário escuro como em `/competencias` e `/empresas`; `EmptyState` igual ao de `/empresas` vazio; diálogo com título centrado no mobile e "Fechar" no canto. O formato bottom-sheet do modal de abertura no mobile vem do `Modal.vue` (M0.8), não do primitivo.
+- **Ficou de fora:** nada.
+- **Tempo:** ~1h15.
