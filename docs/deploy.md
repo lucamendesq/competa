@@ -66,6 +66,24 @@ flyctl certs add api.competa.com.br -a competa-api
 
 Token pro CI: `flyctl tokens create deploy -a competa-api` → secret `FLY_API_TOKEN` no GitHub.
 
+### Uma máquina só, até o lock do checkout ir para o banco (COM-277)
+
+A produção roda com **uma** máquina no Fly. O lock que serializa o checkout por firma
+(`checkout-flight.ts`) vive na memória do processo: com duas máquinas, dois cliques que caem
+em máquinas diferentes criam cliente e assinatura duplicados no Asaas (COM-276). Isso vale
+até o lock por lease no banco estar em produção.
+
+```bash
+flyctl scale count 1 -a competa-api
+flyctl machines list -a competa-api   # tem de listar uma máquina só
+```
+
+O `fly.toml` não tem como travar isso: não existe chave de contagem máxima de máquinas, e
+`min_machines_running` é um piso, não um teto. Quem define a contagem é o `scale count`, e o
+`flyctl deploy` mantém a que já existe. A exceção é o primeiro deploy de um app novo, que
+sobe duas máquinas por padrão: rode o `scale count 1` logo depois dele. Confira o
+`machines list` depois de qualquer mexida manual no app.
+
 ## 3. Cloudflare Pages (web e landing)
 
 ```bash
@@ -198,6 +216,122 @@ Uma vez, com as contas:
 
 Com `min_machines_running = 0` as varreduras das 7h e 9h só rodam com a máquina acordada:
 para testar lembrete, use "Cobrar atrasados" no painel.
+
+## 8. Checklist pré-lançamento nos painéis (COM-277)
+
+O que o código não consegue provar. Conferir na mão, com acesso aos painéis, antes do
+lançamento.
+
+### Cloudflare R2 (bucket de produção)
+
+- [ ] Acesso público **desligado**: sem `r2.dev` e sem domínio customizado conectado.
+- [ ] CORS do bucket: `AllowedOrigins: ["https://app.competa.com.br"]`,
+      `AllowedMethods: ["PUT"]`, `AllowedHeaders: ["content-type"]`. Sem `*`.
+- [ ] Token de API com escopo **só** neste bucket, permissão Object Read & Write. Não usar
+      token de conta.
+- [ ] Lifecycle rule `firm/` → apagar objetos com mais de **2 dias** (ver abaixo).
+
+#### Lifecycle rule do prefixo `firm/` (COM-284)
+
+O presign grava o arquivo em `firm/...`. Na confirmação, `R2Storage.seal` copia o objeto para
+`sealed/firm/...` e apaga o original. Mas a URL de PUT vale 15 minutos
+(`PRESIGN_TTL_SECONDS = 900`), e quem tem o link pode reenviar depois do seal: o objeto volta
+a existir em `firm/...`, nenhuma linha do banco aponta para ele e a faxina de
+`awaiting_upload` não o acha. O custo é só de storage, limitado pelo throttle do presign.
+
+Painel do R2 → bucket de produção → Settings → Object lifecycle rules → Add rule:
+
+- prefixo: `firm/`
+- ação: apagar objetos **2 dias** depois de criados
+
+Por que 2 dias: o envio que ainda não foi confirmado também mora em `firm/`, e a faxina do
+cron de prazos (`STALE_UPLOAD_HOURS = 24`, em `deadline.cron.ts`) descarta a reserva sem
+confirmação depois de 24 h. A regra precisa ser mais longa que essa janela, senão apaga o
+arquivo de alguém que ainda pode confirmar. 1 dia empata com ela; 2 dias dão folga. Os
+documentos confirmados vivem em `sealed/firm/...` e não são afetados.
+
+> ⚠ O seal entrou com o PR #16. Documento confirmado **antes** dele ficou em `firm/...` com
+> `storage_key` sem o `sealed/`, e a regra o apagaria. Antes de criar a regra num bucket que
+> já tem documentos (staging, por exemplo), confira que a consulta abaixo volta 0. Se não
+> voltar, mova esses objetos para `sealed/` e atualize o `storage_key` antes.
+>
+> ```sql
+> select count(*) from document
+> where upload_status <> 'awaiting_upload' and storage_key not like 'sealed/%';
+> ```
+
+### Asaas (produção)
+
+- [ ] Webhook apontando para `https://api.competa.com.br/billing/webhook/asaas`.
+- [ ] Token de autenticação do webhook igual ao secret `ASAAS_WEBHOOK_TOKEN` no Fly.
+- [ ] Inscrito em todos os eventos `PAYMENT_*` e `SUBSCRIPTION_*`.
+- [ ] Fila **ativa** (não pausada), sem penalização herdada de testes.
+- [ ] Tipo de envio `SEQUENTIALLY` por enquanto. Só troque para `NON_SEQUENTIALLY` depois que
+      o COM-275 estiver em produção (ver [seção 9](#9-runbook-fila-do-webhook-do-asaas-pausada-com-282)).
+
+### Secrets de produção (Fly, app `competa-api`)
+
+- [ ] `ASAAS_SANDBOX` ausente ou `false`.
+- [ ] `ASAAS_API_KEY` é chave de produção (`$aact_prod_...`), não de homologação.
+
+### Fly
+
+- [ ] Uma máquina só: `flyctl scale count 1 -a competa-api`, conferido com
+      `flyctl machines list -a competa-api` (ver
+      [seção 2](#uma-máquina-só-até-o-lock-do-checkout-ir-para-o-banco-com-277)).
+
+## 9. Runbook: fila do webhook do Asaas pausada (COM-282)
+
+**Por que pausa.** Um evento que falha sempre "envenena" a fila. O exemplo conhecido é o
+`reprice` da troca de plano (`changeSubscriptionPlan`), que roda dentro da transação do
+evento de propósito: se o gateway falha, respondemos 503 e o Asaas reenvia. Se a falha é
+permanente (a assinatura foi apagada à mão no painel do Asaas, por exemplo), o mesmo evento
+responde 503 para sempre. O Asaas reenvia com intervalos crescentes (e-mails de alerta na 5ª
+e na 10ª tentativa) e, depois de **15 falhas seguidas**, pausa a fila daquele webhook. No
+modo `SEQUENTIALLY`, os eventos seguintes esperam o envenenado: nenhum pagamento novo chega
+enquanto ele não sair da frente.
+
+**Ver a fila.** Painel do Asaas → menu do usuário → **Integrações → Webhooks**. A
+configuração pausada aparece como fila interrompida. Os **Logs de Webhooks** mostram, por
+tentativa, o status HTTP, o payload e o horário: é por eles que se acha o evento que falha.
+Do nosso lado, o Sentry e o log da API (`flyctl logs -a competa-api`) mostram o erro de
+`POST /billing/webhook/asaas`.
+
+**Reativar e reprocessar.**
+
+1. Corrija a causa antes. Reativar sem corrigir pausa a fila de novo depois de mais 15
+   falhas. No caso da assinatura apagada no Asaas, corrija o dado da firma (ou do Asaas) até o
+   evento poder ser processado.
+2. Reative a fila: **Integrações → Webhooks** → reativar a configuração interrompida. Pela
+   API: `PUT /v3/webhooks/{id}` com `{ "interrupted": false }`.
+3. Os eventos guardados durante a pausa são reenviados sozinhos depois da reativação, na
+   ordem, no modo sequencial. Não há reprocessamento manual evento a evento.
+4. Confira nos Logs de Webhooks que as entregas novas voltam 200.
+
+Com a fila ainda ativa mas penalizada (antes da 15ª falha), o botão **Remover penalização**
+(ou `POST /v3/webhooks/{id}/removeBackoff`) reenvia sem esperar o intervalo. Só use depois
+de corrigir a causa: o endpoint tem rate limit apertado.
+
+> ⚠ Evento guardado há mais de **14 dias** com a fila pausada é apagado pelo Asaas e não volta.
+> Fila pausada é incidente do dia, não da semana.
+
+**Plano: `NON_SEQUENTIALLY` depois do COM-275.** No modo não sequencial, um evento ruim não
+segura os outros. Hoje o modo sequencial é necessário porque a ordem importa: um
+`PAYMENT_OVERDUE` atrasado bloqueia firma que já pagou, e um `RECEIVED` tardio reativa firma
+inadimplente (COM-275). Quando a correção do COM-275 estiver em produção, troque o tipo de
+envio do webhook para `NON_SEQUENTIALLY` em **Integrações → Webhooks**.
+
+**Alerta sugerido no Sentry.** Sentry → Alerts → Create Alert:
+
+- tipo: _Issues_ (ou _Number of Errors_), ambiente `production`;
+- filtro: transação/URL `POST /billing/webhook/asaas` com resposta não-2xx, ou o erro
+  `GatewayUnavailable` vindo do webhook;
+- condição: na primeira ocorrência. A fila pausa depois de cerca de 13 h de falhas seguidas, então
+  o alerta precisa chegar bem antes disso;
+- ação: e-mail/Slack de quem cuida da cobrança.
+
+Vale também assinar o e-mail de alerta de penalização do Asaas (5ª e 10ª tentativas), que
+chega antes da pausa.
 
 ## Fora deste runbook
 
