@@ -22,8 +22,8 @@ import {
   uploadPresignRoute,
   uploadTokenRoute,
 } from '../../../src/http/middleware/auth.js';
-import { ThrottleStore, TrustProxy, publicRoute, route } from '../../../src/http/platform.js';
-import { makeThrottleStore, throttleDefault } from '../../../src/http/throttle.js';
+import { TrustProxy, publicRoute, route } from '../../../src/http/platform.js';
+import { throttleDefault } from '../../../src/http/throttle.js';
 import { createToken } from '../../../src/lib/token.js';
 import { isFailure } from '../../../src/lib/either.js';
 import {
@@ -72,7 +72,6 @@ const boot = async () => {
     HttpRouter.serve(probes, { disableLogger: true, disableListenLog: true }).pipe(
       Layer.provideMerge(NodeHttpServer.layer(createServer, { port: 0 })),
       Layer.provideMerge(Layer.succeed(TrustProxy)(true)),
-      Layer.provideMerge(Layer.sync(ThrottleStore)(() => makeThrottleStore())),
       Layer.provide(AppLayer.pipe(Layer.provide(DbPool.layerBorrowed))),
     ),
   );

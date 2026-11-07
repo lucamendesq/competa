@@ -4,16 +4,22 @@ import { HttpServer } from 'effect/http';
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 import env from '../../../src/config/env.js';
 import { serverLayer } from '../../../src/http/server.js';
-import { AppServicesWithoutDb } from '../../../src/effect/runtime.js';
-import type { Db } from '../../../src/infra/database/effect.js';
+import { AppLayer, AppServicesWithoutDb } from '../../../src/effect/runtime.js';
+import { DbPool, type Db } from '../../../src/infra/database/effect.js';
+import { throttleCounter } from '../../../src/infra/database/schema/index.js';
+import { db } from '../../support/db.js';
 
 /* Sobe o servidor Effect sem banco, e isso é PROVADO, não prometido: `AppServicesWithoutDb`
  * monta os serviços de verdade sobre um `Db` cujas consultas morrem. O que está sob
- * teste é a pilha de plataforma (helmet, origin-check, CORS, log, throttle, envelope, mapa
- * de erros, ETag) na rota /health — se ela passar a consultar, estes testes quebram. */
-const boot = async (ping: Effect.Effect<unknown, unknown, Db>) => {
+ * teste é a pilha de plataforma (helmet, origin-check, CORS, log, envelope, mapa de erros,
+ * ETag) na rota /health. O throttle conta no banco e, sem ele, deixa passar: os specs de
+ * throttle sobem sobre o banco de verdade (`withDb`). */
+const boot = async (
+  ping: Effect.Effect<unknown, unknown, Db>,
+  services: Layer.Layer<Layer.Success<typeof AppServicesWithoutDb>> = AppServicesWithoutDb,
+) => {
   const runtime = ManagedRuntime.make(
-    serverLayer({ port: 0, trustProxy: true, ping }).pipe(Layer.provide(AppServicesWithoutDb)),
+    serverLayer({ port: 0, trustProxy: true, ping }).pipe(Layer.provide(services)),
   );
   const server = Context.get(await runtime.context(), HttpServer.HttpServer);
   const url = HttpServer.formatAddress(server.address)
@@ -22,6 +28,8 @@ const boot = async (ping: Effect.Effect<unknown, unknown, Db>) => {
 
   return { url, close: () => runtime.dispose() };
 };
+
+const withDb = AppLayer.pipe(Layer.provide(DbPool.layerBorrowed));
 
 /* `fetch` do undici tem cache próprio e engole o If-None-Match; o cliente cru não. */
 const conditionalGet = (url: string, path: string, ifNoneMatch: string) =>
@@ -117,25 +125,14 @@ describe('GET /health servido pelo shell Effect', () => {
     expect(response.headers.get('access-control-allow-origin')).toBeNull();
   });
 
-  it('conta no balde `short` e não no `default` (equivalente ao @SkipThrottle())', async () => {
+  it('throttle sem banco deixa passar, sem headers de limite', async () => {
     const response = await fetch(`${app.url}/health`, {
       headers: { 'x-forwarded-for': '9.9.9.9' },
     });
     await response.text();
 
-    expect(response.headers.get('x-ratelimit-limit-short')).toBe('30');
-    expect(response.headers.get('x-ratelimit-reset-short')).toBe('10');
-    expect(response.headers.get('x-ratelimit-limit')).toBeNull();
-  });
-
-  it('o balde é por cliente: outro X-Forwarded-For recomeça a contagem', async () => {
-    const first = await fetch(`${app.url}/health`, { headers: { 'x-forwarded-for': '1.1.1.1' } });
-    await first.text();
-    const second = await fetch(`${app.url}/health`, { headers: { 'x-forwarded-for': '2.2.2.2' } });
-    await second.text();
-
-    expect(first.headers.get('x-ratelimit-remaining-short')).toBe('29');
-    expect(second.headers.get('x-ratelimit-remaining-short')).toBe('29');
+    expect(response.status).toBe(200);
+    expect(response.headers.get('x-ratelimit-limit-short')).toBeNull();
   });
 
   it('marca ETag e responde 304 em revalidação', async () => {
@@ -165,15 +162,6 @@ describe('GET /health servido pelo shell Effect', () => {
     expect(response.status).toBe(404);
     expect((await response.json()).error.code).toBe('UPLOAD_LINK_INVALID');
   });
-
-  it('o 404 do curinga não é contado no throttle', async () => {
-    const ip = '198.51.100.9';
-    for (let hit = 0; hit < 40; hit += 1) {
-      const miss = await fetch(`${app.url}/nao-existe`, { headers: { 'x-forwarded-for': ip } });
-      await miss.text();
-      expect(miss.status).toBe(404);
-    }
-  });
 });
 
 describe('mapa de erros ligado na rota', () => {
@@ -201,10 +189,41 @@ describe('throttle do shell Effect', () => {
   let app: { url: string; close: () => Promise<void> };
 
   beforeAll(async () => {
-    app = await boot(Effect.void);
+    await db.delete(throttleCounter);
+    app = await boot(Effect.void, withDb);
   });
 
   afterAll(() => app.close());
+
+  it('conta no balde `short` e não no `default` (equivalente ao @SkipThrottle())', async () => {
+    const response = await fetch(`${app.url}/health`, {
+      headers: { 'x-forwarded-for': '9.9.9.9' },
+    });
+    await response.text();
+
+    expect(response.headers.get('x-ratelimit-limit-short')).toBe('30');
+    expect(response.headers.get('x-ratelimit-reset-short')).toBe('10');
+    expect(response.headers.get('x-ratelimit-limit')).toBeNull();
+  });
+
+  it('o balde é por cliente: outro X-Forwarded-For recomeça a contagem', async () => {
+    const first = await fetch(`${app.url}/health`, { headers: { 'x-forwarded-for': '1.1.1.1' } });
+    await first.text();
+    const second = await fetch(`${app.url}/health`, { headers: { 'x-forwarded-for': '2.2.2.2' } });
+    await second.text();
+
+    expect(first.headers.get('x-ratelimit-remaining-short')).toBe('29');
+    expect(second.headers.get('x-ratelimit-remaining-short')).toBe('29');
+  });
+
+  it('o 404 do curinga não é contado no throttle', async () => {
+    const ip = '198.51.100.9';
+    for (let hit = 0; hit < 40; hit += 1) {
+      const miss = await fetch(`${app.url}/nao-existe`, { headers: { 'x-forwarded-for': ip } });
+      await miss.text();
+      expect(miss.status).toBe(404);
+    }
+  });
 
   it('31ª requisição do mesmo IP em 10s leva 429 com o corpo do ThrottlerException', async () => {
     const ip = '203.0.113.7';
@@ -217,7 +236,8 @@ describe('throttle do shell Effect', () => {
     const blocked = await fetch(`${app.url}/health`, { headers: { 'x-forwarded-for': ip } });
 
     expect(blocked.status).toBe(429);
-    expect(blocked.headers.get('retry-after-short')).toBe('10');
+    expect(Number(blocked.headers.get('retry-after-short'))).toBeGreaterThan(0);
+    expect(Number(blocked.headers.get('retry-after-short'))).toBeLessThanOrEqual(10);
     expect(await blocked.json()).toEqual({
       error: {
         code: 'TOO_MANY_REQUESTS',

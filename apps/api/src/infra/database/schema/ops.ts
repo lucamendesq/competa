@@ -1,4 +1,4 @@
-import { pgTable, text, timestamp } from 'drizzle-orm/pg-core';
+import { integer, pgTable, text, timestamp } from 'drizzle-orm/pg-core';
 import { timestamps } from './columns.js';
 
 /** Voo único das varreduras agendadas, substituindo o `pg_advisory_lock`. O advisory lock é
@@ -22,5 +22,15 @@ export const cronLease = pgTable('cron_lease', {
 export const billingWebhookEvent = pgTable('billing_webhook_event', {
   id: text('id').primaryKey(),
   event: text('event').notNull(),
+  ...timestamps,
+}).enableRLS();
+
+/** Contador de janela fixa do throttle, compartilhado entre instâncias. Uma linha por
+ *  `rota:balde:cliente`; vencida, a próxima batida a reinicia, e a faxina apaga as que
+ *  ninguém mais bate. */
+export const throttleCounter = pgTable('throttle_counter', {
+  key: text('key').primaryKey(),
+  hits: integer('hits').notNull(),
+  expiresAt: timestamp('expires_at', { withTimezone: true }).notNull(),
   ...timestamps,
 }).enableRLS();

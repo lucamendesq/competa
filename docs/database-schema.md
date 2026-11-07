@@ -329,12 +329,24 @@ create index message_reminder_idx on message (request_id, purpose);
 ### ops (Operação)
 
 ```sql
-create table cron_lease (                 -- voo único das varreduras e do checkout (sem advisory lock)
-  name        text primary key,           -- deadline-sweep | billing-sweep | reminders-sweep | checkout:<firm_id>
+create table cron_lease (                 -- voo único entre instâncias (sem advisory lock)
+  name        text primary key,           -- deadline-sweep | billing-sweep | reminders-sweep
+                                          -- | checkout:<firm_id> | zip:requests:<id> | zip:periods:<id>
   holder      text not null,              -- uuid da instância que a tomou
   expires_at  timestamptz not null        -- vazamento morre sozinho; tomar/soltar são UPDATEs
 );
 -- Todo o tempo vem do banco (now()): comparar relógio do Node com o do Postgres prendia a lease.
+-- Varreduras seguram até 30 min; o zip, até 10 min, soltando no close do stream. Instância que
+-- morre no meio do download deixa o alvo em 409 até o TTL.
+
+create table throttle_counter (           -- rate limit por janela fixa, compartilhado entre instâncias
+  key         text primary key,           -- '<MÉTODO> <rota>:<balde>:<ip>' (ou '<ip>:<token>')
+  hits        integer not null,           -- batidas na janela corrente
+  expires_at  timestamptz not null        -- fim da janela; a próxima batida depois dele recomeça em 1
+);
+-- Uma batida = um INSERT … ON CONFLICT DO UPDATE com todos os baldes da rota, RETURNING hits e o
+-- que falta da janela. Acima do limite, 429 com Retry-After até expires_at. Sem contagem (banco
+-- fora), a requisição passa. Cada instância apaga as linhas vencidas no máximo uma vez por minuto.
 
 create table billing_webhook_event (      -- eventos do Asaas já processados (idempotência)
   id          text primary key,           -- evt_... do topo do payload

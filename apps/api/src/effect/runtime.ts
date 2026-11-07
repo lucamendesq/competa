@@ -1,4 +1,5 @@
 import { Layer } from 'effect';
+import { ThrottleRepo } from '../http/throttle.repo.js';
 import { Db } from '../infra/database/effect.js';
 import { AccountantsRepo } from '../modules/auth/accountant.repo.js';
 import { InvitesRepo } from '../modules/auth/invite.repo.js';
@@ -32,6 +33,7 @@ export const AppRepos = Layer.mergeAll(
   AccountantsRepo.layerNoDeps,
   InvitesRepo.layerNoDeps,
   UserDevicesRepo.layerNoDeps,
+  ThrottleRepo.layerNoDeps,
 ).pipe(
   Layer.provideMerge(ChecklistsRepo.layerNoDeps),
   Layer.provideMerge(WhatsappRepo.layerNoDeps),

@@ -22,10 +22,10 @@ const MAX_PERIOD_ZIP_ENTRIES = 2000;
 
 const logger = new Logger('ZipController');
 
-/** Serializa downloads do MESMO zip (era o `ZipFlightService`): dois cliques concorrentes
- *  receberiam o mesmo `Readable` — que só pode ser consumido uma vez — e o segundo baixaria
- *  um arquivo truncado. Chave por alvo, não por processo: os ids são UUID. */
-const inFlight = new Set<string>();
+/* Teto da lease de um download: instância que morre no meio do stream não solta a lease, e
+ * sem teto o alvo responderia 409 para sempre. Stream mais longo que isto perde o voo único,
+ * não o download. */
+const ZIP_LEASE_TTL_SECONDS = 10 * 60;
 
 const abort = (archive: ZipArchive, error: unknown) => {
   logger.error(`zip interrompido no meio do stream: ${String(error)}`);
@@ -83,21 +83,21 @@ const streamZip = (entries: ZipEntry[], fileName: string, targetId: string, rele
     });
   });
 
-/** Pega a chave antes do lookup e a devolve em qualquer falha; no caminho feliz quem a
- *  devolve é o `close` do stream (`streamZip`). */
+/** Serializa downloads do MESMO zip entre instâncias, com a lease do banco: pega a chave
+ *  antes do lookup e a devolve em qualquer falha; no caminho feliz quem a devolve é o
+ *  `close` do stream (`streamZip`). */
 const withFlight = <E, R>(
   key: string,
   build: (release: () => void) => Effect.Effect<HttpServerResponse.HttpServerResponse, E, R>,
-): Effect.Effect<HttpServerResponse.HttpServerResponse, E | ZipAlreadyInFlight, R> =>
-  Effect.suspend(
-    (): Effect.Effect<HttpServerResponse.HttpServerResponse, E | ZipAlreadyInFlight, R> => {
-      if (inFlight.has(key)) return Effect.fail(new ZipAlreadyInFlight());
-      inFlight.add(key);
+) =>
+  Effect.gen(function* () {
+    const release = yield* RequestsRepo.use((repo) =>
+      repo.acquireLease(`zip:${key}`, ZIP_LEASE_TTL_SECONDS),
+    );
+    if (!release) return yield* new ZipAlreadyInFlight();
 
-      const release = () => inFlight.delete(key);
-      return build(release).pipe(Effect.onError(() => Effect.sync(release)));
-    },
-  );
+    return yield* build(() => Effect.runFork(release)).pipe(Effect.onError(() => release));
+  });
 
 const requestZip = route(
   'GET',

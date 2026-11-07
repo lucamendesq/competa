@@ -4,6 +4,7 @@ import { bootApp, type RunningApp } from './support/boot.js';
 import env from '../src/config/env.js';
 import { db, truncateAll } from './support/db.js';
 import {
+  cronLease,
   document,
   message,
   requestItem,
@@ -1535,6 +1536,28 @@ describe('zip e leitura de documentos', () => {
     }
     expect(released!.status).toBe(200);
     await released!.arrayBuffer();
+  });
+
+  it('zip que outra instância está servindo → 409; a lease vencida não prende', async () => {
+    const name = `zip:requests:${zippedBox.requestId}`;
+    const heldElsewhere = { holder: 'outra-instancia', expiresAt: new Date(Date.now() + 60_000) };
+    await db
+      .insert(cronLease)
+      .values({ name, ...heldElsewhere })
+      .onConflictDoUpdate({ target: cronLease.name, set: heldElsewhere });
+
+    const busy = await zipGet(`/requests/${zippedBox.requestId}/zip`);
+    expect(busy.status).toBe(409);
+    expect((await busy.json()).error.code).toBe('ZIP_ALREADY_IN_FLIGHT');
+
+    await db
+      .update(cronLease)
+      .set({ expiresAt: new Date(Date.now() - 1_000) })
+      .where(eq(cronLease.name, name));
+
+    const free = await zipGet(`/requests/${zippedBox.requestId}/zip`);
+    expect(free.status).toBe(200);
+    await free.arrayBuffer();
   });
 
   it('zip da competência agrupa por empresa (trial tem a capability)', async () => {

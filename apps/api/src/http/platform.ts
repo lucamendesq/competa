@@ -9,7 +9,7 @@ import { allowedOrigins } from '../config/env.js';
 import type { AppContext } from '../effect/runtime.js';
 import type { DbUnavailable } from '../infra/database/error.js';
 import { AppError, BadRequest } from '../lib/app-error.js';
-import { requestLogger } from '../lib/logger.js';
+import { Logger, requestLogger } from '../lib/logger.js';
 import { zodParse } from '../lib/zod-pipe.js';
 import { applyEtag } from './envelope.js';
 import { handleCause } from './error-map.js';
@@ -18,13 +18,12 @@ import {
   GLOBAL_BUCKETS,
   TooManyRequests,
   callerIp,
-  makeThrottleStore,
   rateLimitHeaders,
   throttleKey,
   uploadTracker,
   type Bucket,
-  type ThrottleStore as ThrottleStoreService,
 } from './throttle.js';
+import { ThrottleRepo } from './throttle.repo.js';
 
 type NodeMiddleware = (
   request: IncomingMessage,
@@ -77,14 +76,19 @@ export const runGlobalStack = (
     next();
   });
 
-/** Um store por app, não por processo: a suíte sobe dezenas de apps no MESMO processo, e um
- *  store de módulo vazaria contagem de uma suíte para a seguinte — 429 aleatório em spec que
- *  não tem nada a ver. Em produção (um app por processo) dá no mesmo.
- *  ponytail: em memória; vira Redis quando houver mais de uma instância. */
-export const ThrottleStore = Context.Reference<ThrottleStoreService>(
-  'competa/api/http/ThrottleStore',
-  { defaultValue: () => makeThrottleStore() },
-);
+const logger = new Logger('Throttle');
+
+/* Throttle que não consegue contar deixa passar: banco fora do ar viraria 500 em toda rota,
+ * /health incluída, e a rota que precisa do banco já responde 503 sozinha. */
+const countOrFailOpen = (hits: readonly { readonly key: string; readonly bucket: Bucket }[]) =>
+  ThrottleRepo.use((repo) => repo.hit(hits)).pipe(
+    Effect.catchCause((cause) =>
+      Effect.as(
+        Effect.sync(() => logger.warn('throttle sem contagem, requisição liberada', cause)),
+        [],
+      ),
+    ),
+  );
 
 const Node = {
   request: (request: HttpServerRequest.HttpServerRequest) =>
@@ -152,12 +156,17 @@ const platform = <Provides>(
             );
             const token = (yield* HttpRouter.params).token ?? '';
 
-            for (const bucket of buckets) {
-              const tracker = bucket.byToken === true ? uploadTracker(ip, token) : ip;
-              const result = (yield* ThrottleStore).hit(
-                throttleKey(routeKey, bucket, tracker),
+            const hits = buckets.map((bucket) => ({
+              bucket,
+              key: throttleKey(
+                routeKey,
                 bucket,
-              );
+                bucket.byToken === true ? uploadTracker(ip, token) : ip,
+              ),
+            }));
+            const results = yield* countOrFailOpen(hits);
+            for (const [index, result] of results.entries()) {
+              const { bucket } = hits[index];
               for (const [name, value] of Object.entries(rateLimitHeaders(bucket, result))) {
                 nodeResponse.setHeader(name, value);
               }

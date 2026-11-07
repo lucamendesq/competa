@@ -3,10 +3,10 @@ import {
   GLOBAL_BUCKETS,
   UPLOAD_PRESIGN_BUCKET,
   callerIp,
-  makeThrottleStore,
   rateLimitHeaders,
   throttleDefault,
   throttleKey,
+  throttleResult,
   uploadTracker,
   type Bucket,
 } from '../../../src/http/throttle.js';
@@ -14,16 +14,6 @@ import { createToken } from '../../../src/lib/token.js';
 
 const short = GLOBAL_BUCKETS[0];
 const sustained = GLOBAL_BUCKETS[1];
-
-const clock = (start = 0) => {
-  let value = start;
-  return {
-    now: () => value,
-    advance: (ms: number) => {
-      value += ms;
-    },
-  };
-};
 
 describe('baldes', () => {
   it('reproduz os números do ThrottlerModule', () => {
@@ -46,56 +36,17 @@ describe('baldes', () => {
   });
 });
 
-describe('makeThrottleStore', () => {
+describe('throttleResult', () => {
   const custom: Bucket = { name: 'default', limit: 3, ttlMs: 60_000 };
 
-  it('libera até o limite e barra o excedente', () => {
-    const store = makeThrottleStore(clock().now);
-
-    for (let hit = 0; hit < 3; hit += 1) {
-      expect(store.hit('k', custom).ok).toBe(true);
-    }
-
-    expect(store.hit('k', custom)).toEqual({ ok: false, retryAfterSec: 60 });
+  it('dentro do limite conta o restante e o fim da janela', () => {
+    expect(throttleResult(custom, 1, 59.2)).toEqual({ ok: true, remaining: 2, resetSec: 60 });
+    expect(throttleResult(custom, 3, 10)).toEqual({ ok: true, remaining: 0, resetSec: 10 });
   });
 
-  it('conta o restante da janela', () => {
-    const store = makeThrottleStore(clock().now);
-
-    expect(store.hit('k', custom)).toEqual({ ok: true, remaining: 2, resetSec: 60 });
-    expect(store.hit('k', custom)).toEqual({ ok: true, remaining: 1, resetSec: 60 });
-  });
-
-  it('janela deslizante: hits saem da contagem ao expirar o ttl', () => {
-    const time = clock();
-    const store = makeThrottleStore(time.now);
-
-    for (let hit = 0; hit < 3; hit += 1) store.hit('k', custom);
-    time.advance(60_001);
-
-    expect(store.hit('k', custom).ok).toBe(true);
-  });
-
-  it('enquanto bloqueado, hits não contam e o bloqueio não se estende', () => {
-    const time = clock();
-    const store = makeThrottleStore(time.now);
-
-    for (let hit = 0; hit < 4; hit += 1) store.hit('k', custom);
-    time.advance(30_000);
-
-    expect(store.hit('k', custom)).toEqual({ ok: false, retryAfterSec: 30 });
-
-    time.advance(30_001);
-    expect(store.hit('k', custom).ok).toBe(true);
-  });
-
-  it('chaves distintas têm baldes independentes', () => {
-    const store = makeThrottleStore(clock().now);
-
-    for (let hit = 0; hit < 3; hit += 1) store.hit('a', custom);
-
-    expect(store.hit('a', custom).ok).toBe(false);
-    expect(store.hit('b', custom).ok).toBe(true);
+  it('acima do limite bloqueia pelo que falta da janela, nunca menos de 1s', () => {
+    expect(throttleResult(custom, 4, 30.4)).toEqual({ ok: false, retryAfterSec: 31 });
+    expect(throttleResult(custom, 4, 0.001)).toEqual({ ok: false, retryAfterSec: 1 });
   });
 });
 
@@ -130,36 +81,6 @@ describe('throttleKey', () => {
   it('token sem a forma de um token emitido cai no balde do IP', () => {
     expect(uploadTracker('1.1.1.1', 'token-falso')).toBe('1.1.1.1');
     expect(uploadTracker('1.1.1.1', 'x'.repeat(1000))).toBe('1.1.1.1');
-  });
-});
-
-describe('makeThrottleStore — memória', () => {
-  const custom: Bucket = { name: 'default', limit: 3, ttlMs: 60_000 };
-
-  it('chave que nunca mais é batida sai na varredura depois do ttl', () => {
-    const time = clock();
-    const store = makeThrottleStore(time.now);
-
-    for (let key = 0; key < 1000; key += 1) store.hit(`k${key}`, custom);
-    expect(store.size()).toBe(1000);
-
-    time.advance(60_001);
-    store.hit('outra', custom);
-
-    expect(store.size()).toBe(1);
-  });
-
-  it('chave bloqueada sobrevive à varredura até o fim do bloqueio', () => {
-    const time = clock();
-    const store = makeThrottleStore(time.now);
-    const blocking: Bucket = { name: 'default', limit: 1, ttlMs: 10_000, blockMs: 120_000 };
-
-    store.hit('k', blocking);
-    store.hit('k', blocking);
-    time.advance(60_001);
-    store.hit('outra', blocking);
-
-    expect(store.hit('k', blocking).ok).toBe(false);
   });
 });
 

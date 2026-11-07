@@ -28,8 +28,8 @@ import { whatsappWebhookRoutes } from '../modules/whatsapp/whatsapp-webhook.rout
 import { authMountRoutes } from './auth-mount.js';
 import { handler } from './envelope.js';
 import { fallbackRoutes } from './fallback.js';
-import { ThrottleStore, TrustProxy, publicRoute, route } from './platform.js';
-import { GLOBAL_BUCKETS, makeThrottleStore } from './throttle.js';
+import { TrustProxy, publicRoute, route } from './platform.js';
+import { GLOBAL_BUCKETS } from './throttle.js';
 
 /** O que um balanceador/orquestrador consulta antes de mandar tráfego. Toca o banco de
  *  propósito: processo vivo com pool morto responde 200 em qualquer healthcheck que só
@@ -100,7 +100,6 @@ export const serverLayer = (options: {
   ).pipe(
     Layer.provideMerge(NodeHttpServer.layer(createServer, { port: options.port })),
     Layer.provideMerge(Layer.succeed(TrustProxy)(options.trustProxy)),
-    Layer.provideMerge(Layer.sync(ThrottleStore)(() => makeThrottleStore())),
     /* Teto de 2 MiB no corpo — o único freio contra OOM. Não alcança `/api/auth/*` (lá o
      * corpo é stream) nem `PUT /storage/local/:key` (que lê o `IncomingMessage` cru). */
     Layer.provideMerge(Layer.succeed(HttpIncomingMessage.MaxBodySize)(ByteSize.mebibytes(2))),

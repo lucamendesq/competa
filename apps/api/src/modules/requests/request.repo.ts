@@ -1394,20 +1394,21 @@ const make = Effect.gen(function* () {
     );
   });
 
-  /** Voo único das varreduras. Devolve `null` quando outra instância segura a lease.
+  /** Toma a lease `name` por `ttlSeconds` e devolve o efeito que a solta; `null` quando outra
+   *  instância a segura.
    *
    *  Lease em linha, e não `pg_advisory_lock`: o advisory é de SESSÃO, e `db.use` tira um
    *  checkout novo do pool a cada `execute` — o unlock caía numa conexão diferente da do lock
    *  e vazava. Com `min: 5` no pool, a conexão nunca era reciclada, então a lease ficava presa
    *  e toda varredura seguinte era pulada em silêncio. Aqui tomar é um `INSERT … ON CONFLICT
    *  … WHERE expires_at < now()`, atômico num statement só e sem depender de sessão. */
-  const withLease = <A, E, R>(name: string, task: Effect.Effect<A, E, R>) =>
+  const acquireLease = (name: string, ttlSeconds: number = LEASE_TTL_SECONDS) =>
     Effect.gen(function* () {
       const holder = randomUUID();
       /* Todo o tempo vem do BANCO (`now()`), nunca do relógio do Node: gravar `expires_at`
        * com um relógio e compará-lo com o outro deixa a lease presa sempre que as máquinas
        * divergem alguns milissegundos. */
-      const expiry = sql`now() + make_interval(secs => ${LEASE_TTL_SECONDS})`;
+      const expiry = sql`now() + make_interval(secs => ${ttlSeconds})`;
       const taken = yield* db.use((d) =>
         d
           .insert(cronLease)
@@ -1422,21 +1423,26 @@ const make = Effect.gen(function* () {
 
       if (taken.length === 0) return null;
 
-      /* `ensuring` libera também na interrupção (o shutdown no meio da varredura). Se a
-       * liberação falhar, o TTL devolve a lease. `holder` no WHERE: se a varredura estourar o
-       * TTL e outra instância tomar a lease, a nossa liberação não pode derrubar a dela. */
-      return yield* task.pipe(
-        Effect.ensuring(
-          db
-            .use((d) =>
-              d
-                .update(cronLease)
-                .set({ expiresAt: sql`now() - interval '1 second'` })
-                .where(and(eq(cronLease.name, name), eq(cronLease.holder, holder))),
-            )
-            .pipe(Effect.ignore),
-        ),
-      );
+      /* Se a liberação falhar, o TTL devolve a lease. `holder` no WHERE: se o trabalho estourar
+       * o TTL e outra instância tomar a lease, a nossa liberação não pode derrubar a dela. */
+      return db
+        .use((d) =>
+          d
+            .update(cronLease)
+            .set({ expiresAt: sql`now() - interval '1 second'` })
+            .where(and(eq(cronLease.name, name), eq(cronLease.holder, holder))),
+        )
+        .pipe(Effect.ignore);
+    });
+
+  /** Voo único das varreduras. Devolve `null` quando outra instância segura a lease. */
+  const withLease = <A, E, R>(name: string, task: Effect.Effect<A, E, R>) =>
+    Effect.gen(function* () {
+      const release = yield* acquireLease(name);
+      if (!release) return null;
+
+      /* `ensuring` libera também na interrupção (o shutdown no meio da varredura). */
+      return yield* task.pipe(Effect.ensuring(release));
     });
 
   return {
@@ -1462,6 +1468,7 @@ const make = Effect.gen(function* () {
     reminderCandidates,
     reminderSettingsByFirm,
     withLease,
+    acquireLease,
   };
 });
 
