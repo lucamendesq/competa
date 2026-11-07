@@ -217,6 +217,15 @@ Uma vez, com as contas:
 Com `min_machines_running = 0` as varreduras das 7h e 9h só rodam com a máquina acordada:
 para testar lembrete, use "Cobrar atrasados" no painel.
 
+### Staging serve o React durante a migração
+
+Enquanto o `apps/web` migra para React (`docs/react-migration-2026-11.md`), o job
+`deploy-web-staging` publica o **`apps/web-react`** no mesmo projeto `competa-web-staging`
+(`staging-app.competa.com.br`). Mesmo domínio, mesma API de staging e mesma origem já
+liberada: nada muda no painel. As telas ainda não migradas mostram um placeholder com o nome
+da rota. A produção (`deploy-web`) continua publicando o `apps/web` (Vue) até o cutover
+(M10.5).
+
 ## 8. Checklist pré-lançamento nos painéis (COM-277)
 
 O que o código não consegue provar. Conferir na mão, com acesso aos painéis, antes do
