@@ -37,7 +37,7 @@ Um bloco por ticket, na ordem em que foram executados. Plano: [`docs/react-migra
 ## M0.2 · COM-315 · Bootstrap do `apps/web-react`
 
 - **Data:** 2026-11-07
-- **Branch:** `feat/COM-315-bootstrap-web-react` (a partir de `feat/COM-314-baseline-vue`)
+- **Branch:** `feat/COM-315-bootstrap-web-react` (a partir de `feat/COM-314-baseline-vue`) · **PR:** [#21](https://github.com/lucamendesq/competa/pull/21)
 - **O que foi feito:** pacote `web-react` (React 19.3, React Router 7.18, TanStack Query 5.106, Vite 7.3, `@vitejs/plugin-react` 5.2 com `babel-plugin-react-compiler` 1.0, Tailwind 4, `vite-plugin-pwa` 1.3). `vite.config.ts`, `index.html` e `public/` copiados do `apps/web`; no Vite a única mudança é o plugin. `src/shared/config/env.ts` valida `VITE_API_URL`/`VITE_AUTH_URL` com zod no boot. Raiz: `dev:react` (contracts em watch + API + web-react na 5174). `docs/react-standards.md` com o Anexo A integral, linkado no `AGENTS.md`.
 - **Decisões:**
   - `exactOptionalPropertyTypes` e `noUncheckedIndexedAccess` ficaram ligados: um arquivo temporário importando todo o `@competa/contracts` passou no `tsc -b`.
@@ -47,3 +47,20 @@ Um bloco por ticket, na ordem em que foram executados. Plano: [`docs/react-migra
 - **Evidência do React Compiler:** componente filho com `console.log` no render, pai com contador. No dev server: 2 renders na montagem (StrictMode) e 0 depois de 3 cliques no pai.
 - **Ficou de fora:** `lint`, `test`, `check:no-diamond` e `check:wcag` entram no M0.3/M0.4, como o ticket diz.
 - **Tempo:** ~40 min.
+
+---
+
+## M0.3 · COM-316 · Lint e regras de arquitetura
+
+- **Data:** 2026-11-07
+- **Branch:** `feat/COM-316-lint-boundaries` (a partir de `feat/COM-315-bootstrap-web-react`)
+- **O que foi feito:** bloco `apps/web-react/**/*.{ts,tsx}` no `eslint.config.mjs` da raiz: `typescript-eslint` recommended, `react-hooks` `recommended-latest` (regras do compiler), `jsx-a11y` recommended, `eslint-config-prettier`, `eslint-plugin-boundaries` 7.4 e as restrições de import/global. `lint-staged` cobre `*.tsx`. Script `lint` no pacote.
+- **Decisões:**
+  - `boundaries/root-path` aponta para `apps/web-react`: o plugin descreve o arquivo com caminho relativo ao cwd, então padrões `apps/web-react/src/...` não casavam quando o lint roda de dentro do pacote. Com a raiz fixa, o resultado é igual rodando da raiz ou do pacote.
+  - A regra de entry point (`features/*/index.ts`) está dentro de `boundaries/dependencies` com `fileInternalPath: 'index.ts'`; o `boundaries/entry-point` está deprecado na v7. Imports dentro da mesma feature não passam pelo `index.ts`.
+  - Exceções do `no-restricted-imports` de `@tanstack/react-query`: `features/*/queries/**`, `shared/session/**`, `shared/pwa/**`, `app/providers/**`, `src/testing/**` e `*.spec.{ts,tsx}` (testes montam `QueryClientProvider`).
+  - `fetch` global proibido fora de `shared/lib/api-client.ts` e `features/upload/api/**` (`no-restricted-globals`).
+  - Resolver do alias `@/` com `eslint-import-resolver-typescript` (sem `eslint-plugin-import`, como o ticket pede).
+- **Prova de cada regra** (arquivos temporários, apagados depois): periods → companies, shared → feature, `app/routes` → arquivo interno de feature e periods → arquivo interno de `catalog` falham com a mensagem da regra; periods → `catalog` pelo `index.ts`, `app/routes` → `features/companies` pelo `index.ts` e periods → arquivo interno de periods passam. `useQuery` em `features/x/components/` falha; em `features/x/queries/` passa. `<img>` sem `alt` falha (`jsx-a11y/alt-text`). `@radix-ui/react-slot` e `fetch` num componente falham. Bônus: `setState` dentro de `useEffect` para derivar estado falha em `react-hooks/set-state-in-effect`.
+- **Ficou de fora:** nada.
+- **Tempo:** ~35 min.
