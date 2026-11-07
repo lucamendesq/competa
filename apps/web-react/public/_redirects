@@ -1,0 +1,2 @@
+# Cloudflare Pages: sem isto, recarregar uma rota do SPA (ex. /minha-area/pendencias) dá 404.
+/* /index.html 200
