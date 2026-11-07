@@ -273,7 +273,7 @@ Um bloco por ticket, na ordem em que foram executados. Plano: [`docs/react-migra
 ## M2.1 · COM-333 · PanelLayout
 
 - **Data:** 2026-11-07
-- **Branch:** `feat/COM-333-panel-layout` (a partir de `feat/COM-332-invite`)
+- **Branch:** `feat/COM-333-panel-layout` (a partir de `feat/COM-332-invite`) · **PR:** [#35](https://github.com/lucamendesq/competa/pull/35)
 - **O que foi feito:** `shared/components/layout/panel-layout.tsx` com a marcação e as classes do `PanelLayout.vue`: skip link "Pular para o conteúdo", header mobile com botão de menu (`aria-expanded`, `aria-controls`), overlay, nav com os 7 itens (`NavLink` com as classes de ativo do Vue), bloco de perfil com iniciais e menu ("Convidar contador" só para o dono; "Sair"), `Callout` de assinatura pendente com "Regularizar agora", `main#conteudo`. `menuOpen` e `profileOpen` em `useState` local. `app/router/panel-shell.tsx` liga o layout à sessão (`useSession`), ao `useSignOut` (depois → `/entrar`) e ao indicador de escrita em voo; a rota `/` ficou `RequireAccountant` → `PanelShell` → segmento com `errorElement`, então o erro de uma página aparece dentro do layout.
 - **Decisões:**
   - **O layout é apresentacional em `shared/`** e a composição fica em `app/router/panel-shell.tsx`: o ticket punha `useSignOut` dentro de `shared/`, mas ele mora em `features/auth`, e `shared` não importa feature (lint).
@@ -282,3 +282,20 @@ Um bloco por ticket, na ordem em que foram executados. Plano: [`docs/react-migra
 - **Visual:** `competencias__{desktop,mobile}__layout.png` e `competencias__mobile__menu-aberto.png`, logado como o dono do baseline na API local. Sidebar, header mobile e menu aberto iguais ao Vue. O miolo ainda é o placeholder "Periods" (M2.3); por isso as capturas com o miolo levam o nome `layout` em vez de `com-dados`, que o M2.3 vai gerar.
 - **Ficou de fora:** nada.
 - **Tempo:** ~40 min.
+
+---
+
+## M2.2 · COM-324 · `features/periods`: api, key factory e hooks
+
+- **Data:** 2026-11-07
+- **Branch:** `feat/COM-324-periods-feature` (a partir de `feat/COM-333-panel-layout`)
+- **O que foi feito:** `features/periods/api/` com um arquivo por chamada (16 chamadas dos `api/periods.ts` e `api/requests.ts` do Vue + `period.types.ts`), `queries/period-keys.ts` (`periodKeys` e `requestKeys` como no ticket), `use-period-queries.ts` (lista com `keepPreviousData`, detalhe, painel, prévia, Solicitação) e `use-period-mutations.ts`. A feature `requests` do Vue foi absorvida aqui, como o plano manda. Sem UI.
+- **Invalidação por mutation** (testada com spy, exatamente estas keys): abrir → `lists()`; incluir empresas novas → `lists()` + `detail(id)`; encerrar competência → `lists()` + `detail(id)`; cobrar atrasados → `panel(id)`; publicar revisão e desfazer aceite → `requestKeys.detail` + `periodKeys.panel`; encerrar Solicitação → `requestKeys.detail` + `periodKeys.panel` + `periodKeys.detail`; reenviar link, gerar link, zips e abrir documento → nada.
+- **Decisões:**
+  - `useUploadLink` é **mutation**, não query: o `POST /requests/:id/upload-link` rotaciona o link (a API só guarda o hash). A key `requestKeys.uploadLink` fica na fábrica como o ticket pede, sem uso por enquanto.
+  - O ticket não lista keys para "incluir empresas novas" (`POST /periods/:id/requests`); invalida a lista (contagem de Solicitações) e o detalhe, que cobre o painel por prefixo.
+  - Validação de borda com `parsed` só onde o contrato descreve a resposta inteira (`PanelRowResponse[]`, `RequestDetailResponse`): o zod descarta campo desconhecido, e o detalhe da competência tem campos (`deliveredCount`) que o contrato não lista.
+  - A prévia (`usePeriodPreview`) só busca com `enabled` vindo da tela **e** mês `YYYY-MM` válido.
+- **Testes:** `use-period-mutations.spec.tsx` (um caso por hook de escrita, spy em `invalidateQueries`) e `use-period-queries.spec.tsx` (páginas com keys distintas e a anterior visível como `placeholderData` enquanto a próxima carrega; prévia só com diálogo aberto e mês válido). `grep "queryKey: \[" src` fora de testes: vazio. 116 testes no pacote.
+- **Ficou de fora:** nada (UI é M2.3/M2.4/M3.1).
+- **Tempo:** ~35 min.
