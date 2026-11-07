@@ -121,6 +121,7 @@ export default tseslint.config(
   {
     files: [
       `${webReact}/src/features/*/queries/**`,
+      `${webReact}/src/shared/lib/query-client.ts`,
       `${webReact}/src/shared/session/**`,
       `${webReact}/src/shared/pwa/**`,
       `${webReact}/src/app/providers/**`,

@@ -86,7 +86,7 @@ Um bloco por ticket, na ordem em que foram executados. Plano: [`docs/react-migra
 ## M0.5 · COM-318 · api-client, api-error e auth-client
 
 - **Data:** 2026-11-07
-- **Branch:** `feat/COM-318-api-client` (a partir de `feat/COM-317-test-infra`)
+- **Branch:** `feat/COM-318-api-client` (a partir de `feat/COM-317-test-infra`) · **PR:** [#24](https://github.com/lucamendesq/competa/pull/24)
 - **O que foi feito:** `shared/lib/api-client.ts` em funções (`api.get/page/post/patch/put/delete/blobUrl/download`), com o mesmo comportamento do Vue e `signal` opcional em todas; `parsed(schema)` para validar a resposta com o contrato. `shared/lib/api-error.ts` copiado, mais `applyFieldErrors(error, setError)` para o React Hook Form. `shared/lib/auth-client.ts` com `better-auth/react` + `magicLinkClient`. `busy.ts` não foi portado (o indicador vem do `useIsMutating()` no M2.1).
 - **Decisões:**
   - Assinatura nova `api.get(url, { params, signal })` em vez de `api.get(url, params)`: o `signal` do `queryFn` entra em todas as chamadas sem um terceiro argumento posicional.
@@ -95,3 +95,20 @@ Um bloco por ticket, na ordem em que foram executados. Plano: [`docs/react-migra
 - **Testes:** `api-error.spec.ts` (todos os casos do `check-api-error.ts`, mais `applyFieldErrors`, `apiErrorCode`, `isNotFound` e `failureKind`) e `api-client.spec.ts` (401 em `/auth/me` e `/my/profile` → `null` sem expirar a sessão; 401 em `/periods` → expira e lança; envelope e limpeza de parâmetros; paginação; corpo de erro na `ApiError`; `EMPTY_DOWNLOAD`; `AbortSignal`; `parsed`). 24 testes no pacote.
 - **Ficou de fora:** nada.
 - **Tempo:** ~30 min.
+
+---
+
+## M0.6 · COM-321 · QueryClient, providers e sessão expirada
+
+- **Data:** 2026-11-07
+- **Branch:** `feat/COM-321-query-client-providers` (a partir de `feat/COM-318-api-client`)
+- **O que foi feito:** `shared/lib/query-client.ts` (`makeQueryClient` com os defaults centrais do ticket; 4xx não repete). `app/providers/app-providers.tsx`: `ErrorBoundary` raiz ("Algo deu errado" + "Recarregar"), `QueryClientProvider` e `Toaster` do sonner (`richColors`, `top-right`). `app/providers/session-expiry.ts`: registra o `onSessionExpired` uma vez; em rota com `handle.area` mostra o toast (id `session-expired`), remove `authKeys.all` do cache e navega para `/entrar` ou `/minha-area/acesso`; em rota pública não faz nada (igual ao Vue). `main.tsx` monta `StrictMode > AppProviders > RouterProvider` e importa `@competa/contracts` pela voz PT-BR do zod, como o `main.ts` do Vue.
+- **Decisões:**
+  - O registro do handler acontece no `main.tsx`, no nível do módulo, e não num `useEffect` do provider: o QueryClient e o router já são singletons ali, e assim não há efeito nem registro duplo no StrictMode.
+  - `authKeys` (só a key factory) nasce em `features/auth/queries/auth-keys.ts`, porque o ticket manda limpar `authKeys.all`. As queries de sessão continuam no M1.1.
+  - `app/router/router.tsx` tem uma rota só (`*`) para o `RouterProvider` montar; o M0.9 declara as 33 rotas. `app/router/route-handle.ts` tipa `handle.title`/`handle.area` e lê a área do último match que a declara.
+  - O `SessionProvider` entra no M1.1 (o ticket diz "M1.1 preenche"). O `Toaster` usa o `sonner` direto; o M0.7 gera o wrapper do shadcn.
+  - Exceção de lint para `shared/lib/query-client.ts` importar `@tanstack/react-query` (o plano põe o arquivo ali).
+- **Testes:** `query-client.spec.ts` (404 → 1 chamada; 500 → 4 chamadas, isto é, 3 retries; mutations sem retry) e `app-providers.spec.tsx` (Contador → `/entrar` com um toast só mesmo com dois 401 e cache de sessão limpo; Responsável → `/minha-area/acesso`; rota pública não reage; erro num filho mostra o ErrorBoundary). 31 testes no pacote. O app sobe no navegador sem erro no console.
+- **Ficou de fora:** nada além do que é de M0.9/M1.1.
+- **Tempo:** ~35 min.
