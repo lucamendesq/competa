@@ -1,5 +1,5 @@
-import { Placeholder } from '@/app/routes/placeholder';
+import { PendingPanelPage } from '@/features/periods';
 
 export function Component() {
-  return <Placeholder name="PendingPanel" />;
+  return <PendingPanelPage />;
 }

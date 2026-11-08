@@ -305,7 +305,7 @@ Um bloco por ticket, na ordem em que foram executados. Plano: [`docs/react-migra
 ## M2.3 · COM-336 · Lista de Competências (`/competencias`)
 
 - **Data:** 2026-11-07/08
-- **Branch:** `feat/COM-336-periods-list` (a partir de `feat/COM-324-periods-feature`)
+- **Branch:** `feat/COM-336-periods-list` (a partir de `feat/COM-324-periods-feature`) · **PR:** [#37](https://github.com/lucamendesq/competa/pull/37)
 - **O que foi feito:** `features/periods/components/{periods-list-page,period-kpis,periods-table,open-period-dialog,period-opening-summary}.tsx` (rota `app/routes/periods.tsx`), com textos, toasts e classes do `PeriodsListPage.vue`. KPI da competência ativa (a aberta mais recente, com "x de y entregues" do detalhe), chips de status, tabela com zip e encerrar, `PlanGateNotice` quando o plano não tem `periodZip`. Diálogo de abertura com seletor de ano/mês (botões + selects ocultos com `aria-label`, como no Vue), prazo opcional validado pelo `OpenPeriodBody`, prévia do fan-out (`usePeriodPreview`), aviso de "já aberta" e de empresas sem template, passo de confirmação e o resumo com "Copiar link" por Empresa. Estados `isPending`/`isError`/vazio explícitos.
 - **Peças compartilhadas novas:** `shared/components/plan-gate-notice.tsx` (usado por várias features, só depende dos contratos) e `shared/hooks/use-copy.ts`.
 - **Decisões:**
@@ -318,3 +318,22 @@ Um bloco por ticket, na ordem em que foram executados. Plano: [`docs/react-migra
 - **Visual:** `competencias__{desktop,mobile}__{vazio,com-dados,modal-abertura}.png`, iguais aos do Vue. Diferença só de dado: o banco local ganhou duas Empresas sem template (sobras da importação feita na captura do baseline), então a prévia lista mais nomes.
 - **Ficou de fora:** nada do escopo.
 - **Tempo:** ~1h15.
+
+---
+
+## M2.4 · COM-348 · Painel de Pendências (`/competencias/:id/pendencias`)
+
+- **Data:** 2026-11-08
+- **Branch:** `feat/COM-348-pending-panel` (a partir de `feat/COM-336-periods-list`)
+- **O que foi feito:** `features/periods/components/{pending-panel-page,panel-filters,panel-row,channel-failures,close-request-dialog}.tsx` + `panel-lines.ts` (derivação pura: linhas, contagens, filtros, progresso, impacto de encerrar, canais com falha). Cabeçalho com zip da competência, "Incluir empresas novas" e "Encerrar"; cartão de progresso / "Zero pendências!" / "Competência encerrada"; busca, filtro por contador e chips; linhas expansíveis com itens a enviar e a conferir, falha de canal com "Gerar novo link e reenviar e-mail", copiar link (gera um novo), zip da Empresa e encerrar a Solicitação. Os 17 textos de toast copiados do Vue. `CloseRequestDialog` nasce aqui, exportado pelo `index.ts` para o M3.1.
+- **Decisões:**
+  - `?contador=` e `?status=` na URL; a busca fica local (filtra no cliente a cada tecla).
+  - **CNPJ por linha:** o Vue lia da lista de Empresas (100 primeiras). `periods` não pode importar `companies`, então a feature tem `get-company-cnpjs.ts` + `periodKeys.companyCnpjs()` (mesmo `GET /companies?perPage=100`). Fica o mesmo limite de 100 do Vue.
+  - `useResendUploadLink` agora recebe `periodId` e invalida `periodKeys.panel(id)`, o equivalente ao `panelQuery.refetch()` do Vue (teste do M2.2 atualizado).
+  - `useCopy` limpa o timer no unmount (efeito de limpeza, sincronização com um timer externo), como o ticket pede.
+  - Linhas viraram `<ul>/<li>` (o Vue usava `div` com `role="list"`); títulos das seções "Aguardando Envio"/"Enviado, a conferir" são `h3` (eram `h4` sem `h3`). Barra de progresso com `role="progressbar"`.
+  - `asyncUtilTimeout` do Testing Library subiu para 3 s no `setup.ts`: com a suíte inteira em paralelo, o carregamento lazy das rotas passava de 1 s e um teste de guard falhava de vez em quando (passava isolado).
+- **Testes:** `pending-panel-page.spec.tsx` (rotas reais + `AppProviders` + MSW): CNPJ, "Atrasada" e falha de canal ao expandir; "Cobrar atrasados" com `busy` → aviso de cobrança em andamento; com `sent > 0` → contagem e o painel é buscado de novo; encerrar a Solicitação da linha atualiza a linha sem reload; copiar link → toast, "Link copiado!", área de transferência e volta a "Copiar link" depois de 2,5 s; `?contador=` filtra, sobrevive a ir e voltar e funciona abrindo direto pela URL. `panel-lines.spec.ts` para a derivação. 133 testes no pacote.
+- **Visual:** `competencias-id-pendencias__{desktop,mobile}__{com-dados,filtro-contador}.png`, iguais aos do Vue.
+- **Ficou de fora:** nada.
+- **Tempo:** ~1h30.

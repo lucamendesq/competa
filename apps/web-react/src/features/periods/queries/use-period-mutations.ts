@@ -86,8 +86,13 @@ export const useCloseRequest = () => {
   });
 };
 
-export const useResendUploadLink = () =>
-  useMutation({ mutationFn: (requestId: string) => resendUploadLink(requestId) });
+export const useResendUploadLink = () => {
+  const invalidate = useInvalidate();
+  return useMutation({
+    mutationFn: ({ requestId }: RequestScope) => resendUploadLink(requestId),
+    onSuccess: (_result, { periodId }) => invalidate(periodKeys.panel(periodId)),
+  });
+};
 
 export const useUploadLink = () =>
   useMutation({ mutationFn: (requestId: string) => getUploadLink(requestId) });

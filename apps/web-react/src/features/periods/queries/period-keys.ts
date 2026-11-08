@@ -8,6 +8,7 @@ export const periodKeys = {
   detail: (id: string) => [...periodKeys.details(), id] as const,
   panel: (id: string) => [...periodKeys.detail(id), 'panel'] as const,
   preview: (referenceMonth: string) => [...periodKeys.all, 'preview', referenceMonth] as const,
+  companyCnpjs: () => [...periodKeys.all, 'company-cnpjs'] as const,
 };
 
 export const requestKeys = {

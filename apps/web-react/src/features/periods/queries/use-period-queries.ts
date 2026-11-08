@@ -1,4 +1,5 @@
 import { keepPreviousData, useQuery } from '@tanstack/react-query';
+import { getCompanyCnpjs } from '@/features/periods/api/get-company-cnpjs';
 import { getPendingPanel } from '@/features/periods/api/get-pending-panel';
 import { getPeriod } from '@/features/periods/api/get-period';
 import { getPeriodPreview } from '@/features/periods/api/get-period-preview';
@@ -35,4 +36,10 @@ export const useRequestDetail = (requestId: string) =>
   useQuery({
     queryKey: requestKeys.detail(requestId),
     queryFn: ({ signal }) => getRequest(requestId, signal),
+  });
+
+export const useCompanyCnpjs = () =>
+  useQuery({
+    queryKey: periodKeys.companyCnpjs(),
+    queryFn: ({ signal }) => getCompanyCnpjs(signal),
   });

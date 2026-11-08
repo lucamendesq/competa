@@ -92,13 +92,17 @@ describe('mutations de periods', () => {
     ]);
   });
 
-  it('reenviar e gerar link não invalidam nada', async () => {
-    server.use(
-      http.post(apiUrl('/requests/r1/upload-link/resend'), ok),
-      http.post(apiUrl('/requests/r1/upload-link'), ok),
-    );
+  it('reenviar o link invalida o painel, como o refetch do Vue', async () => {
+    server.use(http.post(apiUrl('/requests/r1/upload-link/resend'), ok));
 
-    expect(await invalidatedBy(useResendUploadLink, 'r1')).toEqual([]);
+    expect(await invalidatedBy(useResendUploadLink, { requestId: 'r1', periodId: 'p1' })).toEqual([
+      periodKeys.panel('p1'),
+    ]);
+  });
+
+  it('gerar um link novo para copiar não invalida nada', async () => {
+    server.use(http.post(apiUrl('/requests/r1/upload-link'), ok));
+
     expect(await invalidatedBy(useUploadLink, 'r1')).toEqual([]);
   });
 });
