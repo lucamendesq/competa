@@ -494,3 +494,16 @@ Um bloco por ticket, na ordem em que foram executados. Plano: [`docs/react-migra
 - **Visual:** `configuracoes-contabilidade__{desktop,mobile}__{dono,membro}.png`, iguais aos do Vue.
 - **Ficou de fora:** nada.
 - **Tempo:** ~40 min.
+
+---
+
+## M7.2 · COM-342 · Configurações → Contadores (`/configuracoes/contadores`)
+
+- **Data:** 2026-11-08
+- **Branch:** `feat/COM-342-accountants` (a partir de `feat/COM-341-firm-settings`)
+- **O que foi feito:** `features/team/` (`api/` com uma chamada por arquivo, `teamKeys` com `accountants()`/`invites()`, `useAccountants`, `usePendingInvites`, `useCreateInvite` (invalida `invites()`), `useRemoveAccountant` (invalida `accountants()`), `useRevokeInvite`) e `components/{accountants-settings-page,accountants-table,invites-list,invite-form,confirm-dialog}`. Equipe com papel Dono/Contador e "Remover" (nunca no dono, só para o dono), convites pendentes com "Revogar", "Convidar contador" com RHF + `CreateInviteBody`; criado o convite, mostra a URL com "Copiar link" (`useCopy`). Erros 4xx aparecem com a mensagem do servidor (`apiErrorMessage`). Membro vê o aviso "Apenas o dono…".
+- **Decisões:** os botões de remover/revogar ganharam nome acessível com o alvo ("Remover Bruno Membro"). O form de convite remonta a cada abertura (`key`), então reabrir começa limpo, como o `openInvite` do Vue.
+- **Testes:** `accountants-settings-page.spec.tsx` (criar convite mostra a URL, copiar chama o clipboard e a lista de convites é refeita; e-mail inválido mostra o erro do contrato; remover mostra a mensagem do 422 do servidor e não a genérica). 208 testes no pacote.
+- **Visual:** `configuracoes-contadores__{desktop,mobile}__{convite-pendente,form-convite}.png`. Layout igual ao do Vue; o dado difere porque no baseline o Bruno ainda era convite pendente e agora já aceitou (o estado "convite pendente" está coberto no teste).
+- **Ficou de fora:** nada.
+- **Tempo:** ~30 min.

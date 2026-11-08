@@ -1,5 +1,5 @@
-import { Placeholder } from '@/app/routes/placeholder';
+import { AccountantsSettingsPage } from '@/features/team';
 
 export function Component() {
-  return <Placeholder name="AccountantsSettings" />;
+  return <AccountantsSettingsPage />;
 }
