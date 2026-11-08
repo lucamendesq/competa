@@ -1,5 +1,5 @@
-import { Placeholder } from '@/app/routes/placeholder';
+import { WhatsAppSettingsPage } from '@/features/whatsapp';
 
 export function Component() {
-  return <Placeholder name="WhatsAppSettings" />;
+  return <WhatsAppSettingsPage />;
 }
