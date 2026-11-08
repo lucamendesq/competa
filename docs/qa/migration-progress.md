@@ -624,3 +624,16 @@ Um bloco por ticket, na ordem em que foram executados. Plano: [`docs/react-migra
 - **Visual:** `minha-area-pendencias__{desktop,mobile}__com-pendencias.png`, iguais aos do Vue (vale também como o screenshot do `ContactLayout` com uma empresa, do M9.1). O estado de várias empresas está no teste.
 - **Ficou de fora:** nada.
 - **Tempo:** ~35 min.
+
+---
+
+## M9.4 · COM-354 · Histórico do Responsável (`/minha-area/competencias`)
+
+- **Data:** 2026-11-08
+- **Branch:** `feat/COM-354-contact-history` (a partir de `feat/COM-346-contact-pending`)
+- **O que foi feito:** `features/contact-area/components/{contact-history-page,period-card,period-documents}`. Competências paginadas ("Mais recentes"/"Anteriores", `?page=`), cada uma com status e "N de M itens aprovados · K arquivos enviados"; expandir mostra itens com status, arquivos (nome, tamanho, data, quem enviou, motivo da recusa) e documentos extras, com "Ver" (abre o blob em nova aba) e "Baixar". O período aberto fica em `?periodo=<periodId>:<companyId>` (compartilhável).
+- **Decisões:** o ticket pede mover um `DocumentPreview` de `features/periods` para `shared/components`; ele não existe: nem a revisão (M3.1) nem esta tela do Vue têm preview embutido, as duas abrem o documento em nova aba. Segui o Vue; não há o que mover. O "preview-aberto" do baseline do Vue é a mesma página (a aba nova não aparece no screenshot).
+- **Testes:** `contact-history-page.spec.tsx` (expandir chama `GET /my/periods/:id?companyId=` uma vez, grava `?periodo=` e reaproveita o cache ao recolher e reabrir; baixar com blob vazio mostra "Nenhum documento para baixar."). 258 testes no pacote.
+- **Visual:** `minha-area-competencias__{desktop,mobile}__{lista,periodo-expandido}.png`, iguais aos do Vue.
+- **Ficou de fora:** nada.
+- **Tempo:** ~30 min.

@@ -15,3 +15,4 @@ export {
   useSendMyFiles,
 } from '@/features/contact-area/queries/use-contact-area';
 export { ContactPendingPage } from '@/features/contact-area/components/contact-pending-page';
+export { ContactHistoryPage } from '@/features/contact-area/components/contact-history-page';

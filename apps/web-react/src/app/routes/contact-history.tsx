@@ -1,5 +1,5 @@
-import { Placeholder } from '@/app/routes/placeholder';
+import { ContactHistoryPage } from '@/features/contact-area';
 
 export function Component() {
-  return <Placeholder name="ContactHistory" />;
+  return <ContactHistoryPage />;
 }
