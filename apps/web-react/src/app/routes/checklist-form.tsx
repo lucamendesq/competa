@@ -1,5 +1,5 @@
-import { Placeholder } from '@/app/routes/placeholder';
+import { TemplateEditorPage } from '@/features/checklists';
 
 export function Component() {
-  return <Placeholder name="ChecklistForm" />;
+  return <TemplateEditorPage />;
 }

@@ -450,3 +450,19 @@ Um bloco por ticket, na ordem em que foram executados. Plano: [`docs/react-migra
 - **Testes:** `use-template-mutations.spec.tsx` (keys exatas de cada mutation; excluir remove o detalhe; derivar com nome manda o nome). 189 testes no pacote.
 - **Ficou de fora:** nada (UI é o M5.2).
 - **Tempo:** ~20 min.
+
+---
+
+## M5.2 · COM-353 · Lista de templates e editor (`/templates`, `/templates/:id`)
+
+- **Data:** 2026-11-08
+- **Branch:** `feat/COM-353-templates-pages` (a partir de `feat/COM-350-checklists-feature`)
+- **O que foi feito:** `features/checklists/components/{checklists-list-page,template-name-dialog,template-editor-page,template-editor-header,template-editor,template-item-row,template-draft,leave-guard}`. Lista com "Padrão Competa", itens, empresas usando, Ver/Editar, Duplicar (diálogo com "(Cópia)") e "Criar checklist" em branco; os dois navegam para o template novo. Editor com rascunho local (nome + itens + removidos) num `useReducer` (`template-draft.ts`, funções puras de "modificado" e contagem de pendências), barra "Alterações não salvas" com Descartar/Salvar, adicionar pelo `CatalogPicker` (diálogo com "Fechar"), lixeira nomeada por item com confirmação, "Excluir template inteiro", template do produto somente leitura com "Duplicar para editar". Guard de saída com `useBlocker` + diálogo "Sair sem salvar?" (Ficar / Sair e descartar) e `beforeunload` (o único `useEffect`, assina o evento do navegador).
+- **Decisões (o Vue é a especificação onde o ticket diverge):**
+  - O ticket fala em RHF por item com `isDirty`; o Vue edita tudo num rascunho e salva em lote, com o "modificado" calculado contra o salvo. O React faz igual; "há alterações" é derivado do rascunho, sem estado extra.
+  - O editor monta só depois do `useTemplate` resolver (`key={id}`, rascunho inicial do dado). Depois de salvar (com ou sem erro), refaz o detalhe e reseta o rascunho a partir dele, como o Vue. Refetch em segundo plano não apaga a edição.
+  - O guard ignora navegação dentro da mesma rota e é desligado depois de excluir o template (para não perguntar ao ir para `/templates`).
+- **Testes:** `templates-pages.spec.tsx` (duplicar pela lista navega para `/templates/:novo` e invalida `catalogKeys.templates()`; produto somente leitura; nome vazio mostra o erro no campo e não mostra "Template salvo." (COM-265); salvar envia o item alterado; sair com pendência abre o diálogo, "Ficar" mantém a rota e "Sair e descartar" navega). 194 testes no pacote.
+- **Visual:** `templates__{desktop,mobile}__com-dados.png` e `templates-id__{desktop,mobile}__{produto,derivado-em-edicao,dialogo-sair}.png`, iguais aos do Vue.
+- **Ficou de fora:** nada.
+- **Tempo:** ~1h10.

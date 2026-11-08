@@ -14,3 +14,5 @@ export {
   useRenameTemplate,
   useUpdateTemplateItem,
 } from '@/features/checklists/queries/use-template-mutations';
+export { ChecklistsListPage } from '@/features/checklists/components/checklists-list-page';
+export { TemplateEditorPage } from '@/features/checklists/components/template-editor-page';
