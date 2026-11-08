@@ -19,10 +19,12 @@ export const deriveSession = ({
   status,
   accountant,
   contact,
+  refresh = () => Promise.resolve(),
 }: {
   status: Session['status'];
   accountant: AccountantSession | null;
   contact: ContactSession | null;
+  refresh?: Session['refresh'];
 }): Session => ({
   status,
   accountant,
@@ -30,4 +32,5 @@ export const deriveSession = ({
   isOwner: accountant?.accountant.owner ?? false,
   isOverdue: subscriptionOverdue(accountant?.accountingFirm.subscription),
   can: (capability) => accountant?.accountingFirm.plan.capabilities.includes(capability) ?? false,
+  refresh,
 });

@@ -55,4 +55,5 @@ export type Session = {
   isOwner: boolean;
   isOverdue: boolean;
   can: (capability: PlanCapability) => boolean;
+  refresh: () => Promise<unknown>;
 };

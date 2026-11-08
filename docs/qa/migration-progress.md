@@ -479,3 +479,18 @@ Um bloco por ticket, na ordem em que foram executados. Plano: [`docs/react-migra
 - **Visual:** `mensagens__{desktop,mobile}__{sem-filtro,com-filtro,linha-com-erro}.png`, iguais aos do Vue. Diferença: o ícone da pílula de status é `size-3` (no Vue o SVG saía maior que o texto).
 - **Ficou de fora:** nada.
 - **Tempo:** ~35 min.
+
+---
+
+## M7.1 · COM-341 · Configurações → Contabilidade (`/configuracoes/contabilidade`)
+
+- **Data:** 2026-11-08
+- **Branch:** `feat/COM-341-firm-settings` (a partir de `feat/COM-340-messages`)
+- **O que foi feito:** `features/firm/` (`api/{get-firm,update-firm,firm.types}`, `firmKeys`, `useFirm`, `useUpdateFirm`) e `components/{firm-settings-page,firm-form,firm-form-schema,reminders-fieldset}`. RHF + `zodResolver` com um schema de formulário que valida o corpo com o `UpdateFirmBody` do contrato e cobra "Preencha este campo." nos lembretes apagados; manda só os campos que mudaram ("Nada para salvar." quando nada mudou); sem `reminderTuning` os lembretes mostram o padrão e nem entram no corpo; logo com prévia e `PlanGateNotice` de `branding`. Membro vê "Somente leitura", campos desabilitados e nenhum botão de salvar. O form monta depois do `useFirm` com `key` + `defaultValues`.
+- **Decisões:**
+  - `features/firm` não pode importar `features/auth`, então a `Session` ganhou `refresh()`: o `SessionProvider` (em `app/`) invalida `authKeys.me()`, e o `useUpdateFirm` chama `session.refresh()` junto com a invalidação de `firmKeys.detail()`. O nome novo aparece no menu sem recarregar.
+  - O `ReadOnlyNotice` do ticket é o `Callout` "Somente leitura" do Vue; fica local até o M7.3/M7.4 mostrarem se vale promover.
+- **Testes:** `firm-settings-page.spec.tsx` (dono salva só o nome e o menu mostra o nome novo; lembrete apagado pede preenchimento; sem mudança avisa; membro vê campos desabilitados, aviso e o gate de `reminderTuning`). 205 testes no pacote.
+- **Visual:** `configuracoes-contabilidade__{desktop,mobile}__{dono,membro}.png`, iguais aos do Vue.
+- **Ficou de fora:** nada.
+- **Tempo:** ~40 min.

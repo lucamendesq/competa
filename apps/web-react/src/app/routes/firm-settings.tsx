@@ -1,5 +1,5 @@
-import { Placeholder } from '@/app/routes/placeholder';
+import { FirmSettingsPage } from '@/features/firm';
 
 export function Component() {
-  return <Placeholder name="FirmSettings" />;
+  return <FirmSettingsPage />;
 }
