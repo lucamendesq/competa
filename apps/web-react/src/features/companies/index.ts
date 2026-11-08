@@ -39,3 +39,4 @@ export {
   useUpdateContact,
 } from '@/features/companies/queries/use-company-mutations';
 export { useIsInvited, useMarkInvited } from '@/features/companies/store/invited-companies.store';
+export { CompanyChecklistPage } from '@/features/companies/components/company-checklist-page';

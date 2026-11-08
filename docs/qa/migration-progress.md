@@ -360,7 +360,7 @@ Um bloco por ticket, na ordem em que foram executados. Plano: [`docs/react-migra
 ## M4.1 · COM-325 · `features/companies`: api, keys, hooks e store `invited-companies`
 
 - **Data:** 2026-11-08
-- **Branch:** `feat/COM-325-companies-feature` (a partir de `feat/COM-352-request-review`)
+- **Branch:** `feat/COM-325-companies-feature` (a partir de `feat/COM-352-request-review`) · **PR:** [#40](https://github.com/lucamendesq/competa/pull/40)
 - **O que foi feito:** `features/companies/api/` (as 22 chamadas do `companies.ts` do Vue, agrupadas por recurso: listas, detalhe, checklist efetivo, overrides, acessos, uso do plano, criar/editar/desativar, Responsáveis, ações em lote, importação; `company.types.ts`), `queries/company-keys.ts`, `use-company-queries.ts` (lista com `keepPreviousData`, detalhe, acessos, checklist efetivo, overrides, uso do plano) e `use-company-mutations.ts` com a invalidação do ticket. `store/invited-companies.store.ts` (Zustand + `persist` em `sessionStorage`, `partialize` só de `invitedIds`, `markInvited(ids)`, `useIsInvited(id)`). Sem UI.
 - **Decisões:**
   - `accesses(id)`, `checklist(id)` e `overrides(id)` não ficam debaixo de `detail(id)`: assim invalidar o detalhe (ex.: adicionar Responsável) não refaz o checklist e os acessos por prefixo. A invalidação fica exatamente a do ticket.
@@ -369,3 +369,20 @@ Um bloco por ticket, na ordem em que foram executados. Plano: [`docs/react-migra
 - **Testes:** `use-company-mutations.spec.tsx` (14 mutations, spy em `invalidateQueries`, keys exatas; buscas `'a'` e `'ab'` com keys distintas) e `invited-companies.store.spec.ts` (`markInvited` imutável e sem duplicar; persiste na chave e no formato do Vue; reidrata o que o Vue gravou). 159 testes no pacote.
 - **Ficou de fora:** nada (UI é M4.2–M4.5).
 - **Tempo:** ~35 min.
+
+---
+
+## M4.4 · COM-337 · Feature-folha `catalog` e Checklist da Empresa
+
+- **Data:** 2026-11-08
+- **Branch:** `feat/COM-337-catalog-company-checklist` (a partir de `feat/COM-325-companies-feature`)
+- **Ordem:** pela fila (topológica + código M) o próximo seria o M4.3, mas o formulário de Empresa usa a lista de templates, que mora no `catalog` (este ticket), e `companies` só pode importar `catalog`. O M4.4 veio antes do M4.3.
+- **O que foi feito:** `features/catalog/` (tipos de documento e templates como opções: `api/`, `catalogKeys`, `useDocumentTypes`, `useTemplateOptions`, `CatalogPicker` + `filterCatalog`) e `features/companies/components/{company-checklist-page,checklist-line,checklist-lines}` (rota `/empresas/:id/checklist`): checklist efetivo agrupado por categoria com a origem de cada linha, switch para tirar/voltar item, "Adicionar documento" pelo catálogo, "Restaurar padrão do template", aviso "Empresa cadastrada. Falta um ajuste?" com `?created=1`. Toasts do Vue.
+- **Decisões (o Vue é a especificação onde o ticket diverge):**
+  - O `CatalogPicker.vue` é uma busca por nome sobre os 100 primeiros tipos, sem categoria nem paginação; o React faz igual. O critério "trocar categoria reseta a página" não se aplica. O "reset por derivação" vale para a busca: a lista filtrada é calculada no render.
+  - A página do Vue só liga/desliga itens (override `add`/`remove` com `monthly`, `dueMonthOffset: 1`, `required: true`); não edita periodicidade/prazo. Sem `override-form`.
+  - O `catalog` ainda não tem invalidação: as mutations de template (M5.1) vão invalidar `catalogKeys.templates()`.
+- **Testes:** `company-checklist-page.spec.tsx` (adicionar pelo catálogo envia o override, refaz checklist e overrides e a linha aparece com "Adicionado"; a busca filtra; desligar um item do template cria o override `remove`). 162 testes no pacote.
+- **Visual:** `empresas-id-checklist__{desktop,mobile}__{com-override,picker-aberto}.png`, iguais aos do Vue. Diferenças: a lupa do picker é um pouco menor (ícone `size-4`); o menu lateral marca "Empresas" também nas subpáginas da Empresa (`NavLink` casa por prefixo; o `RouterLink` do Vue só marcava a rota exata).
+- **Ficou de fora:** nada.
+- **Tempo:** ~50 min.

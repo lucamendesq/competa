@@ -1,5 +1,5 @@
-import { Placeholder } from '@/app/routes/placeholder';
+import { CompanyChecklistPage } from '@/features/companies';
 
 export function Component() {
-  return <Placeholder name="CompanyChecklist" />;
+  return <CompanyChecklistPage />;
 }
