@@ -569,7 +569,7 @@ Um bloco por ticket, na ordem em que foram executados. Plano: [`docs/react-migra
 ## M8.3 · COM-334 · Página pública de envio (`/envio/:linkToken`)
 
 - **Data:** 2026-11-08
-- **Branch:** `feat/COM-334-upload-page` (a partir de `feat/COM-326-upload-feature`)
+- **Branch:** `feat/COM-334-upload-page` (a partir de `feat/COM-326-upload-feature`) · **PR:** [#54](https://github.com/lucamendesq/competa/pull/54)
 - **O que foi feito:** `features/upload/components/{upload-page,upload-header,upload-item,dropzone,upload-feedback,access-offers,link-unavailable,upload-progress-ring}`. Cabeçalho com o logo do escritório (`referrerPolicy="no-referrer"`, cai na marca Competa se quebrar) e `InstallButton`; progresso de envio; itens ordenados (recusados primeiro, depois alfabético) com status, prazo, aviso "Precisa reenviar" e arquivos já enviados **só** como "Arquivo N" + status (regra 3); dropzone por item e de extras (`<input type="file" multiple>` dentro de `<label>`, arrastar e soltar, "Tirar foto do documento" com `capture="environment"` no celular), cada uma dentro de `react-error-boundary`; progresso com `role="progressbar"` e `aria-live`; `UploadFeedback` com "Tentar de novo" só nos `retriable`; competência encerrada; "Tudo enviado!" com "Me avise neste aparelho" (`usePush`) e "Criar meu acesso"; erro temporário (offline/5xx/429) × link expirado com "Receber o link atual".
 - **Decisões:**
   - `ResendNotice` e `TermsConsent` foram para `shared/components` (usados por `periods`/`auth` e agora por `upload`, que não pode importar nenhuma delas).
