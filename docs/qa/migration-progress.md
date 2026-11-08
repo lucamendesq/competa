@@ -549,3 +549,17 @@ Um bloco por ticket, na ordem em que foram executados. Plano: [`docs/react-migra
 - **Testes:** `push.spec.ts` (sem service worker desiste em 10 s com timer falso; com registro resolve; base64url), `device.spec.ts` (id estável; uma chamada por sessão; falha desfaz a marca e tenta de novo) e `install.store.spec.ts` (`canInstall` falso em standalone mesmo com prompt; dica do iOS; `beforeinstallprompt` guarda o evento e `promptInstall` consome uma vez; `appinstalled`). 229 testes no pacote.
 - **Ficou de fora:** nada.
 - **Tempo:** ~40 min.
+
+---
+
+## M8.2 · COM-326 · `features/upload`: api do envio e `useUpload`
+
+- **Data:** 2026-11-08
+- **Branch:** `feat/COM-326-upload-feature` (a partir de `feat/COM-328-shared-pwa`)
+- **O que foi feito:** `features/upload/api/` (uma chamada por arquivo: checklist por token, presign, PUT no storage por XHR com progresso (único XHR fora do api-client, já liberado no lint), confirm, push e ativar acesso; `upload.types.ts`), `uploadKeys.checklist(token)`, `useUploadChecklist`, `useSubscribePush`, `useActivateAccess` e `useSendFiles(token)` (monta as dependências reais, guarda o item alvo e invalida o checklist ao terminar). `hooks/use-upload.ts`: a mesma máquina do Vue em `useReducer` (`start`, `progress`, `done`) com `percent` derivado e dependências injetadas; o laço do envio é a função `runUpload`, testável sem React. Nada do envio em Zustand.
+- **Decisões:**
+  - `useActivateAccess` chama `session.refresh()` (a `Session` não pode importar `features/auth`); o `refresh()` agora invalida `authKeys.me()` e `authKeys.contactProfile()`, cobrindo as duas sessões.
+  - O "botões travam enquanto a escrita está em voo" (`trackBusy` do Vue) não foi portado para o PUT: quem chama já tem `isUploading`.
+- **Testes:** `use-upload.spec.ts` (todos os casos de `check-upload.ts` mais os do ticket: presign 422 → todos `retriable` com mensagem neutra e arquivo preservado; caminho feliz com o mesmo SHA-256 no presign e no PUT; PUT falha em um → só ele `retriable` e fora do confirm; confirm recusa um → `ok: false` com o motivo e os outros `ok: true`; progresso soma os recusados no presign e não passa de 100; offline) e `use-send-files.spec.tsx` (item alvo no presign e invalidação do checklist). 236 testes no pacote.
+- **Ficou de fora:** nada (a tela é o M8.3).
+- **Tempo:** ~40 min.

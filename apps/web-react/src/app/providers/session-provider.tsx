@@ -13,7 +13,11 @@ export function SessionProvider({ children }: { children: ReactNode }) {
     status: loading ? 'loading' : 'ready',
     accountant: me.data ?? null,
     contact: me.data ? null : (contactProfile.data ?? null),
-    refresh: () => queryClient.invalidateQueries({ queryKey: authKeys.me() }),
+    refresh: () =>
+      Promise.all([
+        queryClient.invalidateQueries({ queryKey: authKeys.me() }),
+        queryClient.invalidateQueries({ queryKey: authKeys.contactProfile() }),
+      ]),
   });
 
   return <SessionContext value={session}>{children}</SessionContext>;
