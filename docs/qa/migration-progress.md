@@ -409,7 +409,7 @@ Um bloco por ticket, na ordem em que foram executados. Plano: [`docs/react-migra
 ## M4.2 · COM-349 · Lista de Empresas (`/empresas`)
 
 - **Data:** 2026-11-08
-- **Branch:** `feat/COM-349-companies-list` (a partir de `feat/COM-338-company-form`)
+- **Branch:** `feat/COM-349-companies-list` (a partir de `feat/COM-338-company-form`) · **PR:** [#43](https://github.com/lucamendesq/competa/pull/43)
 - **O que foi feito:** `features/companies/components/{companies-list-page,companies-results,companies-table,bulk-actions-bar,contact-status,invite-to-app-button,plan-cap-banner}`. Filtros na URL (`?page=`, `?ativas=true|false`, `?busca=`); a busca tem estado local para o input e um `useDebouncedCallback` (300 ms, novo em `shared/hooks`) que escreve na URL. Abas com as contagens do `usePlanUsage`. Seleção em lote com "Ativar selecionadas", "Aplicar template" e "Limpar seleção"; por linha: Editar, Checklist, "Convidar para o app" (marca no store `invited-companies`), Desativar (com confirmação) e Reativar (`useReactivateCompany`, nova mutation). `PlanCapBanner` quando passa do teto. Vazio com e sem filtro, erro e carregando. Toasts do Vue.
 - **Decisões:**
   - Nenhum `useEffect` para filtros: a URL é a fonte, e mudar busca ou aba apaga `page`. A seleção vive num filho com `key` de aba + busca + página, então limpa sozinha ao mudar o filtro (no Vue ela ficava, e "selecionar todas" só via a página atual).
