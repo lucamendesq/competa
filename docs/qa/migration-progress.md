@@ -419,3 +419,19 @@ Um bloco por ticket, na ordem em que foram executados. Plano: [`docs/react-migra
 - **Visual:** `empresas__{desktop,mobile}__{com-dados,inativas,com-selecao}.png`, iguais aos do Vue. Diferença de dado: o banco local tem duas "Empresa Nova Ltda" criadas em capturas anteriores. O estado vazio não foi recapturado (o banco tem dados); o teste cobre.
 - **Ficou de fora:** nada.
 - **Tempo:** ~50 min.
+
+---
+
+## M4.5 · COM-339 · Importar planilha de Empresas (`/empresas/importar`)
+
+- **Data:** 2026-11-08
+- **Branch:** `feat/COM-339-import-companies` (a partir de `feat/COM-349-companies-list`)
+- **O que foi feito:** `features/companies/utils/spreadsheet.ts` (`readSpreadsheet(file)`: `.xlsx` via `import('xlsx')` lazy, só a primeira aba, `sheet_to_csv({ rawNumbers: true })`; `.csv` como texto; demais extensões dão "Envie um arquivo .csv ou .xlsx."; colunas esperadas e o CSV modelo com BOM e `;`) e `components/{import-companies-page,import-state,spreadsheet-dropzone,import-columns,import-preview-table,import-report}`. Estado da tela em `useReducer` (`idle → reading → idle(com arquivo) → previewing → done`, com `error`). Prévia por linha, divisão ativa/inativa pelo teto do plano (o padrão "ativar" é derivado do uso enquanto o Contador não mexe, sem efeito), "Enviar convites de acesso" (confirma junto) e "Importar N empresas", com uma confirmação em voo só (os dois botões compartilham a mesma promessa, como no Vue). Descartar com confirmação. A dropzone fica dentro de `react-error-boundary`.
+- **Decisões:**
+  - `testing/setup.ts` ganhou `Blob.prototype.text/arrayBuffer` via `FileReader`: o jsdom não tem esses métodos, e o código de produção usa a API do navegador.
+  - O SheetJS lê texto solto como CSV, então um ".xlsx" que é texto não falha (igual no Vue); o erro "Não foi possível ler esta planilha…" só aparece quando a lib lança.
+- **Testes:** `spreadsheet.spec.ts` (xlsx de duas abas lê só a primeira com números crus; csv; extensão desconhecida; cabeçalho do modelo) e `import-companies-page.spec.tsx` (lê, mostra a prévia por linha e confirma com `activate: true` → toast e `/empresas`; lote acima do teto desmarca "ativar" e enviar convites confirma uma vez só com `activate: false`; extensão desconhecida; descartar). A invalidação de `lists()`/`usage()` está na mutation do M4.1 (testada lá). 181 testes no pacote.
+- **Bundle:** `xlsx-*.js` (500 kB) é um chunk separado, importado só pelo chunk `spreadsheet-*.js` desta rota (`import("./xlsx-…")`); não entra no `index`.
+- **Visual:** `empresas-importar__{desktop,mobile}__{inicial,previa-com-erro}.png`, iguais aos do Vue (só muda "você já tem N", que vem do banco). O "relatório" do baseline é a lista de Empresas depois de confirmar; não foi recapturado para não criar outra Empresa no banco de baseline. O teste cobre a confirmação.
+- **Ficou de fora:** nada.
+- **Tempo:** ~1h.

@@ -1,5 +1,5 @@
-import { Placeholder } from '@/app/routes/placeholder';
+import { ImportCompaniesPage } from '@/features/companies';
 
 export function Component() {
-  return <Placeholder name="ImportCompanies" />;
+  return <ImportCompaniesPage />;
 }
