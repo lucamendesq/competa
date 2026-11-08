@@ -392,7 +392,7 @@ Um bloco por ticket, na ordem em que foram executados. Plano: [`docs/react-migra
 ## M4.3 · COM-338 · Formulário de Empresa (nova e editar)
 
 - **Data:** 2026-11-08
-- **Branch:** `feat/COM-338-company-form` (a partir de `feat/COM-337-catalog-company-checklist`)
+- **Branch:** `feat/COM-338-company-form` (a partir de `feat/COM-337-catalog-company-checklist`) · **PR:** [#42](https://github.com/lucamendesq/competa/pull/42)
 - **O que foi feito:** `features/companies/components/{company-form-page,company-form,company-form-schema,checklist-preview-panel,effective-checklist-preview,contact-access-list,revoke-access-dialog}` nas rotas `/empresas/nova` e `/empresas/:id/editar`. RHF + `zodResolver` com o schema do Vue (nome do `CreateCompanyBody`, CNPJ incompleto, e-mail obrigatório quando há nome de contato), máscaras de CNPJ e WhatsApp, flags do contrato, Contador responsável (`GET /accountants`), template pelo `catalog` (`useTemplateOptions`, primeiro consumidor) e a prévia do checklist (checklist efetivo quando o template não mudou, senão `GET /checklist-templates/:id` via o novo `useTemplatePreview` do `catalog`), filtrada pelas flags e agrupada por categoria. "Acesso ao app" com "Revogar acesso" e confirmação. Salvar segue o Vue: editar = `PATCH` (vazios como `null`) + sincroniza o Responsável (add/patch/delete, toast de links não entregues) → `/empresas`; criar = `POST` → `/empresas/:id/checklist?created=1` com template, senão `/empresas`. Erros: Callout + erros por campo (`contact.*` → `contact*`).
 - **Decisões:**
   - O formulário monta só depois do `useCompany` resolver, com `key={id}` e `defaultValues` (sem `reset` em efeito).
