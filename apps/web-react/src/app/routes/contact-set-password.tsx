@@ -1,5 +1,5 @@
-import { Placeholder } from '@/app/routes/placeholder';
+import { ContactSetPasswordPage } from '@/features/auth';
 
 export function Component() {
-  return <Placeholder name="ContactSetPassword" />;
+  return <ContactSetPasswordPage />;
 }

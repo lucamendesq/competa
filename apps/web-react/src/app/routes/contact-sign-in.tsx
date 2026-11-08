@@ -1,5 +1,5 @@
-import { Placeholder } from '@/app/routes/placeholder';
+import { ContactSignInPage } from '@/features/auth';
 
 export function Component() {
-  return <Placeholder name="ContactSignIn" />;
+  return <ContactSignInPage />;
 }

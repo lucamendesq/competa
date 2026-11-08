@@ -26,3 +26,5 @@ export { RegisterPage } from '@/features/auth/components/register-page';
 export { ForgotPasswordPage } from '@/features/auth/components/forgot-password-page';
 export { ResetPasswordPage } from '@/features/auth/components/reset-password-page';
 export { InvitePage } from '@/features/auth/components/invite-page';
+export { ContactSignInPage } from '@/features/auth/components/contact-sign-in-page';
+export { ContactSetPasswordPage } from '@/features/auth/components/contact-set-password-page';
