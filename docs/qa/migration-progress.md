@@ -650,3 +650,18 @@ Um bloco por ticket, na ordem em que foram executados. Plano: [`docs/react-migra
 - **Visual:** `perdi-meu-link__{desktop,mobile}__{inicial,enviado}.png`, `perdi-meu-link-confirmar__{desktop,mobile}__inicial.png` e `__sem-token`. Iguais aos do Vue; o "enviado" do baseline do Vue saiu no meio do envio ("Enviando…"), o React mostra o estado final.
 - **Ficou de fora:** nada.
 - **Tempo:** ~25 min.
+
+---
+
+## M10.1 · COM-355 · Testes de fluxos críticos (MSW)
+
+- **Data:** 2026-11-08
+- **Branch:** `feat/COM-355-flow-tests` (a partir de `feat/COM-347-recover-link`)
+- **O que foi feito:** `src/testing/flows/` com três specs que montam o router real (`createMemoryRouter(routes)`) com MSW:
+  - `accountant-flow.spec.tsx`: entrar → `/competencias` vazio → abrir competência (modal, revisar, confirmar, resumo) → a lista é refeita → painel de pendências → copiar link → "Conferir (1)" → aceitar o item → publicar → "Voltar" e o painel volta refeito com o item conferido.
+  - `public-upload-flow.spec.tsx`: `/envio/:token` → dois arquivos (um recusado no confirm) → feedback → o checklist é refeito e mostra "Tudo enviado!" → "Me avise neste aparelho" (Notification/serviceWorker/PushManager falsos) grava a inscrição → "Receber link de acesso" mostra "Link de acesso enviado!".
+  - `register-flow.spec.tsx`: `/cadastro` em dois passos → `/competencias` com a sessão refeita → "Plano e Assinatura" mostra "Trial".
+- **Decisões:** o Vue não tem "banner de trial" no layout; o trial é conferido na tela do plano. Depois de "Ativar acesso" o Vue não leva a `/minha-area` (manda o magic link); o fluxo confere o aviso e o link "Acessar Minha Área".
+- **Testes:** as três specs passam em ~1,4 s somadas; cada uma afirma uma invalidação observável (lista de competências e painel refeitos; checklist refeito; `/auth/me` refeito). 267 testes no pacote.
+- **Ficou de fora:** nada.
+- **Tempo:** ~45 min.
