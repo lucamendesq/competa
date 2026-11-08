@@ -601,7 +601,7 @@ Um bloco por ticket, na ordem em que foram executados. Plano: [`docs/react-migra
 ## M9.2 · COM-345 · Entrada do Responsável e definir senha
 
 - **Data:** 2026-11-08
-- **Branch:** `feat/COM-345-contact-sign-in` (a partir de `feat/COM-335-contact-area`)
+- **Branch:** `feat/COM-345-contact-sign-in` (a partir de `feat/COM-335-contact-area`) · **PR:** [#56](https://github.com/lucamendesq/competa/pull/56)
 - **O que foi feito:** `features/auth/components/{contact-sign-in-page,contact-set-password-page}` nas rotas `/minha-area/acesso` (atrás do `GuestOnly`) e `/minha-area/definir-senha`. Entrada com dois RHF independentes: e-mail + senha (`useSignInContact` → `/minha-area/pendencias`; erro "E-mail ou senha inválidos. Se você entra pelo link, use a opção abaixo.") e magic link (`useSendMagicLink` com `callbackURL` para as pendências; a confirmação "Enviamos um link de acesso para …" é a mesma exista ou não o e-mail). Definir senha com `newPassword` do contrato, tela "Senha definida" e o perfil refeito (o "Criar senha" do cabeçalho some). Botões ficam desabilitados até o formulário valer, como no Vue.
 - **Decisões:** as telas moram em `features/auth` (o ticket sugeria `contact-area`), porque usam as mutations de sessão de `auth` e `contact-area` não pode importar `auth`.
 - **Testes:** `contact-sign-in-page.spec.tsx` (senha errada mostra o erro e fica na rota, com o botão desabilitado antes de preencher; senha certa vai para as pendências; magic link mostra a confirmação sem revelar o e-mail e manda o `callbackURL`; definir senha refaz o perfil e o "Criar senha" some; senha curta mostra o erro do contrato). 253 testes no pacote.
