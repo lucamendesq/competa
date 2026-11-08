@@ -485,7 +485,7 @@ Um bloco por ticket, na ordem em que foram executados. Plano: [`docs/react-migra
 ## M7.1 · COM-341 · Configurações → Contabilidade (`/configuracoes/contabilidade`)
 
 - **Data:** 2026-11-08
-- **Branch:** `feat/COM-341-firm-settings` (a partir de `feat/COM-340-messages`)
+- **Branch:** `feat/COM-341-firm-settings` (a partir de `feat/COM-340-messages`) · **PR:** [#48](https://github.com/lucamendesq/competa/pull/48)
 - **O que foi feito:** `features/firm/` (`api/{get-firm,update-firm,firm.types}`, `firmKeys`, `useFirm`, `useUpdateFirm`) e `components/{firm-settings-page,firm-form,firm-form-schema,reminders-fieldset}`. RHF + `zodResolver` com um schema de formulário que valida o corpo com o `UpdateFirmBody` do contrato e cobra "Preencha este campo." nos lembretes apagados; manda só os campos que mudaram ("Nada para salvar." quando nada mudou); sem `reminderTuning` os lembretes mostram o padrão e nem entram no corpo; logo com prévia e `PlanGateNotice` de `branding`. Membro vê "Somente leitura", campos desabilitados e nenhum botão de salvar. O form monta depois do `useFirm` com `key` + `defaultValues`.
 - **Decisões:**
   - `features/firm` não pode importar `features/auth`, então a `Session` ganhou `refresh()`: o `SessionProvider` (em `app/`) invalida `authKeys.me()`, e o `useUpdateFirm` chama `session.refresh()` junto com a invalidação de `firmKeys.detail()`. O nome novo aparece no menu sem recarregar.
