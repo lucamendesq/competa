@@ -656,7 +656,7 @@ Um bloco por ticket, na ordem em que foram executados. Plano: [`docs/react-migra
 ## M10.1 · COM-355 · Testes de fluxos críticos (MSW)
 
 - **Data:** 2026-11-08
-- **Branch:** `feat/COM-355-flow-tests` (a partir de `feat/COM-347-recover-link`)
+- **Branch:** `feat/COM-355-flow-tests` (a partir de `feat/COM-347-recover-link`) · **PR:** [#60](https://github.com/lucamendesq/competa/pull/60)
 - **O que foi feito:** `src/testing/flows/` com três specs que montam o router real (`createMemoryRouter(routes)`) com MSW:
   - `accountant-flow.spec.tsx`: entrar → `/competencias` vazio → abrir competência (modal, revisar, confirmar, resumo) → a lista é refeita → painel de pendências → copiar link → "Conferir (1)" → aceitar o item → publicar → "Voltar" e o painel volta refeito com o item conferido.
   - `public-upload-flow.spec.tsx`: `/envio/:token` → dois arquivos (um recusado no confirm) → feedback → o checklist é refeito e mostra "Tudo enviado!" → "Me avise neste aparelho" (Notification/serviceWorker/PushManager falsos) grava a inscrição → "Receber link de acesso" mostra "Link de acesso enviado!".
