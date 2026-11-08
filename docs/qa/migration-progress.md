@@ -472,7 +472,7 @@ Um bloco por ticket, na ordem em que foram executados. Plano: [`docs/react-migra
 ## M6.1 · COM-340 · Log de Mensagens (`/mensagens`)
 
 - **Data:** 2026-11-08
-- **Branch:** `feat/COM-340-messages` (a partir de `feat/COM-353-templates-pages`)
+- **Branch:** `feat/COM-340-messages` (a partir de `feat/COM-353-templates-pages`) · **PR:** [#47](https://github.com/lucamendesq/competa/pull/47)
 - **O que foi feito:** `features/messages/` com `api/` (listar, reenviar, opções de Empresa para o filtro; `message.types.ts`), `messageKeys` (`lists()`, `list(query)`, `companyOptions()`), `useMessages` (com `keepPreviousData`), `useCompanyFilterOptions` (`GET /companies?perPage=100&active=true`, local à feature porque `messages` não pode importar `companies`), `useResendMessage` (invalida `lists()`) e `components/{messages-page,messages-filters,messages-table,message-query,message-labels}`. Filtros Empresa/Canal/Tipo/Status na URL (`?empresa=&canal=&tipo=&status=&page=`), lidos campo a campo com o `MessageListQuery` do contrato (valor inválido cai no padrão). Mudar filtro grava `page=1` na mesma escrita da URL. Erro de entrega abaixo da pílula, "Reenviar mensagem" com os toasts do Vue.
 - **Decisões:** o filtro de Status existe no Vue e foi mantido (o ticket cita só Empresa/canal/tipo). O erro de entrega fica sempre visível na linha, como no Vue (sem "abrir").
 - **Testes:** `message-query.spec.ts` (lê os filtros; inválidos caem no padrão; trocar tipo mantém canal e volta a `page=1`; limpar tira o parâmetro) e `messages-page.spec.tsx` (reenviar avisa e refaz a lista; `?canal=whatsapp&page=3` + tipo → `?canal=whatsapp&page=1&tipo=reminder` e a query vai com `page=1`; `page=abc` carrega a página 1). 201 testes no pacote.
