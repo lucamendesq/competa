@@ -101,7 +101,7 @@ export const cnpjInputMask = (raw: string) => {
     digits.slice(12, 14),
   ];
 
-  let out = parts[0];
+  let out = parts[0] ?? '';
   if (parts[1]) out += `.${parts[1]}`;
   if (parts[2]) out += `.${parts[2]}`;
   if (parts[3]) out += `/${parts[3]}`;

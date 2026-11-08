@@ -375,7 +375,7 @@ Um bloco por ticket, na ordem em que foram executados. Plano: [`docs/react-migra
 ## M4.4 · COM-337 · Feature-folha `catalog` e Checklist da Empresa
 
 - **Data:** 2026-11-08
-- **Branch:** `feat/COM-337-catalog-company-checklist` (a partir de `feat/COM-325-companies-feature`)
+- **Branch:** `feat/COM-337-catalog-company-checklist` (a partir de `feat/COM-325-companies-feature`) · **PR:** [#41](https://github.com/lucamendesq/competa/pull/41)
 - **Ordem:** pela fila (topológica + código M) o próximo seria o M4.3, mas o formulário de Empresa usa a lista de templates, que mora no `catalog` (este ticket), e `companies` só pode importar `catalog`. O M4.4 veio antes do M4.3.
 - **O que foi feito:** `features/catalog/` (tipos de documento e templates como opções: `api/`, `catalogKeys`, `useDocumentTypes`, `useTemplateOptions`, `CatalogPicker` + `filterCatalog`) e `features/companies/components/{company-checklist-page,checklist-line,checklist-lines}` (rota `/empresas/:id/checklist`): checklist efetivo agrupado por categoria com a origem de cada linha, switch para tirar/voltar item, "Adicionar documento" pelo catálogo, "Restaurar padrão do template", aviso "Empresa cadastrada. Falta um ajuste?" com `?created=1`. Toasts do Vue.
 - **Decisões (o Vue é a especificação onde o ticket diverge):**
@@ -386,3 +386,20 @@ Um bloco por ticket, na ordem em que foram executados. Plano: [`docs/react-migra
 - **Visual:** `empresas-id-checklist__{desktop,mobile}__{com-override,picker-aberto}.png`, iguais aos do Vue. Diferenças: a lupa do picker é um pouco menor (ícone `size-4`); o menu lateral marca "Empresas" também nas subpáginas da Empresa (`NavLink` casa por prefixo; o `RouterLink` do Vue só marcava a rota exata).
 - **Ficou de fora:** nada.
 - **Tempo:** ~50 min.
+
+---
+
+## M4.3 · COM-338 · Formulário de Empresa (nova e editar)
+
+- **Data:** 2026-11-08
+- **Branch:** `feat/COM-338-company-form` (a partir de `feat/COM-337-catalog-company-checklist`)
+- **O que foi feito:** `features/companies/components/{company-form-page,company-form,company-form-schema,checklist-preview-panel,effective-checklist-preview,contact-access-list,revoke-access-dialog}` nas rotas `/empresas/nova` e `/empresas/:id/editar`. RHF + `zodResolver` com o schema do Vue (nome do `CreateCompanyBody`, CNPJ incompleto, e-mail obrigatório quando há nome de contato), máscaras de CNPJ e WhatsApp, flags do contrato, Contador responsável (`GET /accountants`), template pelo `catalog` (`useTemplateOptions`, primeiro consumidor) e a prévia do checklist (checklist efetivo quando o template não mudou, senão `GET /checklist-templates/:id` via o novo `useTemplatePreview` do `catalog`), filtrada pelas flags e agrupada por categoria. "Acesso ao app" com "Revogar acesso" e confirmação. Salvar segue o Vue: editar = `PATCH` (vazios como `null`) + sincroniza o Responsável (add/patch/delete, toast de links não entregues) → `/empresas`; criar = `POST` → `/empresas/:id/checklist?created=1` com template, senão `/empresas`. Erros: Callout + erros por campo (`contact.*` → `contact*`).
+- **Decisões:**
+  - O formulário monta só depois do `useCompany` resolver, com `key={id}` e `defaultValues` (sem `reset` em efeito).
+  - Os `<select>` remontam quando as opções chegam (`key` ready/loading): sem isso o select não controlado ficava em "Sem template" porque o valor salvo ainda não existia entre as opções. A primeira captura pegou o bug; o teste agora cobre.
+  - `useEffectiveChecklist` e `useCompanyAccesses` ficam desligados com id vazio (tela de criação).
+  - A lista de Contadores é uma chamada de `companies` (`getAccountantOptions`), porque `companies` não pode importar `team`.
+- **Testes:** `company-form-page.spec.tsx` (criar com template: máscara, prévia filtrada por flag, corpo enviado e redirect com `created=1`; contato sem e-mail bloqueia; editar carrega valores mascarados e o template, manda `null` nos vazios e avisa links não entregues; revogar acesso; 404). 167 testes no pacote.
+- **Visual:** `empresas-nova__{desktop,mobile}__inicial.png` e `empresas-id-editar__{desktop,mobile}__dois-responsaveis.png`, iguais aos do Vue.
+- **Ficou de fora:** nada.
+- **Tempo:** ~1h.

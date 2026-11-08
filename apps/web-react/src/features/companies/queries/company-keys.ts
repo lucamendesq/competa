@@ -10,4 +10,5 @@ export const companyKeys = {
   checklist: (id: string) => [...companyKeys.all, 'checklist', id] as const,
   overrides: (id: string) => [...companyKeys.all, 'overrides', id] as const,
   usage: () => [...companyKeys.all, 'usage'] as const,
+  accountantOptions: () => [...companyKeys.all, 'accountant-options'] as const,
 };

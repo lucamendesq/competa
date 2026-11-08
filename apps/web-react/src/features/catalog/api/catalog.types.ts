@@ -17,3 +17,13 @@ export type DocumentType = {
   description: string | null;
   isProduct: boolean;
 };
+
+export type TemplatePreviewItem = {
+  id: string;
+  name: string;
+  category: string;
+  periodicity: string;
+  conditionFlag: string | null;
+};
+
+export type TemplatePreview = { id: string; name: string; items: TemplatePreviewItem[] };

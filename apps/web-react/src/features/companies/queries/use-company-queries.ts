@@ -1,5 +1,6 @@
 import { keepPreviousData, useQuery } from '@tanstack/react-query';
 import { getAccesses } from '@/features/companies/api/get-accesses';
+import { getAccountantOptions } from '@/features/companies/api/get-accountant-options';
 import { getCompanies, type CompanyListFilters } from '@/features/companies/api/get-companies';
 import { getCompany } from '@/features/companies/api/get-company';
 import { getEffectiveChecklist } from '@/features/companies/api/get-effective-checklist';
@@ -21,12 +22,14 @@ export const useCompanyAccesses = (id: string) =>
   useQuery({
     queryKey: companyKeys.accesses(id),
     queryFn: ({ signal }) => getAccesses(id, signal),
+    enabled: id !== '',
   });
 
 export const useEffectiveChecklist = (id: string) =>
   useQuery({
     queryKey: companyKeys.checklist(id),
     queryFn: ({ signal }) => getEffectiveChecklist(id, signal),
+    enabled: id !== '',
   });
 
 export const useOverrides = (id: string) =>
@@ -37,3 +40,9 @@ export const useOverrides = (id: string) =>
 
 export const usePlanUsage = () =>
   useQuery({ queryKey: companyKeys.usage(), queryFn: ({ signal }) => getPlanUsage(signal) });
+
+export const useAccountantOptions = () =>
+  useQuery({
+    queryKey: companyKeys.accountantOptions(),
+    queryFn: ({ signal }) => getAccountantOptions(signal),
+  });
