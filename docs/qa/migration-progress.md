@@ -435,3 +435,18 @@ Um bloco por ticket, na ordem em que foram executados. Plano: [`docs/react-migra
 - **Visual:** `empresas-importar__{desktop,mobile}__{inicial,previa-com-erro}.png`, iguais aos do Vue (só muda "você já tem N", que vem do banco). O "relatório" do baseline é a lista de Empresas depois de confirmar; não foi recapturado para não criar outra Empresa no banco de baseline. O teste cobre a confirmação.
 - **Ficou de fora:** nada.
 - **Tempo:** ~1h.
+
+---
+
+## M5.1 · COM-350 · `features/checklists`: api, keys e hooks de templates
+
+- **Data:** 2026-11-08
+- **Branch:** `feat/COM-350-checklists-feature` (a partir de `feat/COM-339-import-companies`)
+- **O que foi feito:** `features/checklists/api/` (uma chamada por arquivo: buscar, criar, renomear, derivar e excluir template; adicionar, editar e remover item; `template.types.ts`), `queries/template-keys.ts` (`all/details()/detail(id)`), `useTemplate(id)` e as mutations com a invalidação do ticket. Sem UI.
+- **Decisões:**
+  - A lista de templates continua em `catalogKeys.templates()` (M4.4); `checklists` importa `catalog` para invalidá-la.
+  - As mutations de item também invalidam `catalogKeys.templates()` (a lista mostra a contagem de itens) e `catalogKeys.templatePreview(id)` (a prévia do formulário de Empresa, M4.3), para não deixar essas telas com dado velho.
+  - Excluir faz `removeQueries(detail(id))` em vez de invalidar: o template não existe mais.
+- **Testes:** `use-template-mutations.spec.tsx` (keys exatas de cada mutation; excluir remove o detalhe; derivar com nome manda o nome). 189 testes no pacote.
+- **Ficou de fora:** nada (UI é o M5.2).
+- **Tempo:** ~20 min.
