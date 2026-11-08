@@ -1,5 +1,5 @@
-import { Placeholder } from '@/app/routes/placeholder';
+import { MessagesPage } from '@/features/messages';
 
 export function Component() {
-  return <Placeholder name="Messages" />;
+  return <MessagesPage />;
 }
