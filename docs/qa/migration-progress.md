@@ -555,7 +555,7 @@ Um bloco por ticket, na ordem em que foram executados. Plano: [`docs/react-migra
 ## M8.2 · COM-326 · `features/upload`: api do envio e `useUpload`
 
 - **Data:** 2026-11-08
-- **Branch:** `feat/COM-326-upload-feature` (a partir de `feat/COM-328-shared-pwa`)
+- **Branch:** `feat/COM-326-upload-feature` (a partir de `feat/COM-328-shared-pwa`) · **PR:** [#53](https://github.com/lucamendesq/competa/pull/53)
 - **O que foi feito:** `features/upload/api/` (uma chamada por arquivo: checklist por token, presign, PUT no storage por XHR com progresso (único XHR fora do api-client, já liberado no lint), confirm, push e ativar acesso; `upload.types.ts`), `uploadKeys.checklist(token)`, `useUploadChecklist`, `useSubscribePush`, `useActivateAccess` e `useSendFiles(token)` (monta as dependências reais, guarda o item alvo e invalida o checklist ao terminar). `hooks/use-upload.ts`: a mesma máquina do Vue em `useReducer` (`start`, `progress`, `done`) com `percent` derivado e dependências injetadas; o laço do envio é a função `runUpload`, testável sem React. Nada do envio em Zustand.
 - **Decisões:**
   - `useActivateAccess` chama `session.refresh()` (a `Session` não pode importar `features/auth`); o `refresh()` agora invalida `authKeys.me()` e `authKeys.contactProfile()`, cobrindo as duas sessões.
