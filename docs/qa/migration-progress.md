@@ -425,7 +425,7 @@ Um bloco por ticket, na ordem em que foram executados. Plano: [`docs/react-migra
 ## M4.5 · COM-339 · Importar planilha de Empresas (`/empresas/importar`)
 
 - **Data:** 2026-11-08
-- **Branch:** `feat/COM-339-import-companies` (a partir de `feat/COM-349-companies-list`)
+- **Branch:** `feat/COM-339-import-companies` (a partir de `feat/COM-349-companies-list`) · **PR:** [#44](https://github.com/lucamendesq/competa/pull/44)
 - **O que foi feito:** `features/companies/utils/spreadsheet.ts` (`readSpreadsheet(file)`: `.xlsx` via `import('xlsx')` lazy, só a primeira aba, `sheet_to_csv({ rawNumbers: true })`; `.csv` como texto; demais extensões dão "Envie um arquivo .csv ou .xlsx."; colunas esperadas e o CSV modelo com BOM e `;`) e `components/{import-companies-page,import-state,spreadsheet-dropzone,import-columns,import-preview-table,import-report}`. Estado da tela em `useReducer` (`idle → reading → idle(com arquivo) → previewing → done`, com `error`). Prévia por linha, divisão ativa/inativa pelo teto do plano (o padrão "ativar" é derivado do uso enquanto o Contador não mexe, sem efeito), "Enviar convites de acesso" (confirma junto) e "Importar N empresas", com uma confirmação em voo só (os dois botões compartilham a mesma promessa, como no Vue). Descartar com confirmação. A dropzone fica dentro de `react-error-boundary`.
 - **Decisões:**
   - `testing/setup.ts` ganhou `Blob.prototype.text/arrayBuffer` via `FileReader`: o jsdom não tem esses métodos, e o código de produção usa a API do navegador.
