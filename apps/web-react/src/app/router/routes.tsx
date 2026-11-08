@@ -1,5 +1,6 @@
-import { Navigate, Outlet, type RouteObject } from 'react-router';
+import { Navigate, type RouteObject } from 'react-router';
 import { GuestOnly, RequireAccountant, RequireContact } from '@/app/router/guards';
+import { ContactShell, contactShellLoader } from '@/app/router/contact-shell';
 import { PanelShell } from '@/app/router/panel-shell';
 import { RootLayout } from '@/app/router/root-layout';
 import { RouteErrorState } from '@/app/router/route-error-state';
@@ -65,7 +66,7 @@ export const routes: RouteObject[] = [
       ]),
       {
         path: '/minha-area',
-        element: <Outlet />,
+        element: <ContactShell />,
         children: [
           segment([
             { index: true, element: <Navigate to="/minha-area/pendencias" replace /> },
@@ -82,8 +83,13 @@ export const routes: RouteObject[] = [
               element: <RequireContact />,
               handle: { area: 'contact' } satisfies RouteHandle,
               children: [
-                page('pendencias', () => import('@/app/routes/contact-pending')),
-                page('competencias', () => import('@/app/routes/contact-history')),
+                {
+                  loader: contactShellLoader,
+                  children: [
+                    page('pendencias', () => import('@/app/routes/contact-pending')),
+                    page('competencias', () => import('@/app/routes/contact-history')),
+                  ],
+                },
               ],
             },
           ]),

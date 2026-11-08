@@ -579,3 +579,19 @@ Um bloco por ticket, na ordem em que foram executados. Plano: [`docs/react-migra
 - **Visual:** `envio-token__{desktop,mobile}__{com-pendencias,com-rejeicao}.png` e `envio-token-invalido__{desktop,mobile}__invalido.png`. Layout igual ao do Vue; o dado mudou desde o baseline (a Carla já tem acesso, então a oferta some, e há três extras). "Sucesso com ofertas" e "enviando" estão nos testes.
 - **Ficou de fora:** nada.
 - **Tempo:** ~1h15.
+
+---
+
+## M9.1 · COM-335 · `ContactLayout` e `features/contact-area`
+
+- **Data:** 2026-11-08
+- **Branch:** `feat/COM-335-contact-area` (a partir de `feat/COM-334-upload-page`)
+- **O que foi feito:** `shared/components/layout/contact-layout.tsx` (skip link, cabeçalho com a Empresa ou, com várias, o nome do Responsável e "N empresas · Contabilidade", `InstallButton`, "Criar senha" quando não há senha, Sair; navegação "O que falta"/"Histórico" no topo (desktop) e embaixo (celular)) e `app/router/contact-shell.tsx` envolvendo todo `/minha-area` (como o `ContactLayout.vue`: no acesso e no definir-senha o cabeçalho some sem sessão). `features/contact-area/` (`api/` com pendências, histórico, detalhe da competência, presign/confirm do envio logado, abrir/baixar documento; `contactKeys` com `all`, `pending()`, `periodLists()`, `periods(page)`, `period(periodId, companyId)`; `useMyPending`, `useMyPeriods` (`keepPreviousData`), `useMyPeriod`, `useOpenMyDocument`, `useDownloadMyDocument`, `useSendMyFiles` (invalida pendências e histórico)).
+- **Decisões:**
+  - O `useUpload` e o `putFileToStorage` foram para `shared/upload`: o envio público e o envio logado usam a mesma máquina, e `contact-area` não pode importar `upload`.
+  - O ping do dispositivo (`pingDeviceOnce`) roda no `loader` da rota autenticada da área do Responsável: uma vez por navegação, com a guarda do `sessionStorage`, sem efeito em componente.
+  - `contactKeys.document(id)` do ticket não virou query: abrir/baixar documento são ações (blob), então são mutations.
+- **Testes:** `contact-shell.spec.tsx` (uma empresa: nome dela e da Contabilidade, ping do dispositivo uma vez; várias: nome do Responsável e contagem; Sair limpa o cache e vai para `/minha-area/acesso`) e `use-contact-area.spec.tsx` (presign com `requestId`/item e invalidação de pendências e histórico; keys distintas por página e por competência). 248 testes no pacote.
+- **Visual:** o layout aparece nos screenshots do M9.2/M9.3 (as páginas do Responsável ainda eram placeholder aqui e o acesso do Responsável é o M9.2).
+- **Ficou de fora:** nada.
+- **Tempo:** ~45 min.

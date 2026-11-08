@@ -18,7 +18,7 @@ import { UploadFeedback } from '@/features/upload/components/upload-feedback';
 import { UploadHeader } from '@/features/upload/components/upload-header';
 import { UploadItem } from '@/features/upload/components/upload-item';
 import { UploadProgressRing } from '@/features/upload/components/upload-progress-ring';
-import type { FileResult } from '@/features/upload/hooks/use-upload';
+import type { FileResult } from '@/shared/upload';
 import {
   useActivateAccess,
   useSendFiles,

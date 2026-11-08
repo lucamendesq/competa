@@ -1,7 +1,7 @@
 import { act } from '@testing-library/react';
 import { describe, expect, it, vi } from 'vitest';
-import type { PresignedFile } from '@/features/upload/api/upload.types';
-import { useUpload, type UploadDependencies } from '@/features/upload/hooks/use-upload';
+import type { PresignedFile } from '@/shared/upload/use-upload';
+import { useUpload, type UploadDependencies } from '@/shared/upload/use-upload';
 import { ApiError } from '@/shared/lib/api-error';
 import { renderHookWithProviders } from '@/testing/test-utils';
 

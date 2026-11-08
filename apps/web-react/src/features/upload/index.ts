@@ -3,8 +3,7 @@ export type {
   UploadChecklist,
   UploadedFile,
 } from '@/features/upload/api/upload.types';
-export type { FileResult, UploadDependencies } from '@/features/upload/hooks/use-upload';
-export { useUpload } from '@/features/upload/hooks/use-upload';
+export type { FileResult, UploadDependencies } from '@/shared/upload';
 export { uploadKeys } from '@/features/upload/queries/upload-keys';
 export {
   useActivateAccess,

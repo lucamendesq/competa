@@ -1,6 +1,16 @@
 import { useReducer } from 'react';
-import type { FileToPresign, PresignedFile } from '@/features/upload/api/upload.types';
 import { apiErrorMessage, failureKind } from '@/shared/lib/api-error';
+
+export type FileToPresign = {
+  fileName: string;
+  contentType: string;
+  sizeBytes: number;
+  checksumSha256: string;
+};
+
+export type PresignedFile =
+  | { fileName: string; accepted: false; reason: string }
+  | { fileName: string; accepted: true; documentId: string; uploadUrl: string };
 
 export type FileResult = {
   fileName: string;

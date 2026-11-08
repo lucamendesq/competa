@@ -1,3 +1,5 @@
+import type { PresignedFile } from '@/shared/upload';
+
 export type UploadedFile = {
   reviewStatus: 'pending' | 'accepted' | 'rejected';
   rejectionReason: string | null;
@@ -24,17 +26,6 @@ export type UploadChecklist = {
   items: ChecklistItem[];
   extraDocuments: UploadedFile[];
 };
-
-export type FileToPresign = {
-  fileName: string;
-  contentType: string;
-  sizeBytes: number;
-  checksumSha256: string;
-};
-
-export type PresignedFile =
-  | { fileName: string; accepted: false; reason: string }
-  | { fileName: string; accepted: true; documentId: string; uploadUrl: string };
 
 export type Presign = { files: PresignedFile[] };
 
