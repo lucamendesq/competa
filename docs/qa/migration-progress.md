@@ -343,7 +343,7 @@ Um bloco por ticket, na ordem em que foram executados. Plano: [`docs/react-migra
 ## M3.1 · COM-352 · Revisão da Solicitação (`/solicitacoes/:id`)
 
 - **Data:** 2026-11-08
-- **Branch:** `feat/COM-352-request-review` (a partir de `feat/COM-348-pending-panel`)
+- **Branch:** `feat/COM-352-request-review` (a partir de `feat/COM-348-pending-panel`) · **PR:** [#39](https://github.com/lucamendesq/competa/pull/39)
 - **O que foi feito:** `features/periods/components/{request-review-page,review-item,review-extras,review-reason,resend-notice}.tsx` + `review-draft.ts` (reducer do rascunho). Itens aguardando conferência com "Aceitar item" e "Recusar" por documento (motivo de 3 a 500 caracteres com contador), documentos extras com Aceitar/Recusar, "Demais itens" com status de exibição, "Precisa reenviar" e "Desfazer aceite", barra fixa "N decisão(ões) não publicada(s)" com Descartar/Publicar, "Encerrar" com o `CloseRequestDialog` do M2.4, "Voltar". Toasts do Vue.
 - **Decisões:**
   - **Rascunho em `useReducer`** (`toggleAccept`, `toggleRejection`, `setRejection`, `clearRejection`, `toggleExtra`, `setExtraReason`, `reset`); contagem, "falta motivo" e o `ReviewBatchBody` são funções puras do estado. Aceitar um item limpa as recusas dos documentos dele (o botão continua desabilitado com recusa marcada, como no Vue).
@@ -354,3 +354,18 @@ Um bloco por ticket, na ordem em que foram executados. Plano: [`docs/react-migra
 - **Visual:** `solicitacoes-id__{desktop,mobile}__com-rejeicao.png`, iguais aos do Vue. Diferença de dado: o banco local tem 3 extras (dois enviados durante a captura do baseline). Os estados "com pendentes" não foram recapturados porque a cena local já está depois da revisão; o teste cobre esse estado.
 - **Ficou de fora:** nada do escopo.
 - **Tempo:** ~1h.
+
+---
+
+## M4.1 · COM-325 · `features/companies`: api, keys, hooks e store `invited-companies`
+
+- **Data:** 2026-11-08
+- **Branch:** `feat/COM-325-companies-feature` (a partir de `feat/COM-352-request-review`)
+- **O que foi feito:** `features/companies/api/` (as 22 chamadas do `companies.ts` do Vue, agrupadas por recurso: listas, detalhe, checklist efetivo, overrides, acessos, uso do plano, criar/editar/desativar, Responsáveis, ações em lote, importação; `company.types.ts`), `queries/company-keys.ts`, `use-company-queries.ts` (lista com `keepPreviousData`, detalhe, acessos, checklist efetivo, overrides, uso do plano) e `use-company-mutations.ts` com a invalidação do ticket. `store/invited-companies.store.ts` (Zustand + `persist` em `sessionStorage`, `partialize` só de `invitedIds`, `markInvited(ids)`, `useIsInvited(id)`). Sem UI.
+- **Decisões:**
+  - `accesses(id)`, `checklist(id)` e `overrides(id)` não ficam debaixo de `detail(id)`: assim invalidar o detalhe (ex.: adicionar Responsável) não refaz o checklist e os acessos por prefixo. A invalidação fica exatamente a do ticket.
+  - **A chave real do Vue é `competa_invited_companies`** (o ticket chutava `competa:invited`) e o valor é um array JSON puro. O `persist` do Zustand grava `{ state, version }`, então o store usa um `PersistStorage` próprio que lê e grava o array no formato do Vue; o que a aba já tinha gravado continua valendo.
+  - O `usePlanUsage` do Vue ficava sob o prefixo `companies` para ser invalidado por qualquer mutação; aqui ele é invalidado só pelas mutações que mudam a contagem (criar, desativar, ativar, importar).
+- **Testes:** `use-company-mutations.spec.tsx` (14 mutations, spy em `invalidateQueries`, keys exatas; buscas `'a'` e `'ab'` com keys distintas) e `invited-companies.store.spec.ts` (`markInvited` imutável e sem duplicar; persiste na chave e no formato do Vue; reidrata o que o Vue gravou). 159 testes no pacote.
+- **Ficou de fora:** nada (UI é M4.2–M4.5).
+- **Tempo:** ~35 min.
