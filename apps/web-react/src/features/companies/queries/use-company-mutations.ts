@@ -54,6 +54,15 @@ export const useDeactivateCompany = () => {
   });
 };
 
+export const useReactivateCompany = () => {
+  const invalidate = useInvalidate();
+  return useMutation({
+    mutationFn: (id: string) => updateCompany(id, { active: true }),
+    onSuccess: (_company, id) =>
+      invalidate(companyKeys.lists(), companyKeys.usage(), companyKeys.detail(id)),
+  });
+};
+
 export const useAddContact = (companyId: string) => {
   const invalidate = useInvalidate();
   return useMutation({

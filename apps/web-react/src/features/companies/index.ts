@@ -30,6 +30,7 @@ export {
   useCreateCompany,
   useDeactivateCompany,
   useImportCsv,
+  useReactivateCompany,
   useRemoveContact,
   useRemoveOverride,
   useRevokeAccess,
@@ -41,3 +42,4 @@ export {
 export { useIsInvited, useMarkInvited } from '@/features/companies/store/invited-companies.store';
 export { CompanyChecklistPage } from '@/features/companies/components/company-checklist-page';
 export { CompanyFormPage } from '@/features/companies/components/company-form-page';
+export { CompaniesListPage } from '@/features/companies/components/companies-list-page';

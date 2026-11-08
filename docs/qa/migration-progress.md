@@ -403,3 +403,19 @@ Um bloco por ticket, na ordem em que foram executados. Plano: [`docs/react-migra
 - **Visual:** `empresas-nova__{desktop,mobile}__inicial.png` e `empresas-id-editar__{desktop,mobile}__dois-responsaveis.png`, iguais aos do Vue.
 - **Ficou de fora:** nada.
 - **Tempo:** ~1h.
+
+---
+
+## M4.2 · COM-349 · Lista de Empresas (`/empresas`)
+
+- **Data:** 2026-11-08
+- **Branch:** `feat/COM-349-companies-list` (a partir de `feat/COM-338-company-form`)
+- **O que foi feito:** `features/companies/components/{companies-list-page,companies-results,companies-table,bulk-actions-bar,contact-status,invite-to-app-button,plan-cap-banner}`. Filtros na URL (`?page=`, `?ativas=true|false`, `?busca=`); a busca tem estado local para o input e um `useDebouncedCallback` (300 ms, novo em `shared/hooks`) que escreve na URL. Abas com as contagens do `usePlanUsage`. Seleção em lote com "Ativar selecionadas", "Aplicar template" e "Limpar seleção"; por linha: Editar, Checklist, "Convidar para o app" (marca no store `invited-companies`), Desativar (com confirmação) e Reativar (`useReactivateCompany`, nova mutation). `PlanCapBanner` quando passa do teto. Vazio com e sem filtro, erro e carregando. Toasts do Vue.
+- **Decisões:**
+  - Nenhum `useEffect` para filtros: a URL é a fonte, e mudar busca ou aba apaga `page`. A seleção vive num filho com `key` de aba + busca + página, então limpa sozinha ao mudar o filtro (no Vue ela ficava, e "selecionar todas" só via a página atual).
+  - O toast de "aplicar template" usa o `updated` da API, como pede o ticket (o Vue contava a seleção).
+  - O `PlanGateNotice` não aparece na lista do Vue; não foi acrescentado.
+- **Testes:** `companies-list-page.spec.tsx` (busca escreve `?busca=` depois do debounce com uma única query filtrada; abas escrevem `?ativas=` e mostram as contagens; convidar marca a Empresa e a marca sobrevive a remount; aplicar template envia as selecionadas, toast com `updated`, limpa a seleção; desativar com confirmação; vazio + banner de teto). 173 testes no pacote.
+- **Visual:** `empresas__{desktop,mobile}__{com-dados,inativas,com-selecao}.png`, iguais aos do Vue. Diferença de dado: o banco local tem duas "Empresa Nova Ltda" criadas em capturas anteriores. O estado vazio não foi recapturado (o banco tem dados); o teste cobre.
+- **Ficou de fora:** nada.
+- **Tempo:** ~50 min.
