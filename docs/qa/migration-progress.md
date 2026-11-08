@@ -513,7 +513,7 @@ Um bloco por ticket, na ordem em que foram executados. Plano: [`docs/react-migra
 ## M7.3 · COM-343 · Configurações → WhatsApp (`/configuracoes/whatsapp`)
 
 - **Data:** 2026-11-08
-- **Branch:** `feat/COM-343-whatsapp` (a partir de `feat/COM-342-accountants`)
+- **Branch:** `feat/COM-343-whatsapp` (a partir de `feat/COM-342-accountants`) · **PR:** [#50](https://github.com/lucamendesq/competa/pull/50)
 - **O que foi feito:** `features/whatsapp/` (`api/` com status, onboard (`code: 'mock_code'`, como hoje), teste e desconectar; `whatsappKeys.status()`; `useWhatsAppStatus` (o `onMounted` virou query), `useOnboardWhatsApp`/`useDisconnectWhatsApp` (invalidam o status), `useTestWhatsApp`) e `components/{whatsapp-settings-page,test-message-form}`. Cartão "Integrar WhatsApp" com o aviso de custos, cartão da integração (número, status, WABA ID, Desconectar), "Disparo de Teste" quando ativo. Dono conecta/desconecta; membro vê "Somente leitura" e os dois botões desabilitados, mas testa.
 - **Decisões:** o Vue usava `window.confirm` para testar e desconectar; aqui são diálogos (`Modal`) com os mesmos textos, como no resto do app. O Vue engolia erro do status (`console.error`) e mostrava "não conectado"; aqui aparece o `ErrorState` com "Tentar de novo". O telefone do teste ganhou rótulo acessível ("Telefone para o teste").
 - **Testes:** `whatsapp-settings-page.spec.tsx` (dono conecta e o status é refeito; dono desconecta depois de confirmar; membro vê conectar desabilitado; membro não desconecta mas envia o teste). Nenhuma chamada `api.*` fora de `features/whatsapp/api`. 212 testes no pacote.
