@@ -146,7 +146,7 @@ describe('InvitePage', () => {
     expect(await screen.findByText(/convidou você para enviar documentos da/)).toBeInTheDocument();
     await fillAndSubmit();
 
-    expect(await screen.findByRole('heading', { name: 'ContactPending' })).toBeInTheDocument();
+    expect(await screen.findByRole('heading', { name: 'O que falta' })).toBeInTheDocument();
     expect(router.state.location.pathname).toBe('/minha-area/pendencias');
     expect(state.posted).toEqual([
       ['contact-account', { name: 'Bruno Membro', password: 'senha-forte-123' }],

@@ -8,3 +8,4 @@ export {
   type UploadDependencies,
 } from '@/shared/upload/use-upload';
 export { putFileToStorage } from '@/shared/upload/put-file-to-storage';
+export { UploadFeedback } from '@/shared/upload/upload-feedback';

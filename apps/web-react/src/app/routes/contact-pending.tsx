@@ -1,5 +1,5 @@
-import { Placeholder } from '@/app/routes/placeholder';
+import { ContactPendingPage } from '@/features/contact-area';
 
 export function Component() {
-  return <Placeholder name="ContactPending" />;
+  return <ContactPendingPage />;
 }

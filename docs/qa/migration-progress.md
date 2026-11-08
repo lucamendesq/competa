@@ -608,3 +608,19 @@ Um bloco por ticket, na ordem em que foram executados. Plano: [`docs/react-migra
 - **Visual:** `minha-area-acesso__{desktop,mobile}__{inicial,link-enviado}.png` e `minha-area-definir-senha__{desktop,mobile}__inicial.png`, iguais aos do Vue. No definir senha o React mostra o cabeçalho da Minha Área porque a captura tem sessão de Responsável (o `ContactLayout.vue` também mostra com sessão; o baseline do Vue foi tirado sem ela). O toast do Vue aparecia sem estilo no rodapé; no React é o `Toaster` padrão.
 - **Ficou de fora:** nada.
 - **Tempo:** ~35 min.
+
+---
+
+## M9.3 · COM-346 · Pendências do Responsável (`/minha-area/pendencias`)
+
+- **Data:** 2026-11-08
+- **Branch:** `feat/COM-346-contact-pending` (a partir de `feat/COM-345-contact-sign-in`)
+- **O que foi feito:** `features/contact-area/components/{contact-pending-page,pending-row}`. Itens agrupados por Empresa + Competência (agrupamento derivado no render), status, "Atrasado", descrição, prazo, formatos e o motivo da última recusa; "Enviar arquivos" abre o seletor (input oculto com `accept` = formatos do item + foto) e envia pelo `useSendMyFiles` (máquina de `shared/upload`), com o percentual no próprio botão (`aria-live`); `UploadFeedback` com "Tentar de novo" para o mesmo item; vazio "Tudo certo por aqui!"; erro com "Tentar de novo".
+- **Decisões:**
+  - `UploadFeedback` foi para `shared/upload` (agora com dois consumidores); `useUpload` e o PUT já estavam lá desde o M9.1. A `Dropzone` ficou em `features/upload`: a tela do Vue não tem dropzone, só o botão, então ela continua com um consumidor só.
+  - O ticket cita botão de push nesta tela; o `ContactPendingPage.vue` não tem. Não foi acrescentado.
+  - O `testing/mocks/handlers` ganhou os padrões de `/my/pending` e `PATCH /auth/device` (testes de rota que caem nesta página); os testes de guard que procuravam o placeholder agora procuram "O que falta".
+- **Testes:** `contact-pending-page.spec.tsx` (agrupa por Empresa/Competência e mostra a recusa; enviar manda `requestId`/item, avisa e o item some do grupo depois da invalidação; vazio). 256 testes no pacote.
+- **Visual:** `minha-area-pendencias__{desktop,mobile}__com-pendencias.png`, iguais aos do Vue (vale também como o screenshot do `ContactLayout` com uma empresa, do M9.1). O estado de várias empresas está no teste.
+- **Ficou de fora:** nada.
+- **Tempo:** ~35 min.

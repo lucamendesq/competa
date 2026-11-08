@@ -33,7 +33,7 @@ describe('guards', () => {
     mockSessionAs('contact');
     const router = mount('/entrar');
 
-    expect(await screen.findByRole('heading', { name: 'ContactPending' })).toBeInTheDocument();
+    expect(await screen.findByRole('heading', { name: 'O que falta' })).toBeInTheDocument();
     expect(router.state.location.pathname).toBe('/minha-area/pendencias');
   });
 
@@ -41,7 +41,7 @@ describe('guards', () => {
     mockSessionAs('contact');
     const router = mount('/competencias');
 
-    expect(await screen.findByRole('heading', { name: 'ContactPending' })).toBeInTheDocument();
+    expect(await screen.findByRole('heading', { name: 'O que falta' })).toBeInTheDocument();
     expect(router.state.location.pathname).toBe('/minha-area/pendencias');
   });
 

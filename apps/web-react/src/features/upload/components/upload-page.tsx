@@ -14,11 +14,10 @@ import {
   LinkExpired,
   LinkTemporarilyUnavailable,
 } from '@/features/upload/components/link-unavailable';
-import { UploadFeedback } from '@/features/upload/components/upload-feedback';
 import { UploadHeader } from '@/features/upload/components/upload-header';
 import { UploadItem } from '@/features/upload/components/upload-item';
 import { UploadProgressRing } from '@/features/upload/components/upload-progress-ring';
-import type { FileResult } from '@/shared/upload';
+import { UploadFeedback, type FileResult } from '@/shared/upload';
 import {
   useActivateAccess,
   useSendFiles,

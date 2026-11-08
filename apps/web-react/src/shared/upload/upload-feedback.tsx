@@ -1,5 +1,5 @@
 import { X } from 'lucide-react';
-import type { FileResult } from '@/shared/upload';
+import type { FileResult } from '@/shared/upload/use-upload';
 import { Modal } from '@/shared/components/modal';
 import { Button } from '@/shared/components/ui/button';
 
