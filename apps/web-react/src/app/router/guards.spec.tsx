@@ -63,7 +63,9 @@ describe('guards', () => {
     mockSessionAs('accountant');
     const router = mount('/minha-area/pendencias');
 
-    expect(await screen.findByRole('heading', { name: 'Periods' })).toBeInTheDocument();
+    expect(
+      await screen.findByRole('heading', { name: 'Competências', level: 1 }),
+    ).toBeInTheDocument();
     expect(router.state.location.pathname).toBe('/competencias');
   });
 });

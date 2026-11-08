@@ -40,3 +40,4 @@ export {
   useUndoAccept,
   useUploadLink,
 } from '@/features/periods/queries/use-period-mutations';
+export { PeriodsListPage } from '@/features/periods/components/periods-list-page';

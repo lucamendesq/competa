@@ -118,7 +118,9 @@ describe('InvitePage', () => {
     expect(screen.getByLabelText('E-mail')).toHaveValue('membro@exemplo.com.br');
     await fillAndSubmit();
 
-    expect(await screen.findByRole('heading', { name: 'Periods' })).toBeInTheDocument();
+    expect(
+      await screen.findByRole('heading', { name: 'Competências', level: 1 }),
+    ).toBeInTheDocument();
     expect(router.state.location.pathname).toBe('/competencias');
     expect(state.posted).toEqual([
       [

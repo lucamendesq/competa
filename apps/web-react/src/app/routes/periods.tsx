@@ -1,5 +1,5 @@
-import { Placeholder } from '@/app/routes/placeholder';
+import { PeriodsListPage } from '@/features/periods';
 
 export function Component() {
-  return <Placeholder name="Periods" />;
+  return <PeriodsListPage />;
 }

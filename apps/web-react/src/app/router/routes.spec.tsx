@@ -27,7 +27,9 @@ describe('rotas', () => {
 
     await act(() => router.navigate('/competencias'));
 
-    expect(await screen.findByRole('heading', { name: 'Periods' })).toBeInTheDocument();
+    expect(
+      await screen.findByRole('heading', { name: 'Competências', level: 1 }),
+    ).toBeInTheDocument();
     expect(document.title).toBe('Competa');
   });
 

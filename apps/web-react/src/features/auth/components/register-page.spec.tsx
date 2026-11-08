@@ -126,7 +126,9 @@ describe('RegisterPage', () => {
 
     await user.click(screen.getByRole('button', { name: 'Criar conta' }));
 
-    expect(await screen.findByRole('heading', { name: 'Periods' })).toBeInTheDocument();
+    expect(
+      await screen.findByRole('heading', { name: 'Competências', level: 1 }),
+    ).toBeInTheDocument();
     expect(router.state.location.pathname).toBe('/competencias');
     expect(received[0]).toEqual({
       userName: 'Joana Teste',

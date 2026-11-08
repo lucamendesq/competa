@@ -64,7 +64,9 @@ describe('LoginPage', () => {
 
     await fill('senha-forte-123');
 
-    expect(await screen.findByRole('heading', { name: 'Periods' })).toBeInTheDocument();
+    expect(
+      await screen.findByRole('heading', { name: 'Competências', level: 1 }),
+    ).toBeInTheDocument();
     expect(router.state.location.pathname).toBe('/competencias');
   });
 

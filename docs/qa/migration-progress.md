@@ -288,7 +288,7 @@ Um bloco por ticket, na ordem em que foram executados. Plano: [`docs/react-migra
 ## M2.2 · COM-324 · `features/periods`: api, key factory e hooks
 
 - **Data:** 2026-11-07
-- **Branch:** `feat/COM-324-periods-feature` (a partir de `feat/COM-333-panel-layout`)
+- **Branch:** `feat/COM-324-periods-feature` (a partir de `feat/COM-333-panel-layout`) · **PR:** [#36](https://github.com/lucamendesq/competa/pull/36)
 - **O que foi feito:** `features/periods/api/` com um arquivo por chamada (16 chamadas dos `api/periods.ts` e `api/requests.ts` do Vue + `period.types.ts`), `queries/period-keys.ts` (`periodKeys` e `requestKeys` como no ticket), `use-period-queries.ts` (lista com `keepPreviousData`, detalhe, painel, prévia, Solicitação) e `use-period-mutations.ts`. A feature `requests` do Vue foi absorvida aqui, como o plano manda. Sem UI.
 - **Invalidação por mutation** (testada com spy, exatamente estas keys): abrir → `lists()`; incluir empresas novas → `lists()` + `detail(id)`; encerrar competência → `lists()` + `detail(id)`; cobrar atrasados → `panel(id)`; publicar revisão e desfazer aceite → `requestKeys.detail` + `periodKeys.panel`; encerrar Solicitação → `requestKeys.detail` + `periodKeys.panel` + `periodKeys.detail`; reenviar link, gerar link, zips e abrir documento → nada.
 - **Decisões:**
@@ -299,3 +299,22 @@ Um bloco por ticket, na ordem em que foram executados. Plano: [`docs/react-migra
 - **Testes:** `use-period-mutations.spec.tsx` (um caso por hook de escrita, spy em `invalidateQueries`) e `use-period-queries.spec.tsx` (páginas com keys distintas e a anterior visível como `placeholderData` enquanto a próxima carrega; prévia só com diálogo aberto e mês válido). `grep "queryKey: \[" src` fora de testes: vazio. 116 testes no pacote.
 - **Ficou de fora:** nada (UI é M2.3/M2.4/M3.1).
 - **Tempo:** ~35 min.
+
+---
+
+## M2.3 · COM-336 · Lista de Competências (`/competencias`)
+
+- **Data:** 2026-11-07/08
+- **Branch:** `feat/COM-336-periods-list` (a partir de `feat/COM-324-periods-feature`)
+- **O que foi feito:** `features/periods/components/{periods-list-page,period-kpis,periods-table,open-period-dialog,period-opening-summary}.tsx` (rota `app/routes/periods.tsx`), com textos, toasts e classes do `PeriodsListPage.vue`. KPI da competência ativa (a aberta mais recente, com "x de y entregues" do detalhe), chips de status, tabela com zip e encerrar, `PlanGateNotice` quando o plano não tem `periodZip`. Diálogo de abertura com seletor de ano/mês (botões + selects ocultos com `aria-label`, como no Vue), prazo opcional validado pelo `OpenPeriodBody`, prévia do fan-out (`usePeriodPreview`), aviso de "já aberta" e de empresas sem template, passo de confirmação e o resumo com "Copiar link" por Empresa. Estados `isPending`/`isError`/vazio explícitos.
+- **Peças compartilhadas novas:** `shared/components/plan-gate-notice.tsx` (usado por várias features, só depende dos contratos) e `shared/hooks/use-copy.ts`.
+- **Decisões:**
+  - **Paginação nova:** o Vue buscava só a página 1 (20 competências) e não tinha controle de página. Seguindo o ticket, a página vai para `?page=` e o `Pagination` aparece quando há mais de 20.
+  - **Filtro de status na URL** (`?status=open|closed`), pela regra "URL para filtro/página/aba"; no Vue era estado local.
+  - O conteúdo do diálogo só monta com o diálogo aberto (o Radix desmonta ao fechar), então o formulário e o passo começam limpos a cada abertura sem efeito. A prévia roda só enquanto o diálogo está aberto e o mês é válido.
+  - O formulário usa React Hook Form (`register` no prazo, `setValue` no mês/ano); o erro do prazo é derivado do `OpenPeriodBody` no render, como o Vue fazia.
+  - `role="list"` explícito nas listas do diálogo foi removido (o lint `jsx-a11y/no-redundant-roles` não aceita).
+- **Testes:** `periods-list-page.spec.tsx` (rotas reais + `AppProviders` + MSW): vazio; abrir chama `POST /periods` com `{ referenceMonth: '2026-10' }`, mostra o resumo e o toast e refaz a lista; trocar de página escreve `?page=2` e mantém a página anterior visível enquanto a nova carrega; encerrar pede confirmação e mostra "Encerrando…" desabilitado; zip vazio vira o toast "Nenhum documento para baixar."; sem `periodZip` o botão fica desabilitado com o aviso do plano. Handler MSW padrão de `GET /periods` (lista vazia) e os testes das outras telas passaram a procurar o título real "Competências". 122 testes no pacote.
+- **Visual:** `competencias__{desktop,mobile}__{vazio,com-dados,modal-abertura}.png`, iguais aos do Vue. Diferença só de dado: o banco local ganhou duas Empresas sem template (sobras da importação feita na captura do baseline), então a prévia lista mais nomes.
+- **Ficou de fora:** nada do escopo.
+- **Tempo:** ~1h15.
