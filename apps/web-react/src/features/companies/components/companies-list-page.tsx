@@ -2,11 +2,11 @@ import { useState } from 'react';
 import { Building2, Upload } from 'lucide-react';
 import { Link, useNavigate, useSearchParams } from 'react-router';
 import { CompaniesResults } from '@/features/companies/components/companies-results';
-import { PlanCapBanner } from '@/features/companies/components/plan-cap-banner';
 import { useCompanies, usePlanUsage } from '@/features/companies/queries/use-company-queries';
 import { ErrorState } from '@/shared/components/error-state';
 import { LoadingRows } from '@/shared/components/loading-rows';
 import { PageHeader } from '@/shared/components/page-header';
+import { PlanCapBanner } from '@/shared/components/plan-cap-banner';
 import { Button } from '@/shared/components/ui/button';
 import { EmptyState } from '@/shared/components/ui/empty';
 import { Input } from '@/shared/components/ui/input';
@@ -121,7 +121,7 @@ export function CompaniesListPage() {
         </Button>
       </PageHeader>
 
-      <PlanCapBanner className="mt-6" />
+      <PlanCapBanner usage={usage.data} className="mt-6" />
 
       <section className="mt-8">
         <div className="mb-5 flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">

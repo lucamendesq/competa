@@ -1,5 +1,5 @@
-import { Placeholder } from '@/app/routes/placeholder';
+import { PlanPage } from '@/features/billing';
 
 export function Component() {
-  return <Placeholder name="Plan" />;
+  return <PlanPage />;
 }

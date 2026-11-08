@@ -1,14 +1,27 @@
-import { PLANS, type PlanName } from '@competa/contracts';
+import { PLANS, type PaidPlanName, type PlanName } from '@competa/contracts';
 import { Link } from 'react-router';
-import { usePlanUsage } from '@/features/companies/queries/use-company-queries';
 import { Callout } from '@/shared/components/callout';
 import { brl } from '@/shared/lib/format';
 
-export function PlanCapBanner({ className }: { className?: string }) {
-  const usage = usePlanUsage();
-  if (!usage.data?.overCap) return null;
+export type PlanCapUsage = {
+  planName: string;
+  companiesActive: number;
+  companyCap: number;
+  softCap: number;
+  overCap: boolean;
+  recommendedPlan: PaidPlanName;
+};
 
-  const { planName, companiesActive, companyCap, softCap, recommendedPlan } = usage.data;
+export function PlanCapBanner({
+  usage,
+  className,
+}: {
+  usage: PlanCapUsage | undefined;
+  className?: string;
+}) {
+  if (!usage?.overCap) return null;
+
+  const { planName, companiesActive, companyCap, softCap, recommendedPlan } = usage;
   const currentPlan = PLANS[planName as PlanName] ?? PLANS.trial;
   const recommended = PLANS[recommendedPlan];
 

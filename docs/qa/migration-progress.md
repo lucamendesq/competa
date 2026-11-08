@@ -520,3 +520,20 @@ Um bloco por ticket, na ordem em que foram executados. Plano: [`docs/react-migra
 - **Visual:** `configuracoes-whatsapp__{desktop,mobile}__{dono,membro}.png`, iguais aos do Vue (o banco local não tem WhatsApp conectado; os estados "conectado" e "teste enviado" estão nos testes).
 - **Ficou de fora:** nada.
 - **Tempo:** ~30 min.
+
+---
+
+## M7.4 · COM-344 · Configurações → Plano e Assinatura (`/configuracoes/plano`)
+
+- **Data:** 2026-11-08
+- **Branch:** `feat/COM-344-plan` (a partir de `feat/COM-343-whatsapp`)
+- **O que foi feito:** `features/billing/` (`api/` com assinatura, checkout, cancelar, uso do plano e `payment-url.ts`; `billingKeys`; `useSubscription`, `useBillingUsage`, `useCheckout`, `useCancelSubscription`) e `components/{plan-page,subscription-card,plan-card,plan-comparison,plan-status}`. Status da assinatura (trial/expirado/ativa/atrasada/cancelada) derivado no render, fim do trial ou do período pago, empresas ativas, fatura em aberto com "Pagar fatura", aviso de checkout simulado e de inadimplência, cancelar com diálogo. Cards dos planos pagos com preço por ciclo, preço de fundador e "Plano atual"; tabela comparativa e os blocos de texto do Vue. `?plano=` destaca o card no primeiro render e `?ciclo=anual|mensal` fica na URL.
+- **Decisões:**
+  - `checkoutUrl` e `invoiceUrl` só valem com `https:` em `asaas.com`/`*.asaas.com` (`new URL()`); fora disso não redireciona/renderiza, mostra o aviso e registra no console (T3-4 da auditoria).
+  - O `PlanCapBanner` saiu de `features/companies` para `shared/components` como componente de apresentação que recebe `usage` por prop: `billing` e `companies` usam, e nenhuma importa a outra. `billing` busca o uso do plano por conta própria (`billingKeys.usage()`).
+  - Checkout aplicado/simulado/sem link e cancelar invalidam `billingKeys.subscription()` e chamam `session.refresh()` (o `isOverdue` do menu depende do `/auth/me`).
+  - Sem CNPJ gravado, o campo de CNPJ valida com o `Cnpj` do contrato antes de chamar a API (como no Vue); o texto de ajuda ganhou link para as configurações da Contabilidade, como pede o ticket. O `window.confirm` de cancelar virou diálogo.
+- **Testes:** `plan-page.spec.tsx` (`?plano=essencial` destaca o card certo; checkout sem CNPJ não chama a API e aponta para a Contabilidade; `checkoutUrl` fora de asaas.com não redireciona e loga; fatura do Asaas vira link; fatura com outro host não; cancelar confirma e refaz o `/auth/me`; membro com botões desabilitados). 220 testes no pacote.
+- **Visual:** `configuracoes-plano__{desktop,mobile}__{trial,membro}.png`, iguais aos do Vue (só o link novo no texto do CNPJ). O banco local está todo em trial; "plano essencial", "pendente com fatura" e "cancelada" estão nos testes com MSW.
+- **Ficou de fora:** nada.
+- **Tempo:** ~1h.
