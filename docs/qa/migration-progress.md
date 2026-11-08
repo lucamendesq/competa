@@ -537,3 +537,15 @@ Um bloco por ticket, na ordem em que foram executados. Plano: [`docs/react-migra
 - **Visual:** `configuracoes-plano__{desktop,mobile}__{trial,membro}.png`, iguais aos do Vue (só o link novo no texto do CNPJ). O banco local está todo em trial; "plano essencial", "pendente com fatura" e "cancelada" estão nos testes com MSW.
 - **Ficou de fora:** nada.
 - **Tempo:** ~1h.
+
+---
+
+## M8.1 · COM-328 · `shared/pwa`: instalação, push, ping do dispositivo e InstallButton
+
+- **Data:** 2026-11-08
+- **Branch:** `feat/COM-328-shared-pwa` (a partir de `feat/COM-344-plan`)
+- **O que foi feito:** `shared/pwa/install.store.ts` (Zustand com `deferredPrompt`, `isStandalone`, `isIos` e `promptInstall()`; seletores `canInstallOf`/`showIosHintOf`/`platformOf` e hooks `useCanInstall`/`useShowIosHint`/`usePlatform`; os listeners de `beforeinstallprompt`/`appinstalled` são registrados uma vez no módulo), `device.ts` (`getDeviceId`, `pingDeviceOnce` com a guarda em `sessionStorage` e a marca desfeita se a API falhar), `push.ts` (base64, `serviceWorkerReady` com prazo de 10 s, montagem do payload), `use-push.ts` (`useQuery` da VAPID key com `staleTime: 'static'`, `useQuery` da inscrição atual, `useMutation` de inscrever que recebe o `save` e invalida a inscrição; toasts do Vue), `pwa-keys.ts` e `install-button.tsx` (variantes ícone e card, tutorial por plataforma). `InstallButton` e a dica do iOS entraram na galeria `/__ui`. `public/push-handler.js` e `manifest.webmanifest` já estavam iguais aos do Vue desde o M0.2 (conferido com `diff -r`).
+- **Decisões:** `pingDeviceOnce` é função comum, sem hook: quem usa (layout da área do Responsável, M9.1) chama no `loader` da rota, que roda uma vez por navegação, e a guarda do `sessionStorage` impede repetir na sessão. `usePush(save)` recebe o `save` (a rota de gravar a inscrição muda entre envio público e área logada).
+- **Testes:** `push.spec.ts` (sem service worker desiste em 10 s com timer falso; com registro resolve; base64url), `device.spec.ts` (id estável; uma chamada por sessão; falha desfaz a marca e tenta de novo) e `install.store.spec.ts` (`canInstall` falso em standalone mesmo com prompt; dica do iOS; `beforeinstallprompt` guarda o evento e `promptInstall` consome uma vez; `appinstalled`). 229 testes no pacote.
+- **Ficou de fora:** nada.
+- **Tempo:** ~40 min.

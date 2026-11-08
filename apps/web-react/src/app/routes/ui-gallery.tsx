@@ -2,6 +2,7 @@ import { useState, type ReactNode } from 'react';
 import { InboxIcon, PlusIcon } from 'lucide-react';
 import { toast } from 'sonner';
 import { Button, type ButtonVariants } from '@/shared/components/ui/button';
+import { InstallButton, InstallSteps } from '@/shared/pwa';
 import {
   Card,
   CardContent,
@@ -335,6 +336,17 @@ export function UiGallery() {
             </>
           }
         />
+      </Section>
+
+      <Section title="InstallButton">
+        <div className="flex items-center gap-4">
+          <InstallButton />
+          <InstallButton variant="card" />
+        </div>
+        <div className="max-w-md rounded-xl border border-border p-4">
+          <p className="text-muted-foreground mb-3 text-sm">Dica do iOS (Safari):</p>
+          <InstallSteps isIos platform="ios" />
+        </div>
       </Section>
     </main>
   );
