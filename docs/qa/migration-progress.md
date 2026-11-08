@@ -456,7 +456,7 @@ Um bloco por ticket, na ordem em que foram executados. Plano: [`docs/react-migra
 ## M5.2 · COM-353 · Lista de templates e editor (`/templates`, `/templates/:id`)
 
 - **Data:** 2026-11-08
-- **Branch:** `feat/COM-353-templates-pages` (a partir de `feat/COM-350-checklists-feature`)
+- **Branch:** `feat/COM-353-templates-pages` (a partir de `feat/COM-350-checklists-feature`) · **PR:** [#46](https://github.com/lucamendesq/competa/pull/46)
 - **O que foi feito:** `features/checklists/components/{checklists-list-page,template-name-dialog,template-editor-page,template-editor-header,template-editor,template-item-row,template-draft,leave-guard}`. Lista com "Padrão Competa", itens, empresas usando, Ver/Editar, Duplicar (diálogo com "(Cópia)") e "Criar checklist" em branco; os dois navegam para o template novo. Editor com rascunho local (nome + itens + removidos) num `useReducer` (`template-draft.ts`, funções puras de "modificado" e contagem de pendências), barra "Alterações não salvas" com Descartar/Salvar, adicionar pelo `CatalogPicker` (diálogo com "Fechar"), lixeira nomeada por item com confirmação, "Excluir template inteiro", template do produto somente leitura com "Duplicar para editar". Guard de saída com `useBlocker` + diálogo "Sair sem salvar?" (Ficar / Sair e descartar) e `beforeunload` (o único `useEffect`, assina o evento do navegador).
 - **Decisões (o Vue é a especificação onde o ticket diverge):**
   - O ticket fala em RHF por item com `isDirty`; o Vue edita tudo num rascunho e salva em lote, com o "modificado" calculado contra o salvo. O React faz igual; "há alterações" é derivado do rascunho, sem estado extra.
