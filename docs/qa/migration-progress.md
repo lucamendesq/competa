@@ -614,7 +614,7 @@ Um bloco por ticket, na ordem em que foram executados. Plano: [`docs/react-migra
 ## M9.3 · COM-346 · Pendências do Responsável (`/minha-area/pendencias`)
 
 - **Data:** 2026-11-08
-- **Branch:** `feat/COM-346-contact-pending` (a partir de `feat/COM-345-contact-sign-in`)
+- **Branch:** `feat/COM-346-contact-pending` (a partir de `feat/COM-345-contact-sign-in`) · **PR:** [#57](https://github.com/lucamendesq/competa/pull/57)
 - **O que foi feito:** `features/contact-area/components/{contact-pending-page,pending-row}`. Itens agrupados por Empresa + Competência (agrupamento derivado no render), status, "Atrasado", descrição, prazo, formatos e o motivo da última recusa; "Enviar arquivos" abre o seletor (input oculto com `accept` = formatos do item + foto) e envia pelo `useSendMyFiles` (máquina de `shared/upload`), com o percentual no próprio botão (`aria-live`); `UploadFeedback` com "Tentar de novo" para o mesmo item; vazio "Tudo certo por aqui!"; erro com "Tentar de novo".
 - **Decisões:**
   - `UploadFeedback` foi para `shared/upload` (agora com dois consumidores); `useUpload` e o PUT já estavam lá desde o M9.1. A `Dropzone` ficou em `features/upload`: a tela do Vue não tem dropzone, só o botão, então ela continua com um consumidor só.
