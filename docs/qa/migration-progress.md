@@ -324,7 +324,7 @@ Um bloco por ticket, na ordem em que foram executados. Plano: [`docs/react-migra
 ## M2.4 · COM-348 · Painel de Pendências (`/competencias/:id/pendencias`)
 
 - **Data:** 2026-11-08
-- **Branch:** `feat/COM-348-pending-panel` (a partir de `feat/COM-336-periods-list`)
+- **Branch:** `feat/COM-348-pending-panel` (a partir de `feat/COM-336-periods-list`) · **PR:** [#38](https://github.com/lucamendesq/competa/pull/38)
 - **O que foi feito:** `features/periods/components/{pending-panel-page,panel-filters,panel-row,channel-failures,close-request-dialog}.tsx` + `panel-lines.ts` (derivação pura: linhas, contagens, filtros, progresso, impacto de encerrar, canais com falha). Cabeçalho com zip da competência, "Incluir empresas novas" e "Encerrar"; cartão de progresso / "Zero pendências!" / "Competência encerrada"; busca, filtro por contador e chips; linhas expansíveis com itens a enviar e a conferir, falha de canal com "Gerar novo link e reenviar e-mail", copiar link (gera um novo), zip da Empresa e encerrar a Solicitação. Os 17 textos de toast copiados do Vue. `CloseRequestDialog` nasce aqui, exportado pelo `index.ts` para o M3.1.
 - **Decisões:**
   - `?contador=` e `?status=` na URL; a busca fica local (filtra no cliente a cada tecla).
@@ -337,3 +337,20 @@ Um bloco por ticket, na ordem em que foram executados. Plano: [`docs/react-migra
 - **Visual:** `competencias-id-pendencias__{desktop,mobile}__{com-dados,filtro-contador}.png`, iguais aos do Vue.
 - **Ficou de fora:** nada.
 - **Tempo:** ~1h30.
+
+---
+
+## M3.1 · COM-352 · Revisão da Solicitação (`/solicitacoes/:id`)
+
+- **Data:** 2026-11-08
+- **Branch:** `feat/COM-352-request-review` (a partir de `feat/COM-348-pending-panel`)
+- **O que foi feito:** `features/periods/components/{request-review-page,review-item,review-extras,review-reason,resend-notice}.tsx` + `review-draft.ts` (reducer do rascunho). Itens aguardando conferência com "Aceitar item" e "Recusar" por documento (motivo de 3 a 500 caracteres com contador), documentos extras com Aceitar/Recusar, "Demais itens" com status de exibição, "Precisa reenviar" e "Desfazer aceite", barra fixa "N decisão(ões) não publicada(s)" com Descartar/Publicar, "Encerrar" com o `CloseRequestDialog` do M2.4, "Voltar". Toasts do Vue.
+- **Decisões:**
+  - **Rascunho em `useReducer`** (`toggleAccept`, `toggleRejection`, `setRejection`, `clearRejection`, `toggleExtra`, `setExtraReason`, `reset`); contagem, "falta motivo" e o `ReviewBatchBody` são funções puras do estado. Aceitar um item limpa as recusas dos documentos dele (o botão continua desabilitado com recusa marcada, como no Vue).
+  - **"Abrir" segue o Vue: nova aba**, com o blob vindo de `GET /documents/:id/content` (rota do Contador); o object URL é revogado depois de 60 s (o Vue nunca revogava). Esta tela não tem preview embutido, então o `DocumentPreview` com `react-error-boundary` fica para o M9.4, onde o preview existe.
+  - O ticket cita zip da Solicitação nesta tela, mas o `RequestReviewPage.vue` não tem; não foi acrescentado.
+  - Botões de decisão têm `aria-pressed` e nome com o item/arquivo ("Aceitar item: Aluguel", "Recusar: arquivo.pdf").
+- **Testes:** `review-draft.spec.ts` (aceitar limpa a recusa; recusar desmarca o aceite; extras; reset zera; motivo mínimo e o lote com os três grupos) e `request-review-page.spec.tsx` (publicar envia aceite + recusa + extra, mostra o toast, zera o rascunho e o detalhe é buscado de novo; abrir documento chama só `/documents/:id/content` e abre o blob em nova aba; Descartar). 141 testes no pacote.
+- **Visual:** `solicitacoes-id__{desktop,mobile}__com-rejeicao.png`, iguais aos do Vue. Diferença de dado: o banco local tem 3 extras (dois enviados durante a captura do baseline). Os estados "com pendentes" não foram recapturados porque a cena local já está depois da revisão; o teste cobre esse estado.
+- **Ficou de fora:** nada do escopo.
+- **Tempo:** ~1h.

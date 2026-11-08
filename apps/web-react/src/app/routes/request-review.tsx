@@ -1,5 +1,5 @@
-import { Placeholder } from '@/app/routes/placeholder';
+import { RequestReviewPage } from '@/features/periods';
 
 export function Component() {
-  return <Placeholder name="RequestReview" />;
+  return <RequestReviewPage />;
 }
