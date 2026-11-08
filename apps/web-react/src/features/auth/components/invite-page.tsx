@@ -5,7 +5,7 @@ import { useForm } from 'react-hook-form';
 import { Link, useNavigate, useParams } from 'react-router';
 import * as z from 'zod';
 import { AuthCard, FormAlert, StatusIcon } from '@/features/auth/components/auth-shell';
-import { TermsConsent } from '@/features/auth/components/terms-consent';
+import { TermsConsent } from '@/shared/components/terms-consent';
 import { useInviteQuery } from '@/features/auth/queries/session-queries';
 import { useAcceptInvite } from '@/features/auth/queries/use-auth-mutations';
 import { Button } from '@/shared/components/ui/button';

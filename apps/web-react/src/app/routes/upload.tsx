@@ -1,5 +1,5 @@
-import { Placeholder } from '@/app/routes/placeholder';
+import { UploadPage } from '@/features/upload';
 
 export function Component() {
-  return <Placeholder name="Upload" />;
+  return <UploadPage />;
 }

@@ -12,3 +12,4 @@ export {
   useSubscribePush,
   useUploadChecklist,
 } from '@/features/upload/queries/use-upload-queries';
+export { UploadPage } from '@/features/upload/components/upload-page';

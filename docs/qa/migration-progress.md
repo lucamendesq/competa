@@ -563,3 +563,19 @@ Um bloco por ticket, na ordem em que foram executados. Plano: [`docs/react-migra
 - **Testes:** `use-upload.spec.ts` (todos os casos de `check-upload.ts` mais os do ticket: presign 422 → todos `retriable` com mensagem neutra e arquivo preservado; caminho feliz com o mesmo SHA-256 no presign e no PUT; PUT falha em um → só ele `retriable` e fora do confirm; confirm recusa um → `ok: false` com o motivo e os outros `ok: true`; progresso soma os recusados no presign e não passa de 100; offline) e `use-send-files.spec.tsx` (item alvo no presign e invalidação do checklist). 236 testes no pacote.
 - **Ficou de fora:** nada (a tela é o M8.3).
 - **Tempo:** ~40 min.
+
+---
+
+## M8.3 · COM-334 · Página pública de envio (`/envio/:linkToken`)
+
+- **Data:** 2026-11-08
+- **Branch:** `feat/COM-334-upload-page` (a partir de `feat/COM-326-upload-feature`)
+- **O que foi feito:** `features/upload/components/{upload-page,upload-header,upload-item,dropzone,upload-feedback,access-offers,link-unavailable,upload-progress-ring}`. Cabeçalho com o logo do escritório (`referrerPolicy="no-referrer"`, cai na marca Competa se quebrar) e `InstallButton`; progresso de envio; itens ordenados (recusados primeiro, depois alfabético) com status, prazo, aviso "Precisa reenviar" e arquivos já enviados **só** como "Arquivo N" + status (regra 3); dropzone por item e de extras (`<input type="file" multiple>` dentro de `<label>`, arrastar e soltar, "Tirar foto do documento" com `capture="environment"` no celular), cada uma dentro de `react-error-boundary`; progresso com `role="progressbar"` e `aria-live`; `UploadFeedback` com "Tentar de novo" só nos `retriable`; competência encerrada; "Tudo enviado!" com "Me avise neste aparelho" (`usePush`) e "Criar meu acesso"; erro temporário (offline/5xx/429) × link expirado com "Receber o link atual".
+- **Decisões:**
+  - `ResendNotice` e `TermsConsent` foram para `shared/components` (usados por `periods`/`auth` e agora por `upload`, que não pode importar nenhuma delas).
+  - O ticket pede um link para `/minha-area/pendencias` depois de "Ativar acesso"; o Vue (e a regra de segurança do link) não dão sessão aqui: a ativação só manda o magic link e mostra "Link de acesso enviado!". Segui o Vue; a sessão é refeita (`session.refresh()`).
+  - O ticket cita `PublicLayout`; ele é a casca das páginas de termos. O envio tem cabeçalho próprio no Vue e foi mantido.
+- **Testes:** `upload-page.spec.tsx` (a resposta do `GET /upload/:token` não tem `storageKey`/`downloadUrl`/nome de arquivo/conteúdo e a tela abre sem eles; recusa no confirm mostra o motivo e só "Entendi"; PUT que falha mostra "Tentar de novo (1)"; envio aceito avisa e refaz o checklist; "Criar meu acesso" mostra o aviso e refaz a sessão; 410 leva a "Receber o link atual"; 429 pede para tentar de novo). O MSW agora intercepta o XHR do PUT (com preflight CORS). 243 testes no pacote.
+- **Visual:** `envio-token__{desktop,mobile}__{com-pendencias,com-rejeicao}.png` e `envio-token-invalido__{desktop,mobile}__invalido.png`. Layout igual ao do Vue; o dado mudou desde o baseline (a Carla já tem acesso, então a oferta some, e há três extras). "Sucesso com ofertas" e "enviando" estão nos testes.
+- **Ficou de fora:** nada.
+- **Tempo:** ~1h15.

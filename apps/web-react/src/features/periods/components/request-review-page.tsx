@@ -8,7 +8,7 @@ import type {
   RequestItem,
 } from '@/features/periods/api/period.types';
 import { CloseRequestDialog } from '@/features/periods/components/close-request-dialog';
-import { ResendNotice } from '@/features/periods/components/resend-notice';
+import { ResendNotice } from '@/shared/components/resend-notice';
 import {
   decisionCount,
   emptyDraft,
