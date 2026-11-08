@@ -1,5 +1,5 @@
-import { Placeholder } from '@/app/routes/placeholder';
+import { RecoverLinkPage } from '@/features/auth';
 
 export function Component() {
-  return <Placeholder name="RecoverLink" />;
+  return <RecoverLinkPage />;
 }

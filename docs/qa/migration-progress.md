@@ -637,3 +637,16 @@ Um bloco por ticket, na ordem em que foram executados. Plano: [`docs/react-migra
 - **Visual:** `minha-area-competencias__{desktop,mobile}__{lista,periodo-expandido}.png`, iguais aos do Vue.
 - **Ficou de fora:** nada.
 - **Tempo:** ~30 min.
+
+---
+
+## M9.5 · COM-347 · "Perdi meu link" em 2 passos
+
+- **Data:** 2026-11-08
+- **Branch:** `feat/COM-347-recover-link` (a partir de `feat/COM-354-contact-history`)
+- **O que foi feito:** `features/auth/components/{recover-link-page,recover-link-confirm-page}` em `/perdi-meu-link` (atrás do `GuestOnly`) e `/perdi-meu-link/confirmar`. Passo 1: e-mail (RHF + `email` do contrato, botão desabilitado até valer) → `POST /access/recover`; resposta cega "Se o e-mail estiver cadastrado…" para qualquer e-mail; erro com `apiErrorMessage(…, 'Não foi possível solicitar a recuperação.')`, como o Vue. Passo 2: lê `?token=` e só chama `POST /access/recover/confirm` no clique de "Gerar novo link" (nunca ao montar: scanner de e-mail não pode matar o link vivo); estados "Link renovado", erro e "Link inválido" sem token.
+- **Decisões:** as telas moram em `features/auth` (usam `useRecoverLink`/`useConfirmRecoverLink`), não em `contact-area`, que não pode importar `auth`.
+- **Testes:** `recover-link-page.spec.tsx` (cadastrado, desconhecido e sem acesso mostram a mesma resposta; 429 mostra o erro do Vue; a confirmação não chama a API ao montar e chama uma vez no clique; sem token mostra "Link inválido"). 264 testes no pacote.
+- **Visual:** `perdi-meu-link__{desktop,mobile}__{inicial,enviado}.png`, `perdi-meu-link-confirmar__{desktop,mobile}__inicial.png` e `__sem-token`. Iguais aos do Vue; o "enviado" do baseline do Vue saiu no meio do envio ("Enviando…"), o React mostra o estado final.
+- **Ficou de fora:** nada.
+- **Tempo:** ~25 min.
