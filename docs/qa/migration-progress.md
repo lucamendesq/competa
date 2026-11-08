@@ -585,7 +585,7 @@ Um bloco por ticket, na ordem em que foram executados. Plano: [`docs/react-migra
 ## M9.1 · COM-335 · `ContactLayout` e `features/contact-area`
 
 - **Data:** 2026-11-08
-- **Branch:** `feat/COM-335-contact-area` (a partir de `feat/COM-334-upload-page`)
+- **Branch:** `feat/COM-335-contact-area` (a partir de `feat/COM-334-upload-page`) · **PR:** [#55](https://github.com/lucamendesq/competa/pull/55)
 - **O que foi feito:** `shared/components/layout/contact-layout.tsx` (skip link, cabeçalho com a Empresa ou, com várias, o nome do Responsável e "N empresas · Contabilidade", `InstallButton`, "Criar senha" quando não há senha, Sair; navegação "O que falta"/"Histórico" no topo (desktop) e embaixo (celular)) e `app/router/contact-shell.tsx` envolvendo todo `/minha-area` (como o `ContactLayout.vue`: no acesso e no definir-senha o cabeçalho some sem sessão). `features/contact-area/` (`api/` com pendências, histórico, detalhe da competência, presign/confirm do envio logado, abrir/baixar documento; `contactKeys` com `all`, `pending()`, `periodLists()`, `periods(page)`, `period(periodId, companyId)`; `useMyPending`, `useMyPeriods` (`keepPreviousData`), `useMyPeriod`, `useOpenMyDocument`, `useDownloadMyDocument`, `useSendMyFiles` (invalida pendências e histórico)).
 - **Decisões:**
   - O `useUpload` e o `putFileToStorage` foram para `shared/upload`: o envio público e o envio logado usam a mesma máquina, e `contact-area` não pode importar `upload`.
