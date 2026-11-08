@@ -441,7 +441,7 @@ Um bloco por ticket, na ordem em que foram executados. Plano: [`docs/react-migra
 ## M5.1 · COM-350 · `features/checklists`: api, keys e hooks de templates
 
 - **Data:** 2026-11-08
-- **Branch:** `feat/COM-350-checklists-feature` (a partir de `feat/COM-339-import-companies`)
+- **Branch:** `feat/COM-350-checklists-feature` (a partir de `feat/COM-339-import-companies`) · **PR:** [#45](https://github.com/lucamendesq/competa/pull/45)
 - **O que foi feito:** `features/checklists/api/` (uma chamada por arquivo: buscar, criar, renomear, derivar e excluir template; adicionar, editar e remover item; `template.types.ts`), `queries/template-keys.ts` (`all/details()/detail(id)`), `useTemplate(id)` e as mutations com a invalidação do ticket. Sem UI.
 - **Decisões:**
   - A lista de templates continua em `catalogKeys.templates()` (M4.4); `checklists` importa `catalog` para invalidá-la.
