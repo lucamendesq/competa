@@ -684,7 +684,7 @@ Um bloco por ticket, na ordem em que foram executados. Plano: [`docs/react-migra
 ## M10.3 · COM-351 · PWA em build de produção (ready-for-human)
 
 - **Data:** 2026-11-09
-- **Branch:** `feat/COM-351-pwa-production` (a partir de `feat/COM-356-a11y-parity`)
+- **Branch:** `feat/COM-351-pwa-production` (a partir de `feat/COM-356-a11y-parity`) · **PR:** [#62](https://github.com/lucamendesq/competa/pull/62)
 - **Parte do repositório (feita):** build de produção do `apps/web-react` gera `sw.js` (precache de 86 entradas, `navigateFallback: index.html`, `importScripts("push-handler.js")`, só cache de imagens em runtime) e injeta `registerSW.js` no `index.html`. Conferido com `vite preview` + Playwright/Chrome: SW ativo e controlando; `/minha-area/pendencias` recarregado offline abre a casca ("Sem conexão com o servidor"); único cache `workbox-precache` (nenhuma resposta de API); manifest com `start_url /minha-area/pendencias`, `display: standalone` e os quatro ícones (192/512, comum e maskable) respondendo 200. `docs/frontend-status.md` (seção PWA) reescrita para o React.
 - **Aguardando humano (checklist):**
   - [ ] Instalar no Chrome Android e no Chrome desktop a partir de staging.
