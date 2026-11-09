@@ -17,7 +17,7 @@ const PROHIBITED_PATTERNS = [
   'diamond',
 ];
 
-const EXTENSIONS = new Set(['.vue', '.ts', '.css', '.svg']);
+const EXTENSIONS = new Set(['.ts', '.tsx', '.css', '.svg']);
 
 interface Offense {
   file: string;

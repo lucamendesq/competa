@@ -13,8 +13,6 @@
     "format:check": "prettier --check .",
     "predev": "pnpm --filter contracts build",
     "dev": "pnpm -r --parallel run dev",
-    "predev:react": "pnpm --filter contracts build",
-    "dev:react": "pnpm --filter contracts --filter api --filter web-react --parallel run dev",
     "predev:lan": "pnpm --filter contracts build",
     "dev:lan": "pnpm -r --parallel run dev:lan",
     "db:seed": "pnpm --filter api db:seed",

@@ -4,23 +4,26 @@
 
 ## Stack canônica
 
-TypeScript · **pnpm workspaces** · **Angular (SPA, CSR — sem SSR)** · **Tailwind CSS + Spartan UI** · **NestJS (todo o backend)** · Drizzle ORM · Postgres (host {a definir}) · **Better Auth** (na API) · Cloudflare R2 · `@nestjs/event-emitter` · zod (`libs/contracts`) · Mobile futuro {a decidir: React Native vs Flutter}.
+TypeScript · **pnpm workspaces** · **React 19 (SPA, CSR — sem SSR, Vite)** · **Tailwind CSS + shadcn/ui** · **NestJS (todo o backend)** · Drizzle ORM · Postgres (host {a definir}) · **Better Auth** (na API) · Cloudflare R2 · `@nestjs/event-emitter` · zod (`libs/contracts`) · Mobile futuro {a decidir: React Native vs Flutter}.
 
 ## Nomenclatura
 
 - **Identificadores em inglês** (código, banco, eventos); **PT-BR em docs, UI e dados exibidos**. O glossário PT↔EN em [`domain.md`](./domain.md#glossário-linguagem-ubíqua-pten) é **normativo** — só se usa o termo EN registrado (Solicitação → `request`, nunca `solicitation`).
 - Proibidos em código: `client`, `user`, `month` soltos → `company`/`accounting_firm`, `accountant`/`contact`, `period`/`reference_month`. (Exceção: tabela `user` do Better Auth.)
-- camelCase para variáveis/funções; PascalCase para tipos/componentes; kebab-case para arquivos e selectors Angular (`app-pending-panel`).
-- **A regra vale para pasta e nome de arquivo do `apps/web` também**: `features/companies/companies-list-page.ts`, nunca `features/empresas/`. O que fica em PT-BR é o **path da URL** (`/empresas`, `/competencias`, `/envio/:token`) e todo o texto de tela — é o que o usuário lê.
+- camelCase para variáveis/funções; PascalCase para tipos/componentes; kebab-case para arquivos (`pending-panel-page.tsx`).
+- **A regra vale para pasta e nome de arquivo do `apps/web` também**: `features/companies/components/companies-list-page.tsx`, nunca `features/empresas/`. O que fica em PT-BR é o **path da URL** (`/empresas`, `/competencias`, `/envio/:token`) e todo o texto de tela — é o que o usuário lê.
 - Tabelas snake_case **singular** (`request_item`); estados como `text` + `check` constraint; eventos PascalCase verbo no passado (`DocumentRejected`).
 
-## Frontend (Angular)
+## Frontend (React)
 
-1. **Standalone components + signals**; Typed Reactive Forms nos formulários (templates/overrides/revisão), validando com os schemas de `libs/contracts` (os mesmos da API).
-2. Componente **nunca** chama `HttpClient` direto — sempre via **service da feature** (ou `core/` quando global); 1 service por recurso.
-3. Artefato usado por UMA feature vive nela; promove para `shared/` na **segunda** feature que usar — nunca preventivamente.
-4. Route guards do Angular são **UX** (redirect sem sessão); a segurança real são os guards da API.
-5. **Styling = Tailwind + Spartan UI:** utilities no template por padrão; componentes Spartan vivem em `shared/ui/` e são estilizados com Tailwind; arquivo de estilo por componente SÓ quando o estilo não for expressável em utilities (deve ser raro). **Angular Material está fora.**
+O padrão normativo completo está em [`react-standards.md`](./react-standards.md). O essencial:
+
+1. **Estado do servidor só no TanStack Query**, com key factory por feature; nada de `useEffect` para buscar ou derivar dado. Formulários com **React Hook Form + `zodResolver`** sobre os schemas de `libs/contracts` (os mesmos da API) e `applyFieldErrors` nos 422.
+2. Componente **nunca** chama `fetch`/`api` direto — sempre pela pasta `api/` da feature (uma chamada por arquivo) e pelos hooks de `queries/`.
+3. Artefato usado por UMA feature vive nela; promove para `shared/` na **segunda** feature que usar — nunca preventivamente. Imports na direção `shared → features → app`; uma feature só vê outra pelo `index.ts`, e só a `catalog` é importável por outra.
+4. Guards de rota são **UX** (redirect sem sessão); a segurança real são os guards da API.
+5. **Styling = Tailwind + shadcn/ui:** utilities no JSX por padrão; os primitivos (Radix via shadcn) vivem em `shared/components/ui/`. Nenhuma outra biblioteca de componentes; `.css` de componente é exceção rara.
+6. Sem `memo`/`useMemo`/`useCallback`: o React Compiler cobre a memoização; exceção só com medição registrada em comentário `ponytail:`.
 
 ## Backend (NestJS)
 
@@ -62,7 +65,7 @@ Diretivas (`eslint-disable-next-line`, `@ts-expect-error`) não são comentário
 - REST na API Nest; endpoints kebab-case, plural para coleções (`/companies`, `/periods/:id/close`).
 - Validação de input: `ZodValidationPipe` com schemas de `libs/contracts` (mesmos do frontend).
 - Autenticação: **Better Auth montado na API** (`/api/auth/*`) — pacote comunitário `@thallesp/nestjs-better-auth` com fallback manual documentado; sessão por cookie.
-- **CORS/cookies entre origens** (`app.` ↔ `api.`): CORS restrito a `WEB_URL` com `credentials: true`; cookie domain compartilhado; `trustedOrigins` no Better Auth; no Angular, interceptor com `withCredentials: true`. Dev local: proxy do Angular (`proxy.conf.json`) evita CORS.
+- **CORS/cookies entre origens** (`app.` ↔ `api.`): CORS restrito a `WEB_URL` com `credentials: true`; cookie domain compartilhado; `trustedOrigins` no Better Auth; no web, `credentials: 'include'` no api-client.
 - **Fluxo público de upload:** rotas com `UploadTokenGuard` (token do `upload_link`, hash + expiração), escopo SÓ-upload — nunca sessão, nunca Better Auth.
 - Upload de arquivos: direto ao R2 via URL pré-assinada (API só emite URLs e registra `document`); limites 100 MB/arquivo, 500/envio, 1000 docs / 500 MB acumulados por Solicitação (AVAIL-2). O presign assina `content-length`, `content-type` e `x-amz-checksum-sha256` (o cliente calcula o SHA-256 com `crypto.subtle` e manda o mesmo valor no presign e no header do PUT); por isso o CORS do bucket precisa liberar o header `x-amz-checksum-sha256`.
 - Formato de erro e paginação: envelope `{ data }` / `{ data, meta }` (`ResponseInterceptor`) e erro `{ error: { code, message, details? } }` (`AppErrorFilter`).
@@ -71,7 +74,7 @@ Diretivas (`eslint-disable-next-line`, `@ts-expect-error`) não são comentário
 
 ## Testes
 
-- API: {a definir — sugestão: Jest (default Nest)} · Web: {a definir — sugestão: Jest/Vitest + Playwright e2e}.
+- API: {a definir — sugestão: Jest (default Nest)} · Web: Vitest + Testing Library + MSW (fluxos críticos em `apps/web/src/testing/flows`).
 - Estratégia: priorizar as **invariantes do core** — escopo por tenant (FirmScope), escopo do link (nunca lista/baixa), transições de estado do Item, snapshot congelado na abertura, encerramento só pelo Contador, revisão em lote.
 
 ## Variáveis de ambiente
@@ -89,8 +92,8 @@ Diretivas (`eslint-disable-next-line`, `@ts-expect-error`) não são comentário
 
 - Não usar `client`/`user`/`month` soltos em código, nem termo EN fora do glossário oficial.
 - Não escrever query/repositório sem `FirmScope`/`UploadScope` — bug de segurança, não de estilo.
-- Não manter dois sistemas de estilo: utilities Tailwind por padrão; `.scss`/`styles` de componente é exceção justificada, nunca o caminho normal; não introduzir Angular Material.
-- Não colocar lógica de negócio no Angular — o web renderiza, valida forms com `libs/contracts` e chama services.
+- Não manter dois sistemas de estilo: utilities Tailwind por padrão; `.css` de componente é exceção justificada, nunca o caminho normal; não introduzir outra biblioteca de componentes.
+- Não colocar lógica de negócio no web — ele renderiza, valida forms com `libs/contracts` e chama a API pelos hooks da feature.
 - Não chamar `HttpClient` fora de services; não validar input com schema fora de `libs/contracts`.
 - Não chamar API da Meta/SES/FCM fora de `modules/messaging/providers/`.
 - Não introduzir CQRS/microservices/fila na v1 — só `@Module` + event-emitter síncrono.

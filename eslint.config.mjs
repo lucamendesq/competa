@@ -5,7 +5,7 @@ import jsxA11y from 'eslint-plugin-jsx-a11y';
 import boundaries from 'eslint-plugin-boundaries';
 import { fileURLToPath } from 'node:url';
 
-const webReact = 'apps/web-react';
+const web = 'apps/web';
 
 const restrictQueryClient = {
   group: ['@tanstack/react-query'],
@@ -23,7 +23,6 @@ export default tseslint.config(
     ignores: [
       '**/dist',
       '**/node_modules',
-      '**/.angular',
       '**/coverage',
       '**/.astro',
       '**/.worktrees/**',
@@ -36,7 +35,7 @@ export default tseslint.config(
   },
 
   {
-    files: [`${webReact}/**/*.{ts,tsx}`],
+    files: [`${web}/**/*.{ts,tsx}`],
     extends: [
       ...tseslint.configs.recommended,
       reactHooks.configs.flat['recommended-latest'],
@@ -45,8 +44,8 @@ export default tseslint.config(
     ],
     plugins: { boundaries },
     settings: {
-      'import/resolver': { typescript: { project: `${webReact}/tsconfig.app.json` } },
-      'boundaries/root-path': fileURLToPath(new URL(`./${webReact}`, import.meta.url)),
+      'import/resolver': { typescript: { project: `${web}/tsconfig.app.json` } },
+      'boundaries/root-path': fileURLToPath(new URL(`./${web}`, import.meta.url)),
       'boundaries/files': [{ pattern: '**/*.spec.{ts,tsx}', category: 'test' }],
       'boundaries/elements': [
         { type: 'shared', pattern: 'src/shared' },
@@ -120,27 +119,27 @@ export default tseslint.config(
   },
   {
     files: [
-      `${webReact}/src/features/*/queries/**`,
-      `${webReact}/src/shared/lib/query-client.ts`,
-      `${webReact}/src/shared/session/**`,
-      `${webReact}/src/shared/pwa/**`,
-      `${webReact}/src/app/providers/**`,
-      `${webReact}/src/testing/**`,
-      `${webReact}/src/**/*.spec.{ts,tsx}`,
+      `${web}/src/features/*/queries/**`,
+      `${web}/src/shared/lib/query-client.ts`,
+      `${web}/src/shared/session/**`,
+      `${web}/src/shared/pwa/**`,
+      `${web}/src/app/providers/**`,
+      `${web}/src/testing/**`,
+      `${web}/src/**/*.spec.{ts,tsx}`,
     ],
     rules: { 'no-restricted-imports': ['error', { patterns: [restrictRadix] }] },
   },
   {
-    files: [`${webReact}/src/shared/components/ui/**`],
+    files: [`${web}/src/shared/components/ui/**`],
     rules: { 'no-restricted-imports': ['error', { patterns: [restrictQueryClient] }] },
   },
   {
     files: [
-      `${webReact}/src/shared/lib/api-client.ts`,
-      `${webReact}/src/shared/lib/auth-client.ts`,
-      `${webReact}/src/features/upload/api/**`,
-      `${webReact}/src/testing/**`,
-      `${webReact}/src/**/*.spec.{ts,tsx}`,
+      `${web}/src/shared/lib/api-client.ts`,
+      `${web}/src/shared/lib/auth-client.ts`,
+      `${web}/src/features/upload/api/**`,
+      `${web}/src/testing/**`,
+      `${web}/src/**/*.spec.{ts,tsx}`,
     ],
     rules: { 'no-restricted-globals': 'off' },
   },

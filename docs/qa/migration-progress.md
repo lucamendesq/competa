@@ -705,3 +705,18 @@ Um bloco por ticket, na ordem em que foram executados. Plano: [`docs/react-migra
 - **Testes:** 267 testes no pacote.
 - **Ficou de fora:** cortar o zod/modo data do router (anotado como próximo passo).
 - **Tempo:** ~50 min.
+
+---
+
+## M10.5 · COM-358 · Cutover (ready-for-human) — PR em rascunho
+
+- **Data:** 2026-11-09
+- **Branch:** `chore/cutover-react` (a partir de `feat/COM-357-performance`) · PR em **rascunho**: não fazer merge antes das pré-condições (M1–M10.4 em Done e aprovação do Luca).
+- **Parte do repositório (feita):** `apps/web` (Vue) apagado (o histórico fica no git) e `apps/web-react` movido para `apps/web`, pacote renomeado para `web`, dev de volta na porta padrão do Vite (5173, que é o `WEB_URL` da API); placeholder de rota removido (a galeria `/__ui` continua só em DEV). Raiz: sem `dev:react`; `eslint.config.mjs` aponta para `apps/web` e não ignora mais `.angular`; `pnpm-lock.yaml` sem as dependências do Vue. CI: os jobs de teste e os dois deploys (`competa-web-staging` e `competa-web`) buildam o `apps/web`. Docs: `AGENTS.md` (paradigma, stack, regras 8–10), `docs/architecture.md` e `docs/conventions.md` (seções do web reescritas para React; as partes de backend continuam descrevendo Nest e estão desatualizadas desde antes da migração), `docs/deploy.md` (seção "Web (React)", Sentry só na API), `docs/frontend-status.md` (rotas `/templates` e `/competencias/:id/pendencias`, configuração por `VITE_*`, nota de onde ficam as telas). Nomes de teste que citavam o Vue ficaram neutros.
+- **Verificado:** `pnpm -r build`, `pnpm lint`, `pnpm format:check`, `pnpm --filter web test` (267), `check:no-diamond` e `check:wcag` verdes. `grep -ri vue apps libs docs AGENTS.md` só retorna menções históricas (plano da migração, `docs/qa`, design system e strip-nest antigos, a nota de migração do `AGENTS.md` e a comparação de bundle).
+- **Diferença do ticket:** não existe `competa-web-react-staging` nem job `deploy-web-react-staging` (decisão do Luca no início: o React substituiu o Vue direto em `competa-web-staging`), então não há preview para apagar nem origem extra no `TRUSTED_ORIGINS`.
+- **Aguardando humano (checklist):**
+  - [ ] Aprovar staging (`staging-app.competa.com.br` já serve o React).
+  - [ ] Merge da cadeia em ordem (#20 → … → #63) e depois deste PR; staging valida; merge em `main` publica `app.competa.com.br`.
+  - [ ] Smoke manual em produção: entrar, abrir competência, `/envio/:token` no celular.
+- **Linear:** fica em **Todo** com "aguardando humano".

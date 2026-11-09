@@ -129,7 +129,7 @@ Settings → Secrets and variables → Actions:
   sobe logo depois de staging.
 - Migrations rodam sozinhas — `release_command` no `fly.toml` roda
   `drizzle-kit migrate` antes do tráfego virar para a versão nova.
-- Trocar a chave VAPID **não** exige rebuild do Angular (`GET /push/vapid-key` serve a
+- Trocar a chave VAPID **não** exige rebuild do web (`GET /push/vapid-key` serve a
   pública); só atualizar o secret no Fly.
 
 ## 6. No primeiro cliente pagante (go-live)
@@ -217,14 +217,12 @@ Uma vez, com as contas:
 Com `min_machines_running = 0` as varreduras das 7h e 9h só rodam com a máquina acordada:
 para testar lembrete, use "Cobrar atrasados" no painel.
 
-### Staging serve o React durante a migração
+### Web (React)
 
-Enquanto o `apps/web` migra para React (`docs/react-migration-2026-11.md`), o job
-`deploy-web-staging` publica o **`apps/web-react`** no mesmo projeto `competa-web-staging`
-(`staging-app.competa.com.br`). Mesmo domínio, mesma API de staging e mesma origem já
-liberada: nada muda no painel. As telas ainda não migradas mostram um placeholder com o nome
-da rota. A produção (`deploy-web`) continua publicando o `apps/web` (Vue) até o cutover
-(M10.5).
+`deploy-web-staging` e `deploy-web` buildam o `apps/web` (React 19, Vite) e publicam o `dist`
+nos projetos `competa-web-staging` (`staging-app.competa.com.br`) e `competa-web`
+(`app.competa.com.br`). As URLs da API entram no bundle na hora do build (`VITE_API_URL` e
+`VITE_AUTH_URL`, definidas no job); conferir com `grep -r localhost apps/web/dist` se mexer nelas.
 
 ## 8. Checklist pré-lançamento nos painéis (COM-277)
 
@@ -349,7 +347,7 @@ chega antes da pausa.
 - **Backup** (dump diário + bucket dedicado + restore): [`backup.md`](./backup.md).
 - **Retenção/expurgo**: [`retention.md`](./retention.md).
 - **Sentry e Alertas**:
-  - DSN configurado via env nos dois apps (`@sentry/nestjs` e `@sentry/angular`).
+  - DSN configurado via env na API (`apps/api/src/instrument.ts`); o web ainda não manda erros para o Sentry.
   - **Regra de Alerta de Canal** (COM-19): criar em **Sentry > Alerts > Create Alert**:
     - **Tipo**: _Issues_ ou _Number of Errors_
     - **Filtro**: `tag[channel]:*` (ou `channel:email OR channel:push`)
