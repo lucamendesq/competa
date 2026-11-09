@@ -188,15 +188,24 @@ tira do produto a chance de um deploy de produção gravar documento no disco do
 ## PWA
 
 Instalável pela área do Responsável: `manifest.webmanifest` com `start_url`
-`/minha-area/pendencias`, ícones 192/512 comuns e maskable, `display: standalone`, e
-service worker do Angular (`ngsw-config.json`) com **prefetch só de casca e assets**.
-Não há `dataGroups`: resposta de API nunca é cacheada — documento contábil velho em tela é
-pior do que tela vazia. Verificado com build de produção: SW ativo, casca abre offline.
+`/minha-area/pendencias`, ícones 192/512 comuns e maskable, `display: standalone`. O service
+worker é gerado pelo `vite-plugin-pwa` no build do `apps/web-react` (`registerSW.js` injetado no
+`index.html`, `navigateFallback` para `index.html`) com **precache só de casca e assets**; o único
+cache em runtime é o de imagens. Resposta de API nunca é cacheada — documento contábil velho em
+tela é pior do que tela vazia.
 
-O SW gerado pelo `vite-plugin-pwa` importa `public/push-handler.js`, que exibe o push (o
-payload da API ainda vem no formato `{ notification }` do service worker do Angular) e abre a
-URL dele no clique. Sem SW registrado (o dev não registra), "Me avise neste aparelho" desiste
-em 10 s com erro em vez de ficar em "Ativando…".
+Verificado no build de produção (`pnpm --filter web-react build` + `vite preview`, Chrome, M10.3):
+SW ativo e controlando a página; recarregar `/minha-area/pendencias` offline abre a casca com
+"Sem conexão com o servidor"; o único cache é o `workbox-precache`; manifest e os quatro ícones
+respondem 200.
+
+O SW importa `public/push-handler.js`, que exibe o push (o payload da API ainda vem no formato
+`{ notification }`) e abre a URL dele no clique. Sem SW registrado (o dev não registra), "Me avise
+neste aparelho" desiste em 10 s com erro em vez de ficar em "Ativando…". A dica de instalação do
+iOS (`showIosHintOf` em `shared/pwa`) só aparece fora do modo standalone.
+
+Falta conferir em aparelho (humano): instalação no Chrome Android e desktop, push real de
+staging chegando e abrindo a URL, dica do iOS no Safari sumindo depois de instalar.
 
 ## Novo Design System (Outubro/2026)
 
