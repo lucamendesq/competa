@@ -34,7 +34,7 @@ function ConnectCard({
   return (
     <Card className="border border-border shadow-sm rounded-xl">
       <CardHeader>
-        <CardTitle className="flex items-center gap-2 font-display">
+        <CardTitle level={2} className="flex items-center gap-2 font-display">
           <MessageSquare className="h-5 w-5 text-primary" aria-hidden="true" />
           Integrar WhatsApp
         </CardTitle>
@@ -80,7 +80,7 @@ function ConnectionCard({
   return (
     <Card className="border border-border shadow-sm rounded-xl">
       <CardHeader>
-        <CardTitle className="flex items-center gap-2 font-display">
+        <CardTitle level={2} className="flex items-center gap-2 font-display">
           {connection.status === 'active' ? (
             <CheckCircle2 className="h-5 w-5 text-emerald-600" aria-hidden="true" />
           ) : (

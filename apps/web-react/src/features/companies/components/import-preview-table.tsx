@@ -14,7 +14,7 @@ type DisplayLine = ImportPreviewLine | ImportLine;
 function ResultBadge({ line }: { line: DisplayLine }) {
   if (line.status === 'created') {
     return (
-      <span className="inline-flex items-center gap-1.5 rounded-full border border-success-border bg-success-surface px-2.5 py-0.5 text-xs font-semibold text-success">
+      <span className="inline-flex items-center gap-1.5 rounded-full border border-success-border bg-success-surface px-2.5 py-0.5 text-xs font-semibold text-success-foreground">
         <CircleCheck className="h-3.5 w-3.5" aria-hidden="true" /> Importada
       </span>
     );
@@ -27,7 +27,7 @@ function ResultBadge({ line }: { line: DisplayLine }) {
     );
   }
   return (
-    <span className="inline-flex items-center gap-1.5 rounded-full border border-danger-border bg-danger-surface px-2.5 py-0.5 text-xs font-semibold text-danger">
+    <span className="inline-flex items-center gap-1.5 rounded-full border border-danger-border bg-danger-surface px-2.5 py-0.5 text-xs font-semibold text-danger-foreground">
       <CircleAlert className="h-3.5 w-3.5" aria-hidden="true" /> Erro
     </span>
   );

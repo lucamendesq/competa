@@ -54,7 +54,7 @@ export function SubscriptionCard({ billing, usage, simulatedCheckout }: Subscrip
   return (
     <Card className="border border-border shadow-sm rounded-xl">
       <CardHeader>
-        <CardTitle className="flex items-center gap-2 font-display">
+        <CardTitle level={2} className="flex items-center gap-2 font-display">
           <CreditCard className="h-5 w-5 text-primary" aria-hidden="true" />
           Assinatura Atual
         </CardTitle>

@@ -32,7 +32,9 @@ export function TestMessageForm() {
   return (
     <Card className="border border-border shadow-sm rounded-xl">
       <CardHeader>
-        <CardTitle className="font-display">Disparo de Teste</CardTitle>
+        <CardTitle level={2} className="font-display">
+          Disparo de Teste
+        </CardTitle>
         <CardDescription>
           Envie uma mensagem para validar se sua integração está funcionando.
         </CardDescription>

@@ -14,7 +14,10 @@ type AuthShellProps = {
 export function AuthShell({ headline, summary, benefits, children }: AuthShellProps) {
   return (
     <div className="bg-background min-h-dvh lg:grid lg:grid-cols-2">
-      <section className="bg-[#0F172A] text-white hidden flex-col justify-center p-12 lg:flex">
+      <aside
+        aria-label="Sobre o Competa"
+        className="bg-[#0F172A] text-white hidden flex-col justify-center p-12 lg:flex"
+      >
         <Logo surface="dark" className="h-10 text-white" />
         <p className="font-display mt-6 max-w-md text-3xl font-semibold tracking-tight">
           {headline}
@@ -36,7 +39,7 @@ export function AuthShell({ headline, summary, benefits, children }: AuthShellPr
             </li>
           ))}
         </ul>
-      </section>
+      </aside>
 
       <main className="flex min-h-dvh items-center justify-center p-4 sm:p-8">
         <div className="bg-card border-border w-full max-w-md rounded-xl border p-6 shadow-sm sm:p-8">

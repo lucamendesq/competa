@@ -77,7 +77,7 @@ export function PanelLayout({
         Pular para o conteúdo
       </a>
 
-      <div className="bg-white border-b border-border text-slate-900 sticky top-0 z-40 flex h-14 items-center gap-3 px-4 lg:hidden">
+      <header className="bg-white border-b border-border text-slate-900 sticky top-0 z-40 flex h-14 items-center gap-3 px-4 lg:hidden">
         <button
           type="button"
           className={cn(
@@ -97,7 +97,7 @@ export function PanelLayout({
         </button>
         <div className="h-4 w-px bg-border" aria-hidden="true" />
         <p className="truncate text-sm font-semibold text-slate-900">{firmLabel}</p>
-      </div>
+      </header>
 
       {menuOpen ? (
         <button

@@ -27,11 +27,21 @@ export function CardHeader({ className, ...props }: ComponentProps<'div'>) {
   );
 }
 
-export function CardTitle({ className, children, ...props }: ComponentProps<'h3'>) {
+export function CardTitle({
+  className,
+  children,
+  level = 3,
+  ...props
+}: ComponentProps<'h3'> & { level?: 2 | 3 }) {
+  const Heading = level === 2 ? 'h2' : 'h3';
   return (
-    <h3 data-slot="card-title" className={cn('leading-none font-semibold', className)} {...props}>
+    <Heading
+      data-slot="card-title"
+      className={cn('leading-none font-semibold', className)}
+      {...props}
+    >
       {children}
-    </h3>
+    </Heading>
   );
 }
 

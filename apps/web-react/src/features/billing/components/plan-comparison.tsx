@@ -47,7 +47,14 @@ export function PlanComparison({
         <h3 className="font-display text-base font-semibold text-foreground">
           O que muda entre os planos
         </h3>
-        <div className="border-border mt-3 overflow-x-auto rounded-xl border">
+        <div
+          className="border-border mt-3 overflow-x-auto rounded-xl border focus-visible:ring-2 focus-visible:ring-ring focus-visible:outline-none"
+          role="region"
+          aria-label="Comparativo dos planos"
+          // Região rolável precisa de foco pelo teclado (WCAG 2.1.1, regra do axe); o jsx-a11y não conhece o caso.
+          // eslint-disable-next-line jsx-a11y/no-noninteractive-tabindex
+          tabIndex={0}
+        >
           <table className="w-full min-w-[560px] text-left text-sm">
             <caption className="sr-only">
               Comparativo dos planos Essencial, Profissional e Escritório
@@ -55,7 +62,7 @@ export function PlanComparison({
             <thead>
               <tr className="border-border bg-muted/40 border-b">
                 <th scope="col" className="text-foreground px-4 py-3 font-semibold">
-                  &nbsp;
+                  <span className="sr-only">Recurso</span>
                 </th>
                 {PAID_PLANS.map((plan) => (
                   <th

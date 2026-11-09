@@ -1,0 +1,478 @@
+[
+  {
+    "who": "guest",
+    "route": "/entrar",
+    "viewport": "desktop",
+    "h1": 1,
+    "violations": []
+  },
+  {
+    "who": "guest",
+    "route": "/entrar",
+    "viewport": "mobile",
+    "h1": 1,
+    "violations": []
+  },
+  {
+    "who": "guest",
+    "route": "/cadastro",
+    "viewport": "desktop",
+    "h1": 1,
+    "violations": []
+  },
+  {
+    "who": "guest",
+    "route": "/cadastro",
+    "viewport": "mobile",
+    "h1": 1,
+    "violations": []
+  },
+  {
+    "who": "guest",
+    "route": "/esqueci-senha",
+    "viewport": "desktop",
+    "h1": 1,
+    "violations": []
+  },
+  {
+    "who": "guest",
+    "route": "/esqueci-senha",
+    "viewport": "mobile",
+    "h1": 1,
+    "violations": []
+  },
+  {
+    "who": "guest",
+    "route": "/redefinir-senha?token=x",
+    "viewport": "desktop",
+    "h1": 1,
+    "violations": []
+  },
+  {
+    "who": "guest",
+    "route": "/redefinir-senha?token=x",
+    "viewport": "mobile",
+    "h1": 1,
+    "violations": []
+  },
+  {
+    "who": "guest",
+    "route": "/convite/x",
+    "viewport": "desktop",
+    "h1": 1,
+    "violations": []
+  },
+  {
+    "who": "guest",
+    "route": "/convite/x",
+    "viewport": "mobile",
+    "h1": 1,
+    "violations": []
+  },
+  {
+    "who": "guest",
+    "route": "/termos",
+    "viewport": "desktop",
+    "h1": 1,
+    "violations": []
+  },
+  {
+    "who": "guest",
+    "route": "/termos",
+    "viewport": "mobile",
+    "h1": 1,
+    "violations": []
+  },
+  {
+    "who": "guest",
+    "route": "/privacidade",
+    "viewport": "desktop",
+    "h1": 1,
+    "violations": []
+  },
+  {
+    "who": "guest",
+    "route": "/privacidade",
+    "viewport": "mobile",
+    "h1": 1,
+    "violations": []
+  },
+  {
+    "who": "guest",
+    "route": "/minha-area/acesso",
+    "viewport": "desktop",
+    "h1": 1,
+    "violations": []
+  },
+  {
+    "who": "guest",
+    "route": "/minha-area/acesso",
+    "viewport": "mobile",
+    "h1": 1,
+    "violations": []
+  },
+  {
+    "who": "guest",
+    "route": "/perdi-meu-link",
+    "viewport": "desktop",
+    "h1": 1,
+    "violations": []
+  },
+  {
+    "who": "guest",
+    "route": "/perdi-meu-link",
+    "viewport": "mobile",
+    "h1": 1,
+    "violations": []
+  },
+  {
+    "who": "guest",
+    "route": "/perdi-meu-link/confirmar?token=x",
+    "viewport": "desktop",
+    "h1": 1,
+    "violations": []
+  },
+  {
+    "who": "guest",
+    "route": "/perdi-meu-link/confirmar?token=x",
+    "viewport": "mobile",
+    "h1": 1,
+    "violations": []
+  },
+  {
+    "who": "guest",
+    "route": "/envio/L1wwK25DbWzfcuP9ktpXxKX2QqpXq6pqPkEoIQ7ktzA",
+    "viewport": "desktop",
+    "h1": 1,
+    "violations": []
+  },
+  {
+    "who": "guest",
+    "route": "/envio/L1wwK25DbWzfcuP9ktpXxKX2QqpXq6pqPkEoIQ7ktzA",
+    "viewport": "mobile",
+    "h1": 1,
+    "violations": []
+  },
+  {
+    "who": "guest",
+    "route": "/envio/token-invalido",
+    "viewport": "desktop",
+    "h1": 1,
+    "violations": []
+  },
+  {
+    "who": "guest",
+    "route": "/envio/token-invalido",
+    "viewport": "mobile",
+    "h1": 1,
+    "violations": []
+  },
+  {
+    "who": "guest",
+    "route": "/rota-que-nao-existe",
+    "viewport": "desktop",
+    "h1": 1,
+    "violations": []
+  },
+  {
+    "who": "guest",
+    "route": "/rota-que-nao-existe",
+    "viewport": "mobile",
+    "h1": 1,
+    "violations": []
+  },
+  {
+    "who": "owner",
+    "route": "/competencias",
+    "viewport": "desktop",
+    "h1": 1,
+    "violations": []
+  },
+  {
+    "who": "owner",
+    "route": "/competencias",
+    "viewport": "mobile",
+    "h1": 1,
+    "violations": []
+  },
+  {
+    "who": "owner",
+    "route": "/competencias/01a1b4db-5edb-7649-9dff-20bd62a38025/pendencias",
+    "viewport": "desktop",
+    "h1": 1,
+    "violations": []
+  },
+  {
+    "who": "owner",
+    "route": "/competencias/01a1b4db-5edb-7649-9dff-20bd62a38025/pendencias",
+    "viewport": "mobile",
+    "h1": 1,
+    "violations": []
+  },
+  {
+    "who": "owner",
+    "route": "/solicitacoes/01a1b4db-5edc-7179-8e55-d9905c3fc7ab",
+    "viewport": "desktop",
+    "h1": 1,
+    "violations": []
+  },
+  {
+    "who": "owner",
+    "route": "/solicitacoes/01a1b4db-5edc-7179-8e55-d9905c3fc7ab",
+    "viewport": "mobile",
+    "h1": 1,
+    "violations": []
+  },
+  {
+    "who": "owner",
+    "route": "/empresas",
+    "viewport": "desktop",
+    "h1": 1,
+    "violations": []
+  },
+  {
+    "who": "owner",
+    "route": "/empresas",
+    "viewport": "mobile",
+    "h1": 1,
+    "violations": []
+  },
+  {
+    "who": "owner",
+    "route": "/empresas/nova",
+    "viewport": "desktop",
+    "h1": 1,
+    "violations": []
+  },
+  {
+    "who": "owner",
+    "route": "/empresas/nova",
+    "viewport": "mobile",
+    "h1": 1,
+    "violations": []
+  },
+  {
+    "who": "owner",
+    "route": "/empresas/01a1b4db-493c-75cf-89c7-04e9d46f4a4b/editar",
+    "viewport": "desktop",
+    "h1": 1,
+    "violations": []
+  },
+  {
+    "who": "owner",
+    "route": "/empresas/01a1b4db-493c-75cf-89c7-04e9d46f4a4b/editar",
+    "viewport": "mobile",
+    "h1": 1,
+    "violations": []
+  },
+  {
+    "who": "owner",
+    "route": "/empresas/01a1b4db-493c-75cf-89c7-04e9d46f4a4b/checklist",
+    "viewport": "desktop",
+    "h1": 1,
+    "violations": []
+  },
+  {
+    "who": "owner",
+    "route": "/empresas/01a1b4db-493c-75cf-89c7-04e9d46f4a4b/checklist",
+    "viewport": "mobile",
+    "h1": 1,
+    "violations": []
+  },
+  {
+    "who": "owner",
+    "route": "/empresas/importar",
+    "viewport": "desktop",
+    "h1": 1,
+    "violations": []
+  },
+  {
+    "who": "owner",
+    "route": "/empresas/importar",
+    "viewport": "mobile",
+    "h1": 1,
+    "violations": []
+  },
+  {
+    "who": "owner",
+    "route": "/templates",
+    "viewport": "desktop",
+    "h1": 1,
+    "violations": []
+  },
+  {
+    "who": "owner",
+    "route": "/templates",
+    "viewport": "mobile",
+    "h1": 1,
+    "violations": []
+  },
+  {
+    "who": "owner",
+    "route": "/templates/01a06884-975a-7e02-a389-b50449a5afe3",
+    "viewport": "desktop",
+    "h1": 1,
+    "violations": []
+  },
+  {
+    "who": "owner",
+    "route": "/templates/01a06884-975a-7e02-a389-b50449a5afe3",
+    "viewport": "mobile",
+    "h1": 1,
+    "violations": []
+  },
+  {
+    "who": "owner",
+    "route": "/templates/01a1b4db-4972-70cd-8bbc-b4f33f4ecfe5",
+    "viewport": "desktop",
+    "h1": 1,
+    "violations": []
+  },
+  {
+    "who": "owner",
+    "route": "/templates/01a1b4db-4972-70cd-8bbc-b4f33f4ecfe5",
+    "viewport": "mobile",
+    "h1": 1,
+    "violations": []
+  },
+  {
+    "who": "owner",
+    "route": "/mensagens",
+    "viewport": "desktop",
+    "h1": 1,
+    "violations": []
+  },
+  {
+    "who": "owner",
+    "route": "/mensagens",
+    "viewport": "mobile",
+    "h1": 1,
+    "violations": []
+  },
+  {
+    "who": "owner",
+    "route": "/configuracoes/contabilidade",
+    "viewport": "desktop",
+    "h1": 1,
+    "violations": []
+  },
+  {
+    "who": "owner",
+    "route": "/configuracoes/contabilidade",
+    "viewport": "mobile",
+    "h1": 1,
+    "violations": []
+  },
+  {
+    "who": "owner",
+    "route": "/configuracoes/contadores",
+    "viewport": "desktop",
+    "h1": 1,
+    "violations": []
+  },
+  {
+    "who": "owner",
+    "route": "/configuracoes/contadores",
+    "viewport": "mobile",
+    "h1": 1,
+    "violations": []
+  },
+  {
+    "who": "owner",
+    "route": "/configuracoes/whatsapp",
+    "viewport": "desktop",
+    "h1": 1,
+    "violations": []
+  },
+  {
+    "who": "owner",
+    "route": "/configuracoes/whatsapp",
+    "viewport": "mobile",
+    "h1": 1,
+    "violations": []
+  },
+  {
+    "who": "owner",
+    "route": "/configuracoes/plano",
+    "viewport": "desktop",
+    "h1": 1,
+    "violations": []
+  },
+  {
+    "who": "owner",
+    "route": "/configuracoes/plano",
+    "viewport": "mobile",
+    "h1": 1,
+    "violations": []
+  },
+  {
+    "who": "member",
+    "route": "/configuracoes/contabilidade",
+    "viewport": "desktop",
+    "h1": 1,
+    "violations": []
+  },
+  {
+    "who": "member",
+    "route": "/configuracoes/contabilidade",
+    "viewport": "mobile",
+    "h1": 1,
+    "violations": []
+  },
+  {
+    "who": "member",
+    "route": "/configuracoes/plano",
+    "viewport": "desktop",
+    "h1": 1,
+    "violations": []
+  },
+  {
+    "who": "member",
+    "route": "/configuracoes/plano",
+    "viewport": "mobile",
+    "h1": 1,
+    "violations": []
+  },
+  {
+    "who": "contact",
+    "route": "/minha-area/pendencias",
+    "viewport": "desktop",
+    "h1": 1,
+    "violations": []
+  },
+  {
+    "who": "contact",
+    "route": "/minha-area/pendencias",
+    "viewport": "mobile",
+    "h1": 1,
+    "violations": []
+  },
+  {
+    "who": "contact",
+    "route": "/minha-area/competencias",
+    "viewport": "desktop",
+    "h1": 1,
+    "violations": []
+  },
+  {
+    "who": "contact",
+    "route": "/minha-area/competencias",
+    "viewport": "mobile",
+    "h1": 1,
+    "violations": []
+  },
+  {
+    "who": "contact",
+    "route": "/minha-area/definir-senha",
+    "viewport": "desktop",
+    "h1": 1,
+    "violations": []
+  },
+  {
+    "who": "contact",
+    "route": "/minha-area/definir-senha",
+    "viewport": "mobile",
+    "h1": 1,
+    "violations": []
+  }
+]
