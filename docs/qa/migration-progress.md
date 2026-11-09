@@ -693,3 +693,15 @@ Um bloco por ticket, na ordem em que foram executados. Plano: [`docs/react-migra
 - **Observação:** o `theme_color` do manifest é `#2563EB` (azul, herdado do Vue); não mudei por não estar no escopo.
 - **Linear:** fica em **Todo** com o comentário "aguardando humano" (o time não tem estado Blocked).
 - **Tempo:** ~25 min.
+
+---
+
+## M10.4 · COM-357 · Orçamento de performance
+
+- **Data:** 2026-11-09
+- **Branch:** `feat/COM-357-performance` (a partir de `feat/COM-351-pwa-production`)
+- **O que foi feito:** medição do bundle e Lighthouse, e um corte no inicial: `features/auth/index.ts` exporta `authPages` (carregadores com `import()` dinâmico) em vez dos componentes das telas; `routes.tsx` usa esses carregadores e os nove arquivos `app/routes/*` de auth saíram. O inicial caiu de 730 kB / 228 kB gzip para 633 kB / 198 kB gzip (Vue: 332 kB / 109 kB). 79 chunks; `xlsx` só na importação. Lighthouse mobile (build de produção): `/entrar` 100/100, `/envio/:token` 90/100, `/competencias` 91/100 (performance / acessibilidade). Tabela em `docs/frontend-status.md`.
+- **Decisões:** a meta de ficar igual ou abaixo do Vue não foi atingida e está registrada com o porquê (runtime do React, router em modo data, zod no parse da sessão) e o próximo passo possível. Nenhum `memo`/`useMemo`/`useCallback` no código. O teste do `ContactShell` que semeava `['contact-area','pending']` com dado falso passou a usar uma key que nenhuma tela na rota observa (com as telas em chunks próprios, a página de pendências chegava a renderizar o dado falso).
+- **Testes:** 267 testes no pacote.
+- **Ficou de fora:** cortar o zod/modo data do router (anotado como próximo passo).
+- **Tempo:** ~50 min.

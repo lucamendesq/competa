@@ -67,11 +67,11 @@ describe('ContactShell', () => {
     const { router, queryClient } = setup();
     const user = userEvent.setup();
     await screen.findByText('Mercado Bom Preço');
-    queryClient.setQueryData(['contact-area', 'pending'], [{ cached: true }]);
+    queryClient.setQueryData(['contact-area', 'periods', 1], [{ cached: true }]);
 
     await user.click(screen.getByRole('button', { name: 'Sair' }));
 
     await waitFor(() => expect(router.state.location.pathname).toBe('/minha-area/acesso'));
-    expect(queryClient.getQueryData(['contact-area', 'pending'])).toBeUndefined();
+    expect(queryClient.getQueryData(['contact-area', 'periods', 1])).toBeUndefined();
   });
 });

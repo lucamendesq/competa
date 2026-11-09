@@ -21,12 +21,42 @@ export {
   useSignOut,
   useSignUpWithInvite,
 } from '@/features/auth/queries/use-auth-mutations';
-export { LoginPage } from '@/features/auth/components/login-page';
-export { RegisterPage } from '@/features/auth/components/register-page';
-export { ForgotPasswordPage } from '@/features/auth/components/forgot-password-page';
-export { ResetPasswordPage } from '@/features/auth/components/reset-password-page';
-export { InvitePage } from '@/features/auth/components/invite-page';
-export { ContactSignInPage } from '@/features/auth/components/contact-sign-in-page';
-export { ContactSetPasswordPage } from '@/features/auth/components/contact-set-password-page';
-export { RecoverLinkPage } from '@/features/auth/components/recover-link-page';
-export { RecoverLinkConfirmPage } from '@/features/auth/components/recover-link-confirm-page';
+
+export const authPages = {
+  login: () =>
+    import('@/features/auth/components/login-page').then((module) => ({
+      Component: module.LoginPage,
+    })),
+  register: () =>
+    import('@/features/auth/components/register-page').then((module) => ({
+      Component: module.RegisterPage,
+    })),
+  forgotPassword: () =>
+    import('@/features/auth/components/forgot-password-page').then((module) => ({
+      Component: module.ForgotPasswordPage,
+    })),
+  resetPassword: () =>
+    import('@/features/auth/components/reset-password-page').then((module) => ({
+      Component: module.ResetPasswordPage,
+    })),
+  invite: () =>
+    import('@/features/auth/components/invite-page').then((module) => ({
+      Component: module.InvitePage,
+    })),
+  contactSignIn: () =>
+    import('@/features/auth/components/contact-sign-in-page').then((module) => ({
+      Component: module.ContactSignInPage,
+    })),
+  contactSetPassword: () =>
+    import('@/features/auth/components/contact-set-password-page').then((module) => ({
+      Component: module.ContactSetPasswordPage,
+    })),
+  recoverLink: () =>
+    import('@/features/auth/components/recover-link-page').then((module) => ({
+      Component: module.RecoverLinkPage,
+    })),
+  recoverLinkConfirm: () =>
+    import('@/features/auth/components/recover-link-confirm-page').then((module) => ({
+      Component: module.RecoverLinkConfirmPage,
+    })),
+};

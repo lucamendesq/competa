@@ -1,4 +1,5 @@
 import { Navigate, type RouteObject } from 'react-router';
+import { authPages } from '@/features/auth';
 import { GuestOnly, RequireAccountant, RequireContact } from '@/app/router/guards';
 import { ContactShell, contactShellLoader } from '@/app/router/contact-shell';
 import { PanelShell } from '@/app/router/panel-shell';
@@ -43,21 +44,21 @@ export const routes: RouteObject[] = [
           area: 'public',
         }),
         page('/envio/:linkToken', () => import('@/app/routes/upload'), { area: 'public' }),
-        page('/convite/:linkToken', () => import('@/app/routes/invite'), { area: 'public' }),
-        page('/perdi-meu-link/confirmar', () => import('@/app/routes/recover-link-confirm'), {
+        page('/convite/:linkToken', authPages.invite, { area: 'public' }),
+        page('/perdi-meu-link/confirmar', authPages.recoverLinkConfirm, {
           area: 'public',
         }),
-        page('/redefinir-senha', () => import('@/app/routes/reset-password'), { area: 'public' }),
+        page('/redefinir-senha', authPages.resetPassword, { area: 'public' }),
         { path: '/criar-conta', element: <Navigate to="/cadastro" replace /> },
         {
           element: <GuestOnly />,
           children: [
-            page('/perdi-meu-link', () => import('@/app/routes/recover-link'), { area: 'public' }),
-            page('/esqueci-senha', () => import('@/app/routes/forgot-password'), {
+            page('/perdi-meu-link', authPages.recoverLink, { area: 'public' }),
+            page('/esqueci-senha', authPages.forgotPassword, {
               area: 'public',
             }),
-            page('/entrar', () => import('@/app/routes/login'), { area: 'public' }),
-            page('/cadastro', () => import('@/app/routes/register'), {
+            page('/entrar', authPages.login, { area: 'public' }),
+            page('/cadastro', authPages.register, {
               title: 'Criar conta',
               area: 'public',
             }),
@@ -72,11 +73,9 @@ export const routes: RouteObject[] = [
             { index: true, element: <Navigate to="/minha-area/pendencias" replace /> },
             {
               element: <GuestOnly />,
-              children: [
-                page('acesso', () => import('@/app/routes/contact-sign-in'), { area: 'public' }),
-              ],
+              children: [page('acesso', authPages.contactSignIn, { area: 'public' })],
             },
-            page('definir-senha', () => import('@/app/routes/contact-set-password'), {
+            page('definir-senha', authPages.contactSetPassword, {
               area: 'public',
             }),
             {

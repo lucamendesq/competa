@@ -207,6 +207,30 @@ iOS (`showIosHintOf` em `shared/pwa`) só aparece fora do modo standalone.
 Falta conferir em aparelho (humano): instalação no Chrome Android e desktop, push real de
 staging chegando e abrindo a URL, dica do iOS no Safari sumindo depois de instalar.
 
+## Performance (React, M10.4)
+
+Medido em 2026-11-09 com `vite build` (tamanhos do Vite, gzip) e Lighthouse 13.6 (mobile, build
+de produção servido por `vite preview` contra a API local).
+
+| Métrica                            | Vue (`apps/web`)         | React antes          | React depois                                                       |
+| ---------------------------------- | ------------------------ | -------------------- | ------------------------------------------------------------------ |
+| JS inicial (`index-*.js`)          | 332 kB / **109 kB gzip** | 730 kB / 228 kB gzip | 633 kB / **198 kB gzip**                                           |
+| Chunks JS                          | —                        | —                    | 79 (uma rota = um chunk; `xlsx` 500 kB só em `/empresas/importar`) |
+| Lighthouse `/entrar` (perf / a11y) | —                        | —                    | **100 / 100** (LCP 0,9 s)                                          |
+| Lighthouse `/envio/:token`         | —                        | —                    | **90 / 100** (LCP 3,7 s)                                           |
+| Lighthouse `/competencias`         | —                        | —                    | **91 / 100** (LCP 3,4 s)                                           |
+
+- O ganho veio de tirar as telas de `features/auth` do bundle inicial: o `index.ts` da feature
+  passou a exportar carregadores (`authPages.*`, `import()` dinâmico) em vez dos componentes; antes,
+  como o `SessionProvider` importa o `index.ts`, todas as telas de auth e o react-hook-form iam
+  juntos no inicial.
+- A meta "igual ou menor que o Vue" **não foi atingida**: o que sobra no inicial é runtime
+  (react-dom ≈ 45 kB gzip, react-router em modo data, TanStack Query, zod — usado no parse da
+  sessão —, tailwind-merge, better-auth e o `Toaster`). Próximo passo possível, se valer: tirar o
+  zod do caminho de boot (parse da sessão sem schema) e trocar o modo data do router.
+- Nenhum `memo(`, `useMemo(` ou `useCallback(` no código: o React Compiler cobre a memoização e
+  nenhuma medição pediu exceção.
+
 ## Novo Design System (Outubro/2026)
 
 - **Paleta Canônica:** Noite Azulada (`#0F172A`) & Âmbar Solar (`#D97706` / `#B45309`) sobre Canvas claro e arejado (`#FAFAFA`) e superfícies puras (`#FFFFFF`).
