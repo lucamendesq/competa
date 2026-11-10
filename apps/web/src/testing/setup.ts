@@ -3,7 +3,8 @@ import { cleanup, configure } from '@testing-library/react';
 import { afterAll, afterEach, beforeAll } from 'vitest';
 import { server } from '@/testing/mocks/server';
 
-configure({ asyncUtilTimeout: 3000 });
+// Mesmo motivo do `testTimeout`: o primeiro `findBy` espera a tela lazy carregar.
+configure({ asyncUtilTimeout: 10_000 });
 
 const readBlob = <T extends string | ArrayBuffer>(blob: Blob, as: 'text' | 'buffer') =>
   new Promise<T>((resolve, reject) => {

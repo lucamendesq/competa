@@ -12,6 +12,9 @@ export default defineConfig({
   test: {
     environment: 'jsdom',
     setupFiles: ['./src/testing/setup.ts'],
+    /* As specs de página montam as rotas reais, e o `import()` da tela é transformado dentro
+     * do relógio do teste. Com um worker por arquivo disputando CPU, 5 s não bastam no CI. */
+    testTimeout: 30_000,
     env: {
       VITE_API_URL: 'http://api.test',
       VITE_AUTH_URL: 'http://api.test/api/auth',
