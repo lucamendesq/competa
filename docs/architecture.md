@@ -6,10 +6,10 @@
 
 **Monorepo pnpm workspaces** com dois apps:
 
-- **`apps/web`** — **Angular SPA (CSR, sem SSR)** servindo o painel do Contador e a página pública de upload. Consome a API por HTTP (services por recurso, interceptor com `withCredentials`).
+- **`apps/web`** — **SPA React 19 (Vite, CSR, sem SSR)** servindo o painel do Contador, a página pública de upload e a área do Responsável. Consome a API por HTTP (`shared/lib/api-client.ts` com `credentials: 'include'`; uma pasta `api/` por feature). Padrão normativo em [`react-standards.md`](./react-standards.md).
 - **`apps/api`** — **NestJS com TODO o backend**: REST em **feature modules** (companies, checklists, periods, requests, messaging), **Better Auth** montado na própria API, Postgres via Drizzle (provider no DI), documentos em Cloudflare R2 (upload direto por URL pré-assinada), **eventos síncronos entre módulos via `@nestjs/event-emitter`**, cron de lembretes via `@nestjs/schedule` e zip por streaming.
 
-**`libs/contracts`** carrega os schemas zod compartilhados — os Typed Reactive Forms do Angular validam com o mesmo schema do pipe da API. App mobile futuro (`apps/mobile`) consome a mesma API — framework em aberto (React Native vs Flutter).
+**`libs/contracts`** carrega os schemas zod compartilhados — os formulários do web (React Hook Form + `zodResolver`) validam com o mesmo schema da API. App mobile futuro (`apps/mobile`) consome a mesma API — framework em aberto (React Native vs Flutter).
 
 Nada no produto exige SSR (painel autenticado; upload por token, sem SEO). **"Sem SSR" ≠ "sem servidor"**: token, URLs pré-assinadas, fan-out e mensageria vivem no Nest.
 
@@ -19,7 +19,7 @@ Controle de acesso por **um guard global** (`TenantGuard`), não por dois guards
 
 ```
 apps/
-  web/          # Angular SPA — SÓ frontend (painel + página pública de upload)
+  web/          # React 19 SPA — SÓ frontend (painel, página pública de upload, área do Responsável)
   api/          # NestJS — TODO o backend (REST, auth, eventos, cron, zip, webhooks)
   mobile/       # futuro — framework a decidir (RN vs Flutter); consome a MESMA API
 libs/
@@ -28,30 +28,30 @@ libs/
 
 **Sem CQRS, sem microservices** — só `@Module` + event-emitter síncrono.
 
-### apps/web (Angular)
+### apps/web (React 19)
 
 ```
-src/app/
-  core/                # singletons: Api (HttpClient base), interceptor withCredentials,
-                       #   AuthService, guards de rota (UX de redirect), Toaster
-  shared/              # reutilizáveis: format, upload, push.service, modal, status-pill…
-  ui/                  # Spartan UI (vendorizado — não é código nosso)
-  layouts/
-    panel-layout       # casca do painel do Contador
-    contact-layout     # casca da área do Responsável (PWA, mobile-first)
+src/
+  app/                 # router (React Router 7, rotas lazy), guards, shells (painel e Minha Área),
+                       #   providers (TanStack Query, sessão, Toaster), uma rota = um módulo
+  shared/              # sem domínio: components (ui/ = shadcn), lib (api-client, format, cn),
+                       #   session, pwa (instalação, push), upload (useUpload, PUT no storage)
   features/
-    auth/              # login, convite, "perdi meu link"
-    companies/         # Empresas: lista, cadastro, importação, overrides
+    auth/              # entrar, cadastro, senha, convite, Minha Área (acesso), "perdi meu link"
+    catalog/           # tipos de documento e templates como opções (a única feature importável)
+    companies/         # Empresas: lista, cadastro, checklist por Empresa, importação
     checklists/        # templates do produto e derivados
-    periods/           # abrir competência, Painel de Pendências
-    requests/          # revisão em lote
+    periods/           # competências, Painel de Pendências, revisão da Solicitação
     messages/          # log de entrega
-    settings/          # Contabilidade · Contadores · Lembretes · Canais
-    upload/            # página pública por token (multi-arquivo/zip, progresso)
+    firm/ team/ whatsapp/ billing/   # Configurações
+    upload/            # página pública por token
     contact-area/      # área logada do Responsável
-  app.routes.ts        # lazy loading por feature
-  app.config.ts
+  testing/             # MSW, factories, test-utils e os fluxos críticos
 ```
+
+Estado do servidor só no TanStack Query (key factory por feature); formulários com React Hook
+Form + `zodResolver` sobre `libs/contracts`; imports na direção `shared → features → app`
+(garantido pelo `eslint-plugin-boundaries`).
 
 **Pastas e identificadores em inglês; as URLs e todo o texto de tela em PT-BR.** A rota
 pública continua sendo `/envio/:token` e o painel `/empresas`, `/competencias` — o usuário
@@ -82,23 +82,23 @@ src/
 
 ## Componentes Principais
 
-| Componente                 | Responsabilidade                                                                             | Tecnologia                                                                           |
-| -------------------------- | -------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------ |
-| apps/web — features/panel  | Painel do Contador: cadastro, templates/overrides, competências, revisão em lote, pendências | Angular (standalone components, signals, Typed Reactive Forms) + Tailwind/Spartan UI |
-| apps/web — features/upload | Página pública de upload (token, multi-arquivo/zip, direto ao R2)                            | Angular (rota pública, lazy) + Tailwind mobile-first                                 |
-| apps/api — modules/*       | Feature modules: controller → repository (FirmScope). Duas camadas, sem use case             | NestJS + Drizzle                                                                     |
-| apps/api — modules/auth    | TenantGuard (guard global único) + UploadTokenGuard                                          | Better Auth (adapter Drizzle)                                                        |
-| apps/api — eventos         | `PeriodOpened`, `RequestCreated`, `ItemReopened`… entre módulos                              | `@nestjs/event-emitter` (síncrono)                                                   |
-| apps/api — messaging       | Providers email/WhatsApp/push (1 interface) + `reminders.cron.ts`                            | `@nestjs/schedule`, ACL por provedor                                                 |
-| libs/contracts             | Schemas zod por recurso, compartilhados web ↔ api (↔ mobile)                                 | zod                                                                                  |
-| apps/mobile (futuro)       | App do Responsável: push + upload pela mesma API                                             | {a decidir: React Native vs Flutter}                                                 |
-| Banco                      | Persistência multi-tenant (FirmScope na aplicação)                                           | Postgres + Drizzle (Supabase)                                                        |
-| Storage                    | Documentos e zips (egress grátis)                                                            | Cloudflare R2 (S3-compatible)                                                        |
+| Componente                 | Responsabilidade                                                                             | Tecnologia                                                    |
+| -------------------------- | -------------------------------------------------------------------------------------------- | ------------------------------------------------------------- |
+| apps/web — painel          | Painel do Contador: cadastro, templates/overrides, competências, revisão em lote, pendências | React 19 + TanStack Query + React Hook Form + Tailwind/shadcn |
+| apps/web — features/upload | Página pública de upload (token, multi-arquivo/zip, direto ao R2)                            | React (rota pública, lazy) + Tailwind mobile-first            |
+| apps/api — modules/*       | Feature modules: controller → repository (FirmScope). Duas camadas, sem use case             | NestJS + Drizzle                                              |
+| apps/api — modules/auth    | TenantGuard (guard global único) + UploadTokenGuard                                          | Better Auth (adapter Drizzle)                                 |
+| apps/api — eventos         | `PeriodOpened`, `RequestCreated`, `ItemReopened`… entre módulos                              | `@nestjs/event-emitter` (síncrono)                            |
+| apps/api — messaging       | Providers email/WhatsApp/push (1 interface) + `reminders.cron.ts`                            | `@nestjs/schedule`, ACL por provedor                          |
+| libs/contracts             | Schemas zod por recurso, compartilhados web ↔ api (↔ mobile)                                 | zod                                                           |
+| apps/mobile (futuro)       | App do Responsável: push + upload pela mesma API                                             | {a decidir: React Native vs Flutter}                          |
+| Banco                      | Persistência multi-tenant (FirmScope na aplicação)                                           | Postgres + Drizzle (Supabase)                                 |
+| Storage                    | Documentos e zips (egress grátis)                                                            | Cloudflare R2 (S3-compatible)                                 |
 
 ## Diagrama de Contexto
 
 ```
-[Contador] ──► apps/web (Angular SPA, painel) ──┐
+[Contador] ──► apps/web (React SPA, painel) ────┐
 [Responsável] ─► apps/web (features/upload) ─────┤  HTTP/JSON (cookies; CORS restrito)
 [Responsável] ─► apps/mobile (futuro, RN|Flutter)┤  contratos: libs/contracts (zod)
                                                  ▼

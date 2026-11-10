@@ -138,6 +138,27 @@ const COLOR_PAIRS: ColorPair[] = [
     minRatio: 4.5,
     type: 'text',
   },
+  {
+    name: 'Texto Primário (#A84B08) sobre Âmbar 10% no Canvas (#F3E9E2)',
+    fg: '#A84B08',
+    bg: '#F3E9E2',
+    minRatio: 4.5,
+    type: 'text',
+  },
+  {
+    name: 'Texto Secundário (#5F6E82) sobre Muted (#F1F5F9)',
+    fg: '#5F6E82',
+    bg: '#F1F5F9',
+    minRatio: 4.5,
+    type: 'text',
+  },
+  {
+    name: 'Texto Sucesso (#065F46) sobre Superfície Sucesso (#ECFDF5)',
+    fg: '#065F46',
+    bg: '#ECFDF5',
+    minRatio: 4.5,
+    type: 'text',
+  },
 ];
 
 let failed = false;

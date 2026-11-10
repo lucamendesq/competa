@@ -14,19 +14,21 @@ Contexto completo: [`docs/product.md`](./docs/product.md).
 
 - **Menos código é melhor.** YAGNI. A solução mais simples que funciona vence. Não abstraia por antecipação, não crie interface com uma implementação, não adicione dependência para o que cabe em poucas linhas.
 - **Fatias verticais finas.** Cada mudança entrega algo demonstrável rodando localmente (ver [`docs/roadmap.md`](./docs/roadmap.md)). O banco cresce **uma tabela por vez**, conforme a feature precisa — nunca as 14 de uma vez.
-- **Um paradigma por app, do front ao back:** no `apps/web`, Composition API (`<script setup>`) e composables; no `apps/api`, Effect — serviços (`Context.Service`), layers e rotas registradas por `http/platform.ts`. É deliberado — não introduza estilos concorrentes.
+- **Um paradigma por app, do front ao back:** no `apps/web`, React 19 com hooks, organizado por features (padrão normativo em [`docs/react-standards.md`](./docs/react-standards.md)); no `apps/api`, Effect — serviços (`Context.Service`), layers e rotas registradas por `http/platform.ts`. É deliberado — não introduza estilos concorrentes.
 - **Entenda antes de mexer.** Trace o fluxo inteiro que a mudança toca; corrija na raiz (na função compartilhada), não no sintoma de um caller só.
 - Comunicação/docs em **PT-BR**; identificadores de código/banco em **inglês** (ver glossário abaixo).
 
 ## Stack
 
-TypeScript · **pnpm workspaces** (monorepo) · **Vue 3 SPA (Vite, CSR, sem SSR)** + **Tailwind CSS + reka-ui** + Pinia + `@tanstack/vue-query` + vee-validate · **Effect v4** (todo o backend, servidor em `effect/http`) · Drizzle ORM · Postgres · **Better Auth** (na API) · Cloudflare R2 · `eventemitter2` · zod (`libs/contracts`). Mobile futuro: {a decidir — React Native vs Flutter}.
+TypeScript · **pnpm workspaces** (monorepo) · **React 19 SPA (Vite, CSR, sem SSR, React Compiler)** + React Router 7 + **Tailwind CSS + shadcn/ui** + `@tanstack/react-query` + React Hook Form + Zustand (estado de cliente) · **Effect v4** (todo o backend, servidor em `effect/http`) · Drizzle ORM · Postgres · **Better Auth** (na API) · Cloudflare R2 · `eventemitter2` · zod (`libs/contracts`). Mobile futuro: {a decidir — React Native vs Flutter}.
+
+O `apps/web` migrou de Vue 3 para React 19 em novembro de 2026 (histórico em [`docs/react-migration-2026-11.md`](./docs/react-migration-2026-11.md) e `docs/qa/migration-progress.md`).
 
 ## Estrutura alvo do monorepo
 
 ```
 apps/
-  web/          # Vue 3 SPA — SÓ frontend (painel do Contador + página pública de upload)
+  web/          # React 19 SPA — SÓ frontend (painel do Contador, página pública de upload, área do Responsável)
   api/          # Effect — TODO o backend (REST, auth, eventos, cron, zip, webhooks)
   mobile/       # futuro — consome a MESMA API
 libs/
@@ -45,9 +47,9 @@ docs/           # documentação viva (comece por docs/README.md)
 5. **Código sem comentários.** O nome da função/variável explica o quê; o `git log` e os `docs/` explicam o porquê. Comentário só quando o código, mesmo bem escrito, não consegue dizer sozinho: bug/limitação de biblioteca externa, workaround não óbvio, invariante de segurança que um refactor inocente quebraria, ou `ponytail:` marcando um atalho deliberado. Na dúvida, **não comente** — renomeie ou extraia. Nunca comentário que repete a linha seguinte, cabeçalho de arquivo, JSDoc de tipo já tipado, ou comentário de "seção".
 6. **Duas camadas, só: rota → repositório.** Não existe pasta `usecases/`. Regra de negócio com lógica real (derivar template, importar CSV, checklist efetivo) vira **método do repositório do módulo** (`XRepo`, um `Context.Service`); a rota valida, orquestra e deixa o mapa de erros traduzir para HTTP. Sem `entities/`/`vo/` (tipo = `$inferSelect` do Drizzle). Lógica pura sem banco (merge, parser) fica em módulo solto (`effective-checklist.ts`, `csv.ts`).
 7. **Comunicação entre módulos = eventos síncronos** via `eventemitter2` (`lib/event-emitter.ts`; direção: companies/checklists → periods/requests → messaging). **Sem CQRS, sem microservices, sem fila/outbox na v1.**
-8. **Nomes de pasta/arquivo do `apps/web` também são inglês** (`features/companies/`, `layouts/PanelLayout.vue`). PT-BR fica no **path da URL** e no texto de tela.
-9. **Styling = Tailwind.** Utilities por padrão; os primitivos de UI (reka-ui) ficam em `components/ui/`. **Nenhuma outra biblioteca de componentes.** `.css` de componente é exceção rara.
-10. **`libs/contracts` (zod) é a única fonte de validação** — mesmos schemas no form do `web` (vee-validate) e no `body()`/`params()`/`query()` das rotas da API. Componente nunca chama `fetch`/`api` direto (sempre via o módulo `api/` da feature).
+8. **Nomes de pasta/arquivo do `apps/web` também são inglês** (`features/companies/`, `shared/components/layout/panel-layout.tsx`). PT-BR fica no **path da URL** e no texto de tela.
+9. **Styling = Tailwind.** Utilities por padrão; os primitivos de UI (shadcn/ui sobre Radix) ficam em `shared/components/ui/`. **Nenhuma outra biblioteca de componentes.** `.css` de componente é exceção rara.
+10. **`libs/contracts` (zod) é a única fonte de validação** — mesmos schemas no form do `web` (React Hook Form + `zodResolver`) e no `body()`/`params()`/`query()` das rotas da API. Componente nunca chama `fetch`/`api` direto (sempre via a pasta `api/` da feature e os hooks de `queries/`).
 11. **Provedores externos** (Resend, R2, Meta, FCM) só atrás de interface em `modules/messaging/providers/` e `infra/storage/`. Falha de canal nunca bloqueia o fluxo (degrada WhatsApp → email). **Quem escolhe a implementação é o `NODE_ENV`** (D15): fora de produção nenhum provedor real é usado — disco, console, console — e em produção a subida falha nomeando a credencial que falta. Não volte a chavear por "a variável existe".
 12. **Conta do Responsável é opcional e nunca pré-requisito** (D14). O Link de Upload é a única porta obrigatória do produto. Qualquer ideia sobre acesso que crie trabalho ou espera para o Contador está errada.
 13. **`docs/database-schema.md` é canônico.** O schema Drizzle deve espelhá-lo; divergência exige atualizar o doc na mesma PR. Sem extração de zip nem parsing de XML de NF na v1.

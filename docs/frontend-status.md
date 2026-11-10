@@ -15,17 +15,22 @@ configuração para funcionar. Complementa o [`roadmap.md`](./roadmap.md).
 | `/perdi-meu-link/confirmar`              | Passo 2: botão que confirma posse e rotaciona o Link                                                                 | completa (2026-09-11)                                       |
 | `/termos`, `/privacidade`                | Páginas legais (conteúdo provisório até revisão jurídica)                                                            | completa (2026-09-11); aceite em `user.terms_accepted_at`   |
 | `/competencias`                          | Lista + KPIs + modal "Abrir competência"                                                                             | completa, com prévia do fan-out e resumo dos links          |
-| `/competencias/:id`                      | **Painel de Pendências** ("quem faltou"; encerrar por Empresa ou a Competência inteira)                              | completa, com falha de canal visível                        |
+| `/competencias/:id/pendencias`           | **Painel de Pendências** ("quem faltou"; encerrar por Empresa ou a Competência inteira)                              | completa, com falha de canal visível                        |
 | `/solicitacoes/:id`                      | Revisão da Solicitação (aceite em lote, rejeição, extras, preview/baixar avulso, encerrar a Solicitação)             | completa                                                    |
 | `/empresas`                              | Lista de Empresas                                                                                                    | completa                                                    |
 | `/empresas/nova`, `/empresas/:id/editar` | Cadastro/edição + prévia do checklist efetivo; na edição, revogar o acesso ao app do Responsável (F10-7)             | completa                                                    |
 | `/empresas/importar`                     | Importar planilha + relatório por linha                                                                              | completa (.xlsx e .csv, cabeçalhos PT aceitos)              |
 | `/empresas/:id/checklist`                | Overrides por Empresa                                                                                                | completa                                                    |
-| `/checklists`, `/checklists/:id`         | Templates do produto e derivados editáveis                                                                           | completa                                                    |
+| `/templates`, `/templates/:id`           | Templates do produto e derivados editáveis                                                                           | completa                                                    |
 | `/mensagens`                             | Log de entrega + detalhe do erro + reenvio por mensagem                                                              | completa (portada para o Vue em 2026-11-01, COM-253)        |
 | `/configuracoes/*`                       | Contabilidade (nome editável) · Contadores (lista/remover/convites) · Lembretes (preferências) · Canais              | completa desde 2026-09-11, menos Canais (WhatsApp = Fase 8) |
 | `/envio/:token`                          | **Página pública de envio** (mobile-first, sem senha)                                                                | completa                                                    |
 | `/minha-area/*`                          | Área do Responsável (acesso, pendências, histórico, envio logado, preview/baixar documento, multi-empresa com badge) | completa                                                    |
+
+Desde novembro de 2026 o `apps/web` é React 19: cada rota é um módulo em
+`apps/web/src/app/routes/` (ou um carregador `authPages.*` da feature `auth`) e as telas ficam
+em `apps/web/src/features/*/components/`. O mapa tela Vue → arquivos React de cada rota está no
+PR e no bloco de cada ticket em `docs/qa/migration-progress.md`.
 
 ## Degradado por falta de rota na API
 
@@ -66,7 +71,7 @@ O teste `upload-token-guard.test.ts` passou a checar a regra nova: metadado sim,
 `storage_key` nunca.
 
 `libs/contracts/src/company.ts`: as mensagens de `ContactBody` foram traduzidas. Elas
-chegam ao usuário nos dois lados — no formulário do Angular e no relatório da importação de
+chegam ao usuário nos dois lados — no formulário do web e no relatório da importação de
 planilha —, e "Invalid email address" aparecia em inglês para o Contador.
 
 ## Acessibilidade
@@ -171,32 +176,61 @@ tira do produto a chance de um deploy de produção gravar documento no disco do
 
 ## Configuração necessária
 
-- `apps/web/src/environments/environment.ts` (dev): `apiUrl` aponta a raiz da API
-  (`http://localhost:3000`) porque o Nest **não** usa `setGlobalPrefix`; o Better Auth fica
-  em `${apiUrl}/api/auth`.
-- `environment.prod.ts` (usado no build de produção por `fileReplacements` no
-  `angular.json`): `apiUrl` = `https://api.competa.com.br` — produção roda em **origens
-  separadas** (`app.` no Cloudflare Pages, `api.` no Fly; cookie `domain=.competa.com.br`
-  com `SameSite=Lax` + Origin-check, ver TASK-039). Sem o `fileReplacements` o bundle de
-  produção sai apontando para `localhost:3000`; se mexer no `angular.json`, confira com
-  `grep -r localhost:3000 apps/web/dist`.
+- `apps/web/.env.local` (dev): `VITE_API_URL` aponta a raiz da API (`http://localhost:3000`)
+  e `VITE_AUTH_URL` o Better Auth (`${VITE_API_URL}/api/auth`); o `shared/config/env.ts` valida
+  as duas com zod e falha no boot se faltar alguma. No build de produção elas vêm do job do CI
+  (`https://api.competa.com.br`) — produção roda em **origens separadas** (`app.` no Cloudflare
+  Pages, `api.` no Fly; cookie `domain=.competa.com.br` com `SameSite=Lax` + Origin-check).
 - A chave pública VAPID **não** fica no bundle: o front busca em `GET /push/vapid-key` e, se
   vier vazia, o botão de notificações não aparece. Trocar a chave é mexer só no `.env` da API.
 - `libs/contracts` precisa estar compilado (`pnpm --filter contracts build`): os mesmos
-  schemas zod validam o formulário do Angular e o pipe do Nest.
+  schemas zod validam o formulário do web e a entrada da API.
 
 ## PWA
 
 Instalável pela área do Responsável: `manifest.webmanifest` com `start_url`
-`/minha-area/pendencias`, ícones 192/512 comuns e maskable, `display: standalone`, e
-service worker do Angular (`ngsw-config.json`) com **prefetch só de casca e assets**.
-Não há `dataGroups`: resposta de API nunca é cacheada — documento contábil velho em tela é
-pior do que tela vazia. Verificado com build de produção: SW ativo, casca abre offline.
+`/minha-area/pendencias`, ícones 192/512 comuns e maskable, `display: standalone`. O service
+worker é gerado pelo `vite-plugin-pwa` no build do `apps/web` (`registerSW.js` injetado no
+`index.html`, `navigateFallback` para `index.html`) com **precache só de casca e assets**; o único
+cache em runtime é o de imagens. Resposta de API nunca é cacheada — documento contábil velho em
+tela é pior do que tela vazia.
 
-O SW gerado pelo `vite-plugin-pwa` importa `public/push-handler.js`, que exibe o push (o
-payload da API ainda vem no formato `{ notification }` do service worker do Angular) e abre a
-URL dele no clique. Sem SW registrado (o dev não registra), "Me avise neste aparelho" desiste
-em 10 s com erro em vez de ficar em "Ativando…".
+Verificado no build de produção (`pnpm --filter web build` + `vite preview`, Chrome, M10.3):
+SW ativo e controlando a página; recarregar `/minha-area/pendencias` offline abre a casca com
+"Sem conexão com o servidor"; o único cache é o `workbox-precache`; manifest e os quatro ícones
+respondem 200.
+
+O SW importa `public/push-handler.js`, que exibe o push (o payload da API ainda vem no formato
+`{ notification }`) e abre a URL dele no clique. Sem SW registrado (o dev não registra), "Me avise
+neste aparelho" desiste em 10 s com erro em vez de ficar em "Ativando…". A dica de instalação do
+iOS (`showIosHintOf` em `shared/pwa`) só aparece fora do modo standalone.
+
+Falta conferir em aparelho (humano): instalação no Chrome Android e desktop, push real de
+staging chegando e abrindo a URL, dica do iOS no Safari sumindo depois de instalar.
+
+## Performance (React, M10.4)
+
+Medido em 2026-11-09 com `vite build` (tamanhos do Vite, gzip) e Lighthouse 13.6 (mobile, build
+de produção servido por `vite preview` contra a API local).
+
+| Métrica                            | Vue (`apps/web`)         | React antes          | React depois                                                       |
+| ---------------------------------- | ------------------------ | -------------------- | ------------------------------------------------------------------ |
+| JS inicial (`index-*.js`)          | 332 kB / **109 kB gzip** | 730 kB / 228 kB gzip | 633 kB / **198 kB gzip**                                           |
+| Chunks JS                          | —                        | —                    | 79 (uma rota = um chunk; `xlsx` 500 kB só em `/empresas/importar`) |
+| Lighthouse `/entrar` (perf / a11y) | —                        | —                    | **100 / 100** (LCP 0,9 s)                                          |
+| Lighthouse `/envio/:token`         | —                        | —                    | **90 / 100** (LCP 3,7 s)                                           |
+| Lighthouse `/competencias`         | —                        | —                    | **91 / 100** (LCP 3,4 s)                                           |
+
+- O ganho veio de tirar as telas de `features/auth` do bundle inicial: o `index.ts` da feature
+  passou a exportar carregadores (`authPages.*`, `import()` dinâmico) em vez dos componentes; antes,
+  como o `SessionProvider` importa o `index.ts`, todas as telas de auth e o react-hook-form iam
+  juntos no inicial.
+- A meta "igual ou menor que o Vue" **não foi atingida**: o que sobra no inicial é runtime
+  (react-dom ≈ 45 kB gzip, react-router em modo data, TanStack Query, zod — usado no parse da
+  sessão —, tailwind-merge, better-auth e o `Toaster`). Próximo passo possível, se valer: tirar o
+  zod do caminho de boot (parse da sessão sem schema) e trocar o modo data do router.
+- Nenhum `memo(`, `useMemo(` ou `useCallback(` no código: o React Compiler cobre a memoização e
+  nenhuma medição pediu exceção.
 
 ## Novo Design System (Outubro/2026)
 

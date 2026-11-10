@@ -68,6 +68,8 @@ jobs:
 
       - run: pnpm --filter api db:migrate
       - run: pnpm --filter api test
+      - run: pnpm --filter web typecheck
+      - run: pnpm --filter web test
 
   # ── Staging: todo merge na main, ou "Run workflow" em qualquer branch ──────────────────
   deploy-api-staging:
