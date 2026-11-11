@@ -56,7 +56,7 @@ jobs:
       - name: Enviar para o bucket de backup (R2)
         run: |
           aws s3 cp "competa-$(date -u +%Y%m%d).dump.age" \
-            "s3://competa-backups/$PREFIX/competa-$(date -u +%Y%m%d).dump.age" \
+            "s3://competa-db-backup/$PREFIX/competa-$(date -u +%Y%m%d).dump.age" \
             --endpoint-url "$R2_ENDPOINT"
         env:
           AWS_ACCESS_KEY_ID: ${{ secrets.BACKUP_R2_ACCESS_KEY_ID }}

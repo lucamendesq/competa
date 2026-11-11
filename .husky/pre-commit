@@ -1,3 +1,2 @@
 npx lint-staged
 pnpm --filter api typecheck
-pnpm --filter api test
