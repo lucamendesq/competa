@@ -4,7 +4,7 @@ import { AlertTriangle, CheckCircle2, CreditCard } from 'lucide-react';
 import { toast } from 'sonner';
 import type { BillingSubscription, PlanUsage } from '@/features/billing/api/billing.types';
 import { isAsaasPaymentUrl, PAYMENT_LINK_REFUSED } from '@/features/billing/api/payment-url';
-import { longDate, statusLabelOf } from '@/features/billing/components/plan-status';
+import { accessWindowOf, longDate, statusLabelOf } from '@/features/billing/components/plan-status';
 import { useCancelSubscription } from '@/features/billing/queries/use-billing';
 import { Modal } from '@/shared/components/modal';
 import { Button } from '@/shared/components/ui/button';
@@ -34,7 +34,7 @@ export function SubscriptionCard({ billing, usage, simulatedCheckout }: Subscrip
   const currentPlan = PLANS[(subscription?.planName ?? 'trial') as PlanName] ?? PLANS.trial;
   const status = subscription?.status;
   const trialEnds = longDate(subscription?.trialEndsAt);
-  const periodEnd = longDate(billing?.currentPeriodEnd);
+  const accessWindow = accessWindowOf(status, billing?.currentPeriodEnd);
   const invoiceUrl = billing?.invoiceUrl ?? null;
   const pendingPlan = billing?.pendingPlanName
     ? (PLANS[billing.pendingPlanName as PlanName]?.label ?? billing.pendingPlanName)
@@ -98,12 +98,10 @@ export function SubscriptionCard({ billing, usage, simulatedCheckout }: Subscrip
               <p className="text-lg font-semibold text-foreground mt-1">{trialEnds}</p>
             </div>
           ) : null}
-          {(status === 'ACTIVE' || status === 'CANCELED') && periodEnd ? (
+          {accessWindow ? (
             <div className="flex-1">
-              <p className="text-sm font-medium text-muted-foreground">
-                {status === 'CANCELED' ? 'Acesso até' : 'Período pago até'}
-              </p>
-              <p className="text-lg font-semibold text-foreground mt-1">{periodEnd}</p>
+              <p className="text-sm font-medium text-muted-foreground">{accessWindow.label}</p>
+              <p className="text-lg font-semibold text-foreground mt-1">{accessWindow.value}</p>
             </div>
           ) : null}
           {usage ? (

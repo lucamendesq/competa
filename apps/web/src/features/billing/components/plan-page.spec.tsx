@@ -16,6 +16,7 @@ type Options = {
   status?: string;
   invoiceUrl?: string | null;
   checkoutUrl?: string | null;
+  currentPeriodEnd?: string;
 };
 
 const setup = (path: string, options: Options = {}) => {
@@ -48,7 +49,7 @@ const setup = (path: string, options: Options = {}) => {
           cycle: 'monthly',
           status,
           trialEndsAt: null,
-          currentPeriodEnd: '2026-12-08T00:00:00.000Z',
+          currentPeriodEnd: options.currentPeriodEnd ?? '2026-12-08T00:00:00.000Z',
           pendingPlanName: options.invoiceUrl ? 'profissional' : null,
           pendingCycle: null,
           invoiceUrl: options.invoiceUrl ?? null,
@@ -174,6 +175,44 @@ describe('PlanPage', () => {
     expect(await screen.findByText('Assinatura cancelada.')).toBeInTheDocument();
     expect(state.cancels).toBe(1);
     await waitFor(() => expect(state.meCalls).toBeGreaterThan(before));
+  });
+
+  it('plano ativo mostra o dia gravado em UTC como fim do período pago', async () => {
+    setup('/configuracoes/plano', {
+      status: 'ACTIVE',
+      currentPeriodEnd: '2026-12-16T00:00:00.000Z',
+    });
+
+    expect(await screen.findByText('Período pago até')).toBeInTheDocument();
+    expect(screen.getByText('16 de dezembro de 2026')).toBeInTheDocument();
+  });
+
+  it('cancelada com período futuro mostra "Acesso até"', async () => {
+    setup('/configuracoes/plano', {
+      status: 'CANCELED',
+      currentPeriodEnd: '2099-12-16T00:00:00.000Z',
+    });
+
+    expect(await screen.findByText('Acesso até')).toBeInTheDocument();
+    expect(screen.getByText('16 de dezembro de 2099')).toBeInTheDocument();
+  });
+
+  it('cancelada com período vencido diz que o acesso encerrou', async () => {
+    setup('/configuracoes/plano', {
+      status: 'CANCELED',
+      currentPeriodEnd: '2026-11-01T00:00:00.000Z',
+    });
+
+    expect(await screen.findByText('Encerrado em 01 de novembro de 2026')).toBeInTheDocument();
+  });
+
+  it('atrasada com período vencido diz que o acesso encerrou', async () => {
+    setup('/configuracoes/plano', {
+      status: 'OVERDUE',
+      currentPeriodEnd: '2026-11-01T00:00:00.000Z',
+    });
+
+    expect(await screen.findByText('Encerrado em 01 de novembro de 2026')).toBeInTheDocument();
   });
 
   it('membro vê somente leitura e os botões de assinar desabilitados', async () => {
