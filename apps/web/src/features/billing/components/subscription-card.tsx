@@ -1,11 +1,11 @@
 import { useState } from 'react';
-import { PLANS, type PlanName } from '@competa/contracts';
+import { PAID_PLAN_NAMES, PLANS, type PaidPlanName, type PlanName } from '@competa/contracts';
 import { AlertTriangle, CheckCircle2, CreditCard } from 'lucide-react';
 import { toast } from 'sonner';
 import type { BillingSubscription, PlanUsage } from '@/features/billing/api/billing.types';
 import { isAsaasPaymentUrl, PAYMENT_LINK_REFUSED } from '@/features/billing/api/payment-url';
 import { accessWindowOf, longDate, statusLabelOf } from '@/features/billing/components/plan-status';
-import { useCancelSubscription } from '@/features/billing/queries/use-billing';
+import { useCancelSubscription, useCheckout } from '@/features/billing/queries/use-billing';
 import { Modal } from '@/shared/components/modal';
 import { Button } from '@/shared/components/ui/button';
 import {
@@ -30,6 +30,7 @@ export function SubscriptionCard({ billing, usage, simulatedCheckout }: Subscrip
   const session = useSession();
   const subscription = session.accountant?.accountingFirm.subscription;
   const cancel = useCancelSubscription();
+  const keepPlan = useCheckout();
   const [confirmCancel, setConfirmCancel] = useState(false);
   const currentPlan = PLANS[(subscription?.planName ?? 'trial') as PlanName] ?? PLANS.trial;
   const status = subscription?.status;
@@ -39,6 +40,11 @@ export function SubscriptionCard({ billing, usage, simulatedCheckout }: Subscrip
   const pendingPlan = billing?.pendingPlanName
     ? (PLANS[billing.pendingPlanName as PlanName]?.label ?? billing.pendingPlanName)
     : null;
+  const scheduledPlan = billing?.scheduledPlanName
+    ? (PLANS[billing.scheduledPlanName as PlanName]?.label ?? billing.scheduledPlanName)
+    : null;
+  const scheduledDate = longDate(billing?.scheduledAt, 'UTC');
+  const keepablePlan = PAID_PLAN_NAMES.find((name) => name === billing?.planName);
   const canCancel = session.isOwner && (status === 'ACTIVE' || status === 'OVERDUE');
 
   const cancelPlan = () => {
@@ -50,6 +56,14 @@ export function SubscriptionCard({ billing, usage, simulatedCheckout }: Subscrip
         toast.error(apiErrorMessage(error, 'Não foi possível cancelar a assinatura.')),
       );
   };
+
+  const keepCurrentPlan = (planName: PaidPlanName, cycle: BillingSubscription['cycle']) =>
+    keepPlan
+      .mutateAsync({ planName, cycle })
+      .then(() => toast.success('Troca cancelada: você continua no plano atual.'))
+      .catch((error: unknown) =>
+        toast.error(apiErrorMessage(error, 'Não foi possível cancelar a troca de plano.')),
+      );
 
   return (
     <Card className="border border-border shadow-sm rounded-xl">
@@ -131,6 +145,32 @@ export function SubscriptionCard({ billing, usage, simulatedCheckout }: Subscrip
           <div className="bg-danger-surface border border-danger-border text-danger-foreground rounded-lg p-4 text-sm font-medium">
             Seu acesso de escrita foi temporariamente suspenso devido a pendências na assinatura. As
             empresas ainda conseguem enviar documentos e você pode baixar arquivos já enviados.
+          </div>
+        ) : null}
+
+        {scheduledPlan ? (
+          <div className="flex flex-col gap-3 rounded-lg border border-border bg-muted/30 p-4 sm:flex-row sm:items-center sm:justify-between">
+            <p className="text-sm text-foreground">
+              Seu plano muda para <strong>{scheduledPlan}</strong> (
+              {billing?.scheduledCycle === 'yearly' ? 'anual' : 'mensal'})
+              {scheduledDate ? (
+                <>
+                  {' '}
+                  em <strong>{scheduledDate}</strong>
+                </>
+              ) : null}
+              . Até lá você segue com os recursos do plano {currentPlan.label}.
+            </p>
+            {session.isOwner && keepablePlan && billing ? (
+              <Button
+                variant="outline"
+                size="sm"
+                disabled={keepPlan.isPending}
+                onClick={() => void keepCurrentPlan(keepablePlan, billing.cycle)}
+              >
+                Manter o plano atual
+              </Button>
+            ) : null}
           </div>
         ) : null}
 

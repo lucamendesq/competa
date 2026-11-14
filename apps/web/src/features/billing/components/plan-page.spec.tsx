@@ -17,11 +17,13 @@ type Options = {
   invoiceUrl?: string | null;
   checkoutUrl?: string | null;
   currentPeriodEnd?: string;
+  billing?: Record<string, unknown>;
+  checkoutScheduled?: boolean;
 };
 
 const setup = (path: string, options: Options = {}) => {
   const { owner = true, cnpj = '11222333000181', status = 'trialing' } = options;
-  const state = { checkouts: [] as unknown[], cancels: 0, meCalls: 0 };
+  const state = { checkouts: [] as unknown[], cancels: 0, meCalls: 0, billingCalls: 0 };
   server.use(
     http.get(apiUrl('/auth/me'), () => {
       state.meCalls += 1;
@@ -42,8 +44,9 @@ const setup = (path: string, options: Options = {}) => {
         }),
       );
     }),
-    http.get(apiUrl('/billing/subscription'), () =>
-      HttpResponse.json(
+    http.get(apiUrl('/billing/subscription'), () => {
+      state.billingCalls += 1;
+      return HttpResponse.json(
         envelope({
           planName: 'trial',
           cycle: 'monthly',
@@ -52,10 +55,14 @@ const setup = (path: string, options: Options = {}) => {
           currentPeriodEnd: options.currentPeriodEnd ?? '2026-12-08T00:00:00.000Z',
           pendingPlanName: options.invoiceUrl ? 'profissional' : null,
           pendingCycle: null,
+          scheduledPlanName: null,
+          scheduledCycle: null,
+          scheduledAt: null,
           invoiceUrl: options.invoiceUrl ?? null,
+          ...options.billing,
         }),
-      ),
-    ),
+      );
+    }),
     http.get(apiUrl('/companies/usage'), () =>
       HttpResponse.json(
         envelope({
@@ -76,6 +83,7 @@ const setup = (path: string, options: Options = {}) => {
           checkoutUrl: options.checkoutUrl ?? null,
           simulated: false,
           applied: false,
+          scheduled: options.checkoutScheduled ?? false,
         }),
       );
     }),
@@ -220,5 +228,85 @@ describe('PlanPage', () => {
 
     expect(await screen.findByText('Somente leitura')).toBeInTheDocument();
     expect(screen.getByRole('button', { name: 'Assinar Profissional' })).toBeDisabled();
+  });
+
+  describe('troca agendada para um plano mais barato', () => {
+    const scheduledBilling = {
+      planName: 'profissional',
+      cycle: 'monthly',
+      status: 'ACTIVE',
+      scheduledPlanName: 'essencial',
+      scheduledCycle: 'yearly',
+      scheduledAt: '2026-12-01T00:00:00.000Z',
+    };
+
+    it('mostra o plano novo, o ciclo e a data no dia UTC do vencimento', async () => {
+      setup('/configuracoes/plano', { status: 'ACTIVE', billing: scheduledBilling });
+
+      const notice = (await screen.findByText(/Seu plano muda para/)).closest('p') as HTMLElement;
+      expect(notice).toHaveTextContent(
+        'Seu plano muda para Essencial (anual) em 01 de dezembro de 2026',
+      );
+      expect(notice).toHaveTextContent('recursos do plano Essencial');
+    });
+
+    it('sem troca agendada não mostra o aviso', async () => {
+      setup('/configuracoes/plano', { status: 'ACTIVE' });
+
+      await screen.findByText('Ativa');
+      expect(screen.queryByText(/Seu plano muda para/)).not.toBeInTheDocument();
+      expect(
+        screen.queryByRole('button', { name: 'Manter o plano atual' }),
+      ).not.toBeInTheDocument();
+    });
+
+    it('"Manter o plano atual" escolhe o plano e o ciclo atuais e refaz a consulta', async () => {
+      const { state } = setup('/configuracoes/plano', {
+        status: 'ACTIVE',
+        billing: scheduledBilling,
+      });
+      const user = userEvent.setup();
+      const before = state.billingCalls;
+
+      await user.click(await screen.findByRole('button', { name: 'Manter o plano atual' }));
+
+      expect(
+        await screen.findByText('Troca cancelada: você continua no plano atual.'),
+      ).toBeInTheDocument();
+      expect(state.checkouts).toEqual([{ planName: 'profissional', cycle: 'monthly' }]);
+      await waitFor(() => expect(state.billingCalls).toBeGreaterThan(before));
+    });
+
+    it('membro vê o aviso mas não o botão de manter o plano', async () => {
+      setup('/configuracoes/plano', {
+        owner: false,
+        status: 'ACTIVE',
+        billing: scheduledBilling,
+      });
+
+      expect(await screen.findByText(/Seu plano muda para/)).toBeInTheDocument();
+      expect(
+        screen.queryByRole('button', { name: 'Manter o plano atual' }),
+      ).not.toBeInTheDocument();
+    });
+
+    it('checkout agendado avisa que vale na renovação e refaz a consulta, sem redirecionar', async () => {
+      const { state } = setup('/configuracoes/plano', {
+        status: 'ACTIVE',
+        checkoutScheduled: true,
+      });
+      const user = userEvent.setup();
+      await screen.findByText('Ativa');
+      const before = state.billingCalls;
+
+      await user.click(await screen.findByRole('button', { name: 'Assinar Profissional' }));
+
+      expect(
+        await screen.findByText(
+          /Troca agendada: o plano atual segue valendo até o fim do período pago/,
+        ),
+      ).toBeInTheDocument();
+      await waitFor(() => expect(state.billingCalls).toBeGreaterThan(before));
+    });
   });
 });
