@@ -96,6 +96,7 @@ export const PanelRowResponse = z.object({
     rejected: z.number(),
   }),
   missing: z.array(MissingItemResponse),
+  pendingExtraCount: z.number(),
   channelFailures: z.array(ChannelFailureResponse),
 });
 export type PanelRowResponse = z.infer<typeof PanelRowResponse>;
