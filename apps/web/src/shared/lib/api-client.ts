@@ -1,6 +1,6 @@
 import type * as z from 'zod';
 import { env } from '@/shared/config/env';
-import { ApiError } from '@/shared/lib/api-error';
+import { ApiError, apiErrorCode } from '@/shared/lib/api-error';
 
 export type Envelope<T> = { data: T };
 export type Meta = { page: number; perPage: number; total: number };
@@ -20,9 +20,14 @@ type CallOptions = { params?: Params; signal?: AbortSignal };
 const SESSION_PROBES = new Set(['/auth/me', '/my/profile']);
 
 let sessionExpiredHandler: (() => void) | undefined;
+let paymentRequiredHandler: (() => void) | undefined;
 
 export const onSessionExpired = (handler: () => void) => {
   sessionExpiredHandler = handler;
+};
+
+export const onPaymentRequired = (handler: () => void) => {
+  paymentRequiredHandler = handler;
 };
 
 const cleanParams = (params?: Params): Record<string, string> => {
@@ -78,7 +83,11 @@ async function send<T>(method: string, url: string, options: RequestOptions = {}
     if (import.meta.env.DEV && response.status >= 500) {
       console.error(`API ${response.status} ${method} ${url}`, body);
     }
-    throw new ApiError(response.status, body, `API Error ${response.status}`);
+    const error = new ApiError(response.status, body, `API Error ${response.status}`);
+    if (response.status === 402 && apiErrorCode(error) === 'PAYMENT_REQUIRED') {
+      paymentRequiredHandler?.();
+    }
+    throw error;
   }
 
   if (options.responseType === 'blob') return (await response.blob()) as T;
