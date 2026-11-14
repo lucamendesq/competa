@@ -315,9 +315,10 @@ Então:
 2. **A ativação pelo Link de Upload continua um toque, sem senha** (item 5 intacto) — é
    onde mora o volume, e cobrar ali uma credencial usada 1×/mês seria pagar por um
    problema que aquele caminho não tem.
-3. **A tela de entrada oferece as três portas** (senha, passkey, magic link), porque as
+3. **A tela de entrada oferece as portas** (senha, passkey, magic link), porque as
    duas formas de conta convivem: esconder qualquer uma deixaria metade dos Responsáveis
-   de fora sem explicação.
+   de fora sem explicação. _(2026-11-14: passkey nunca foi implementada; a entrada oferece
+   só senha e magic link, e a D13 item 2 não saiu do papel.)_
 4. **Convite reaproveitado não é beco sem saída**: o 409 vira "já foi utilizado" com botão
    para a entrada, em vez de erro seco.
 
