@@ -1,9 +1,11 @@
 import { eq } from 'drizzle-orm';
-import { afterAll, beforeAll, describe, expect, it } from 'vitest';
+import { afterAll, afterEach, beforeAll, describe, expect, it, vi } from 'vitest';
 import env from '../src/config/env.js';
 import { bootApp, type RunningApp } from './support/boot.js';
 import { db, truncateAll } from './support/db.js';
 import { billingWebhookEvent, subscription } from '../src/infra/database/schema/index.js';
+import { billing } from '../src/modules/billing/gateway.js';
+import { periodFrom } from '../src/modules/billing/billing-rules.js';
 import { registerFirm, uniqueIp, type Api } from './support/fixtures.js';
 
 /* A suíte de billing prende o 503 SEM segredo; esta roda COM ele. O `env` é lido a cada
@@ -339,5 +341,76 @@ describe('throttle do webhook', () => {
       statuses.every((status) => status === 200),
       statuses.join(','),
     ).toBe(true);
+  });
+});
+
+describe('upgrade com a próxima fatura já emitida', () => {
+  afterEach(() => {
+    vi.restoreAllMocks();
+  });
+
+  it('pagar a cobrança avulsa promove, abre o período no pagamento e realinha a assinatura', async () => {
+    const { api, firmId, gatewaySubscriptionId } = await firmWithCheckout('essencial');
+    const periodEnd = new Date(Date.now() + 20 * 86_400_000);
+    await db
+      .update(subscription)
+      .set({
+        status: 'ACTIVE',
+        planName: 'essencial',
+        cycle: 'monthly',
+        pendingPlanName: null,
+        pendingCycle: null,
+        pendingPaymentId: null,
+        currentPeriodStart: new Date(Date.now() - 10 * 86_400_000),
+        currentPeriodEnd: periodEnd,
+      })
+      .where(eq(subscription.accountingFirmId, firmId));
+    vi.spyOn(billing, 'pendingInvoice').mockResolvedValue({
+      id: 'pay_proxima',
+      invoiceUrl: 'https://www.asaas.com/i/proxima',
+    });
+
+    const upgrade = await api.post('/billing/checkout', { planName: 'escritorio' });
+    expect(upgrade.status, JSON.stringify(upgrade.body)).toBe(201);
+    const pending = await rowOf(firmId);
+    expect(pending).toMatchObject({ planName: 'essencial', pendingPlanName: 'escritorio' });
+    expect(pending.pendingPaymentId).not.toBe('pay_proxima');
+
+    const changePlan = vi.spyOn(billing, 'changeSubscriptionPlan');
+    const today = new Date().toISOString().slice(0, 10);
+    const paid = await post({
+      id: eventId(),
+      event: 'PAYMENT_RECEIVED',
+      payment: {
+        id: pending.pendingPaymentId,
+        value: 120,
+        dueDate: today,
+        paymentDate: today,
+        externalReference: firmId,
+      },
+    });
+    expect(paid.status).toBe(200);
+
+    const promoted = await rowOf(firmId);
+    expect(promoted).toMatchObject({
+      status: 'ACTIVE',
+      planName: 'escritorio',
+      pendingPlanName: null,
+      pendingPaymentId: null,
+    });
+    expect(promoted.currentPeriodStart?.toISOString().slice(0, 10)).toBe(today);
+    expect(promoted.currentPeriodEnd?.getTime()).toBe(
+      periodFrom(new Date(`${today}T00:00:00Z`), 'monthly').currentPeriodEnd.getTime(),
+    );
+
+    expect(changePlan).toHaveBeenCalledTimes(1);
+    expect(changePlan.mock.calls[0][0]).toBe(gatewaySubscriptionId);
+    expect(changePlan.mock.calls[0][1]).toMatchObject({
+      planName: 'escritorio',
+      cycle: 'monthly',
+    });
+    expect(changePlan.mock.calls[0][1].nextDueDate?.getTime()).toBe(
+      promoted.currentPeriodEnd!.getTime(),
+    );
   });
 });

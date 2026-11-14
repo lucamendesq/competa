@@ -163,26 +163,27 @@ const checkout = route(
           /* 3a. Assinatura EM DIA: a troca tem efeito agora. Preço igual ou menor vale na
            * hora e a próxima fatura já sai no valor novo. Upgrade cobra hoje o novo ciclo
            * descontado do que sobrou do atual — sem isto a troca só valia na próxima fatura,
-           * até 12 meses no anual. Se o gateway já emitiu a próxima fatura, ela é corrigida
-           * em vez de nascer uma cobrança a mais. */
+           * até 12 meses no anual. Se o gateway já emitiu a próxima fatura, o upgrade segue
+           * o mesmo caminho: cobrar a fatura cheia dela dava o mês seguinte adiantado e
+           * nenhum crédito pelo tempo não usado. Ela é realinhada ao novo período quando a
+           * cobrança avulsa é paga. */
           if (previous && current?.status === 'ACTIVE') {
             const pending = yield* openInvoice(previous);
             const paidNow = currentPrice(current);
+            const { currentPeriodStart, currentPeriodEnd } = current;
+            const upgrading = value > paidNow && !!currentPeriodStart && !!currentPeriodEnd;
             const chargeNow =
-              pending ||
-              value <= paidNow ||
-              !current.currentPeriodStart ||
-              !current.currentPeriodEnd
-                ? null
-                : upgradeChargeNow({
+              upgrading && currentPeriodStart && currentPeriodEnd
+                ? upgradeChargeNow({
                     currentPrice: paidNow,
                     newPrice: value,
-                    periodStart: current.currentPeriodStart,
-                    periodEnd: current.currentPeriodEnd,
+                    periodStart: currentPeriodStart,
+                    periodEnd: currentPeriodEnd,
                     now: new Date(),
-                  });
+                  })
+                : null;
 
-            if (pending) {
+            if (pending && !upgrading) {
               yield* gateway(() =>
                 billing.changeSubscriptionPlan(previous, { planName, cycle, value }),
               );

@@ -3,7 +3,9 @@ import { afterAll, afterEach, beforeAll, describe, expect, it, vi } from 'vitest
 import { bootApp, type RunningApp } from './support/boot.js';
 import { db, truncateAll } from './support/db.js';
 import { accountingFirm, company, subscription } from '../src/infra/database/schema/index.js';
+import { PLANS, planPrice } from '@competa/contracts';
 import { billing } from '../src/modules/billing/gateway.js';
+import { upgradeChargeNow } from '../src/modules/billing/billing-rules.js';
 import { Logger } from '../src/lib/logger.js';
 import * as Sentry from '@sentry/node';
 import { apiClient, registerFirm, uniqueCnpj, uniqueIp, type Api } from './support/fixtures.js';
@@ -372,6 +374,108 @@ describe('troca de plano com assinatura em dia', () => {
       pendingCycle: 'yearly',
     });
     expect(row.pendingPaymentId).toMatch(/^mock_pay_/);
+  });
+});
+
+describe('troca de plano com a próxima fatura já emitida pelo gateway', () => {
+  const nextInvoice = { id: 'pay_proxima', invoiceUrl: 'https://www.asaas.com/i/proxima' };
+
+  async function activeFirmWithNextInvoice() {
+    const { api } = await registerFirm(app.url);
+    const firmId = await firmIdOf(api);
+    expect((await api.post('/billing/checkout', { planName: 'essencial' })).status).toBe(201);
+    const now = new Date();
+    const periodStart = new Date(now.getTime() - 10 * 86_400_000);
+    const periodEnd = new Date(now.getTime() + 20 * 86_400_000);
+    await setSubscription(firmId, {
+      status: 'ACTIVE',
+      planName: 'essencial',
+      cycle: 'monthly',
+      pendingPlanName: null,
+      pendingCycle: null,
+      pendingPaymentId: null,
+      currentPeriodStart: periodStart,
+      currentPeriodEnd: periodEnd,
+    });
+    vi.spyOn(billing, 'pendingInvoice').mockResolvedValue(nextInvoice);
+    vi.useFakeTimers({ toFake: ['Date'], now });
+    return { api, firmId, now, periodStart, periodEnd };
+  }
+
+  afterEach(() => {
+    vi.useRealTimers();
+  });
+
+  it('upgrade cobra a diferença com crédito, não a fatura cheia já emitida', async () => {
+    const { api, firmId, now, periodStart, periodEnd } = await activeFirmWithNextInvoice();
+    const createCharge = vi.spyOn(billing, 'createCharge');
+    const changePlan = vi.spyOn(billing, 'changeSubscriptionPlan');
+
+    const res = await api.post('/billing/checkout', { planName: 'escritorio' });
+    expect(res.status, JSON.stringify(res.body)).toBe(201);
+    expect(res.body.data).toEqual({ checkoutUrl: '', simulated: true, applied: false });
+    expect(res.body.data.checkoutUrl).not.toBe(nextInvoice.invoiceUrl);
+
+    const expected = upgradeChargeNow({
+      currentPrice: planPrice(PLANS.essencial, 'monthly'),
+      newPrice: planPrice(PLANS.escritorio, 'monthly'),
+      periodStart,
+      periodEnd,
+      now,
+    });
+    expect(expected).not.toBeNull();
+    expect(expected!).toBeLessThan(planPrice(PLANS.escritorio, 'monthly'));
+    expect(createCharge).toHaveBeenCalledTimes(1);
+    expect(createCharge.mock.calls[0][0].value).toBe(expected);
+    expect(changePlan).not.toHaveBeenCalled();
+
+    const [row] = await subscriptionRows(firmId);
+    expect(row).toMatchObject({
+      planName: 'essencial',
+      pendingPlanName: 'escritorio',
+      pendingCycle: 'monthly',
+    });
+    expect(row.pendingPaymentId).toMatch(/^mock_pay_/);
+    expect(row.pendingPaymentId).not.toBe(nextInvoice.id);
+    expect(row.currentPeriodEnd?.getTime()).toBe(periodEnd.getTime());
+  });
+
+  it('um segundo upgrade ainda apaga a cobrança avulsa anterior', async () => {
+    const { api, firmId } = await activeFirmWithNextInvoice();
+    const first = await api.post('/billing/checkout', { planName: 'profissional' });
+    expect(first.status).toBe(201);
+    const firstCharge = (await subscriptionRows(firmId))[0].pendingPaymentId!;
+    vi.spyOn(billing, 'payment').mockResolvedValue({ subscriptionId: null, open: true });
+    const deletePayment = vi.spyOn(billing, 'deletePayment');
+
+    const second = await api.post('/billing/checkout', { planName: 'escritorio' });
+    expect(second.status).toBe(201);
+    expect(deletePayment).toHaveBeenCalledWith(firstCharge);
+    expect(deletePayment).not.toHaveBeenCalledWith(nextInvoice.id);
+  });
+
+  it('preço menor com fatura emitida segue como antes: reajusta a fatura e grava a intenção', async () => {
+    const { api, firmId } = await activeFirmWithNextInvoice();
+    await setSubscription(firmId, { planName: 'escritorio' });
+    const createCharge = vi.spyOn(billing, 'createCharge');
+    const changePlan = vi.spyOn(billing, 'changeSubscriptionPlan');
+
+    const res = await api.post('/billing/checkout', { planName: 'essencial' });
+    expect(res.status, JSON.stringify(res.body)).toBe(201);
+    expect(res.body.data).toEqual({
+      checkoutUrl: nextInvoice.invoiceUrl,
+      simulated: true,
+      applied: false,
+    });
+    expect(createCharge).not.toHaveBeenCalled();
+    expect(changePlan).toHaveBeenCalledTimes(1);
+
+    const [row] = await subscriptionRows(firmId);
+    expect(row).toMatchObject({
+      planName: 'escritorio',
+      pendingPlanName: 'essencial',
+      pendingPaymentId: nextInvoice.id,
+    });
   });
 });
 

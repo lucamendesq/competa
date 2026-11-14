@@ -577,7 +577,11 @@ sempre.
 4. **Troca de plano com assinatura em dia tem efeito agora:** preço igual ou menor aplica na
    hora (a próxima fatura sai no valor novo); upgrade cobra hoje o novo ciclo descontado do
    que sobrou do atual (cobrança avulsa, achada pelo `externalReference`) e promove no
-   pagamento. Sem isto a troca só valia na próxima fatura — até 12 meses no anual. O
+   pagamento. Sem isto a troca só valia na próxima fatura — até 12 meses no anual. Vale também
+   quando o gateway já emitiu a próxima fatura recorrente: ela não é cobrada cheia (daria o mês
+   seguinte adiantado e nenhum crédito); quando a avulsa é paga, a assinatura é reajustada e a
+   fatura já emitida tem o vencimento realinhado ao fim do novo período (`PUT /payments/{id}`:
+   `updatePendingPayments` muda o valor dela, não o vencimento — verificado no sandbox). O
    estorno ou chargeback dessa cobrança desfaz a troca (plano, ciclo, período e valor da
    assinatura voltam) enquanto a fatura seguinte não avançou o período; depois disso o
    plano novo já está sendo pago e a perda fica limitada à diferença de um período.

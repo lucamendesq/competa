@@ -1,3 +1,4 @@
+import * as Sentry from '@sentry/node';
 import { Logger } from '../../../lib/logger.js';
 import type { BillingCycle } from '@competa/contracts';
 import { BillingProvider } from './billing.provider.js';
@@ -22,6 +23,8 @@ interface AsaasPayment {
   status?: string;
   invoiceUrl?: string;
   subscription?: string | null;
+  dueDate?: string;
+  billingType?: string;
 }
 
 const OPEN_PAYMENT_STATUSES = new Set(['PENDING', 'OVERDUE']);
@@ -192,6 +195,42 @@ export class AsaasBilling implements BillingProvider {
         ...(input.nextDueDate ? { nextDueDate: asaasDay(input.nextDueDate) } : {}),
       }),
     });
+
+    if (input.nextDueDate)
+      await this.alignOpenInvoice(subscriptionId, input.value, input.nextDueDate);
+  }
+
+  /* `updatePendingPayments` muda o valor da fatura já emitida mas NÃO o vencimento (testado
+   * no sandbox: `nextDueDate` só move a próxima a ser gerada). Sem isto, quem pagou a
+   * cobrança avulsa de um upgrade ainda recebia a fatura emitida antes, no vencimento do
+   * período antigo, e pagava a mesma janela duas vezes. `PUT /payments/{id}` move o
+   * vencimento sem gerar fatura nova.
+   *
+   * Roda dentro da transação do webhook: se falhar e lançar, a promoção do plano desfaz e o
+   * Asaas reenvia para sempre. Por isso só registra. */
+  private async alignOpenInvoice(subscriptionId: string, value: number, dueDate: Date) {
+    try {
+      const payments = await this.call<AsaasList<AsaasPayment>>(
+        `/subscriptions/${subscriptionId}/payments`,
+      );
+      const open = payments.data?.find((payment) => payment.status === 'PENDING');
+      if (!open || open.dueDate === asaasDay(dueDate)) return;
+
+      await this.call<unknown>(`/payments/${open.id}`, {
+        method: 'PUT',
+        body: JSON.stringify({
+          billingType: open.billingType ?? 'UNDEFINED',
+          value,
+          dueDate: asaasDay(dueDate),
+        }),
+      });
+    } catch (error) {
+      this.logger.error(
+        `Fatura em aberto de ${subscriptionId} não foi realinhada para ${asaasDay(dueDate)}`,
+        String(error),
+      );
+      Sentry.captureException(error, { extra: { subscriptionId } });
+    }
   }
 
   /* Vence hoje: é cobrança de upgrade, o Contador está na tela esperando o link. */
