@@ -21,6 +21,7 @@ import { squashError } from '../../infra/database/error.js';
 import { upgradeChargeNow } from './billing-rules.js';
 import { billing, gateway } from './gateway.js';
 import { withFirmFlight } from './checkout-flight.js';
+import { TrialCannotBeCanceled } from './errors.js';
 import { SubscriptionsRepo } from './subscription.repo.js';
 
 const logger = new Logger('BillingController');
@@ -427,6 +428,7 @@ const cancel = route(
 
       const current = yield* SubscriptionsRepo.use((repo) => repo.findByFirm(scope));
       if (!current) return yield* Effect.fail(new NotFound('Assinatura não encontrada.'));
+      if (current.status === 'trialing') return yield* Effect.fail(new TrialCannotBeCanceled());
 
       if (current.status !== 'CANCELED') {
         if (current.gatewaySubscriptionId) {

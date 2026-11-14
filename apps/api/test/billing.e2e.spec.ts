@@ -427,6 +427,29 @@ describe('DELETE /billing/subscription — cancelamento', () => {
   });
 });
 
+describe('DELETE /billing/subscription — firma em trial', () => {
+  it('409 TRIAL_CANNOT_BE_CANCELED; nada muda e o gateway não é chamado', async () => {
+    const { api } = await registerFirm(app.url);
+    const firmId = await firmIdOf(api);
+    const checkout = await api.post('/billing/checkout', { planName: 'essencial' });
+    expect(checkout.status).toBe(201);
+    const before = (await subscriptionRows(firmId))[0];
+    expect(before.status).toBe('trialing');
+    const cancelSubscription = vi.spyOn(billing, 'cancelSubscription');
+    const deletePayment = vi.spyOn(billing, 'deletePayment');
+
+    const res = await api.delete('/billing/subscription');
+    expect(res.status, JSON.stringify(res.body)).toBe(409);
+    expect(res.body.error.code).toBe('TRIAL_CANNOT_BE_CANCELED');
+    expect(cancelSubscription).not.toHaveBeenCalled();
+    expect(deletePayment).not.toHaveBeenCalled();
+
+    expect((await subscriptionRows(firmId))[0]).toEqual(before);
+    const write = await api.post('/periods', {});
+    expect(write.status).toBe(422);
+  });
+});
+
 async function activeFirmWithUpgradeCharge() {
   const { api } = await registerFirm(app.url);
   const firmId = await firmIdOf(api);
