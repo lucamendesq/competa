@@ -10,6 +10,7 @@ export type ClosingRequest = {
   companyName: string;
   unaccepted: number;
   toReview: number;
+  extrasToReview: number;
 };
 
 type CloseRequestDialogProps = {
@@ -67,6 +68,13 @@ export function CloseRequestDialog({ request, onOpenChange }: CloseRequestDialog
               <strong className="tabular-nums">{request.toReview}</strong> item(ns) já enviado(s) e
               ainda não conferido(s). Depois de encerrar, esses documentos não poderão mais ser
               aceitos e ficam fora do zip final.
+            </p>
+          ) : null}
+          {request.extrasToReview ? (
+            <p className="rounded-lg border border-danger-border bg-danger-surface p-3 text-danger-foreground">
+              <strong className="tabular-nums">{request.extrasToReview}</strong> documento(s)
+              extra(s) ainda não conferido(s). Depois de encerrar, eles ficam fora do zip final até
+              você aceitá-los.
             </p>
           ) : null}
           <p>

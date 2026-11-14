@@ -80,6 +80,13 @@ export function PanelRowCard({
             ) : null}
           </div>
           <p className="text-muted-foreground pl-6 text-xs tabular-nums">{maskedCnpj(line.cnpj)}</p>
+          {line.pendingExtraCount > 0 ? (
+            <p className="text-warning-foreground pl-6 text-xs font-medium">
+              <strong className="tabular-nums">{line.pendingExtraCount}</strong> documento(s)
+              extra(s) aguardando conferência
+              {closed ? ' — fora do zip até serem aceitos' : ''}
+            </p>
+          ) : null}
         </div>
         <div className="flex shrink-0 flex-wrap items-center gap-3 sm:justify-end">
           <div className="text-muted-foreground flex flex-col sm:items-end text-xs sm:text-sm">

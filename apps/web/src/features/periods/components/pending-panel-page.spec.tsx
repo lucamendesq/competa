@@ -34,6 +34,7 @@ const mercado = () =>
 
 const oficina = (status: 'open' | 'closed' = 'open') =>
   panelRow({
+    pendingExtraCount: 2,
     companyId: '00000000-0000-4000-8000-0000000000c2',
     companyName: 'Oficina Roda Viva',
     requestId: '00000000-0000-4000-8000-0000000000d2',
@@ -197,6 +198,9 @@ describe('PendingPanelPage', () => {
     expect(within(dialog).getByText(/item\(ns\) ainda sem aceite/)).toHaveTextContent(
       '2 item(ns) ainda sem aceite.',
     );
+    expect(within(dialog).getByText(/documento\(s\) extra\(s\)/)).toHaveTextContent(
+      '2 documento(s) extra(s) ainda não conferido(s).',
+    );
     await user.click(within(dialog).getByRole('button', { name: 'Encerrar solicitação' }));
 
     expect(
@@ -206,6 +210,30 @@ describe('PendingPanelPage', () => {
       expect(
         screen.queryByRole('button', { name: 'Encerrar a solicitação de Oficina Roda Viva' }),
       ).not.toBeInTheDocument(),
+    );
+  });
+
+  it('Solicitação encerrada com extras pendentes sinaliza na linha que ficam fora do zip', async () => {
+    setup({ oficinaClosed: true, panelCalls: 0 });
+    mount();
+
+    expect(
+      await screen.findByText(/extra\(s\) aguardando conferência — fora do zip até serem aceitos/),
+    ).toHaveTextContent(
+      '2 documento(s) extra(s) aguardando conferência — fora do zip até serem aceitos',
+    );
+  });
+
+  it('encerrar a competência avisa quantos extras abertos ficam fora do zip final', async () => {
+    setup();
+    const user = userEvent.setup();
+    mount();
+
+    await user.click(await screen.findByRole('button', { name: 'Encerrar' }));
+
+    const dialog = await screen.findByRole('dialog', { name: 'Encerrar competência?' });
+    expect(within(dialog).getByText(/documento\(s\)\s+extra\(s\)/)).toHaveTextContent(
+      '2 documento(s) extra(s) ainda não conferido(s).',
     );
   });
 
