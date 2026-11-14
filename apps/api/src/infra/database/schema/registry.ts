@@ -281,6 +281,11 @@ export const subscription = pgTable(
     preUpgradeCycle: text('pre_upgrade_cycle'),
     preUpgradePeriodStart: timestamp('pre_upgrade_period_start', { withTimezone: true }),
     preUpgradePeriodEnd: timestamp('pre_upgrade_period_end', { withTimezone: true }),
+    /** Troca para um plano mais barato AGENDADA para a renovação: o plano pago segue valendo
+     *  até lá. Separada de `pending_*`, que é "ainda não paguei, promove quando pagar". O
+     *  webhook aplica quando a fatura recorrente seguinte avança o período. */
+    scheduledPlanName: text('scheduled_plan_name'),
+    scheduledCycle: text('scheduled_cycle'),
     /** Assinaturas do gateway que esta linha já teve. A cobrança em aberto de uma assinatura
      *  substituída continua pagável, e o webhook precisa achar a firma por ela. */
     previousGatewaySubscriptionIds: text('previous_gateway_subscription_ids')

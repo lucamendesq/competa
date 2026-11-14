@@ -10,6 +10,7 @@ export const panelRow = (overrides: Partial<PanelRowResponse> = {}): PanelRowRes
   requestStatus: 'open',
   counts: { pending: 1, submitted: 0, accepted: 0, rejected: 0 },
   missing: [],
+  pendingExtraCount: 0,
   channelFailures: [],
   ...overrides,
 });

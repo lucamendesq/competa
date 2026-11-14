@@ -162,6 +162,7 @@ describe('POST /periods — fan-out', () => {
       missing: Array<{ dueDate: string | null }>;
       requestStatus: string;
       responsibleAccountantName: string | null;
+      pendingExtraCount: number;
       channelFailures: unknown[];
     }> = res.body.data;
     const alpha = panel.find((row) => row.companyName === 'Alpha')!;
@@ -173,6 +174,7 @@ describe('POST /periods — fan-out', () => {
 
     expect(alpha.requestStatus).toBe('open');
     expect(alpha.responsibleAccountantName).toBeNull();
+    expect(alpha.pendingExtraCount).toBe(0);
     expect(alpha.channelFailures).toEqual([]);
     expect(res.body.data).toHaveLength(2);
   });

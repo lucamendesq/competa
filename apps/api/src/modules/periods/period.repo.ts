@@ -1,5 +1,5 @@
 import { Context, Effect, Layer } from 'effect';
-import { and, asc, count, desc, eq, inArray, ne, sql } from 'drizzle-orm';
+import { and, asc, count, desc, eq, inArray, isNull, ne, sql } from 'drizzle-orm';
 import type { OpenPeriodBody } from '@competa/contracts';
 import { addDays } from 'date-fns';
 import env from '../../config/env.js';
@@ -413,8 +413,24 @@ const make = Effect.gen(function* () {
         .where(and(eq(request.periodId, periodId), eq(message.status, 'failed')))
         .orderBy(desc(message.createdAt), desc(message.id));
 
+      const pendingExtras = await d
+        .select({ requestId: document.requestId, total: count() })
+        .from(document)
+        .innerJoin(request, eq(request.id, document.requestId))
+        .where(
+          and(
+            eq(request.periodId, periodId),
+            isNull(document.requestItemId),
+            eq(document.reviewStatus, 'pending'),
+            eq(document.uploadStatus, 'uploaded'),
+          ),
+        )
+        .groupBy(document.requestId);
+
       return summarizePending(rows as PanelRow[]).map((row) => ({
         ...row,
+        pendingExtraCount:
+          pendingExtras.find((extra) => extra.requestId === row.requestId)?.total ?? 0,
         channelFailures: failures.filter((failure) => failure.requestId === row.requestId),
       }));
     });

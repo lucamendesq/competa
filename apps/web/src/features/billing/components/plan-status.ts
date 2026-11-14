@@ -14,9 +14,27 @@ export const statusLabelOf = (subscription: Subscription | undefined, now = new 
   return status;
 };
 
-export const longDate = (iso: string | null | undefined) =>
+export const longDate = (iso: string | null | undefined, timeZone?: string) =>
   iso
-    ? new Intl.DateTimeFormat('pt-BR', { day: '2-digit', month: 'long', year: 'numeric' }).format(
-        new Date(iso),
-      )
+    ? new Intl.DateTimeFormat('pt-BR', {
+        day: '2-digit',
+        month: 'long',
+        year: 'numeric',
+        timeZone,
+      }).format(new Date(iso))
     : null;
+
+export const accessWindowOf = (
+  status: string | undefined,
+  currentPeriodEnd: string | null | undefined,
+  now = new Date(),
+) => {
+  const date = longDate(currentPeriodEnd, 'UTC');
+  if (status === 'ACTIVE') return date ? { label: 'Período pago até', value: date } : null;
+  if (status !== 'CANCELED' && status !== 'OVERDUE') return null;
+
+  const ended = !currentPeriodEnd || new Date(currentPeriodEnd) <= now;
+  if (ended) return { label: 'Acesso', value: date ? `Encerrado em ${date}` : 'Encerrado' };
+  if (status === 'CANCELED') return { label: 'Acesso até', value: date! };
+  return null;
+};

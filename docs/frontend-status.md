@@ -130,8 +130,9 @@ A conta **nunca** é pré-requisito de enviar documento. O único email obrigat�
   ela. O convite é de uso único: sem credencial própria, o Responsável ficaria sem porta
   depois de aceitá-lo.
 
-A entrada (`/minha-area/acesso`) oferece **as três portas** — senha, passkey e magic link —
-porque as duas formas de conta convivem. Convite reaproveitado responde 409 e a tela manda
+A entrada (`/minha-area/acesso`) oferece **duas portas** — senha e magic link — porque as
+duas formas de conta convivem. Passkey **não é oferecida** no web (sem botão nem código; a
+API também não tem o plugin). Convite reaproveitado responde 409 e a tela manda
 para a entrada, não para um erro seco.
 
 **Push não depende de conta.** `POST /upload/:token/push` grava a subscription com o

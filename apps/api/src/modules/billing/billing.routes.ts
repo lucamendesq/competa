@@ -21,6 +21,7 @@ import { squashError } from '../../infra/database/error.js';
 import { upgradeChargeNow } from './billing-rules.js';
 import { billing, gateway } from './gateway.js';
 import { withFirmFlight } from './checkout-flight.js';
+import { TrialCannotBeCanceled } from './errors.js';
 import { SubscriptionsRepo } from './subscription.repo.js';
 
 const logger = new Logger('BillingController');
@@ -162,26 +163,86 @@ const checkout = route(
           /* 3a. Assinatura EM DIA: a troca tem efeito agora. Preço igual ou menor vale na
            * hora e a próxima fatura já sai no valor novo. Upgrade cobra hoje o novo ciclo
            * descontado do que sobrou do atual — sem isto a troca só valia na próxima fatura,
-           * até 12 meses no anual. Se o gateway já emitiu a próxima fatura, ela é corrigida
-           * em vez de nascer uma cobrança a mais. */
+           * até 12 meses no anual. Se o gateway já emitiu a próxima fatura, o upgrade segue
+           * o mesmo caminho: cobrar a fatura cheia dela dava o mês seguinte adiantado e
+           * nenhum crédito pelo tempo não usado. Ela é realinhada ao novo período quando a
+           * cobrança avulsa é paga. */
           if (previous && current?.status === 'ACTIVE') {
-            const pending = yield* openInvoice(previous);
             const paidNow = currentPrice(current);
+            const { currentPeriodStart, currentPeriodEnd } = current;
+            const periodAhead =
+              currentPeriodEnd && currentPeriodEnd > new Date() ? currentPeriodEnd : undefined;
+
+            /* Voltar ao plano atual desfaz a troca agendada: o gateway volta ao valor dele,
+             * sem cobrança. */
+            if (
+              current.scheduledPlanName &&
+              planName === current.planName &&
+              cycle === current.cycle
+            ) {
+              yield* gateway(() =>
+                billing.changeSubscriptionPlan(previous, {
+                  planName,
+                  cycle,
+                  value,
+                  nextDueDate: periodAhead,
+                }),
+              );
+              yield* SubscriptionsRepo.use((repo) => repo.unscheduleDowngrade(firm.id));
+              return {
+                checkoutUrl: null,
+                simulated: billing.simulated,
+                applied: true,
+                scheduled: false,
+              };
+            }
+
+            /* Plano mais barato só vale na renovação: o cliente pagou o maior até o fim do
+             * período. O gateway é reajustado já, para a próxima fatura sair no valor novo,
+             * mantendo o vencimento no fim do período; plano e capacidades ficam até o
+             * webhook da renovação aplicar a troca. */
+            if (value < paidNow && periodAhead) {
+              if (current.pendingPaymentId) {
+                yield* discardOpenCharge(current.pendingPaymentId, firm.id);
+              }
+              yield* gateway(() =>
+                billing.changeSubscriptionPlan(previous, {
+                  planName,
+                  cycle,
+                  value,
+                  nextDueDate: periodAhead,
+                }),
+              );
+              yield* SubscriptionsRepo.use((repo) =>
+                repo.scheduleDowngrade({ firmId: firm.id, planName, cycle }),
+              ).pipe(
+                reportOrphanOnFailure(
+                  `Troca agendada da firma ${firm.id} ficou sem registro no banco, e a assinatura ${previous} já está no valor novo`,
+                  { firmId: firm.id, subscriptionId: previous },
+                ),
+              );
+              return {
+                checkoutUrl: null,
+                simulated: billing.simulated,
+                applied: false,
+                scheduled: true,
+              };
+            }
+
+            const pending = yield* openInvoice(previous);
+            const upgrading = value > paidNow && !!currentPeriodStart && !!currentPeriodEnd;
             const chargeNow =
-              pending ||
-              value <= paidNow ||
-              !current.currentPeriodStart ||
-              !current.currentPeriodEnd
-                ? null
-                : upgradeChargeNow({
+              upgrading && currentPeriodStart && currentPeriodEnd
+                ? upgradeChargeNow({
                     currentPrice: paidNow,
                     newPrice: value,
-                    periodStart: current.currentPeriodStart,
-                    periodEnd: current.currentPeriodEnd,
+                    periodStart: currentPeriodStart,
+                    periodEnd: currentPeriodEnd,
                     now: new Date(),
-                  });
+                  })
+                : null;
 
-            if (pending) {
+            if (pending && !upgrading) {
               yield* gateway(() =>
                 billing.changeSubscriptionPlan(previous, { planName, cycle, value }),
               );
@@ -194,6 +255,7 @@ const checkout = route(
                 checkoutUrl: pending.invoiceUrl,
                 simulated: billing.simulated,
                 applied: false,
+                scheduled: false,
               };
             }
 
@@ -204,7 +266,12 @@ const checkout = route(
               yield* SubscriptionsRepo.use((repo) =>
                 repo.applyPlanNow({ firmId: firm.id, planName, cycle }),
               );
-              return { checkoutUrl: null, simulated: billing.simulated, applied: true };
+              return {
+                checkoutUrl: null,
+                simulated: billing.simulated,
+                applied: true,
+                scheduled: false,
+              };
             }
 
             /* Só a cobrança: a assinatura é reajustada pelo webhook quando ela for paga.
@@ -236,7 +303,12 @@ const checkout = route(
                 chargeIds,
               ),
             );
-            return { checkoutUrl: charge.invoiceUrl, simulated: billing.simulated, applied: false };
+            return {
+              checkoutUrl: charge.invoiceUrl,
+              simulated: billing.simulated,
+              applied: false,
+              scheduled: false,
+            };
           }
 
           /* 3b. Já existe assinatura no gateway (trial com fatura em aberto, ou inadimplente):
@@ -283,8 +355,16 @@ const checkout = route(
               checkoutUrl: invoice?.invoiceUrl ?? null,
               simulated: billing.simulated,
               applied: false,
+              scheduled: false,
             };
           }
+
+          /* Quem cancelou e volta antes do fim do período já pago só começa a pagar quando ele
+           * acaba: a primeira cobrança vence em `currentPeriodEnd`, e o acesso segue até lá. */
+          const paidUntil =
+            canceled && current?.currentPeriodEnd && current.currentPeriodEnd > new Date()
+              ? current.currentPeriodEnd
+              : undefined;
 
           const created = yield* gateway(() =>
             billing.createSubscription({
@@ -293,6 +373,7 @@ const checkout = route(
               cycle,
               value,
               externalReference: firm.id,
+              firstDueDate: paidUntil,
             }),
           );
 
@@ -328,7 +409,12 @@ const checkout = route(
             );
           }
 
-          return { checkoutUrl: created.checkoutUrl, simulated: billing.simulated, applied: false };
+          return {
+            checkoutUrl: created.checkoutUrl,
+            simulated: billing.simulated,
+            applied: false,
+            scheduled: false,
+          };
         }),
       );
     }),
@@ -404,6 +490,10 @@ const subscriptionStatus = route(
          * "contratou" de "está valendo". */
         pendingPlanName: current.pendingPlanName,
         pendingCycle: current.pendingCycle,
+        /* Troca para plano mais barato agendada: o plano atual vale até `scheduledAt`. */
+        scheduledPlanName: current.scheduledPlanName,
+        scheduledCycle: current.scheduledCycle,
+        scheduledAt: current.scheduledPlanName ? current.currentPeriodEnd : null,
         invoiceUrl,
       };
     }),
@@ -427,6 +517,7 @@ const cancel = route(
 
       const current = yield* SubscriptionsRepo.use((repo) => repo.findByFirm(scope));
       if (!current) return yield* Effect.fail(new NotFound('Assinatura não encontrada.'));
+      if (current.status === 'trialing') return yield* Effect.fail(new TrialCannotBeCanceled());
 
       if (current.status !== 'CANCELED') {
         if (current.gatewaySubscriptionId) {

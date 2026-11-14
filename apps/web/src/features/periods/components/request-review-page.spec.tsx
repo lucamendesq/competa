@@ -26,9 +26,10 @@ const document = (n: number, overrides: Record<string, unknown> = {}) => ({
   ...overrides,
 });
 
-const detail = () =>
+const detail = (status: 'open' | 'closed' = 'open') =>
   request({
     id: REQUEST_ID,
+    status,
     periodId: PERIOD_ID,
     companyName: 'Mercado Bom Preço',
     items: [
@@ -63,13 +64,13 @@ const detail = () =>
     extraDocuments: [document(14, { fileName: 'extra.pdf' })],
   });
 
-const mount = () => {
+const mount = (status: 'open' | 'closed' = 'open') => {
   let detailCalls = 0;
   let posted: unknown;
   server.use(
     http.get(apiUrl(`/requests/${REQUEST_ID}`), () => {
       detailCalls += 1;
-      return HttpResponse.json(envelope(detail()));
+      return HttpResponse.json(envelope(detail(status)));
     }),
     http.post(apiUrl(`/requests/${REQUEST_ID}/review`), async ({ request: req }) => {
       posted = await req.json();
@@ -146,6 +147,30 @@ describe('RequestReviewPage', () => {
     await waitFor(() => expect(open).toHaveBeenCalledWith('blob:local/1', '_blank', 'noopener'));
     expect(requested).toEqual([uuid(11)]);
     open.mockRestore();
+  });
+
+  it('o diálogo de encerrar avisa quantos extras ainda não foram conferidos', async () => {
+    const user = userEvent.setup();
+    mount();
+
+    await user.click(await screen.findByRole('button', { name: 'Encerrar' }));
+
+    const dialog = await screen.findByRole('dialog');
+    expect(within(dialog).getByText(/documento\(s\) extra\(s\)/)).toHaveTextContent(
+      '1 documento(s) extra(s) ainda não conferido(s).',
+    );
+  });
+
+  it('Solicitação encerrada com extra pendente mostra o aviso e ainda deixa aceitar o extra', async () => {
+    const user = userEvent.setup();
+    mount('closed');
+
+    expect(
+      await screen.findByText(/aguardando conferência\. Eles só entram no zip final/),
+    ).toHaveTextContent('1 documento(s) extra(s) aguardando conferência.');
+    expect(screen.getByRole('button', { name: 'Aceitar: extra.pdf' })).toBeEnabled();
+    await user.click(screen.getByRole('button', { name: 'Aceitar: extra.pdf' }));
+    expect(screen.getByRole('status')).toHaveTextContent('1 decisão(ões) não publicada(s)');
   });
 
   it('Descartar zera as decisões', async () => {

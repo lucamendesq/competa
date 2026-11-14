@@ -1,5 +1,5 @@
 import { useReducer } from 'react';
-import { apiErrorMessage, failureKind } from '@/shared/lib/api-error';
+import { apiErrorCode, apiErrorMessage, failureKind } from '@/shared/lib/api-error';
 
 export type FileToPresign = {
   fileName: string;
@@ -17,6 +17,7 @@ export type FileResult = {
   ok: boolean;
   reason?: string;
   retriable?: boolean;
+  linkReplaced?: boolean;
   file?: File;
 };
 
@@ -138,6 +139,14 @@ export async function runUpload(
     }
     return results;
   } catch (error) {
+    if (apiErrorCode(error) === 'UPLOAD_LINK_INVALID') {
+      return files.map((file) => ({
+        fileName: file.name,
+        ok: false,
+        reason: 'Não foi enviado.',
+        linkReplaced: true,
+      }));
+    }
     // Falha no presign/confirm derruba o lote: a mensagem do servidor fala de campo de API e
     // não diz nada a quem envia, então vira uma neutra e os arquivos voltam para nova tentativa.
     const reason =

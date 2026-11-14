@@ -54,7 +54,7 @@ Os 3 contexts são um **mapa conceitual** (vocabulário, invariantes, direção 
 - Empresa Y NUNCA acessa documento da Empresa X; rotas de upload usam `UploadTokenGuard` → `UploadScope` limitado àquela solicitação, **SÓ escrita** — nunca listam/baixam conteúdo.
 - Documento acessível apenas ao Contador da Contabilidade dona e aos Responsáveis **da Empresa** (LGPD). Decisão de 2026-09-04 (Fase 10): a visibilidade é por Empresa, não por pessoa — o checklist é obrigação da Empresa e os Responsáveis a representam, então esconder o envio de um do outro só geraria retrabalho e item "enviado" sem explicação. O **histórico de quem enviou** é preservado e exibido (`document.uploaded_by_contact_id`). A barreira que continua valendo: **conteúdo de documento não é servido ao Responsável** — ele vê nome, status, prazo e autor, nunca o arquivo de volta.
 - Item aceito só muda via reabertura; rejeição reabre o Item E dispara reenvio de link SÓ por email.
-- Encerramento é ato exclusivo do Contador (pode encerrar com pendências 🟡, com aviso); Documento Extra aceito mesmo após encerramento.
+- Encerramento é ato exclusivo do Contador (pode encerrar com pendências 🟡, com aviso); Documento Extra aceito mesmo após encerramento. Extra enviado após encerrar chega `pending` e só entra no zip depois de aceito, então o diálogo de encerrar avisa quantos Extras ainda não foram conferidos e o painel e a revisão sinalizam os que aguardam conferência (`pendingExtraCount`).
 - Revisão em lote: aceitar um Item aceita todos os seus Documentos.
 - Limites de upload: 100 MB/arquivo, 500/envio; zip armazenado sem extração.
 
