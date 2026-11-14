@@ -287,6 +287,13 @@ const checkout = route(
             };
           }
 
+          /* Quem cancelou e volta antes do fim do período já pago só começa a pagar quando ele
+           * acaba: a primeira cobrança vence em `currentPeriodEnd`, e o acesso segue até lá. */
+          const paidUntil =
+            canceled && current?.currentPeriodEnd && current.currentPeriodEnd > new Date()
+              ? current.currentPeriodEnd
+              : undefined;
+
           const created = yield* gateway(() =>
             billing.createSubscription({
               customerId,
@@ -294,6 +301,7 @@ const checkout = route(
               cycle,
               value,
               externalReference: firm.id,
+              firstDueDate: paidUntil,
             }),
           );
 

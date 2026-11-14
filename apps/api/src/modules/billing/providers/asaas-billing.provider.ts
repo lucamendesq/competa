@@ -38,6 +38,8 @@ const sleep = (ms: number) => new Promise((resolve) => setTimeout(resolve, ms));
  *  demorava; `Effect.promise` não é interrompível. */
 const GATEWAY_TIMEOUT_MS = 10_000;
 
+const FIRST_DUE_DELAY_MS = 3 * 24 * 60 * 60 * 1000;
+
 const asaasDay = (date: Date) => date.toISOString().split('T')[0];
 
 export class AsaasBilling implements BillingProvider {
@@ -119,6 +121,7 @@ export class AsaasBilling implements BillingProvider {
     cycle: BillingCycle;
     value: number;
     externalReference: string;
+    firstDueDate?: Date;
   }) {
     const yearly = input.cycle === 'yearly';
 
@@ -131,7 +134,7 @@ export class AsaasBilling implements BillingProvider {
         customer: input.customerId,
         billingType: yearly ? 'BOLETO' : 'UNDEFINED',
         value: input.value,
-        nextDueDate: asaasDay(new Date(Date.now() + 1000 * 60 * 60 * 24 * 3)),
+        nextDueDate: asaasDay(input.firstDueDate ?? new Date(Date.now() + FIRST_DUE_DELAY_MS)),
         cycle: yearly ? 'YEARLY' : 'MONTHLY',
         description: `Plano ${input.planName} (${yearly ? 'anual' : 'mensal'}) - Competa`,
         externalReference: input.externalReference,

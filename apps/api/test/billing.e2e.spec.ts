@@ -450,6 +450,56 @@ describe('DELETE /billing/subscription — firma em trial', () => {
   });
 });
 
+describe('voltar depois de cancelar: o vencimento da primeira cobrança', () => {
+  async function canceledFirm(periodEnd: Date) {
+    const { api } = await registerFirm(app.url);
+    const firmId = await firmIdOf(api);
+    expect((await api.post('/billing/checkout', { planName: 'essencial' })).status).toBe(201);
+    await setSubscription(firmId, {
+      status: 'ACTIVE',
+      planName: 'essencial',
+      cycle: 'monthly',
+      currentPeriodStart: new Date(Date.now() - 10 * 86_400_000),
+      currentPeriodEnd: periodEnd,
+    });
+    expect((await api.delete('/billing/subscription')).status).toBe(200);
+    return { api, firmId };
+  }
+
+  it('cancelada com período pago pela frente: vence em currentPeriodEnd', async () => {
+    const periodEnd = new Date(Date.now() + 20 * 86_400_000);
+    const { api, firmId } = await canceledFirm(periodEnd);
+    const createSubscription = vi.spyOn(billing, 'createSubscription');
+
+    const res = await api.post('/billing/checkout', { planName: 'profissional' });
+    expect(res.status, JSON.stringify(res.body)).toBe(201);
+    expect(createSubscription).toHaveBeenCalledTimes(1);
+    expect(createSubscription.mock.calls[0][0].firstDueDate?.getTime()).toBe(periodEnd.getTime());
+
+    const [row] = await subscriptionRows(firmId);
+    expect(row).toMatchObject({ status: 'CANCELED', pendingPlanName: 'profissional' });
+    expect(row.currentPeriodEnd?.getTime()).toBe(periodEnd.getTime());
+  });
+
+  it('cancelada com o período já vencido: vencimento padrão do provider', async () => {
+    const { api } = await canceledFirm(new Date(Date.now() - 86_400_000));
+    const createSubscription = vi.spyOn(billing, 'createSubscription');
+
+    const res = await api.post('/billing/checkout', { planName: 'profissional' });
+    expect(res.status, JSON.stringify(res.body)).toBe(201);
+    expect(createSubscription.mock.calls[0][0].firstDueDate).toBeUndefined();
+  });
+
+  it('primeiro checkout do trial: vencimento padrão do provider', async () => {
+    const { api } = await registerFirm(app.url);
+    const createSubscription = vi.spyOn(billing, 'createSubscription');
+
+    const res = await api.post('/billing/checkout', { planName: 'profissional' });
+    expect(res.status, JSON.stringify(res.body)).toBe(201);
+    expect(createSubscription.mock.calls[0][0].firstDueDate).toBeUndefined();
+  });
+});
+
 async function activeFirmWithUpgradeCharge() {
   const { api } = await registerFirm(app.url);
   const firmId = await firmIdOf(api);

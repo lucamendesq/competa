@@ -569,6 +569,9 @@ sempre.
    pelo Asaas) mantém a escrita até `current_period_end`; a reativação é só por checkout.
    Firma em `trialing` não cancela (409 `TRIAL_CANNOT_BE_CANCELED`): sem período pago, o
    cancelamento só trancaria a escrita na hora e perderia os dias de teste que sobram.
+   Quem cancelou e volta antes do fim do período pago cria assinatura nova (o cancelamento
+   apagou a antiga no gateway) com a primeira cobrança vencendo em `current_period_end`, não
+   em 3 dias: a janela já paga não é cobrada de novo.
    `OVERDUE` só por fatura do período corrente — fatura antiga apagada por operador não
    derruba quem está em dia.
 4. **Troca de plano com assinatura em dia tem efeito agora:** preço igual ou menor aplica na
