@@ -414,3 +414,119 @@ describe('upgrade com a próxima fatura já emitida', () => {
     );
   });
 });
+
+describe('troca agendada para um plano mais barato', () => {
+  afterEach(() => {
+    vi.restoreAllMocks();
+  });
+
+  async function scheduledFirm() {
+    const { api, firmId, gatewaySubscriptionId } = await firmWithCheckout('profissional');
+    const periodStart = new Date(Date.UTC(2026, 10, 1));
+    const periodEnd = new Date(Date.UTC(2026, 11, 1));
+    await db
+      .update(subscription)
+      .set({
+        status: 'ACTIVE',
+        planName: 'profissional',
+        cycle: 'monthly',
+        pendingPlanName: null,
+        pendingCycle: null,
+        pendingPaymentId: null,
+        currentPeriodStart: periodStart,
+        currentPeriodEnd: periodEnd,
+      })
+      .where(eq(subscription.accountingFirmId, firmId));
+    vi.spyOn(billing, 'pendingInvoice').mockResolvedValue(null);
+    vi.useFakeTimers({ toFake: ['Date'], now: new Date(Date.UTC(2026, 10, 15)) });
+    try {
+      const res = await api.post('/billing/checkout', { planName: 'essencial' });
+      expect(res.body.data.scheduled, JSON.stringify(res.body)).toBe(true);
+    } finally {
+      vi.useRealTimers();
+    }
+    return { api, firmId, gatewaySubscriptionId };
+  }
+
+  it('o evento da renovação aplica o plano agendado e abre o período novo', async () => {
+    const { api, firmId, gatewaySubscriptionId } = await scheduledFirm();
+    expect(await rowOf(firmId)).toMatchObject({
+      planName: 'profissional',
+      scheduledPlanName: 'essencial',
+    });
+    expect((await api.patch('/accounting-firm', { reminderMax: 5 })).status).toBe(200);
+
+    const renewal = {
+      id: eventId(),
+      event: 'PAYMENT_CONFIRMED',
+      payment: { id: 'pay_renovacao', subscription: gatewaySubscriptionId, dueDate: '2026-12-01' },
+    };
+    expect((await post(renewal)).status).toBe(200);
+    expect(await rowOf(firmId)).toMatchObject({
+      status: 'ACTIVE',
+      planName: 'essencial',
+      cycle: 'monthly',
+      scheduledPlanName: null,
+      scheduledCycle: null,
+      currentPeriodStart: new Date(Date.UTC(2026, 11, 1)),
+      currentPeriodEnd: new Date(Date.UTC(2027, 0, 1)),
+    });
+    expect((await api.patch('/accounting-firm', { reminderMax: 5 })).status).toBe(402);
+
+    expect((await post(renewal)).status).toBe(200);
+    const later = await post({
+      id: eventId(),
+      event: 'PAYMENT_RECEIVED',
+      payment: { id: 'pay_renovacao', subscription: gatewaySubscriptionId, dueDate: '2026-12-01' },
+    });
+    expect(later.status).toBe(200);
+    expect(await rowOf(firmId)).toMatchObject({
+      planName: 'essencial',
+      currentPeriodEnd: new Date(Date.UTC(2027, 0, 1)),
+    });
+  });
+
+  it('o evento atrasado de uma fatura antiga não aplica a troca', async () => {
+    const { firmId, gatewaySubscriptionId } = await scheduledFirm();
+
+    const stale = await post({
+      id: eventId(),
+      event: 'PAYMENT_RECEIVED',
+      payment: { id: 'pay_antiga', subscription: gatewaySubscriptionId, dueDate: '2026-11-01' },
+    });
+    expect(stale.status).toBe(200);
+    expect(await rowOf(firmId)).toMatchObject({
+      planName: 'profissional',
+      scheduledPlanName: 'essencial',
+      currentPeriodEnd: new Date(Date.UTC(2026, 11, 1)),
+    });
+  });
+
+  it('upgrade pago depois do agendamento promove o plano novo e descarta a troca', async () => {
+    const { api, firmId } = await scheduledFirm();
+    vi.spyOn(billing, 'pendingInvoice').mockResolvedValue(null);
+
+    const upgrade = await api.post('/billing/checkout', { planName: 'escritorio' });
+    expect(upgrade.status, JSON.stringify(upgrade.body)).toBe(201);
+    const row = await rowOf(firmId);
+    expect(row).toMatchObject({ scheduledPlanName: 'essencial', pendingPlanName: 'escritorio' });
+
+    const today = new Date().toISOString().slice(0, 10);
+    const paid = await post({
+      id: eventId(),
+      event: 'PAYMENT_RECEIVED',
+      payment: {
+        id: row.pendingPaymentId,
+        dueDate: today,
+        paymentDate: today,
+        externalReference: firmId,
+      },
+    });
+    expect(paid.status).toBe(200);
+    expect(await rowOf(firmId)).toMatchObject({
+      planName: 'escritorio',
+      scheduledPlanName: null,
+      scheduledCycle: null,
+    });
+  });
+});

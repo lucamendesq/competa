@@ -574,8 +574,8 @@ sempre.
    em 3 dias: a janela já paga não é cobrada de novo.
    `OVERDUE` só por fatura do período corrente — fatura antiga apagada por operador não
    derruba quem está em dia.
-4. **Troca de plano com assinatura em dia tem efeito agora:** preço igual ou menor aplica na
-   hora (a próxima fatura sai no valor novo); upgrade cobra hoje o novo ciclo descontado do
+4. **Troca de plano com assinatura em dia tem efeito agora, exceto a para plano mais barato
+   (item 8):** preço igual aplica na hora (a próxima fatura sai no valor novo); upgrade cobra hoje o novo ciclo descontado do
    que sobrou do atual (cobrança avulsa, achada pelo `externalReference`) e promove no
    pagamento. Sem isto a troca só valia na próxima fatura — até 12 meses no anual. Vale também
    quando o gateway já emitiu a próxima fatura recorrente: ela não é cobrada cheia (daria o mês
@@ -592,6 +592,31 @@ sempre.
 7. **Os uploads do Responsável continuam funcionando para a firma `CANCELED`/`OVERDUE`.** O
    Link de Upload é a porta do produto (D14) e o documento é da Empresa, não do plano; a
    régua bloqueia a escrita do Contador, não a entrega do cliente dele.
+8. **Plano mais barato só vale na renovação.** Quem paga o Profissional até o fim do período
+   não perde as capacidades dele no meio dele. Escolher um plano de preço menor (ou o mesmo
+   plano em ciclo mais barato, anual para mensal) com assinatura `ACTIVE` e período em
+   curso **agenda** a troca: `scheduled_plan_name`/`scheduled_cycle` (separados de `pending_*`,
+   que significa "ainda não paguei, promove quando pagar"). Plano, ciclo, período e
+   capacidades ficam até `current_period_end`; o gateway é reajustado na hora para o valor
+   novo, mantendo o vencimento no fim do período (a próxima fatura já sai mais barata, e a
+   emitida é corrigida). Escolher o plano e o ciclo atuais de novo desfaz o agendamento,
+   sem cobrança; escolher outro plano mais barato o substitui.
+   - **Aplicação:** o webhook de uma fatura RECORRENTE (com `subscription`) que avança o
+     período aplica o agendamento no mesmo `UPDATE` (plano, ciclo, colunas limpas) e abre o
+     período no ciclo agendado. Fatura atrasada de período antigo, reativação `OVERDUE` que
+     não avança, e cobrança avulsa não aplicam. A reivindicação do evento (`billing_webhook_event`)
+     impede o reenvio de aplicar duas vezes, e a coluna limpa impede o `RECEIVED` tardio do
+     cartão.
+   - **Descartam o agendamento:** cancelar (rota ou `SUBSCRIPTION_INACTIVATED`/`DELETED`),
+     `applyPlanNow`, e a promoção de um upgrade pago (o upgrade é calculado contra o plano
+     atual, que é o que o cliente paga).
+   - **O teto de Empresas do plano novo NÃO é reconferido na renovação.** Ele foi checado ao
+     agendar; depois disso a regra do teto flexível (D18 §7) já impede cadastrar ou ativar
+     Empresa acima do plano vigente, então a firma com carteira maior fica travada para
+     crescer, não perde dado.
+   - **Limite conhecido:** a troca se aplica quando a fatura da renovação é PAGA. Quem paga
+     essa fatura antes do vencimento (o Asaas a emite alguns dias antes) troca de plano esses
+     dias antes do fim do período antigo.
 
 **Consequências:**
 

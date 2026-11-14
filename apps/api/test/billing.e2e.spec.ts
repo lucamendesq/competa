@@ -122,7 +122,9 @@ describe('POST /billing/checkout — fluxo com LogBilling', () => {
   it('checkout devolve 201 com checkoutUrl VAZIA e simulated true (stub de console)', async () => {
     const res = await api.post('/billing/checkout', { planName: 'profissional', cycle: 'yearly' });
     expect(res.status, JSON.stringify(res.body)).toBe(201);
-    expect(res.body).toEqual({ data: { checkoutUrl: '', simulated: true, applied: false } });
+    expect(res.body).toEqual({
+      data: { checkoutUrl: '', simulated: true, applied: false, scheduled: false },
+    });
   });
 
   /* O checkout grava INTENÇÃO, não plano. O gate de capability lê `planName`, então gravar
@@ -155,7 +157,9 @@ describe('POST /billing/checkout — fluxo com LogBilling', () => {
     const res = await api.post('/billing/checkout', { planName: 'essencial' });
     expect(res.status).toBe(201);
     /* Troca sem fatura em aberto no stub: a intenção fica gravada e vale na próxima. */
-    expect(res.body).toEqual({ data: { checkoutUrl: null, simulated: true, applied: false } });
+    expect(res.body).toEqual({
+      data: { checkoutUrl: null, simulated: true, applied: false, scheduled: false },
+    });
 
     const rows = await subscriptionRows(firmId);
     expect(rows).toHaveLength(1);
@@ -176,7 +180,9 @@ describe('POST /billing/checkout — fluxo com LogBilling', () => {
      * sem subscription — mas o update-sem-linha é comportamento a preservar na migração. */
     const res = await orphan.api.post('/billing/checkout', { planName: 'escritorio' });
     expect(res.status).toBe(201);
-    expect(res.body).toEqual({ data: { checkoutUrl: '', simulated: true, applied: false } });
+    expect(res.body).toEqual({
+      data: { checkoutUrl: '', simulated: true, applied: false, scheduled: false },
+    });
     expect(await subscriptionRows(orphanFirmId)).toEqual([]);
   });
 });
@@ -343,20 +349,38 @@ describe('troca de plano com assinatura em dia', () => {
     });
   });
 
-  /* Preço igual ou menor não tem o que cobrar: vale na hora, e a próxima fatura já sai no
-   * valor novo. */
-  it('downgrade vale na hora: applied, sem fatura, plano trocado', async () => {
+  /* Plano mais barato só vale na renovação: o cliente pagou o maior até o fim do período. */
+  it('downgrade é agendado: scheduled, plano atual intacto, gateway no valor novo', async () => {
+    const [before] = await subscriptionRows(firmId);
+    const changePlan = vi.spyOn(billing, 'changeSubscriptionPlan');
+
     const res = await api.post('/billing/checkout', { planName: 'essencial' });
     expect(res.status, JSON.stringify(res.body)).toBe(201);
-    expect(res.body.data).toEqual({ checkoutUrl: null, simulated: true, applied: true });
+    expect(res.body.data).toEqual({
+      checkoutUrl: null,
+      simulated: true,
+      applied: false,
+      scheduled: true,
+    });
 
     const [row] = await subscriptionRows(firmId);
     expect(row).toMatchObject({
-      planName: 'essencial',
+      planName: 'profissional',
       cycle: 'monthly',
       status: 'ACTIVE',
+      scheduledPlanName: 'essencial',
+      scheduledCycle: 'monthly',
       pendingPlanName: null,
       pendingPaymentId: null,
+    });
+    expect(row.currentPeriodEnd?.getTime()).toBe(before.currentPeriodEnd?.getTime());
+
+    expect(changePlan).toHaveBeenCalledTimes(1);
+    expect(changePlan).toHaveBeenCalledWith(before.gatewaySubscriptionId, {
+      planName: 'essencial',
+      cycle: 'monthly',
+      value: planPrice(PLANS.essencial, 'monthly'),
+      nextDueDate: before.currentPeriodEnd,
     });
   });
 
@@ -365,15 +389,196 @@ describe('troca de plano com assinatura em dia', () => {
   it('upgrade cria cobrança avulsa e grava a intenção com o id dela', async () => {
     const res = await api.post('/billing/checkout', { planName: 'escritorio', cycle: 'yearly' });
     expect(res.status, JSON.stringify(res.body)).toBe(201);
-    expect(res.body.data).toEqual({ checkoutUrl: '', simulated: true, applied: false });
+    expect(res.body.data).toEqual({
+      checkoutUrl: '',
+      simulated: true,
+      applied: false,
+      scheduled: false,
+    });
 
     const [row] = await subscriptionRows(firmId);
     expect(row).toMatchObject({
-      planName: 'essencial',
+      planName: 'profissional',
       pendingPlanName: 'escritorio',
       pendingCycle: 'yearly',
+      scheduledPlanName: 'essencial',
     });
     expect(row.pendingPaymentId).toMatch(/^mock_pay_/);
+  });
+});
+
+describe('troca agendada para um plano mais barato', () => {
+  async function activeFirm(patch: Record<string, unknown> = {}) {
+    const { api } = await registerFirm(app.url);
+    const firmId = await firmIdOf(api);
+    expect(
+      (await api.post('/billing/checkout', { planName: 'profissional', cycle: 'monthly' })).status,
+    ).toBe(201);
+    await setSubscription(firmId, {
+      status: 'ACTIVE',
+      planName: 'profissional',
+      cycle: 'monthly',
+      pendingPlanName: null,
+      pendingCycle: null,
+      pendingPaymentId: null,
+      currentPeriodStart: new Date(Date.now() - 10 * 86_400_000),
+      currentPeriodEnd: new Date(Date.now() + 20 * 86_400_000),
+      ...patch,
+    });
+    return { api, firmId };
+  }
+
+  const reminderTuning = (api: Api) => api.patch('/accounting-firm', { reminderMax: 5 });
+
+  it('as capacidades do plano atual valem até o fim do período', async () => {
+    const { api } = await activeFirm();
+    expect(
+      (await api.post('/billing/checkout', { planName: 'essencial' })).body.data.scheduled,
+    ).toBe(true);
+
+    const res = await reminderTuning(api);
+    expect(res.status, JSON.stringify(res.body)).toBe(200);
+  });
+
+  it('GET /billing/subscription expõe a troca e a data em que ela vale', async () => {
+    const { api, firmId } = await activeFirm();
+    await api.post('/billing/checkout', { planName: 'essencial' });
+    const [row] = await subscriptionRows(firmId);
+
+    const res = await api.get('/billing/subscription');
+    expect(res.status).toBe(200);
+    expect(res.body.data).toMatchObject({
+      planName: 'profissional',
+      scheduledPlanName: 'essencial',
+      scheduledCycle: 'monthly',
+      scheduledAt: row.currentPeriodEnd?.toISOString(),
+    });
+
+    const plain = await activeFirm();
+    const none = await plain.api.get('/billing/subscription');
+    expect(none.body.data).toMatchObject({
+      scheduledPlanName: null,
+      scheduledCycle: null,
+      scheduledAt: null,
+    });
+  });
+
+  it('mesmo plano e ciclo com troca agendada desfaz: gateway volta ao valor atual, sem cobrança', async () => {
+    const { api, firmId } = await activeFirm();
+    await api.post('/billing/checkout', { planName: 'essencial' });
+    const [scheduled] = await subscriptionRows(firmId);
+    const changePlan = vi.spyOn(billing, 'changeSubscriptionPlan');
+    const createCharge = vi.spyOn(billing, 'createCharge');
+
+    const res = await api.post('/billing/checkout', { planName: 'profissional' });
+    expect(res.status, JSON.stringify(res.body)).toBe(201);
+    expect(res.body.data).toEqual({
+      checkoutUrl: null,
+      simulated: true,
+      applied: true,
+      scheduled: false,
+    });
+    expect(createCharge).not.toHaveBeenCalled();
+    expect(changePlan).toHaveBeenCalledWith(scheduled.gatewaySubscriptionId, {
+      planName: 'profissional',
+      cycle: 'monthly',
+      value: planPrice(PLANS.profissional, 'monthly'),
+      nextDueDate: scheduled.currentPeriodEnd,
+    });
+
+    expect(await subscriptionRows(firmId)).toMatchObject([
+      { planName: 'profissional', scheduledPlanName: null, scheduledCycle: null },
+    ]);
+  });
+
+  it('outro plano mais barato sobrescreve o agendamento', async () => {
+    const { api, firmId } = await activeFirm({ planName: 'escritorio' });
+    await api.post('/billing/checkout', { planName: 'profissional' });
+    expect((await subscriptionRows(firmId))[0].scheduledPlanName).toBe('profissional');
+
+    const res = await api.post('/billing/checkout', { planName: 'essencial' });
+    expect(res.body.data.scheduled).toBe(true);
+    expect(await subscriptionRows(firmId)).toMatchObject([
+      { planName: 'escritorio', scheduledPlanName: 'essencial' },
+    ]);
+  });
+
+  it('ciclo mais barato no mesmo plano (anual para mensal) também agenda', async () => {
+    const { api, firmId } = await activeFirm({ cycle: 'yearly' });
+
+    const res = await api.post('/billing/checkout', { planName: 'profissional', cycle: 'monthly' });
+    expect(res.body.data.scheduled).toBe(true);
+    expect(await subscriptionRows(firmId)).toMatchObject([
+      { cycle: 'yearly', scheduledPlanName: 'profissional', scheduledCycle: 'monthly' },
+    ]);
+  });
+
+  it('com a próxima fatura já emitida também agenda, e não promove no pagamento dela', async () => {
+    const { api, firmId } = await activeFirm();
+    vi.spyOn(billing, 'pendingInvoice').mockResolvedValue({
+      id: 'pay_proxima',
+      invoiceUrl: 'https://www.asaas.com/i/proxima',
+    });
+    const changePlan = vi.spyOn(billing, 'changeSubscriptionPlan');
+
+    const res = await api.post('/billing/checkout', { planName: 'essencial' });
+    expect(res.body.data).toEqual({
+      checkoutUrl: null,
+      simulated: true,
+      applied: false,
+      scheduled: true,
+    });
+    expect(changePlan).toHaveBeenCalledTimes(1);
+    expect(await subscriptionRows(firmId)).toMatchObject([
+      { planName: 'profissional', scheduledPlanName: 'essencial', pendingPaymentId: null },
+    ]);
+  });
+
+  it('período já vencido não agenda: vale na hora, como antes', async () => {
+    const { api, firmId } = await activeFirm({
+      currentPeriodEnd: new Date(Date.now() - 86_400_000),
+    });
+
+    const res = await api.post('/billing/checkout', { planName: 'essencial' });
+    expect(res.body.data).toMatchObject({ applied: true, scheduled: false });
+    expect(await subscriptionRows(firmId)).toMatchObject([
+      { planName: 'essencial', scheduledPlanName: null },
+    ]);
+  });
+
+  it('falha do gateway ao reajustar: 503 e nada fica agendado', async () => {
+    const { api, firmId } = await activeFirm();
+    vi.spyOn(billing, 'changeSubscriptionPlan').mockRejectedValue(new Error('Asaas fora'));
+
+    const res = await api.post('/billing/checkout', { planName: 'essencial' });
+    expect(res.status).toBe(503);
+    expect((await subscriptionRows(firmId))[0].scheduledPlanName).toBeNull();
+  });
+
+  it('agendar apaga a cobrança avulsa de um upgrade que ficou sem pagar', async () => {
+    const { api, firmId } = await activeFirm({ planName: 'essencial' });
+    expect((await api.post('/billing/checkout', { planName: 'escritorio' })).status).toBe(201);
+    const charge = (await subscriptionRows(firmId))[0].pendingPaymentId!;
+    await setSubscription(firmId, { planName: 'escritorio' });
+    vi.spyOn(billing, 'payment').mockResolvedValue({ subscriptionId: null, open: true });
+    const deletePayment = vi.spyOn(billing, 'deletePayment');
+
+    const res = await api.post('/billing/checkout', { planName: 'essencial' });
+    expect(res.body.data.scheduled).toBe(true);
+    expect(deletePayment).toHaveBeenCalledWith(charge);
+    expect(await subscriptionRows(firmId)).toMatchObject([
+      { scheduledPlanName: 'essencial', pendingPlanName: null, pendingPaymentId: null },
+    ]);
+  });
+
+  it('cancelar a assinatura limpa a troca agendada', async () => {
+    const { api, firmId } = await activeFirm();
+    await api.post('/billing/checkout', { planName: 'essencial' });
+
+    expect((await api.delete('/billing/subscription')).status).toBe(200);
+    expect(await subscriptionRows(firmId)).toMatchObject([
+      { status: 'CANCELED', scheduledPlanName: null, scheduledCycle: null },
+    ]);
   });
 });
 
@@ -413,7 +618,12 @@ describe('troca de plano com a próxima fatura já emitida pelo gateway', () => 
 
     const res = await api.post('/billing/checkout', { planName: 'escritorio' });
     expect(res.status, JSON.stringify(res.body)).toBe(201);
-    expect(res.body.data).toEqual({ checkoutUrl: '', simulated: true, applied: false });
+    expect(res.body.data).toEqual({
+      checkoutUrl: '',
+      simulated: true,
+      applied: false,
+      scheduled: false,
+    });
     expect(res.body.data.checkoutUrl).not.toBe(nextInvoice.invoiceUrl);
 
     const expected = upgradeChargeNow({
@@ -454,9 +664,12 @@ describe('troca de plano com a próxima fatura já emitida pelo gateway', () => 
     expect(deletePayment).not.toHaveBeenCalledWith(nextInvoice.id);
   });
 
-  it('preço menor com fatura emitida segue como antes: reajusta a fatura e grava a intenção', async () => {
+  it('preço menor com fatura emitida e período já vencido segue como antes: reajusta a fatura e grava a intenção', async () => {
     const { api, firmId } = await activeFirmWithNextInvoice();
-    await setSubscription(firmId, { planName: 'escritorio' });
+    await setSubscription(firmId, {
+      planName: 'escritorio',
+      currentPeriodEnd: new Date(Date.now() - 86_400_000),
+    });
     const createCharge = vi.spyOn(billing, 'createCharge');
     const changePlan = vi.spyOn(billing, 'changeSubscriptionPlan');
 
@@ -466,6 +679,7 @@ describe('troca de plano com a próxima fatura já emitida pelo gateway', () => 
       checkoutUrl: nextInvoice.invoiceUrl,
       simulated: true,
       applied: false,
+      scheduled: false,
     });
     expect(createCharge).not.toHaveBeenCalled();
     expect(changePlan).toHaveBeenCalledTimes(1);

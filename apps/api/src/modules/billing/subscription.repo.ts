@@ -62,6 +62,11 @@ const clearedUpgrade = {
   preUpgradePeriodEnd: null,
 };
 
+const clearedSchedule = {
+  scheduledPlanName: null,
+  scheduledCycle: null,
+};
+
 const startOfUtcDay = (date: Date) =>
   new Date(Date.UTC(date.getUTCFullYear(), date.getUTCMonth(), date.getUTCDate()));
 
@@ -133,8 +138,40 @@ const make = Effect.gen(function* () {
           pendingPaymentId: null,
           pendingInvoiceUrl: null,
           ...clearedUpgrade,
+          ...clearedSchedule,
         })
         .where(eq(subscription.accountingFirmId, input.firmId)),
+    );
+  });
+
+  /** Troca para plano mais barato que só vale na renovação: grava o agendamento e deixa
+   *  plano, ciclo e período como estão. Substitui o agendamento anterior, e descarta uma
+   *  intenção de upgrade não paga (o plano agendado é calculado contra o plano atual). */
+  const scheduleDowngrade = Effect.fn('SubscriptionsRepo.scheduleDowngrade')(function* (input: {
+    firmId: string;
+    planName: PaidPlanName;
+    cycle: BillingCycle;
+  }) {
+    yield* db.use((d) =>
+      d
+        .update(subscription)
+        .set({
+          scheduledPlanName: input.planName,
+          scheduledCycle: input.cycle,
+          pendingPlanName: null,
+          pendingCycle: null,
+          pendingPaymentId: null,
+          pendingInvoiceUrl: null,
+        })
+        .where(eq(subscription.accountingFirmId, input.firmId)),
+    );
+  });
+
+  const unscheduleDowngrade = Effect.fn('SubscriptionsRepo.unscheduleDowngrade')(function* (
+    firmId: string,
+  ) {
+    yield* db.use((d) =>
+      d.update(subscription).set(clearedSchedule).where(eq(subscription.accountingFirmId, firmId)),
     );
   });
 
@@ -150,6 +187,7 @@ const make = Effect.gen(function* () {
           pendingCycle: null,
           pendingPaymentId: null,
           pendingInvoiceUrl: null,
+          ...clearedSchedule,
         })
         .where(eq(subscription.accountingFirmId, firmId)),
     );
@@ -367,16 +405,40 @@ const make = Effect.gen(function* () {
                 pendingCycle: null,
                 pendingPaymentId: null,
                 pendingInvoiceUrl: null,
+                ...clearedSchedule,
               }
             : {};
+
+        /* Troca agendada: só uma fatura RECORRENTE (a avulsa do upgrade não tem
+         * `subscription`) que abre um período novo a aplica. O período dela já nasce no ciclo
+         * agendado. Quem promove uma intenção de checkout já escolheu outro plano depois do
+         * agendamento, e `promoted` o limpa. */
+        const scheduled =
+          status === 'ACTIVE' &&
+          !coversPending &&
+          !!input.gatewaySubscriptionId &&
+          isPaidPlan(row.scheduledPlanName)
+            ? {
+                planName: row.scheduledPlanName,
+                cycle: (row.scheduledCycle ?? row.cycle) as BillingCycle,
+              }
+            : null;
 
         /* O período só anda para a frente: o pagamento atrasado de uma fatura antiga ativa a
          * firma (dinheiro é dinheiro) mas não encurta o período que a nova já abriu. */
         const anchor = input.payment.dueDate ?? input.payment.paymentDate ?? new Date();
-        const period = status === 'ACTIVE' ? periodFrom(anchor, promoted.cycle ?? row.cycle) : null;
+        const period =
+          status === 'ACTIVE'
+            ? periodFrom(anchor, (coversPending && pending?.cycle) || scheduled?.cycle || row.cycle)
+            : null;
         const periodPatch =
           period && (!row.currentPeriodEnd || period.currentPeriodEnd > row.currentPeriodEnd)
             ? period
+            : {};
+
+        const renewal =
+          scheduled && 'currentPeriodEnd' in periodPatch
+            ? { planName: scheduled.planName, cycle: scheduled.cycle, ...clearedSchedule }
             : {};
 
         if (
@@ -408,13 +470,14 @@ const make = Effect.gen(function* () {
                 pendingCycle: null,
                 pendingPaymentId: null,
                 pendingInvoiceUrl: null,
+                ...clearedSchedule,
               }
             : {};
 
         yield* db.use((d) =>
           d
             .update(subscription)
-            .set({ status, ...promoted, ...periodPatch, ...upgrade, ...canceled })
+            .set({ status, ...promoted, ...renewal, ...periodPatch, ...upgrade, ...canceled })
             .where(eq(subscription.id, row.id)),
         );
 
@@ -482,6 +545,8 @@ const make = Effect.gen(function* () {
     findByFirm,
     startCheckout,
     applyPlanNow,
+    scheduleDowngrade,
+    unscheduleDowngrade,
     cancel,
     claimEvent,
     applyEvent,

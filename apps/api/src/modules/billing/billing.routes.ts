@@ -168,9 +168,68 @@ const checkout = route(
            * nenhum crédito pelo tempo não usado. Ela é realinhada ao novo período quando a
            * cobrança avulsa é paga. */
           if (previous && current?.status === 'ACTIVE') {
-            const pending = yield* openInvoice(previous);
             const paidNow = currentPrice(current);
             const { currentPeriodStart, currentPeriodEnd } = current;
+            const periodAhead =
+              currentPeriodEnd && currentPeriodEnd > new Date() ? currentPeriodEnd : undefined;
+
+            /* Voltar ao plano atual desfaz a troca agendada: o gateway volta ao valor dele,
+             * sem cobrança. */
+            if (
+              current.scheduledPlanName &&
+              planName === current.planName &&
+              cycle === current.cycle
+            ) {
+              yield* gateway(() =>
+                billing.changeSubscriptionPlan(previous, {
+                  planName,
+                  cycle,
+                  value,
+                  nextDueDate: periodAhead,
+                }),
+              );
+              yield* SubscriptionsRepo.use((repo) => repo.unscheduleDowngrade(firm.id));
+              return {
+                checkoutUrl: null,
+                simulated: billing.simulated,
+                applied: true,
+                scheduled: false,
+              };
+            }
+
+            /* Plano mais barato só vale na renovação: o cliente pagou o maior até o fim do
+             * período. O gateway é reajustado já, para a próxima fatura sair no valor novo,
+             * mantendo o vencimento no fim do período; plano e capacidades ficam até o
+             * webhook da renovação aplicar a troca. */
+            if (value < paidNow && periodAhead) {
+              if (current.pendingPaymentId) {
+                yield* discardOpenCharge(current.pendingPaymentId, firm.id);
+              }
+              yield* gateway(() =>
+                billing.changeSubscriptionPlan(previous, {
+                  planName,
+                  cycle,
+                  value,
+                  nextDueDate: periodAhead,
+                }),
+              );
+              yield* SubscriptionsRepo.use((repo) =>
+                repo.scheduleDowngrade({ firmId: firm.id, planName, cycle }),
+              ).pipe(
+                reportOrphanOnFailure(
+                  `Troca agendada da firma ${firm.id} ficou sem registro no banco, e a assinatura ${previous} já está no valor novo`,
+                  { firmId: firm.id, subscriptionId: previous },
+                ),
+              );
+              return {
+                checkoutUrl: null,
+                simulated: billing.simulated,
+                applied: false,
+                scheduled: true,
+              };
+            }
+
+            const pending = yield* openInvoice(previous);
             const upgrading = value > paidNow && !!currentPeriodStart && !!currentPeriodEnd;
             const chargeNow =
               upgrading && currentPeriodStart && currentPeriodEnd
@@ -196,6 +255,7 @@ const checkout = route(
                 checkoutUrl: pending.invoiceUrl,
                 simulated: billing.simulated,
                 applied: false,
+                scheduled: false,
               };
             }
 
@@ -206,7 +266,12 @@ const checkout = route(
               yield* SubscriptionsRepo.use((repo) =>
                 repo.applyPlanNow({ firmId: firm.id, planName, cycle }),
               );
-              return { checkoutUrl: null, simulated: billing.simulated, applied: true };
+              return {
+                checkoutUrl: null,
+                simulated: billing.simulated,
+                applied: true,
+                scheduled: false,
+              };
             }
 
             /* Só a cobrança: a assinatura é reajustada pelo webhook quando ela for paga.
@@ -238,7 +303,12 @@ const checkout = route(
                 chargeIds,
               ),
             );
-            return { checkoutUrl: charge.invoiceUrl, simulated: billing.simulated, applied: false };
+            return {
+              checkoutUrl: charge.invoiceUrl,
+              simulated: billing.simulated,
+              applied: false,
+              scheduled: false,
+            };
           }
 
           /* 3b. Já existe assinatura no gateway (trial com fatura em aberto, ou inadimplente):
@@ -285,6 +355,7 @@ const checkout = route(
               checkoutUrl: invoice?.invoiceUrl ?? null,
               simulated: billing.simulated,
               applied: false,
+              scheduled: false,
             };
           }
 
@@ -338,7 +409,12 @@ const checkout = route(
             );
           }
 
-          return { checkoutUrl: created.checkoutUrl, simulated: billing.simulated, applied: false };
+          return {
+            checkoutUrl: created.checkoutUrl,
+            simulated: billing.simulated,
+            applied: false,
+            scheduled: false,
+          };
         }),
       );
     }),
@@ -414,6 +490,10 @@ const subscriptionStatus = route(
          * "contratou" de "está valendo". */
         pendingPlanName: current.pendingPlanName,
         pendingCycle: current.pendingCycle,
+        /* Troca para plano mais barato agendada: o plano atual vale até `scheduledAt`. */
+        scheduledPlanName: current.scheduledPlanName,
+        scheduledCycle: current.scheduledCycle,
+        scheduledAt: current.scheduledPlanName ? current.currentPeriodEnd : null,
         invoiceUrl,
       };
     }),
