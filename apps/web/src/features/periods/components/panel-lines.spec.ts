@@ -13,6 +13,7 @@ const rows = [
     companyName: 'Ação Contábil',
     counts: { pending: 0, submitted: 1, accepted: 3, rejected: 0 },
     missing: [{ id: 'a', name: 'X', status: 'submitted', dueDate: null, resent: true }],
+    pendingExtraCount: 2,
   }),
   panelRow({
     companyName: 'Zeta',
@@ -47,6 +48,11 @@ describe('panel-lines', () => {
     const lines = toLines(rows, new Map());
 
     expect(deliveryProgress(lines)).toEqual({ total: 6, accepted: 5, percent: 83 });
-    expect(closeImpact(lines)).toEqual({ unaccepted: 1, companies: 1, toReview: 1 });
+    expect(closeImpact(lines)).toEqual({
+      unaccepted: 1,
+      companies: 1,
+      toReview: 1,
+      extrasToReview: 2,
+    });
   });
 });

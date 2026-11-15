@@ -1,12 +1,15 @@
 import { layer } from '@effect/vitest';
 import { Effect } from 'effect';
+import { eq } from 'drizzle-orm';
 import { beforeAll, expect } from 'vitest';
 import { db, truncateAll } from '../support/db.js';
 import {
   accountingFirm,
   company,
   contact,
+  document,
   documentType,
+  request,
 } from '../../src/infra/database/schema/index.js';
 import { toContactScope, toFirmScope } from '../../src/modules/auth/scope.js';
 import { PeriodsRepo } from '../../src/modules/periods/period.repo.js';
@@ -192,9 +195,57 @@ layer(PeriodsRepo.layer)('PeriodsRepo', (it) => {
           companyName: 'H Ltda',
           counts: { pending: 1, submitted: 0, accepted: 0, rejected: 0 },
           missing: [{ name: 'Doc Unit', status: 'pending' }],
+          pendingExtraCount: 0,
           channelFailures: [],
         },
       ]);
+    }),
+  );
+
+  it.effect('pendingPanel conta só Extra enviado e ainda não revisado da própria Solicitação', () =>
+    Effect.gen(function* () {
+      const repo = yield* PeriodsRepo;
+      const { scope, periodId } = yield* seedOpenedRequest('Unit J');
+      const other = yield* seedOpenedRequest('Unit K');
+
+      yield* Effect.promise(async () => {
+        const requestIdOf = async (id: string) => {
+          const [row] = await db
+            .select({ id: request.id })
+            .from(request)
+            .where(eq(request.periodId, id));
+
+          return row.id;
+        };
+        const requestId = await requestIdOf(periodId);
+        const extra = (overrides: Partial<typeof document.$inferInsert>) => ({
+          requestId,
+          requestItemId: null,
+          storageKey: `unit/${crypto.randomUUID()}.pdf`,
+          fileName: 'extra.pdf',
+          contentType: 'application/pdf',
+          sizeBytes: 1024,
+          uploadStatus: 'uploaded',
+          reviewStatus: 'pending',
+          uploadedAt: new Date(),
+          ...overrides,
+        });
+
+        await db
+          .insert(document)
+          .values([
+            extra({}),
+            extra({}),
+            extra({ reviewStatus: 'accepted' }),
+            extra({ reviewStatus: 'rejected' }),
+            extra({ uploadStatus: 'awaiting_upload' }),
+            extra({ requestId: await requestIdOf(other.periodId) }),
+          ]);
+      });
+
+      const panel = yield* repo.pendingPanel(scope, periodId);
+
+      expect(panel).toMatchObject([{ companyName: 'J Ltda', pendingExtraCount: 2 }]);
     }),
   );
 

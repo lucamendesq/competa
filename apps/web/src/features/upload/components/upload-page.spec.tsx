@@ -54,6 +54,7 @@ const setup = ({
   checklistStatus = 200,
   putStatus = 200,
   refused = [] as { documentId: string; fileName: string; reason: string }[],
+  confirmLinkInvalid = false,
 } = {}) => {
   const state = { served: [] as string[], meCalls: 0 };
   server.use(
@@ -88,7 +89,12 @@ const setup = ({
       () => new HttpResponse(null, { status: putStatus, headers: CORS }),
     ),
     http.post(apiUrl(`/upload/${TOKEN}/documents/confirm`), () =>
-      HttpResponse.json(envelope({ confirmed: 1, submittedItemIds: [], refused })),
+      confirmLinkInvalid
+        ? HttpResponse.json(
+            { error: { code: 'UPLOAD_LINK_INVALID', message: 'Link indisponível.' } },
+            { status: 404 },
+          )
+        : HttpResponse.json(envelope({ confirmed: 1, submittedItemIds: [], refused })),
     ),
     http.post(apiUrl(`/upload/${TOKEN}/access`), () =>
       HttpResponse.json(
@@ -147,6 +153,26 @@ describe('UploadPage', () => {
     const dialog = await screen.findByRole('dialog', { name: 'O envio não completou' });
     expect(within(dialog).getByText('extrato.pdf')).toBeInTheDocument();
     expect(within(dialog).getByRole('button', { name: 'Tentar de novo (1)' })).toBeInTheDocument();
+  });
+
+  it('link trocado durante o envio (confirm 404 UPLOAD_LINK_INVALID) não oferece "Tentar de novo" e leva a "Receber o link atual"', async () => {
+    setup({ confirmLinkInvalid: true });
+    const user = userEvent.setup();
+
+    await pickFiles(user, [new File(['%PDF'], 'extrato.pdf', { type: 'application/pdf' })]);
+
+    const dialog = await screen.findByRole('dialog', { name: 'O link de envio mudou' });
+    expect(
+      within(dialog).getByText(/Receba o link atual e envie o arquivo de novo/),
+    ).toBeInTheDocument();
+    expect(within(dialog).getByText('extrato.pdf')).toBeInTheDocument();
+    expect(
+      within(dialog).queryByRole('button', { name: /Tentar de novo/ }),
+    ).not.toBeInTheDocument();
+    expect(within(dialog).getByRole('link', { name: 'Receber o link atual' })).toHaveAttribute(
+      'href',
+      '/perdi-meu-link',
+    );
   });
 
   it('envio aceito avisa e refaz o checklist', async () => {

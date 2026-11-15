@@ -113,7 +113,7 @@ Este documento mapeia detalhadamente todos os fluxos possíveis que os usuários
 - O Responsável clica em "Ativar acesso".
 - O sistema gera automaticamente um _magic link_ validando a sessão no fundo sem que o usuário precise digitar senha.
 - O Responsável passa a ter acesso logado (`/minha-area/*`), podendo visualizar pendências, histórico e baixar o preview dos documentos já enviados.
-- Futuramente, para acessar a plataforma, o Responsável entra em `/minha-area/acesso`, onde pode pedir um _magic link_ no seu e-mail ou logar por _passkey_. (Apenas Responsáveis convidados formalmente via painel, se aplicável, terão senha fixa).
+- Futuramente, para acessar a plataforma, o Responsável entra em `/minha-area/acesso`, onde pode entrar com senha ou pedir um _magic link_ no seu e-mail. (Apenas Responsáveis convidados formalmente via painel, se aplicável, terão senha fixa).
 
 ## 12. Fluxo "Perdi Meu Link" (Responsável)
 

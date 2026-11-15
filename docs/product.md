@@ -6,8 +6,7 @@
 
 web
 
-O "App" do Responsável é a **PWA** entregue na Fase 10 (Angular + service worker, push FCM,
-passkey) — não há app nativo. A Fase 9 (decidir por app nativo) segue **em aberto**; enquanto
+O "App" do Responsável é a **PWA** entregue na Fase 10 (Angular + service worker, push FCM) — não há app nativo. A Fase 9 (decidir por app nativo) segue **em aberto**; enquanto
 estiver, a linguagem visual é uma só, web, sem divergir por sistema operacional.
 
 ## Em uma frase

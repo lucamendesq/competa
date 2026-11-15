@@ -347,6 +347,7 @@ export function PendingPanelPage() {
                     companyName: line.companyName,
                     unaccepted: line.missing.length,
                     toReview: line.toReview.length,
+                    extrasToReview: line.pendingExtraCount,
                   })
                 }
                 onResend={() => void onResend(line)}
@@ -450,6 +451,13 @@ export function PendingPanelPage() {
               <strong className="tabular-nums">{impact.toReview}</strong> item(ns) já enviado(s) e
               ainda não conferido(s). Depois de encerrar, esses documentos não poderão mais ser
               aceitos e ficam fora do zip final. Confira-os antes de encerrar.
+            </p>
+          ) : null}
+          {impact.extrasToReview ? (
+            <p className="rounded-lg border border-danger-border bg-danger-surface p-3 text-danger-foreground">
+              <strong className="tabular-nums">{impact.extrasToReview}</strong> documento(s)
+              extra(s) ainda não conferido(s). Depois de encerrar, eles ficam fora do zip final até
+              você aceitá-los.
             </p>
           ) : null}
           <p>

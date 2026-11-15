@@ -49,6 +49,8 @@ export function RequestReviewPage() {
   const request: RequestDetail | undefined = detail.data;
   const closed = request?.status === 'closed';
   const reviewable = request?.items.filter((item) => item.status === 'submitted') ?? [];
+  const extrasToReview =
+    request?.extraDocuments.filter((doc) => doc.reviewStatus === 'pending').length ?? 0;
   const settled = request?.items.filter((item) => item.status !== 'submitted') ?? [];
   const pendingDecisions = decisionCount(draft);
   const reasonMissing = missingReason(draft);
@@ -110,7 +112,14 @@ export function RequestReviewPage() {
       <>
         {closed ? (
           <div className="border-border bg-sunken/60 mb-6 rounded-xl border p-4 text-sm text-muted-foreground">
-            Solicitação encerrada: não é mais possível revisar documentos.
+            Solicitação encerrada: os itens não podem mais ser revisados.
+          </div>
+        ) : null}
+
+        {closed && extrasToReview ? (
+          <div className="border-warning-border bg-warning-surface text-warning-foreground mb-6 rounded-xl border p-4 text-sm">
+            <strong className="tabular-nums">{extrasToReview}</strong> documento(s) extra(s)
+            aguardando conferência. Eles só entram no zip final depois de aceitos.
           </div>
         ) : null}
 
@@ -258,6 +267,7 @@ export function RequestReviewPage() {
                 companyName: request.companyName,
                 unaccepted: request.items.filter((item) => item.status !== 'accepted').length,
                 toReview: reviewable.length,
+                extrasToReview,
               }
             : null
         }

@@ -9,9 +9,17 @@ export type BillingSubscription = {
   currentPeriodEnd: string | null;
   pendingPlanName: string | null;
   pendingCycle: BillingCycle | null;
+  scheduledPlanName: string | null;
+  scheduledCycle: BillingCycle | null;
+  scheduledAt: string | null;
   invoiceUrl: string | null;
 };
 
-export type CheckoutResult = { checkoutUrl: string | null; simulated: boolean; applied: boolean };
+export type CheckoutResult = {
+  checkoutUrl: string | null;
+  simulated: boolean;
+  applied: boolean;
+  scheduled: boolean;
+};
 
 export type PlanUsage = PlanCapUsage & { companiesInactive: number };

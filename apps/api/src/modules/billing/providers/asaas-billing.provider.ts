@@ -1,3 +1,4 @@
+import * as Sentry from '@sentry/node';
 import { Logger } from '../../../lib/logger.js';
 import type { BillingCycle } from '@competa/contracts';
 import { BillingProvider } from './billing.provider.js';
@@ -22,6 +23,8 @@ interface AsaasPayment {
   status?: string;
   invoiceUrl?: string;
   subscription?: string | null;
+  dueDate?: string;
+  billingType?: string;
 }
 
 const OPEN_PAYMENT_STATUSES = new Set(['PENDING', 'OVERDUE']);
@@ -37,6 +40,8 @@ const sleep = (ms: number) => new Promise((resolve) => setTimeout(resolve, ms));
 /** O `fetch` sem prazo segurava a requisição do Contador indefinidamente quando o Asaas
  *  demorava; `Effect.promise` não é interrompível. */
 const GATEWAY_TIMEOUT_MS = 10_000;
+
+const FIRST_DUE_DELAY_MS = 3 * 24 * 60 * 60 * 1000;
 
 const asaasDay = (date: Date) => date.toISOString().split('T')[0];
 
@@ -119,6 +124,7 @@ export class AsaasBilling implements BillingProvider {
     cycle: BillingCycle;
     value: number;
     externalReference: string;
+    firstDueDate?: Date;
   }) {
     const yearly = input.cycle === 'yearly';
 
@@ -131,7 +137,7 @@ export class AsaasBilling implements BillingProvider {
         customer: input.customerId,
         billingType: yearly ? 'BOLETO' : 'UNDEFINED',
         value: input.value,
-        nextDueDate: asaasDay(new Date(Date.now() + 1000 * 60 * 60 * 24 * 3)),
+        nextDueDate: asaasDay(input.firstDueDate ?? new Date(Date.now() + FIRST_DUE_DELAY_MS)),
         cycle: yearly ? 'YEARLY' : 'MONTHLY',
         description: `Plano ${input.planName} (${yearly ? 'anual' : 'mensal'}) - Competa`,
         externalReference: input.externalReference,
@@ -189,6 +195,42 @@ export class AsaasBilling implements BillingProvider {
         ...(input.nextDueDate ? { nextDueDate: asaasDay(input.nextDueDate) } : {}),
       }),
     });
+
+    if (input.nextDueDate)
+      await this.alignOpenInvoice(subscriptionId, input.value, input.nextDueDate);
+  }
+
+  /* `updatePendingPayments` muda o valor da fatura já emitida mas NÃO o vencimento (testado
+   * no sandbox: `nextDueDate` só move a próxima a ser gerada). Sem isto, quem pagou a
+   * cobrança avulsa de um upgrade ainda recebia a fatura emitida antes, no vencimento do
+   * período antigo, e pagava a mesma janela duas vezes. `PUT /payments/{id}` move o
+   * vencimento sem gerar fatura nova.
+   *
+   * Roda dentro da transação do webhook: se falhar e lançar, a promoção do plano desfaz e o
+   * Asaas reenvia para sempre. Por isso só registra. */
+  private async alignOpenInvoice(subscriptionId: string, value: number, dueDate: Date) {
+    try {
+      const payments = await this.call<AsaasList<AsaasPayment>>(
+        `/subscriptions/${subscriptionId}/payments`,
+      );
+      const open = payments.data?.find((payment) => payment.status === 'PENDING');
+      if (!open || open.dueDate === asaasDay(dueDate)) return;
+
+      await this.call<unknown>(`/payments/${open.id}`, {
+        method: 'PUT',
+        body: JSON.stringify({
+          billingType: open.billingType ?? 'UNDEFINED',
+          value,
+          dueDate: asaasDay(dueDate),
+        }),
+      });
+    } catch (error) {
+      this.logger.error(
+        `Fatura em aberto de ${subscriptionId} não foi realinhada para ${asaasDay(dueDate)}`,
+        String(error),
+      );
+      Sentry.captureException(error, { extra: { subscriptionId } });
+    }
   }
 
   /* Vence hoje: é cobrança de upgrade, o Contador está na tela esperando o link. */

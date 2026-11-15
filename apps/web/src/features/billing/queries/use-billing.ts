@@ -31,7 +31,9 @@ export const useCheckout = () => {
   return useMutation({
     mutationFn: (body: CheckoutBody) => checkout(body),
     onSuccess: async (result) => {
-      if (result.applied || result.simulated || !result.checkoutUrl) await refresh();
+      if (result.applied || result.scheduled || result.simulated || !result.checkoutUrl) {
+        await refresh();
+      }
     },
   });
 };

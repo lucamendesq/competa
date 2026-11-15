@@ -9,6 +9,7 @@ export const meOptions = () =>
     queryKey: authKeys.me(),
     queryFn: ({ signal }) => getMe(signal),
     ...sessionCache,
+    refetchOnWindowFocus: 'always',
   });
 
 export const contactProfileOptions = () =>

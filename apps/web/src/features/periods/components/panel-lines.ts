@@ -94,6 +94,7 @@ export const closeImpact = (lines: PanelLine[]) => {
     unaccepted: open.reduce((sum, line) => sum + line.missing.length, 0),
     companies: open.filter((line) => line.missing.length > 0).length,
     toReview: open.reduce((sum, line) => sum + line.toReview.length, 0),
+    extrasToReview: open.reduce((sum, line) => sum + line.pendingExtraCount, 0),
   };
 };
 

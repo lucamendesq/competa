@@ -70,6 +70,7 @@ export class R2Storage extends StorageProvider {
       {
         expiresIn: PRESIGN_TTL_SECONDS,
         signableHeaders: new Set(['content-length', 'content-type', 'x-amz-checksum-sha256']),
+        unhoistableHeaders: new Set(['x-amz-checksum-sha256']),
       },
     );
   }

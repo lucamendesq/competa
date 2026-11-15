@@ -21,3 +21,16 @@ export class CheckoutInFlight extends AppError {
     super('Já existe um checkout em andamento para esta Contabilidade. Aguarde ele terminar.');
   }
 }
+
+export class TrialCannotBeCanceled extends AppError {
+  readonly _tag = 'TrialCannotBeCanceled';
+  readonly code = 'TRIAL_CANNOT_BE_CANCELED';
+  readonly status = 409;
+
+  constructor() {
+    super(
+      'O período de teste não tem cobrança para cancelar e o acesso segue até o fim dele. ' +
+        'Para não assinar, basta deixar o teste terminar.',
+    );
+  }
+}

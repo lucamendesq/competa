@@ -68,7 +68,13 @@ export function PlanPage() {
     setSimulatedCheckout(false);
     return checkout
       .mutateAsync({ planName, cycle, ...(cnpj ? { cnpj } : {}) })
-      .then(({ checkoutUrl, simulated, applied }) => {
+      .then(({ checkoutUrl, simulated, applied, scheduled }) => {
+        if (scheduled) {
+          toast.success(
+            'Troca agendada: o plano atual segue valendo até o fim do período pago e o novo começa na renovação.',
+          );
+          return;
+        }
         if (applied) {
           toast.success('Plano atualizado. A próxima fatura já sai no valor novo.');
           return;

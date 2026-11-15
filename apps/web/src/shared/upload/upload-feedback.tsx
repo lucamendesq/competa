@@ -1,4 +1,5 @@
 import { X } from 'lucide-react';
+import { Link } from 'react-router';
 import type { FileResult } from '@/shared/upload/use-upload';
 import { Modal } from '@/shared/components/modal';
 import { Button } from '@/shared/components/ui/button';
@@ -17,14 +18,24 @@ export function UploadFeedback({ results, onDismiss, onRetry }: UploadFeedbackPr
   const sentCount = (results ?? []).filter((result) => result.ok).length;
   const allRetriable = retriable.length === refused.length;
 
-  const title = allRetriable ? 'O envio não completou' : 'Alguns arquivos não foram aceitos';
-  const description = allRetriable
-    ? refused.length === 1
-      ? '1 arquivo não chegou'
-      : `${refused.length} arquivos não chegaram`
-    : refused.length === 1
-      ? '1 arquivo precisa ser enviado de outra forma'
-      : `${refused.length} arquivos precisam ser enviados de outra forma`;
+  const linkReplaced = refused.some((result) => result.linkReplaced);
+
+  const title = linkReplaced
+    ? 'O link de envio mudou'
+    : allRetriable
+      ? 'O envio não completou'
+      : 'Alguns arquivos não foram aceitos';
+  const description = linkReplaced
+    ? `O link mudou enquanto você enviava. Receba o link atual e envie ${
+        refused.length === 1 ? 'o arquivo' : 'os arquivos'
+      } de novo.`
+    : allRetriable
+      ? refused.length === 1
+        ? '1 arquivo não chegou'
+        : `${refused.length} arquivos não chegaram`
+      : refused.length === 1
+        ? '1 arquivo precisa ser enviado de outra forma'
+        : `${refused.length} arquivos precisam ser enviados de outra forma`;
 
   return (
     <Modal
@@ -35,7 +46,11 @@ export function UploadFeedback({ results, onDismiss, onRetry }: UploadFeedbackPr
       title={title}
       description={description}
       footer={
-        retriable.length ? (
+        linkReplaced ? (
+          <Button asChild>
+            <Link to="/perdi-meu-link">Receber o link atual</Link>
+          </Button>
+        ) : retriable.length ? (
           <>
             <Button onClick={() => onRetry(retriable)}>Tentar de novo ({retriable.length})</Button>
             <Button variant="ghost" onClick={onDismiss}>

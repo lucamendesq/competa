@@ -17,13 +17,16 @@ export abstract class BillingProvider {
 
   /** Cria a assinatura e devolve a URL de pagamento DELA (`invoiceUrl` da primeira cobrança
    *  gerada). Link avulso não serve: o pagamento feito nele não carrega o id da assinatura,
-   *  e o webhook não teria como ligar um ao outro. */
+   *  e o webhook não teria como ligar um ao outro.
+   *  `firstDueDate` é o vencimento da primeira cobrança; sem ele, em 3 dias. Quem volta no
+   *  meio de um período já pago passa o fim dele, para não pagar a mesma janela duas vezes. */
   abstract createSubscription(input: {
     customerId: string;
     planName: string;
     cycle: BillingCycle;
     value: number; // Valor em reais do ciclo escolhido
     externalReference: string;
+    firstDueDate?: Date;
   }): Promise<{ subscriptionId: string; paymentId: string | null; checkoutUrl: string }>;
 
   /** Troca plano e ciclo NA assinatura existente, e corrige a cobrança em aberto junto.

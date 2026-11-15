@@ -142,27 +142,27 @@ Regras de leitura:
 | TASK-036 | Decisão RN vs Flutter (spike curto) + registro da decisão | 025, 027 | —             | decisão de framework mobile registrada em [`decisions.md`](./decisions.md) |
 | TASK-037 | App do Responsável (upload autenticado + push FCM)        | 036      | —             | app com upload + notificações push                                         |
 
-## Fase 10 — Experiência do Responsável (PWA + passkey)
+## Fase 10 — Experiência do Responsável (PWA)
 
 > Aprovada em 2026-09-04 (spec de design detalhada era doc de processo; removida na
 > limpeza de 2026-09-12 — o que vale está nesta tabela e no código).
-> Login sem senha: **passkey/biometria** com **magic link** como plano B; conta criada em
-> auto-serviço a partir do Link de Upload; visibilidade **por Empresa** com histórico de quem
+> Login: **senha** e **magic link** (passkey/biometria foi planejada e **não foi entregue**: nem o web
+> nem a API a oferecem); conta criada em auto-serviço a partir do Link de Upload; visibilidade **por Empresa** com histórico de quem
 > enviou. A PWA (F10-6) foi entregue em 2026-09-07 junto com as telas.
 >
 > **Estado (2026-09-04): backend entregue e verificado por HTTP.** Rotas: `POST /upload/:token/account`
-> (cria acesso pela credencial que já circula) · `/api/auth/sign-in/magic-link` + `/api/auth/passkey/*`
-> (plugins do Better Auth) · `GET /my/profile|pending|periods|periods/:id` · `POST /my/documents`
+> (cria acesso pela credencial que já circula) · `/api/auth/sign-in/magic-link`
+> (plugin do Better Auth) · `GET /my/profile|pending|periods|periods/:id` · `POST /my/documents`
 >
 > - `/confirm` (envio logado, mesmo pipeline da Fase 4 com outro guard) · `POST|DELETE /my/push/subscribe`
 >   · `GET /companies/:id/contacts/access` e `DELETE .../:contactId/access` (revogação).
->   **Não verificado:** passkey de ponta a ponta (exige aparelho/navegador com WebAuthn) e push
->   real (exige chaves VAPID) — os dois caem em fallback de log em dev, como o R2 e a Resend.
+>   **Não verificado:** push real (exige chaves VAPID) — cai em fallback de log em dev, como o R2
+>   e a Resend.
 
 | Task     | Título                                                                                        | Depende    | Tabelas novas                           | Demonstrável depois desta                                                                  |
 | -------- | --------------------------------------------------------------------------------------------- | ---------- | --------------------------------------- | ------------------------------------------------------------------------------------------ |
 | ✅ F10-1 | Magic link + criar acesso pelo Link de Upload + `ContactScope`/`ContactGuard` + `/me/contact` | 022        | `push_subscription`, `passkey` (plugin) | Responsável cria conta pelo link e vê quem ele é                                           |
-| ✅ F10-2 | Passkey: registro e login                                                                     | ✅ F10-1   | —                                       | entra por biometria; reinstalar não pede email                                             |
+| ⛔ F10-2 | Passkey: registro e login — **não entregue** (D14: a entrada oferece senha e magic link)      | ✅ F10-1   | —                                       | —                                                                                          |
 | ✅ F10-3 | Leitura: `/my/pending`, `/my/periods`, `/my/periods/:id` com autoria                          | F10-1, 027 | —                                       | ele vê o que falta, o que mandou, o que foi rejeitado e por quê                            |
 | ✅ F10-4 | Upload logado (`ContactScope`, sem link)                                                      | ✅ F10-3   | —                                       | envia sem depender do email                                                                |
 | ✅ F10-5 | Web Push nos eventos existentes                                                               | F10-1, 025 | —                                       | push de novo pedido, rejeição e prazo                                                      |

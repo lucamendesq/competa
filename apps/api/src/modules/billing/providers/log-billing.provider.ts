@@ -23,6 +23,7 @@ export class LogBilling implements BillingProvider {
     cycle: BillingCycle;
     value: number;
     externalReference: string;
+    firstDueDate?: Date;
   }) {
     this.logger.log(
       `Mock: Criando assinatura ${input.planName} ${input.cycle} para ${input.customerId} ` +

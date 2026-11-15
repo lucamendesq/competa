@@ -570,6 +570,283 @@ layer(SubscriptionsRepo.layer)('SubscriptionsRepo', (it) => {
       }),
   );
 
+  const scheduledFirm = (
+    label: string,
+    overrides: Partial<typeof subscription.$inferInsert> = {},
+  ) =>
+    Effect.gen(function* () {
+      const firm = yield* seedFirm(label);
+      yield* seedSubscription(firm, {
+        gatewaySubscriptionId: `sub_${label}`,
+        status: 'ACTIVE',
+        planName: 'profissional',
+        cycle: 'monthly',
+        currentPeriodStart: day('2026-11-01'),
+        currentPeriodEnd: day('2026-12-01'),
+        scheduledPlanName: 'essencial',
+        scheduledCycle: 'monthly',
+        ...overrides,
+      });
+      return firm;
+    });
+
+  it.effect('scheduleDowngrade e unscheduleDowngrade: só mexem na agenda e na intenção', () =>
+    Effect.gen(function* () {
+      const repo = yield* SubscriptionsRepo;
+      const firm = yield* seedFirm('agenda');
+      yield* seedSubscription(firm, {
+        status: 'ACTIVE',
+        planName: 'escritorio',
+        cycle: 'yearly',
+        currentPeriodStart: day('2026-11-01'),
+        currentPeriodEnd: day('2027-11-01'),
+        pendingPlanName: 'escritorio',
+        pendingCycle: 'yearly',
+        pendingPaymentId: 'pay_agenda',
+      });
+
+      yield* repo.scheduleDowngrade({ firmId: firm, planName: 'profissional', cycle: 'yearly' });
+      expect(yield* subscriptionRow(firm)).toMatchObject({
+        planName: 'escritorio',
+        cycle: 'yearly',
+        status: 'ACTIVE',
+        currentPeriodEnd: day('2027-11-01'),
+        scheduledPlanName: 'profissional',
+        scheduledCycle: 'yearly',
+        pendingPlanName: null,
+        pendingPaymentId: null,
+      });
+
+      yield* repo.scheduleDowngrade({ firmId: firm, planName: 'essencial', cycle: 'monthly' });
+      expect(yield* subscriptionRow(firm)).toMatchObject({
+        scheduledPlanName: 'essencial',
+        scheduledCycle: 'monthly',
+      });
+
+      yield* repo.unscheduleDowngrade(firm);
+      expect(yield* subscriptionRow(firm)).toMatchObject({
+        planName: 'escritorio',
+        scheduledPlanName: null,
+        scheduledCycle: null,
+      });
+    }),
+  );
+
+  it.effect('cancel e applyPlanNow limpam a troca agendada', () =>
+    Effect.gen(function* () {
+      const repo = yield* SubscriptionsRepo;
+      const canceled = yield* scheduledFirm('agenda-cancel');
+      const applied = yield* scheduledFirm('agenda-agora');
+
+      yield* repo.cancel(canceled);
+      yield* repo.applyPlanNow({ firmId: applied, planName: 'essencial', cycle: 'monthly' });
+
+      expect(yield* subscriptionRow(canceled)).toMatchObject({
+        status: 'CANCELED',
+        scheduledPlanName: null,
+        scheduledCycle: null,
+      });
+      expect(yield* subscriptionRow(applied)).toMatchObject({
+        planName: 'essencial',
+        scheduledPlanName: null,
+        scheduledCycle: null,
+      });
+    }),
+  );
+
+  it.effect('applyEvent: a fatura recorrente da renovação aplica a troca agendada', () =>
+    Effect.gen(function* () {
+      const repo = yield* SubscriptionsRepo;
+      const firm = yield* scheduledFirm('renova');
+      const calls: GatewayReprice[] = [];
+
+      const renewed = yield* repo.applyEvent(
+        event('sub_renova', 'PAYMENT_CONFIRMED', { id: 'pay_renova', dueDate: day('2026-12-01') }),
+        (change) => Effect.sync(() => void calls.push(change)),
+      );
+
+      expect(renewed).toEqual({ outcome: 'applied', status: 'ACTIVE', promoted: false });
+      expect(calls).toEqual([]);
+      expect(yield* subscriptionRow(firm)).toMatchObject({
+        planName: 'essencial',
+        cycle: 'monthly',
+        status: 'ACTIVE',
+        currentPeriodStart: day('2026-12-01'),
+        currentPeriodEnd: day('2027-01-01'),
+        scheduledPlanName: null,
+        scheduledCycle: null,
+      });
+    }),
+  );
+
+  it.effect('applyEvent: a renovação no ciclo agendado abre o período desse ciclo', () =>
+    Effect.gen(function* () {
+      const repo = yield* SubscriptionsRepo;
+      const firm = yield* scheduledFirm('renova-ciclo', {
+        cycle: 'yearly',
+        currentPeriodStart: day('2026-01-10'),
+        currentPeriodEnd: day('2027-01-10'),
+        scheduledPlanName: 'profissional',
+        scheduledCycle: 'monthly',
+      });
+
+      yield* repo.applyEvent(
+        event('sub_renova-ciclo', 'PAYMENT_RECEIVED', { dueDate: day('2027-01-10') }),
+      );
+
+      expect(yield* subscriptionRow(firm)).toMatchObject({
+        planName: 'profissional',
+        cycle: 'monthly',
+        currentPeriodStart: day('2027-01-10'),
+        currentPeriodEnd: day('2027-02-10'),
+        scheduledPlanName: null,
+      });
+    }),
+  );
+
+  it.effect('applyEvent: o RECEIVED tardio da fatura que abriu o período não aplica nada', () =>
+    Effect.gen(function* () {
+      const repo = yield* SubscriptionsRepo;
+      const firm = yield* scheduledFirm('tardio');
+
+      const late = yield* repo.applyEvent(
+        event('sub_tardio', 'PAYMENT_RECEIVED', { id: 'pay_atual', dueDate: day('2026-11-01') }),
+      );
+
+      expect(late).toEqual({ outcome: 'applied', status: 'ACTIVE', promoted: false });
+      expect(yield* subscriptionRow(firm)).toMatchObject({
+        planName: 'profissional',
+        currentPeriodStart: day('2026-11-01'),
+        currentPeriodEnd: day('2026-12-01'),
+        scheduledPlanName: 'essencial',
+        scheduledCycle: 'monthly',
+      });
+
+      yield* repo.applyEvent(
+        event('sub_tardio', 'PAYMENT_RECEIVED', { id: 'pay_velha', dueDate: day('2026-10-01') }),
+      );
+      expect(yield* subscriptionRow(firm)).toMatchObject({
+        planName: 'profissional',
+        scheduledPlanName: 'essencial',
+      });
+    }),
+  );
+
+  it.effect(
+    'applyEvent: reenvio do mesmo evento e CONFIRMED seguido de RECEIVED aplicam uma vez',
+    () =>
+      Effect.gen(function* () {
+        const repo = yield* SubscriptionsRepo;
+        const firm = yield* scheduledFirm('reenvio');
+        const confirmed = event('sub_reenvio', 'PAYMENT_CONFIRMED', { dueDate: day('2026-12-01') });
+
+        expect(yield* repo.applyEvent(confirmed)).toMatchObject({ outcome: 'applied' });
+        expect(yield* repo.applyEvent(confirmed)).toEqual({ outcome: 'duplicate' });
+        const afterFirst = yield* subscriptionRow(firm);
+        expect(afterFirst).toMatchObject({ planName: 'essencial', scheduledPlanName: null });
+
+        yield* repo.applyEvent(
+          event('sub_reenvio', 'PAYMENT_RECEIVED', { dueDate: day('2026-12-01') }),
+        );
+        expect(yield* subscriptionRow(firm)).toMatchObject({
+          planName: 'essencial',
+          currentPeriodStart: afterFirst.currentPeriodStart,
+          currentPeriodEnd: afterFirst.currentPeriodEnd,
+        });
+      }),
+  );
+
+  it.effect('applyEvent: cobrança avulsa que avança o período não aplica a troca agendada', () =>
+    Effect.gen(function* () {
+      const repo = yield* SubscriptionsRepo;
+      const firm = yield* scheduledFirm('avulsa-agenda');
+
+      yield* repo.applyEvent(
+        event(null, 'PAYMENT_CONFIRMED', { id: 'pay_x', dueDate: day('2026-12-01') }, firm),
+      );
+
+      expect(yield* subscriptionRow(firm)).toMatchObject({
+        planName: 'profissional',
+        scheduledPlanName: 'essencial',
+      });
+    }),
+  );
+
+  it.effect(
+    'applyEvent: firma OVERDUE que paga a fatura da renovação volta ACTIVE já no plano agendado',
+    () =>
+      Effect.gen(function* () {
+        const repo = yield* SubscriptionsRepo;
+        const firm = yield* scheduledFirm('overdue-renova', { status: 'OVERDUE' });
+
+        yield* repo.applyEvent(
+          event('sub_overdue-renova', 'PAYMENT_RECEIVED', { dueDate: day('2026-12-01') }),
+        );
+
+        expect(yield* subscriptionRow(firm)).toMatchObject({
+          status: 'ACTIVE',
+          planName: 'essencial',
+          currentPeriodEnd: day('2027-01-01'),
+          scheduledPlanName: null,
+        });
+      }),
+  );
+
+  it.effect('applyEvent: OVERDUE que reativa sem avançar o período não aplica (e é ignorado)', () =>
+    Effect.gen(function* () {
+      const repo = yield* SubscriptionsRepo;
+      const firm = yield* scheduledFirm('overdue-velha', { status: 'OVERDUE' });
+
+      const late = yield* repo.applyEvent(
+        event('sub_overdue-velha', 'PAYMENT_RECEIVED', { dueDate: day('2026-10-01') }),
+      );
+
+      expect(late).toEqual({ outcome: 'ignored', reason: 'stale' });
+      expect(yield* subscriptionRow(firm)).toMatchObject({
+        status: 'OVERDUE',
+        planName: 'profissional',
+        scheduledPlanName: 'essencial',
+      });
+    }),
+  );
+
+  it.effect('applyEvent: upgrade pago promove o plano e descarta a troca agendada', () =>
+    Effect.gen(function* () {
+      const repo = yield* SubscriptionsRepo;
+      const firm = yield* scheduledFirm('agenda-upgrade', {
+        pendingPlanName: 'escritorio',
+        pendingCycle: 'monthly',
+        pendingPaymentId: 'pay_agenda_up',
+      });
+
+      yield* repo.applyEvent(
+        event(null, 'PAYMENT_CONFIRMED', { id: 'pay_agenda_up', dueDate: day('2026-11-20') }, firm),
+      );
+
+      expect(yield* subscriptionRow(firm)).toMatchObject({
+        planName: 'escritorio',
+        scheduledPlanName: null,
+        scheduledCycle: null,
+      });
+    }),
+  );
+
+  it.effect('applyEvent: assinatura encerrada no gateway descarta a troca agendada', () =>
+    Effect.gen(function* () {
+      const repo = yield* SubscriptionsRepo;
+      const firm = yield* scheduledFirm('agenda-encerrada');
+
+      yield* repo.applyEvent(event('sub_agenda-encerrada', 'SUBSCRIPTION_DELETED'));
+
+      expect(yield* subscriptionRow(firm)).toMatchObject({
+        status: 'CANCELED',
+        planName: 'profissional',
+        scheduledPlanName: null,
+        scheduledCycle: null,
+      });
+    }),
+  );
+
   const upgradedFirm = (label: string) =>
     Effect.gen(function* () {
       const repo = yield* SubscriptionsRepo;
